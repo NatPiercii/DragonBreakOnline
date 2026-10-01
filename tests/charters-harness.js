@@ -241,10 +241,17 @@ ch(A.OFF, 'withdraw');
 
 // ---- dissolving ----
 check('dissolving needs a chartered faction and a reason', /Only a faction founded by charter/.test(ch(A.GM, 'dissolve fighters-guild gone')) && /Give the reason/.test(ch(A.GM, 'dissolve pf-jerall-road-traders')));
+globalThis.__dboTreasury.deposit('pf-jerall-road-traders', 750, 'harness: paid in before the dissolving');
 r = ch(A.GM, 'dissolve pf-jerall-road-traders Inactive since the alpha opened.');
 check('a GM dissolves a chartered faction: gone from the factions, player-factions.json and its roster', /Jerall Road Traders is dissolved; its treasury stays in bank.json/.test(r) && !globalThis.__dboGuildExists('pf-jerall-road-traders') && !g(A.FOUNDER, 'pf-jerall-road-traders') && !pfile().some((f) => f.id === 'pf-jerall-road-traders'), r);
 check('...its treasury key stays for Nate\'s decision, guild-defs.json is still untouched, and it is audited', 'pf-jerall-road-traders' in bank().factions && defsHash() === defsBefore && out.audits.some((t) => /CHARTER faction pf-jerall-road-traders \(Jerall Road Traders\) dissolved by P1a: Inactive since the alpha opened\.; its treasury is left in bank\.json/.test(t)));
 check('...a canon faction can never be dissolved this way', globalThis.__dboGuildDissolvePlayer('fighters-guild') === false && globalThis.__dboGuildExists('fighters-guild'));
+// Review S1 (Worker F): the same name chartered again gets a new id and an empty treasury; the old one's gold stays put
+ch(A.U2, 'found Jerall Road Traders'); ch(A.U2, 'pitch Traders again.'); ch(A.U2, 'invite Siv Mork officer'); ch(A.U3, 'confirm 12'); ch(A.U2, 'invite Tove Ling sergeant'); ch(A.U4, 'confirm 12');
+check('...the dissolved name may be chartered again', /submitted/.test(ch(A.U2, 'submit')) && store().charters['12'] && store().charters['12'].name === 'Jerall Road Traders', Object.values(store().charters).map((c) => [c.n, c.name, c.status]));
+r = ch(A.GM, 'approve 12');
+check('...as a new faction id, never the dissolved one\'s', /is faction pf-jerall-road-traders-2,/.test(r) && globalThis.__dboGuildExists('pf-jerall-road-traders-2'), r);
+check('...with an empty treasury, while the dissolved one\'s 750 gold stays under its own key', bank().factions['pf-jerall-road-traders-2'] === 0 && globalThis.__dboTreasury.balance('pf-jerall-road-traders-2') === 0 && bank().factions['pf-jerall-road-traders'] === 750, bank().factions);
 check('every step left a CHARTER audit line', out.audits.filter((t) => /^CHARTER /.test(t)).length >= 40, out.audits.filter((t) => /^CHARTER /.test(t)).length);
 
 console.log(failures ? `${failures} of ${checks} FAILED` : `all ${checks} checks passed`);

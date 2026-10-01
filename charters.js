@@ -194,7 +194,10 @@ module.exports = (api) => {
   const staff = (a, what, text) => { try { staffNote(a, what, text); } catch (e) { log('charters: staff note failed', e.message); } };
   const slug = (name) => {
     const base = 'pf-' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
-    const taken = (id) => (typeof globalThis.__dboGuildExists === 'function' && globalThis.__dboGuildExists(id)) || playerFactions().some((f) => f.id === id);
+    // An id is never given twice: a dissolved faction's treasury stays in bank.json under it (review S1, Worker F: a second
+    // charter of the same name took the first one's id and its 750 gold)
+    const taken = (id) => (typeof globalThis.__dboGuildExists === 'function' && globalThis.__dboGuildExists(id)) || playerFactions().some((f) => f.id === id)
+      || Object.values(store().charters).some((c) => c.factionId === id);
     let id = base, i = 2; while (taken(id)) id = `${base}-${i++}`;
     return id;
   };
