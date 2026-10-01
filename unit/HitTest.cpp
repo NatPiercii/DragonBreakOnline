@@ -718,9 +718,16 @@ TEST_CASE("A staff's enchantment hits only from a staff the aggressor holds or "
   constexpr uint32_t kSparksEnchantment = 0x0004dedc;
   constexpr uint32_t kStaffOfIceStorm = 0x00029b83;
   constexpr uint32_t kIceStormEnchantment = 0x00029b5a;
-  // EncWarlockStorm07BossBretonF: LItemStaffChainLightning50 in its inventory
+  // Leveled warlocks, whose templates are lists of every warlock (review S1): EncWarlockStorm07BossBretonF holds
+  // LItemStaffChainLightning50 in its own inventory, EncWarlockFire07BossDarkElfF LItemStaffFireball50, and
+  // LvlWarlockNecromancerAggro2048 its staves only through its template
   constexpr uint32_t kStormWarlockBoss = 0x001091c5;
   constexpr uint32_t kChainLightningEnchantment = 0x00029b5c;
+  constexpr uint32_t kFireWarlockBoss = 0x001091bf;
+  constexpr uint32_t kFireballEnchantment = 0x00029b59;
+  constexpr uint32_t kLeveledNecromancer = 0x0010e05d;
+  constexpr uint32_t kFireWarlock = 0xff000004;
+  constexpr uint32_t kNecromancer = 0xff000005;
 
   DoConnect(p, 0);
   p.CreateActor(kCaster, { 0, 0, 0 }, 0, 0x3c, 1);
@@ -775,20 +782,31 @@ TEST_CASE("A staff's enchantment hits only from a staff the aggressor holds or "
   std::this_thread::sleep_for(ActionListener::kStaffVolleyInterval + 50ms);
   REQUIRE(hit(0x14, kFirst, kIceStormEnchantment) > 0.f);
 
-  // A hosted NPC with no staff in its server equipment: its base's inventory (a leveled staff) is the gate
-  p.worldState.AddForm(
-    std::unique_ptr<MpActor>(new MpActor(
-      { { 0, -100, 0 },
-        { 0, 0, 0 },
-        FormDesc::FromFormId(0x3c, p.worldState.espmFiles) },
-      FormCallbacks::DoNothing(), kStormWarlockBoss)),
-    kWarlock);
-  p.worldState.GetFormAt<MpActor>(kWarlock).SetEquipment(Equipment());
-  p.worldState.hosters[kWarlock] = kCaster;
+  // Hosted NPCs with no staff in their server equipment: their base's inventory tree is the gate
+  auto addNpc = [&](uint32_t id, uint32_t baseId) {
+    p.worldState.AddForm(
+      std::unique_ptr<MpActor>(new MpActor(
+        { { 0, -100, 0 },
+          { 0, 0, 0 },
+          FormDesc::FromFormId(0x3c, p.worldState.espmFiles) },
+        FormCallbacks::DoNothing(), baseId)),
+      id);
+    p.worldState.GetFormAt<MpActor>(id).SetEquipment(Equipment());
+    p.worldState.hosters[id] = kCaster;
+  };
+  addNpc(kWarlock, kStormWarlockBoss);
+  addNpc(kFireWarlock, kFireWarlockBoss);
+  addNpc(kNecromancer, kLeveledNecromancer);
   REQUIRE(hit(kWarlock, 0x14, kChainLightningEnchantment) > 0.f);
   REQUIRE(hit(kWarlock, 0x14, kSparksEnchantment) == Catch::Approx(0.f));
+  REQUIRE(hit(kFireWarlock, 0x14, kFireballEnchantment) > 0.f);
+  REQUIRE(hit(kNecromancer, 0x14, kChainLightningEnchantment) > 0.f);
+  // Asked again, the cached answer is the same
+  REQUIRE(hit(kWarlock, 0x14, kSparksEnchantment) == Catch::Approx(0.f));
 
-  p.worldState.hosters.erase(kWarlock);
+  for (uint32_t id : { kWarlock, kFireWarlock, kNecromancer }) {
+    p.worldState.hosters.erase(id);
+  }
   p.DestroyActor(kCaster);
   p.DestroyActor(kFirst);
   p.DestroyActor(kSecond);

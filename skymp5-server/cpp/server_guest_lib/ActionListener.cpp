@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <deque>
 
 namespace FormIdCasts {
 uint32_t LongToNormal(uint64_t longFormId)
@@ -472,25 +473,33 @@ uint32_t StaffEnchantmentOf(WorldState* worldState, uint32_t weaponId)
 }
 
 // A hosted NPC's staff comes from its base: its inventory and outfit, its template's when it uses that inventory, leveled items
+// Breadth-first so its own inventory comes before a template's leveled actors (review S1); cached per base and enchantment
 bool IsStaffInTemplateTree(const MpActor& actor, uint32_t enchantmentId)
 {
   WorldState* worldState = actor.GetParent();
+  static std::unordered_map<WorldState*, std::unordered_map<uint64_t, bool>>
+    answersByWorld;
+  auto& answers = answersByWorld[worldState];
+  const uint64_t key =
+    (static_cast<uint64_t>(actor.GetBaseId()) << 32) | enchantmentId;
+  if (const auto it = answers.find(key); it != answers.end()) {
+    return it->second;
+  }
   auto& browser = worldState->GetEspm().GetBrowser();
   auto& cache = worldState->GetEspmCache();
-  std::vector<uint32_t> pending = { actor.GetBaseId() };
+  std::deque<uint32_t> pending = { actor.GetBaseId() };
   std::unordered_set<uint32_t> visited;
-  constexpr size_t kMaxVisited = 512;
-  while (!pending.empty() && visited.size() < kMaxVisited) {
-    const uint32_t formId = pending.back();
-    pending.pop_back();
+  constexpr size_t kMaxVisited = 4096;
+  bool found = false;
+  while (!found && !pending.empty() && visited.size() < kMaxVisited) {
+    const uint32_t formId = pending.front();
+    pending.pop_front();
     if (!visited.insert(formId).second) {
       continue;
     }
     const auto lookup = browser.LookupById(formId);
     if (espm::Convert<espm::WEAP>(lookup.rec)) {
-      if (StaffEnchantmentOf(worldState, formId) == enchantmentId) {
-        return true;
-      }
+      found = StaffEnchantmentOf(worldState, formId) == enchantmentId;
       continue;
     }
     if (const auto npc = espm::Convert<espm::NPC_>(lookup.rec)) {
@@ -525,7 +534,11 @@ bool IsStaffInTemplateTree(const MpActor& actor, uint32_t enchantmentId)
       }
     }
   }
-  return false;
+  if (answers.size() > 65536) {
+    answers.clear();
+  }
+  answers.emplace(key, found);
+  return found;
 }
 
 // A staff hit names the staff's enchantment: a staff in either hand, or for a hosted NPC one its base carries
