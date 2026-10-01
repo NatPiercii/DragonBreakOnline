@@ -38,7 +38,7 @@ const lift = (file, name = 'ARTIFACT') => {
   const art = lift('dungeons.js');
   ok(!!art && !art.test('DragonBone') && !art.test('DragonScales'), "dungeons.js: a corpse's trim (ARTIFACT) keeps a dragon's bones and scales");
   ok((src.match(/DRAGON_LOOT\.test\(/g) || []).length === 3 && /ARTIFACT\.test\(it\.name\) \|\| DRAGON_LOOT\.test\(it\.name\)/.test(src)
-    && /!DRAGON_LOOT\.test\(String\(it\.name \|\| ''\)\) && !BANNED_LOOT/.test(src) && /!ARTIFACT\.test\(String\(it\.name \|\| ''\)\) && !DRAGON_LOOT\.test\(String\(it\.name \|\| ''\)\)\);\n  const AYLEID_NAMES/.test(src),
+    && /!DRAGON_LOOT\.test\(String\(it\.name \|\| ''\)\) && !BANNED_LOOT/.test(src) && /!ARTIFACT\.test\(String\(it\.name \|\| ''\)\) && !DRAGON_LOOT\.test\(String\(it\.name \|\| ''\)\)[^\n]*\);\n  const AYLEID_NAMES/.test(src),
     'dungeons.js: lootOk, every pool and the Ayleid table ask DRAGON_LOOT');
 }
 for (const [file, name] of [['dungeons.js', 'DRAGON_LOOT'], ['wildlife.js', 'ARTIFACT']]) {

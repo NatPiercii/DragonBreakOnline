@@ -57,6 +57,22 @@
     ]
   },
   {
+    "title": "Dungeon Loot by Difficulty",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Weapons and armour from chests and enemies now match the difficulty you claim a dungeon on: iron and leather at Novice, steel and elven at Adept, steel plate and some glass at Expert, the most glass at Master.",
+          "Boss chests and masters give better pieces than the rest of the dungeon, and a harder lock guards better gear.",
+          "Ebony, Daedric, Dragon, Stalhrim and Orcish gear never drops."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Character Names",
     "date": "2026-10-01",
     "version": "Server update",

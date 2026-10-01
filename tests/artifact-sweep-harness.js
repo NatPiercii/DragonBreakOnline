@@ -57,7 +57,8 @@ const ARTIFACT = liftConst('ARTIFACT');
 let DRAGON_LOOT = /$^/; try { DRAGON_LOOT = liftConst('DRAGON_LOOT') || /$^/; } catch (e) { /* older dungeons.js */ }
 const li = dj.indexOf('const pool = (name, maxValue, ok) =>');
 const LOOT = readJson('loot.json', { pools: {} }).pools || {};
-const pool = new Function('LOOT', 'BANNED_LOOT', 'ARTIFACT', 'DRAGON_LOOT', `${dj.slice(li, dj.indexOf('\n', li))}\nreturn pool;`)(LOOT, /Ebony|Daedric/i, ARTIFACT, DRAGON_LOOT);
+// The material tiers are tested in loot-tiers-harness.js; here they pass everything
+const pool = new Function('LOOT', 'BANNED_LOOT', 'ARTIFACT', 'DRAGON_LOOT', 'GEAR_POOLS', 'TIERS', `${dj.slice(li, dj.indexOf('\n', li))}\nreturn pool;`)(LOOT, /Ebony|Daedric/i, ARTIFACT, DRAGON_LOOT, new Set(), { lootable: () => true });
 const inPools = ['DBSilverRing', 'DLC1nVampireBloodMagicRingBeast', 'DLC2ArmorAcolyteMaskShock'];
 const had = inPools.filter((n) => Object.values(LOOT).some((l) => (l || []).some((it) => it.name === n)));
 const still = inPools.filter((n) => Object.keys(LOOT).some((k) => pool(k, 0, undefined).some((it) => it.name === n)));

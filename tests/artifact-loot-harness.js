@@ -43,7 +43,8 @@ ok(/ARTIFACT\.test\(String\(rec\.editorId \|\| ''\)\)\)\) continue;/.test(dj), "
   const BANNED_LOOT = /Ebony|Daedric/i;
   const ARTIFACT = re || /$^/;
   const DRAGON_LOOT = /^(?:DragonBone|DragonScales)$/i;   // dragon-materials.json (Nate, 2026-09-30)
-  const pool = new Function('LOOT', 'BANNED_LOOT', 'ARTIFACT', 'DRAGON_LOOT', `${line('const pool = (name, maxValue, ok) =>')}\nreturn pool;`)(LOOT, BANNED_LOOT, ARTIFACT, DRAGON_LOOT);
+  // The material tiers (loottiers.js) are tested in loot-tiers-harness.js; here they pass everything, so only the name filters act
+  const pool = new Function('LOOT', 'BANNED_LOOT', 'ARTIFACT', 'DRAGON_LOOT', 'GEAR_POOLS', 'TIERS', `${line('const pool = (name, maxValue, ok) =>')}\nreturn pool;`)(LOOT, BANNED_LOOT, ARTIFACT, DRAGON_LOOT, new Set(), { lootable: () => true });
   const names = pool('weapons', 0, undefined).map((it) => it.name);
   ok(names.join() === 'IronSword', 'a draw with no lootOk (ALL_OK) hands out no Ebony, Daedric, artifact or dragon bone', names);
 }

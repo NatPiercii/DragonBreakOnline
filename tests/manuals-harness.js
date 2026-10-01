@@ -203,17 +203,21 @@ check('the reading never copies a manual', globalThis.__dboManualsIsManual(B('eb
 // ---- boss chests ----
 const draws = (diff, province, n) => { const t = {}; for (let i = 0; i < n; i++) { const r = globalThis.__dboManualsBossLoot(diff, province); if (r) t[r.name] = (t[r.name] || 0) + 1; } return t; };
 const real = Math.random;
+// No manual of a never-loot material (Nate, 1 Oct): manuals.js reads dungeons.js's published pattern; without it none drops
+delete globalThis.__dboBannedLoot;
+check('without dungeons.js\'s ban pattern no manual drops (fails closed)', !Object.keys(draws('nightmare', 'skyrim', 5000)).length);
+{ const m = /const BANNED_LOOT = [^\n]*: \/([^\n]*)\/i;/.exec(fs.readFileSync(path.join(__dirname, '..', 'dungeons.js'), 'utf8')); globalThis.__dboBannedLoot = new RegExp(m[1], 'i'); }
 let d = draws('story', 'cyrodiil', 20000);
 check('story leases: only T2 (Steel), about 3%', Object.keys(d).join() === "Thorbald's Methods: Steel" && d["Thorbald's Methods: Steel"] > 400 && d["Thorbald's Methods: Steel"] < 800, d);
 d = draws('normal', 'cyrodiil', 20000);
 check('normal in Cyrodiil: the Orcish manual (T3) is Skyrim\'s, so only Steel; no T4', Object.keys(d).join() === "Thorbald's Methods: Steel", d);
 d = draws('normal', 'skyrim', 20000);
-check('normal in Skyrim: T2 and T3 (Orcish), no T4', !d["Thorbald's Methods: Ebony"] && d["Thorbald's Methods: Orcish"] > 0 && d["Thorbald's Methods: Steel"] > 0, d);
+check('normal in Skyrim: T2, never the Orcish manual (Orcish is never loot), no T4', !d["Thorbald's Methods: Ebony"] && !d["Thorbald's Methods: Orcish"] && d["Thorbald's Methods: Steel"] > 0, d);
 d = draws('nightmare', 'cyrodiil', 40000);
-check('nightmare in Cyrodiil: Ebony (T4) drops, rarely beside the others', d["Thorbald's Methods: Ebony"] > 0 && d["Thorbald's Methods: Ebony"] < d["Thorbald's Methods: Steel"] / 3, d);
+check('nightmare in Cyrodiil: never the Ebony manual (Nate, 1 Oct), the others still drop', !d["Thorbald's Methods: Ebony"] && d["Thorbald's Methods: Steel"] > 0, d);
 check('...never Stalhrim outside Solstheim, never the T5 Daedric manual, never one still waiting for the plugin', !d['The Ice That Will Not Melt'] && !d['What Thorbald Would Not Write'] && !d["Thorbald's Methods: Glass"], d);
 d = draws('nightmare', 'solstheim', 60000);
-check('on Solstheim Stalhrim can drop', d['The Ice That Will Not Melt'] > 0, d);
+check('not on Solstheim either: Stalhrim is never loot (Ebony\'s tier)', !d['The Ice That Will Not Melt'] && Object.keys(d).length > 0, d);
 Math.random = real;
 
 // ---- the Synod's manuals and a Scholar's copies at the Scholars' Ledger ----

@@ -25,9 +25,10 @@ const AYLEID = new Map(JSON.parse(fs.readFileSync(path.join(ROOT, 'ayleid-loot.j
 for (const [id, it] of AYLEID) VALUE.set(id, Number(it.value) || 0);
 const GOLD = idOf('f:Skyrim.esm');
 // A humanoid carries a plain weapon from the pools, so the body's gear roll (2026-09-30) is measured through the real trim
-const WEAPONS = (loot.pools.weapons || []).filter((it) => !/Ebony|Daedric/i.test(it.name) && Number(it.value) > 0).map((it) => ({ id: idOf(it.id), name: it.name, value: Number(it.value) }));
-// Spawned foes are armed within their difficulty's gear value (dungeons.js DIFFICULTIES gear)
-const GEAR_CAP = { story: 150, normal: 400, hard: 900, nightmare: 3000 };
+const WEAPONS = (loot.pools.weapons || []).filter((it) => !/Ebony|Daedric/i.test(it.name) && Number(it.value) > 0).map((it) => ({ id: idOf(it.id), desc: it.id, name: it.name, value: Number(it.value) }));
+// Spawned foes are armed within their difficulty's material tiers (dungeons.js weaponFor, loottiers.js ENEMY)
+const TIERS = require(path.join(ROOT, 'loottiers.js'))({ materials: JSON.parse(fs.readFileSync(path.join(ROOT, 'loot-materials.json'), 'utf8')), factionGear: JSON.parse(fs.readFileSync(path.join(ROOT, 'faction-gear.json'), 'utf8')) });
+const armedAt = (diffId) => WEAPONS.filter((w) => { const c = TIERS.classOf(w.desc); return c.kind === 'gear' && TIERS.enemyTiers(diffId, false).includes(c.tier); });
 const WEAPON_REC = new Map(WEAPONS.map((w) => [w.id, { record: { type: 'WEAP', editorId: w.name, flags: 0, fields: [] } }]));
 const LIGHTS = new Set((loot.pools.lights || []).map((it) => idOf(it.id)));
 const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|orc|soldier|guard|thalmor|vampire|hunter|warlock|necromancer|conjurer|mage|cultist|silverhand|reaver|smuggler|pirate|warrior|dremora|boss/i;
@@ -63,7 +64,7 @@ const measure = (d, diffId, claims = CLAIMS) => {
   delete require.cache[path.join(ROOT, 'dungeons.js')];
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8'));
   require(path.join(ROOT, 'dungeons.js'))({
-    mp: { get: (id, p) => (p === 'profileId' ? (id === A ? 1 : -1) : props.get(`${id}|${p}`)), set: (id, p, v) => props.set(`${id}|${p}`, v), getIdFromDesc: idOf,
+    mp: { get: (id, p) => (p === 'profileId' ? (id === A ? 1 : -1) : props.get(`${id}|${p}`)), set: (id, p, v) => props.set(`${id}|${p}`, v), getIdFromDesc: idOf, getDescFromId: (id) => descOf.get(id),
       lookupEspmRecordById: (id) => (id === idOf('6:DragonBreak.esp') ? { record: { editorId: 'ExpeditionBoard' } } : WEAPON_REC.get(id) || { record: null }) },
     log: () => {}, personal: () => {}, system: () => {}, audit: () => {}, registerChatCommand: (n, fn) => cmds.set(n, fn), onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); },
     openWidget: () => true, closeWidget: () => true, sendPacket: () => true, findByName: () => 0, display: String, who: String, profileOf: (a) => (a === A ? 1 : -1), nameOf: () => 'P',
@@ -106,7 +107,7 @@ const measure = (d, diffId, claims = CLAIMS) => {
       if (!master && !humanoid) continue;
       for (let k = 0; k < (master ? 1 : z.NPC[0].count); k++) {
         const id = body++; props.set(`${id}|private.npcSpawner`, z.Name); props.set(`${id}|isDead`, true);
-        const armed = WEAPONS.filter((w) => w.value <= GEAR_CAP[diffId]);
+        const armed = armedAt(diffId);
         const weapon = armed[id % armed.length];
         props.set(`${id}|inventory`, { entries: [{ baseId: weapon.id, count: 1 }] });
         globalThis.__dboTrimCorpse(id);
@@ -146,7 +147,13 @@ const JSON_OUT = process.argv.indexOf('--json');
 if (JSON_OUT > 0) fs.writeFileSync(process.argv[JSON_OUT + 1], JSON.stringify(Object.fromEntries(rows.map((r) => [`${r.d.raw.id}|${r.diff}`, r.m])), null, 1) + '\n');
 if (TABLE_ONLY) process.exit(0);
 
-// ---- the budget (2026-09-28): half the old value per clear, Novice lowest, ordinary dungeons unchanged ------------------
+// ---- the budget (2026-09-28): fewer things per clear, Novice lowest, ordinary dungeons unchanged ----------------------
+// Since the material tiers (loottiers.js, Nate 1 Oct; option A chosen that night): the budget is held in ITEMS per clear,
+// about a quarter of the old untrimmed count as before the tiers (0.20-0.34). The VALUE per clear is no longer held to
+// half: a boss chest and a master still give a piece every time (Nate, 2026-09-28) and that piece now comes from the
+// boss row (glass at Expert and Master), so a clear is worth about 0.82-0.92 of the old untrimmed value (it was
+// 0.47-0.59); the expeditions' ordinary chests hold gear half as often (expeditionLoot.gearScale 0.5). The value is only
+// kept under the old untrimmed value as a whole.
 const BEFORE = JSON.parse(fs.readFileSync(path.join(__dirname, 'expedition-loot-budget-before.json'), 'utf8'));
 for (const { d, diff, m } of rows) {
   const b = BEFORE[`${d.raw.id}|${diff}`];
@@ -156,12 +163,15 @@ for (const { d, diff, m } of rows) {
   // keeps its coin and piece of gear certain). So the set is held to half below, and each dungeon only to a wide guard.
   if (!d.expedition) continue;
   // One ruin at one difficulty swings a few points with its luck; the set of ruins below holds the band
-  check(`${d.name} ${diff}: value per clear ${f0(m.value)} of ${f0(b.value)} (${(m.value / b.value).toFixed(2)})`, m.value < b.value * 0.7 && m.value > b.value * 0.25);
+  check(`${d.name} ${diff}: ${f1(m.items)} items per clear of ${f1(b.items)} (${(m.items / b.items).toFixed(2)}); value ${(m.value / b.value).toFixed(2)} of the old`, m.items < b.items * 0.4 && m.items > b.items * 0.15);
 }
 for (const diff of DIFFS) {
   const now = EXP.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
   const was = EXP.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
-  check(`all ${EXP.length} expeditions at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}), about half`, now > was * 0.3 && now < was * 0.62);
+  const nowItems = EXP.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.items, 0);
+  const wasItems = EXP.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).items || 0), 0);
+  check(`all ${EXP.length} expeditions at ${diff}: ${f1(nowItems)} items of ${f1(wasItems)} (${(nowItems / wasItems).toFixed(2)}, about a quarter); value ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}, under the old)`,
+    nowItems > wasItems * 0.18 && nowItems < wasItems * 0.36 && now < was * 0.95);
 }
 for (const d of ORD) {
   const now = DIFFS.reduce((n, diff) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);

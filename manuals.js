@@ -222,7 +222,11 @@ module.exports = (api) => {
     const chance = Number((C.loot.chance || {})[difficulty]) || 0;
     if (!(Math.random() < chance)) return null;
     const maxTier = Number((C.loot.maxTier || {})[difficulty]) || 0;
-    const pool = READY.filter((m) => m.tier <= maxTier && m.tier < Number(C.loot.staffTier) && inProvince(m, province));
+    // No manual of a material that is never loot (dungeons.js BANNED_LOOT: Ebony, Daedric, Dragon, Stalhrim, Orcish;
+    // Nate, 1 Oct). Without that pattern no manual drops, rather than any
+    const banned = globalThis.__dboBannedLoot instanceof RegExp ? globalThis.__dboBannedLoot : null;
+    if (!banned) return null;
+    const pool = READY.filter((m) => m.tier <= maxTier && m.tier < Number(C.loot.staffTier) && inProvince(m, province) && !banned.test(String(m.material || m.name || '')));
     if (!pool.length) return null;
     const weight = (m) => (m.tier >= Number(C.loot.rareTier) ? Number(C.loot.rareWeight) || 0 : 1);
     const total = pool.reduce((n, m) => n + weight(m), 0);

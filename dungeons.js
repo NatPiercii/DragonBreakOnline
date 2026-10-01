@@ -111,6 +111,15 @@ module.exports = (api) => {
   const EXCLUDED = new Set(['CYRLakesideRetreatLocation', 'CYRFortCaractacusLocation'].concat(Array.isArray(C.exclude) ? C.exclude : []));
   DATA.dungeons = (DATA.dungeons || []).filter((d) => !EXCLUDED.has(d.id));
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
+  // Weapons and armour by material tier (loottiers.js, loot-materials.json; Nate, 1 Oct 2026). Without the map no
+  // weapon or armour is loot at all: an unknown item is never handed out
+  // (beside this file: the server folder on the live server, the repo in a harness)
+  const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
+  delete require.cache[LOOT_TIERS_JS];
+  const besideJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`${file} unreadable: no weapon or armour is loot`, e.message); return fallback; } };
+  const TIERS = require(LOOT_TIERS_JS)({ materials: besideJson('loot-materials.json', { items: {} }), factionGear: besideJson('faction-gear.json', { items: {} }), cfg: C.lootTiers });
+  const GEAR_POOLS = new Set(['weapons', 'armor', 'ench_weapons', 'ench_armor']);
+  const descOfId = (id) => { try { return String(mp.getDescFromId(id >>> 0) || ''); } catch (e) { return ''; } };
   const byId = new Map();            // dungeon id -> dungeon
   const outsideDoors = new Map();    // outside door refId -> { d, entrance }
   const insideDoors = new Map();     // inside door refId -> { d, entrance }
@@ -398,6 +407,8 @@ module.exports = (api) => {
       if (AYLEID_GEAR.test(it.name)) return ayleid;
       if (GOBLIN_GEAR.test(it.name)) return goblin;
       if (nordic && NORDIC_GEAR.test(it.name)) return true;
+      // Steel plate, Scaled and Elven gilded drop in every province (Nate, 1 Oct: Cyrodiil's tier 3)
+      if (prov && TIERS.anyProvince(it.id)) return true;
       return hasProv(it, prov);
     };
   };
@@ -408,7 +419,8 @@ module.exports = (api) => {
   const lootIngredients = (ok) => pool('ingredients', 0, ok).filter((it) => !EDIBLE.test(it.name));
   // Artifacts and Ebony/Daedric are refused here, for every draw: chestLoot, smallLoot and corpseLoot default to ALL_OK,
   // which skipped lootOk's BANNED_LOOT check, so a draw without a lease could still hand out Ebony or Daedric (2026-09-29)
-  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
+  // Weapons and armour also pass the material tiers' check: never, a faction uniform, or not in the map is not loot
+  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!GEAR_POOLS.has(name) || TIERS.lootable(it.id)) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
   // Vanilla names potions by numeric strength, not by word: RestoreHealth01 is Minor, 03 Plentiful, 05
   // Extreme, 06 Ultimate; Resist* uses 25/50/75/100. The old word-matching tiers returned an empty array at
   // all four tiers against the live pool, so no potion dropped at any difficulty.
@@ -458,7 +470,7 @@ module.exports = (api) => {
   };
   const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions' }, C.ayleidLoot || {});
   const ayleidTable = (diffId) => Object.assign({}, AYLEID_DEFAULTS[diffId] || AYLEID_DEFAULTS.normal, (AYLEID_CFG.byDifficulty || {})[diffId] || {});
-  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')) && !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')));
+  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')) && !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !['never', 'uniform'].includes(TIERS.classOf(it.id).kind));
   const AYLEID_NAMES = new Set(((readJson('ayleid-loot.json', { items: [] }).items) || []).map((it) => it && it.name).filter(Boolean));
   const AYLEID_TIERS = ['common', 'uncommon', 'rare', 'rarest'];
   const ayleidLootHere = (d) => AYLEID_CFG.enabled !== false && AYLEID_LOOT.length > 0 && (d && d.expedition || (AYLEID_CFG.ruins === 'all' && isAyleidRuin(d)));
@@ -484,8 +496,12 @@ module.exports = (api) => {
   // likely again and Ayleid treasure ayleidScale. Ordinary dungeons get the same trim (Nate, 2026-09-28: "push it all");
   // ordinary: false keeps them untrimmed (NO_TRIM). Config
   // dungeons.expeditionLoot; a raid's extra boss roll is dungeons.raid.bossRolls.
-  const EXPL = Object.assign({ scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67, ordinary: true }, C.expeditionLoot || {});
-  const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: [5, 15], containerArrows: [3, 8], ench: 1, ayleid: 1, single: false };
+  // gearScale: how often an expedition's ordinary chests hold a weapon or armour and any of its rolls an enchanted piece,
+  // by kind (boss dungeon, raid ruin) and difficulty. The material tiers
+  // (loottiers.js) made each piece better, so fewer of them keep a clear's value in the budget above (Nate, 2026-09-28:
+  // about half the old value). A boss chest's and a master's own piece stays certain. 1 = as an ordinary dungeon.
+  const EXPL = Object.assign({ gearScale: { boss: { story: 0.5, normal: 0.5, hard: 0.5, nightmare: 0.5 }, raid: { story: 0.5, normal: 0.5, hard: 0.5, nightmare: 0.5 } }, scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67, ordinary: true }, C.expeditionLoot || {});
+  const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: [5, 15], containerArrows: [3, 8], ench: 1, ayleid: 1, single: false, gear: 1 };
   const chanceOr = (v, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.max(0, Math.min(1, Number(v))) : dflt);
   const ORDINARY_TORCH = chanceOr(C.torchChance, 0.12);
   const EXPEDITION_TORCH = chanceOr(C.expeditionTorchChance, 0.35);
@@ -498,11 +514,14 @@ module.exports = (api) => {
     const x = Math.max(0, Number((EXPL.scale || {})[diff.id]) || 0);
     const pair = (v, dflt) => (Array.isArray(v) && v.length === 2 ? [Number(v[0]) || 0, Number(v[1]) || 0] : dflt);
     const xb = Math.max(0, Number((EXPL.bossScale || {})[diff.id]) || x);
-    return { x, xb, xs: x * Math.max(0, Number(EXPL.containerScale) || 0), arrows: pair(EXPL.arrows, [1, 4]), containerArrows: pair(EXPL.containerArrows, [1, 3]), ench: Math.max(0, Number(EXPL.enchScale) || 0), ayleid: Math.max(0, Number(EXPL.ayleidScale) || 0), single: true };
+    const gs = (EXPL.gearScale || {})[d && d.expedition && isRaidRuin(d) ? 'raid' : 'boss'] || {};
+    const gear = d && d.expedition ? Math.max(0, Math.min(1, Number.isFinite(Number(gs[diff.id])) ? Number(gs[diff.id]) : 1)) : 1;
+    return { x, xb, xs: x * Math.max(0, Number(EXPL.containerScale) || 0), arrows: pair(EXPL.arrows, [1, 4]), containerArrows: pair(EXPL.containerArrows, [1, 3]), ench: Math.max(0, Number(EXPL.enchScale) || 0), ayleid: Math.max(0, Number(EXPL.ayleidScale) || 0), single: true, gear };
   };
   const coin = (n, k) => Math.max(1, Math.round(n * k.x));
-  const chestLoot = (diff, boss, ok = ALL_OK, ayleid = false, raid = false, k = NO_TRIM) => {
+  const chestLoot = (diff, boss, ok = ALL_OK, ayleid = false, raid = false, k = NO_TRIM, row = null) => {
     const entries = [];
+    const gearRow = row || TIERS.rowFor(diff.id, boss ? (raid ? 'raidBoss' : 'boss') : 'chest');
     const p = (chance) => Math.random() < chance * (boss ? k.xb : k.x);
     if (ayleid && Math.random() < Number(ayleidTable(diff.id)[boss ? (raid ? 'raidBossChance' : 'bossChance') : 'chestChance']) * k.ayleid) addEntry(entries, ayleidPiece(diff, boss, raid), 1);
     // Certain coin (a boss chest) is scaled in amount; chance coin only in its chance, or it would shrink twice
@@ -519,9 +538,19 @@ module.exports = (api) => {
     if (diff.soulgem > 0 && p(diff.soulgem * (boss ? 2 : 1))) addEntry(entries, pickFrom(soulPool(diff.soulTier, ok)), 1);
     // Recipe notes (the Draught of Revival): a rare find in a boss chest
     if (boss && p(0.05)) addEntry(entries, pickFrom(pool('recipes', 0, ok)), 1);
-    if (boss || p(0.2)) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'weapons' : 'armor', diff.gear, ok)), 1);
-    const enchChance = (boss ? diff.bossEnch : diff.ench) * k.ench;
-    if (enchChance > 0 && p(enchChance)) addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'ench_weapons' : 'ench_armor', diff.gear * 3, ok)), 1);
+    // Weapons or armour of the tier the row rolls (loottiers.js), a tier lower when the dungeon has none of it
+    // A boss chest or master always holds a piece (Nate, 2026-09-28); the expedition's gearScale thins the other rolls
+    const kg = Number.isFinite(k.gear) ? k.gear : 1;
+    if (boss || p(0.2 * kg)) { const w = Math.random() < 0.5; addEntry(entries, TIERS.pickTier(pool(w ? 'weapons' : 'armor', 0, ok), gearRow, { weapons: w }), 1); }
+    // Clothing and jewellery have a roll of their own, by value as before
+    if (p(boss ? 0.2 : 0.04)) addEntry(entries, pickFrom(pool('armor', diff.gear, ok).filter((it) => TIERS.classOf(it.id).kind === 'trinket')), 1);
+    // Enchanted: the same tiers under the difficulty's rank cap; a quarter of the time an enchanted trinket or staff
+    const enchChance = (boss ? diff.bossEnch : diff.ench) * k.ench * kg;
+    if (enchChance > 0 && p(enchChance)) {
+      const r = Math.random();
+      if (r < 0.75) { const w = r < 0.375; addEntry(entries, TIERS.pickTier(pool(w ? 'ench_weapons' : 'ench_armor', 0, ok), gearRow, { weapons: w, enchanted: true, diffId: diff.id, boss }), 1); }
+      else addEntry(entries, pickFrom(pool(Math.random() < 0.5 ? 'ench_armor' : 'ench_weapons', diff.gear * 3, ok).filter((it) => TIERS.classOf(it.id).kind === 'trinket' && TIERS.enchOk(it.name, diff.id, boss))), 1);
+    }
     return entries;
   };
   // A boss chest or master's body: one boss roll, or in a raid RAID.bossRolls of them (1.5: a second roll half the time;
@@ -530,7 +559,7 @@ module.exports = (api) => {
     const entries = chestLoot(diff, true, ok, ayleid, raid, k);
     const rolls = raid ? Math.max(1, Number(RAID.bossRolls) || 1) : 1;
     const extra = Math.floor(rolls - 1) + (Math.random() < (rolls - 1) % 1 ? 1 : 0);
-    for (let i = 0; i < extra; i++) for (const e of chestLoot(diff, true, ok, false, false, k)) { const hit = entries.find((x) => x.baseId === e.baseId); if (hit) hit.count += e.count; else entries.push(e); }
+    for (let i = 0; i < extra; i++) for (const e of chestLoot(diff, true, ok, false, false, k, TIERS.rowFor(diff.id, raid ? 'raidBoss' : 'boss'))) { const hit = entries.find((x) => x.baseId === e.baseId); if (hit) hit.count += e.count; else entries.push(e); }
     // A smithing manual now and then (manuals.js): its own pool, by the difficulty and the dungeon's province, once a chest.
     // Not through `ok`, whose name filter would drop the Ebony manual with the Ebony gear.
     try { if (typeof globalThis.__dboManualsBossLoot === 'function') addEntry(entries, globalThis.__dboManualsBossLoot(diff.id, province), 1); } catch (e) { log('manual loot failed', e.message); }
@@ -566,7 +595,10 @@ module.exports = (api) => {
       const id = idOf(ch.ref); if (!id) continue;
       const boss = /boss/i.test(ch.edid) || bossRefs.has(normDesc(ch.ref));
       try {
-        const entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k)) : smallLoot(diff, ch.edid, ok, k);
+        // A locked chest rolls by its lock: Adept halfway to the boss row, Expert and Master the boss row
+        const lock = lease && lease.locked ? lease.locked.get(id) : undefined;
+        const row = lock !== undefined ? TIERS.rowFor(diff.id, 'lock', lock) : null;
+        const entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k, row)) : smallLoot(diff, ch.edid, ok, k);
         mp.set(id, 'inventory', { entries }); filled++;
         if (lease && entries.length) lease.stocked.add(id);
       } catch (e) { log('chest fill failed', ch.ref, e.message); }
@@ -791,7 +823,6 @@ module.exports = (api) => {
   const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
   const CASTER = /mage|wizard|sorcerer|warlock|necromancer|conjurer|witch|priest|cultist|shaman/i;
   const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|POI|Freeform|DragonPriest|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced|^MFD/;
-  const GEAR_BY_DIFF = { story: 60, normal: 110, hard: 300, nightmare: 1000 };   // 60: IronGreatsword is 50, so story 45 left Novice two-handers empty
   const weaponFor = (edid, diffId, lease) => {
     const e = String(edid || '');
     // A draugr carries draugr steel and a goblin carries goblin iron wherever they stand, so a faction's OWN
@@ -801,13 +832,17 @@ module.exports = (api) => {
       : /forsworn/i.test(e) ? /^Forsworn/ : /goblin/i.test(e) ? /^BSKGoblin/ : null;
     const base = lootOk(lease);
     const ok = (w) => base(w) || (faction && faction.test(w.name));
-    let all = (LOOT.weapons || []).filter((w) => !BAD_WEAPON.test(w.name) && ok(w));
+    // An enemy carries only the tiers of its difficulty (loottiers.js ENEMY; a boss may carry more), so its body can
+    // hand over only those
+    const tiers = TIERS.enemyTiers(diffId, /boss/i.test(e));
+    const tierOk = (w) => { const c = TIERS.classOf(w.id); return c.kind === 'gear' && tiers.includes(c.tier); };
+    let all = (LOOT.weapons || []).filter((w) => !BAD_WEAPON.test(w.name) && ok(w) && TIERS.lootable(w.id) && !BANNED_LOOT.test(w.name));
     const shape = /missile|archer|bow|ranger|hunter/i.test(e) ? /Bow$/
       : /2h|twohand|greatsword|battleaxe|warhammer/i.test(e) ? /(Greatsword|Battleaxe|Warhammer)$/
       : CASTER.test(e) ? /Dagger$/ : /(Sword|WarAxe|Mace)$/;
     let pool = all.filter((w) => shape.test(w.name));
-    if (faction) { const f = pool.filter((w) => faction.test(w.name)); if (f.length) pool = f; }
-    else pool = pool.filter((w) => !/^(Draugr|Falmer|Forsworn|BSKGoblin)/.test(w.name) && Number(w.value) <= (GEAR_BY_DIFF[diffId] || 110));
+    if (faction) { const f = pool.filter((w) => faction.test(w.name) && tierOk(w)); pool = f.length ? f : pool.filter(tierOk); }
+    else pool = pool.filter((w) => !/^(Draugr|Falmer|Forsworn|BSKGoblin)/.test(w.name) && tierOk(w));
     if (!pool.length) pool = all.filter((w) => /^(IronSword|IronWarAxe|IronMace)$/.test(w.name));
     return pickFrom(pool);
   };
@@ -1069,7 +1104,7 @@ module.exports = (api) => {
       const diff = (DIFFICULTIES.find((x) => x.id === lease.difficulty) || DIFFICULTIES[1]);
       const outfit = C.restoreOutfits ? outfitLoss(pBase, sBase, diff.pick) : null;
       if (outfit) {
-        const added = giveWorn(id, outfit.armour);
+        const added = giveWorn(id, outfit.armour.filter((x) => bodyMayGive(x, lease.difficulty, bossTag(String(zone.Name || '')))));
         if (first) log(`dungeon ${lease.id} outfit: ${edidOf(pBase)} spawned as ${edidOf(sBase)}, given ${edidOf(outfit.outfit)} (${outfit.armour.map((x) => edidOf(x)).join(', ')})${added ? '' : ', already carried'}`);
       }
     }
@@ -1409,7 +1444,7 @@ module.exports = (api) => {
     // Humanoids and an expedition's master are looted with E (__dboCorpseLoot), so their body keeps nothing; a
     // humanoid's own plain weapon and armor are remembered for that roll
     if (isHumanoidTag(tag) || isMasterTag(tag)) {
-      if (isHumanoidTag(tag)) rememberGear(actorId);
+      if (isHumanoidTag(tag)) rememberGear(actorId, diff.id, bossTag(tag));
       try { mp.set(actorId, 'inventory', { entries: [] }); } catch (e) { log('corpse clear failed', e.message); }
       return;
     }
@@ -1427,6 +1462,7 @@ module.exports = (api) => {
       // A creature's own potions stay only now and then, one at most (food and poisons are not ranked, so they stay)
       if (type === 'ALCH' && rankOf(String((rec && rec.editorId) || ''))) { if (Math.random() < Number(POT.corpseKeep)) kept.push({ baseId, count: 1 }); continue; }
       if (type === 'ALCH' || type === 'INGR' || type === 'MISC' || type === 'SLGM' || type === 'KEYM' || type === 'BOOK' || type === 'SCRL') { kept.push({ baseId, count }); continue; }
+      if ((type === 'WEAP' || type === 'ARMO') && !bodyMayGive(baseId, diff.id, bossTag(tag))) continue;
       if (type === 'WEAP') { if (!weaponKept && Math.random() < (isEnchanted(rec) ? diff.ench * 3 : 0.25)) { weaponKept = true; kept.push({ baseId, count: 1 }); } continue; }
       if (type === 'ARMO') { if (Math.random() < (isEnchanted(rec) ? diff.ench * 2 : 0.1)) kept.push({ baseId, count: 1 }); continue; }
       // anything else (spells, leveled leftovers): drop
@@ -1501,7 +1537,14 @@ module.exports = (api) => {
   // The plain, playable weapons and armor a humanoid carried, kept until its body is searched (bodies go after 300 s,
   // so anything older than half an hour is gone). Config dungeons.bodyGearChance / expeditionBodyGearChance, times the trim
   if (!(ST.bodyGear instanceof Map)) ST.bodyGear = new Map();
-  const rememberGear = (actorId) => {
+  // A body hands over only what its difficulty allows (loottiers.js ENEMY), trinkets as they are; nothing never-loot,
+  // no faction uniform, nothing the material map does not know
+  const bodyMayGive = (baseId, diffId, boss) => {
+    const c = TIERS.classOf(descOfId(baseId));
+    return c.kind === 'trinket' || (c.kind === 'gear' && TIERS.enemyTiers(diffId, boss).includes(c.tier));
+  };
+  const bossTag = (tag) => { const l = leaseOfTag(tag); return !!(l && ((l.bossZones && l.bossZones.has(tag)) || /boss/i.test(String((l.kinds || {})[tag] || '')))); };
+  const rememberGear = (actorId, diffId = 'normal', boss = false) => {
     const now = Date.now();
     for (const [id, g] of ST.bodyGear) if (now - g.at > 1800000) ST.bodyGear.delete(id);
     let inv = null; try { inv = mp.get(actorId, 'inventory'); } catch (e) { return; }
@@ -1511,6 +1554,7 @@ module.exports = (api) => {
       if (type !== 'WEAP' && type !== 'ARMO') continue;
       const edid = String(rec.editorId || '');
       if ((Number(rec.flags) & 0x4) || isEnchanted(rec) || BANNED_LOOT.test(edid) || ARTIFACT.test(edid) || AYLEID_NAMES.has(edid)) continue;
+      if (!bodyMayGive(baseId, diffId, boss)) continue;
       if (ids.indexOf(baseId) === -1) ids.push(baseId);
     }
     if (ids.length) ST.bodyGear.set(actorId >>> 0, { at: now, ids });
