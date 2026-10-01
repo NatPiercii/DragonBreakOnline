@@ -110,6 +110,9 @@ load({});
 housing();
 check('off unless switched on: a player is told charters are not open', /not open yet/.test(ch(A.FOUNDER, 'found Silver Sparrow Company')));
 check('...and the boot line gives Jake\'s defaults: 3-5 founders, no fee, any GM decides', out.logs.some((l) => /^charters off: 0 pending, 0 gathering, 0 player faction\(s\); 3-5 founders, fee 0, approvers gm$/.test(l)), out.logs.filter((l) => /charters/.test(l)));
+// The tracked config: the code release ships charters off; switching them on is its own commit, with its patch note
+const TRACKED = (JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).charters) || {};
+check('the tracked gamemode-config.json ships charters off', TRACKED.enabled === false, TRACKED.enabled);
 const ON = { charters: { enabled: true } };
 load(ON); housing();
 
