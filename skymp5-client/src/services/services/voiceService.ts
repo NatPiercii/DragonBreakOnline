@@ -204,8 +204,13 @@ export class VoiceService extends ClientListener {
         });
       }
     } else if (kind === "voice::echoLoop") {
-      // Whether playback runs through the echo-cancelling loop ("on"), or fell back to the direct mix ("off", "failed: ...")
-      logTrace(this, `voice echo loop: ${e.arguments[1]}`);
+      // Whether playback is echo-cancelled ("on", "elements") or not ("off", "failed"), and the activation chosen and in force
+      const chosen = String(e.arguments[2] ?? "");
+      const used = String(e.arguments[3] ?? "");
+      const line = `echo loop ${String(e.arguments[1] ?? "").slice(0, 160)}; activation ${chosen || "?"}${used && used !== chosen ? ` (using ${used})` : ""}`;
+      logTrace(this, `voice ${line}`);
+      const note = (globalThis as any).__dboDiagNote;
+      if (typeof note === "function") note("voice", line);
     } else if (kind === "voice::error") {
       // Room dropped: forget the session and ask for a fresh token shortly
       this.connectedForRefrId = 0;
