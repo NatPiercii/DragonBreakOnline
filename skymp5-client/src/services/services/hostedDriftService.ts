@@ -11,6 +11,7 @@ import { applyDriftConfig, driftConfig, driftConfigEcho } from "../../sync/drift
 import { getApplyState } from "../../sync/movementApply";
 import { getMovement } from "../../sync/movementGet";
 import { SpawnProcess } from "../../view/spawnProcess";
+import { locomotionSource, probeGraph } from "./locomotionDiag";
 
 const POLL_MS = 500;
 const HEARTBEAT_MS = 30000;
@@ -346,7 +347,7 @@ export class HostedDriftService extends ClientListener {
         refPath: t.hist.map(([, , r]) => r.map(Math.round)), ...this.context(ac, now),
       });
     }
-    if (refMoved >= LOCOMOTION_UNITS && refMoved < JUMP_UNITS) this.reportLocomotion(ac, remoteId, refMoved);
+    if (refMoved >= LOCOMOTION_UNITS && refMoved < JUMP_UNITS) this.reportLocomotion(ac, remoteId, refMoved, now);
     t.ref = ref;
     t.bone = bone;
   }
@@ -368,7 +369,7 @@ export class HostedDriftService extends ClientListener {
   }
 
   // Once per creature base: whether its graph reports a run mode other than Standing while it moves
-  private reportLocomotion(ac: Actor, remoteId: number, moved: number): void {
+  private reportLocomotion(ac: Actor, remoteId: number, moved: number, now: number): void {
     const baseId = ac.getBaseObject()?.getFormID() ?? 0;
     if (this.locomotionBases.has(baseId)) return;
     this.locomotionBases.add(baseId);
@@ -377,10 +378,22 @@ export class HostedDriftService extends ClientListener {
     const npcKeyword = Keyword.getKeyword("ActorTypeNPC");
     if (!npcKeyword || ac.hasKeyword(npcKeyword)) return;
     const m = getMovement(ac);
+    const apply = getApplyState(ac.getFormID());
+    const repairedAt = this.repairedAt.get(remoteId);
+    const target = ac.getCombatTarget();
+    const graph = probeGraph({
+      getFloat: (n) => ac.getAnimationVariableFloat(n), setFloat: (n, v) => ac.setAnimationVariableFloat(n, v),
+      getBool: (n) => ac.getAnimationVariableBool(n), setBool: (n, v) => ac.setAnimationVariableBool(n, v),
+    });
     this.send({
       kind: "locomotion", remoteId: remoteId.toString(16), base: this.baseName(ac), moved: Math.round(moved),
       speed: Math.round(ac.getAnimationVariableFloat("SpeedSampled")), direction: Math.round(ac.getAnimationVariableFloat("Direction") * 100) / 100,
       runMode: m.runMode, sentSpeed: Math.round(m.speed || 0), inCombat: ac.isInCombat(),
+      source: locomotionSource(apply, repairedAt === undefined ? -1 : now - repairedAt, REPAIR_CHECK_MS * 2),
+      apply: { translating: apply.translating, offset: apply.offset, targetAgeMs: apply.targetAgeMs },
+      ai: ac.isAIEnabled(), speedMult: Math.round(ac.getActorValue("SpeedMult")),
+      target: target ? { player: target.getFormID() === 0x14, dist: Math.round(this.dist(this.refPos(ac), this.refPos(target))) } : null,
+      vars: graph.vars, undefinedVars: graph.undefinedVars,
     });
   }
 
