@@ -8,6 +8,7 @@ import './styles.scss';
 //   studying  the reader is at the books: their primary school's meter, what this sitting has earned, the time left
 //   idle      not studying: why not (the window is spent, a first spell is learned), or a button to begin again
 //   Browser -> client -> server: sendMessage(events.choose, nonce, school, 'primary'), events.start/stop (nonce), events.close
+// `lead` replaces the line above the choices, so the server can offer another choice in the same panel (a school's first spell)
 interface StudyChoice {
   name: string;
   blurb: string;
@@ -28,6 +29,7 @@ export interface StudyMagicData {
   gained: number;
   whyNot: string;
   choices: StudyChoice[];
+  lead?: string;
   result: string;
   resultKind: '' | 'ok' | 'refused';
   events: { choose: string; start: string; stop: string; close: string };
@@ -100,7 +102,7 @@ const StudyMagic = ({ data }: { data: StudyMagicData }) => {
 
         {data.mode === 'choose' ? (
           <>
-            <p className="studyMagic__lead">Before the books can teach you, choose the school you will give yourself to.</p>
+            <p className="studyMagic__lead">{data.lead || 'Before the books can teach you, choose the school you will give yourself to.'}</p>
             <div className="studyMagic__choices">
               {(data.choices || []).map((c) => (
                 <button
