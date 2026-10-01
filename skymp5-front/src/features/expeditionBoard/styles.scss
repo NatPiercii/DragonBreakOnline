@@ -1,11 +1,40 @@
-// The expedition board: the notice board's frame and papers (../bountyBoard/styles.scss) with a subtitle in place of
-// the tabs, the ruin's name as the headline and a stamp for its state.
+// The expedition board: the notice board's frame and papers (../bountyBoard/styles.scss), the ruin's name as the
+// headline and a stamp for its state. Its frame rows are its own: title, tabs (only with contracts), then one body that
+// holds the lead line at the top and the papers below it, scrolling, then the footer.
 @import '../../dbo-theme.scss';
 
 $ink: #14282b;
 $ink-dim: rgba(20, 40, 43, 0.62);
 
+.expeditionBoard .bountyBoard__frame { grid-template-rows: 72px 46px minmax(0, 1fr) 64px; }
+.expeditionBoard--no-tabs .bountyBoard__frame { grid-template-rows: 72px minmax(0, 1fr) 64px; }
+
+@media (max-width: 900px), (max-height: 640px) {
+  .expeditionBoard .bountyBoard__frame { grid-template-rows: 56px 42px minmax(0, 1fr) 88px; }
+  .expeditionBoard--no-tabs .bountyBoard__frame { grid-template-rows: 56px minmax(0, 1fr) 88px; }
+}
+
 .expeditionBoard {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+
+    // Rows keep the papers' own height and the body scrolls; auto rows would squeeze them to fit first
+    > .bountyBoard__grid {
+      flex: 1 1 auto;
+      min-height: 0;
+      grid-auto-rows: max-content;
+    }
+
+    > .bountyBoard__empty {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
   &__subtitle {
     align-items: center;
     padding: 0 22px;
@@ -52,15 +81,18 @@ $ink-dim: rgba(20, 40, 43, 0.62);
     &--resting { color: #5a4a1f; }
   }
 
-  // With the Contracts tab the subtitle moves below the tabs as a lead line
+  // The lead line, at the top of the body
   &__lead {
     display: flex;
-    margin: 0 0 6px;
+    flex: none;
+    margin: 0;
+    padding-top: 14px;
   }
 
   // The contract held, above the posted work
   &__held {
     display: flex;
+    flex: none;
     flex-direction: column;
     gap: 2px;
     margin: 0 22px 10px;

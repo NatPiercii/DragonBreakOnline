@@ -134,7 +134,7 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
   }, [selectedId, ev.close]);
 
   return (
-    <div className="bountyBoard expeditionBoard">
+    <div className={'bountyBoard expeditionBoard' + (contracts ? '' : ' expeditionBoard--no-tabs')}>
       <div className="bountyBoard__fade" />
       <div className="bountyBoard__frame">
         <h1 className="bountyBoard__title">{tab === 'contracts' ? 'Hunting Contracts' : 'Expeditions'}</h1>
@@ -156,58 +156,60 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
             </button>
           </div>
         ) : null}
-        <div className="expeditionBoard__subtitle expeditionBoard__lead">
-          {tab === 'contracts'
-            ? 'The hold of ' + (contracts && contracts.zone ? contracts.zone : 'Bruma') + ' pays for dangerous beasts slain in its wilds.'
-            : 'Ayleid ruins far to the south, posted in ' + (data.hall || 'Bruma') + '. Gather your party and set out.'}
-        </div>
+        <div className="expeditionBoard__body">
+          <div className="expeditionBoard__subtitle expeditionBoard__lead">
+            {tab === 'contracts'
+              ? 'The hold of ' + (contracts && contracts.zone ? contracts.zone : 'Bruma') + ' pays for dangerous beasts slain in its wilds.'
+              : 'Ayleid ruins far to the south, posted in ' + (data.hall || 'Bruma') + '. Gather your party and set out.'}
+          </div>
 
-        {tab === 'contracts' ? (
-          <div className="expeditionBoard__contracts">
-            {held ? (
-              <div className="expeditionBoard__held">
-                <span className="expeditionBoard__held-label">You hold</span>
-                <span className="expeditionBoard__held-what">{held.what} in {held.zone}</span>
-                <span className="expeditionBoard__held-progress">{held.progress} of {held.count} slain &middot; {held.reward} gold &middot; {hoursLabel(held.hoursLeft)}</span>
-              </div>
-            ) : null}
-            {work.length ? (
-              <div className="bountyBoard__grid">
-                {work.map((c) => (
-                  <button
-                    key={c.id}
-                    className={'bountyBoard__paper expeditionBoard__paper expeditionBoard__paper--' + (c.state === 'yours' ? 'yours' : c.state === 'posted' ? 'taken' : 'open')}
-                    onClick={() => setSelectedId(c.id)}
-                  >
-                    <span className={'expeditionBoard__stamp expeditionBoard__stamp--' + (c.state === 'yours' ? 'yours' : c.state === 'posted' ? 'taken' : 'open')}>{CONTRACT_STAMP[c.state] || c.state}</span>
-                    <span className="expeditionBoard__name">{c.what}</span>
-                    <span className="expeditionBoard__where">{DANGER_WORD[c.danger] || 'Dangerous'}</span>
-                    <span className="bountyBoard__paper-author">{c.reward} gold &middot; {hoursLabel(c.hoursLeft)}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="bountyBoard__empty">{(contracts && contracts.note) || 'No hunting work is posted here right now.'}</p>
-            )}
-          </div>
-        ) : list.length ? (
-          <div className="bountyBoard__grid">
-            {list.map((x) => (
-              <button
-                key={x.id}
-                className={'bountyBoard__paper expeditionBoard__paper expeditionBoard__paper--' + x.state}
-                onClick={() => setSelectedId(x.id)}
-              >
-                <span className={'expeditionBoard__stamp expeditionBoard__stamp--' + x.state}>{STAMP[x.state] || x.state}</span>
-                <span className="expeditionBoard__name">{x.name}</span>
-                <span className="expeditionBoard__where">{x.kind}{x.county ? ', ' + x.county : ''}</span>
-                <span className="bountyBoard__paper-author">{x.status}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="bountyBoard__empty">No expeditions are being organised right now.</p>
-        )}
+          {tab === 'contracts' ? (
+            <>
+              {held ? (
+                <div className="expeditionBoard__held">
+                  <span className="expeditionBoard__held-label">You hold</span>
+                  <span className="expeditionBoard__held-what">{held.what} in {held.zone}</span>
+                  <span className="expeditionBoard__held-progress">{held.progress} of {held.count} slain &middot; {held.reward} gold &middot; {hoursLabel(held.hoursLeft)}</span>
+                </div>
+              ) : null}
+              {work.length ? (
+                <div className="bountyBoard__grid">
+                  {work.map((c) => (
+                    <button
+                      key={c.id}
+                      className={'bountyBoard__paper expeditionBoard__paper expeditionBoard__paper--' + (c.state === 'yours' ? 'yours' : c.state === 'posted' ? 'taken' : 'open')}
+                      onClick={() => setSelectedId(c.id)}
+                    >
+                      <span className={'expeditionBoard__stamp expeditionBoard__stamp--' + (c.state === 'yours' ? 'yours' : c.state === 'posted' ? 'taken' : 'open')}>{CONTRACT_STAMP[c.state] || c.state}</span>
+                      <span className="expeditionBoard__name">{c.what}</span>
+                      <span className="expeditionBoard__where">{DANGER_WORD[c.danger] || 'Dangerous'}</span>
+                      <span className="bountyBoard__paper-author">{c.reward} gold &middot; {hoursLabel(c.hoursLeft)}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="bountyBoard__empty">{(contracts && contracts.note) || 'No hunting work is posted here right now.'}</p>
+              )}
+            </>
+          ) : list.length ? (
+            <div className="bountyBoard__grid">
+              {list.map((x) => (
+                <button
+                  key={x.id}
+                  className={'bountyBoard__paper expeditionBoard__paper expeditionBoard__paper--' + x.state}
+                  onClick={() => setSelectedId(x.id)}
+                >
+                  <span className={'expeditionBoard__stamp expeditionBoard__stamp--' + x.state}>{STAMP[x.state] || x.state}</span>
+                  <span className="expeditionBoard__name">{x.name}</span>
+                  <span className="expeditionBoard__where">{x.kind}{x.county ? ', ' + x.county : ''}</span>
+                  <span className="bountyBoard__paper-author">{x.status}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="bountyBoard__empty">No expeditions are being organised right now.</p>
+          )}
+        </div>
 
         <div className="bountyBoard__footer">
           {tab === 'contracts' ? (
