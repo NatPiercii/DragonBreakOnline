@@ -7,7 +7,7 @@ const autoReport = require('../sources/autoReport')
 // SERVER_VERSION = game server release label (informational)
 // DOWNLOAD_URL = installer for LATEST_VERSION (GitHub release asset of NatPiercii/DragonBreakOnline)
 const LATEST_VERSION = '2.1.34'
-const CLIENT_VERSION = '0.3.72'
+const CLIENT_VERSION = '0.3.74'
 const SERVER_VERSION = '0.3.1'
 const DOWNLOAD_URL   = 'https://github.com/NatPiercii/DragonBreakOnline/releases/download/launcher-v2.1.34/DragonBreakLauncher.exe'
 
