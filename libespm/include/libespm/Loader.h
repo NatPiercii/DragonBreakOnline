@@ -122,7 +122,8 @@ typename RecordT::Data GetData(uint32_t formId, EspmProvider* espmProvider)
   return convertedRecord->GetData(espmCache);
 }
 
-// The spell data of a spell or a scroll (a scroll carries the same SPIT and effects); empty for any other record
+// The spell data of a spell or a scroll (a scroll carries the same SPIT and effects), the effects of an enchantment
+// (no SPIT, spellItem stays null); empty for any other record
 inline SPEL::Data GetSpellItemData(const RecordHeader* rec,
                                    CompressedFieldsCache& cache)
 {
@@ -134,6 +135,8 @@ inline SPEL::Data GetSpellItemData(const RecordHeader* rec,
     auto data = scroll->GetData(cache);
     result.spellItem = data.spellItem;
     result.effects = std::move(data.effects);
+  } else if (const auto enchantment = Convert<ENCH>(rec)) {
+    result.effects = enchantment->GetSpellData(cache).effects;
   }
   return result;
 }
@@ -143,7 +146,7 @@ inline bool IsSpellItem(const RecordHeader* rec)
   return Convert<SPEL>(rec) || Convert<SCRL>(rec);
 }
 
-// GetData<SPEL> that also takes a scroll; throws like GetData for anything else
+// GetData<SPEL> that also takes a scroll or an enchantment; throws like GetData for anything else
 template <class EspmProvider>
 SPEL::Data GetSpellItemData(uint32_t formId, EspmProvider* espmProvider)
 {
@@ -156,9 +159,9 @@ SPEL::Data GetSpellItemData(uint32_t formId, EspmProvider* espmProvider)
     throw std::runtime_error(
       fmt::format("Record {:#x} doesn't exist", formId));
   }
-  if (!IsSpellItem(lookupResult.rec)) {
+  if (!IsSpellItem(lookupResult.rec) && !Convert<ENCH>(lookupResult.rec)) {
     throw std::runtime_error(
-      fmt::format("Expected record {:#x} to be SPEL or SCRL, but found {}",
+      fmt::format("Expected record {:#x} to be SPEL, SCRL or ENCH, but found {}",
                   formId, lookupResult.rec->GetType().ToString()));
   }
   return GetSpellItemData(lookupResult.rec, espmProvider->GetEspmCache());
