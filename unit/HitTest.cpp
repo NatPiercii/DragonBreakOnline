@@ -1,6 +1,7 @@
 #include "TestUtils.hpp"
 #include <catch2/catch_all.hpp>
 #include <chrono>
+#include <thread>
 
 #include "GetBaseActorValues.h"
 #include "HitMessage.h"
@@ -622,5 +623,98 @@ TEST_CASE("A scroll's hits land only after the server used one up: each actor "
   p.DestroyActor(kFirst);
   p.DestroyActor(kSecond);
   p.DestroyActor(kThird);
+  DoDisconnect(p, 0);
+}
+
+TEST_CASE("A staff's enchantment hits only from a staff the aggressor holds or "
+          "its base carries, at the staff's own pace",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  constexpr uint32_t kCaster = 0xff000000;
+  constexpr uint32_t kFirst = 0xff000001;
+  constexpr uint32_t kSecond = 0xff000002;
+  constexpr uint32_t kWarlock = 0xff000003;
+  constexpr uint32_t kIronDagger = 0x0001397e;
+  constexpr uint32_t kIronSwordOfFlames = 0x00049bb8;
+  constexpr uint32_t kFireSwordEnchantment = 0x00049bb7;
+  constexpr uint32_t kStaffOfSparks = 0x0004dee2;
+  constexpr uint32_t kSparksEnchantment = 0x0004dedc;
+  constexpr uint32_t kStaffOfIceStorm = 0x00029b83;
+  constexpr uint32_t kIceStormEnchantment = 0x00029b5a;
+  // EncWarlockStorm07BossBretonF: LItemStaffChainLightning50 in its inventory
+  constexpr uint32_t kStormWarlockBoss = 0x001091c5;
+  constexpr uint32_t kChainLightningEnchantment = 0x00029b5c;
+
+  DoConnect(p, 0);
+  p.CreateActor(kCaster, { 0, 0, 0 }, 0, 0x3c, 1);
+  p.SetUserActor(0, kCaster);
+  p.CreateActor(kFirst, { 0, 100, 0 }, 0, 0x3c);
+  p.CreateActor(kSecond, { 100, 0, 0 }, 0, 0x3c);
+  auto& caster = p.worldState.GetFormAt<MpActor>(kCaster);
+
+  auto hold = [&](uint32_t weapon) {
+    caster.AddItem(weapon, 1);
+    Equipment eq;
+    eq.inv.entries.push_back(Inventory::Entry(weapon, 1, kExtraWornTrue));
+    caster.SetEquipment(eq);
+  };
+  // Health one hit takes (the unit PartOne's fake formula), 0 when refused
+  auto hit = [&](uint32_t aggressor, uint32_t target, uint32_t source) {
+    auto& actor = p.worldState.GetFormAt<MpActor>(target);
+    actor.SetPercentages({ 1.f, 1.f, 1.f });
+    RawMessageData rawMsgData;
+    rawMsgData.userId = 0;
+    HitMessage hitMsg;
+    hitMsg.data.aggressor = aggressor;
+    hitMsg.data.target = target;
+    hitMsg.data.source = source;
+    p.GetActionListener().OnHit(rawMsgData, hitMsg);
+    return 1.f - actor.GetChangeForm().actorValues.healthPercentage;
+  };
+
+  // No staff held: refused
+  REQUIRE(hit(0x14, kFirst, kSparksEnchantment) == Catch::Approx(0.f));
+  hold(kIronDagger);
+  REQUIRE(hit(0x14, kFirst, kSparksEnchantment) == Catch::Approx(0.f));
+  // A weapon enchantment stays out of the staff route
+  hold(kIronSwordOfFlames);
+  REQUIRE(hit(0x14, kFirst, kFireSwordEnchantment) == Catch::Approx(0.f));
+
+  // Concentration: once per target per tick interval
+  hold(kStaffOfSparks);
+  REQUIRE(hit(0x14, kFirst, kSparksEnchantment) > 0.f);
+  REQUIRE(hit(0x14, kFirst, kSparksEnchantment) == Catch::Approx(0.f));
+  REQUIRE(hit(0x14, kSecond, kSparksEnchantment) > 0.f);
+  // Another staff's enchantment is not this staff's
+  REQUIRE(hit(0x14, kFirst, kIceStormEnchantment) == Catch::Approx(0.f));
+  std::this_thread::sleep_for(ActionListener::kStaffTickInterval + 50ms);
+  REQUIRE(hit(0x14, kFirst, kSparksEnchantment) > 0.f);
+
+  // Fire-and-forget: one volley hits each target once
+  hold(kStaffOfIceStorm);
+  REQUIRE(hit(0x14, kFirst, kIceStormEnchantment) > 0.f);
+  REQUIRE(hit(0x14, kSecond, kIceStormEnchantment) > 0.f);
+  REQUIRE(hit(0x14, kFirst, kIceStormEnchantment) == Catch::Approx(0.f));
+  std::this_thread::sleep_for(ActionListener::kStaffVolleyInterval + 50ms);
+  REQUIRE(hit(0x14, kFirst, kIceStormEnchantment) > 0.f);
+
+  // A hosted NPC with no staff in its server equipment: its base's inventory (a leveled staff) is the gate
+  p.worldState.AddForm(
+    std::unique_ptr<MpActor>(new MpActor(
+      { { 0, -100, 0 },
+        { 0, 0, 0 },
+        FormDesc::FromFormId(0x3c, p.worldState.espmFiles) },
+      FormCallbacks::DoNothing(), kStormWarlockBoss)),
+    kWarlock);
+  p.worldState.GetFormAt<MpActor>(kWarlock).SetEquipment(Equipment());
+  p.worldState.hosters[kWarlock] = kCaster;
+  REQUIRE(hit(kWarlock, 0x14, kChainLightningEnchantment) > 0.f);
+  REQUIRE(hit(kWarlock, 0x14, kSparksEnchantment) == Catch::Approx(0.f));
+
+  p.worldState.hosters.erase(kWarlock);
+  p.DestroyActor(kCaster);
+  p.DestroyActor(kFirst);
+  p.DestroyActor(kSecond);
   DoDisconnect(p, 0);
 }
