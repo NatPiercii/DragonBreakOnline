@@ -31,7 +31,7 @@ ignore.json lists known-harmless noise, each with its reason. Those kinds are co
 Posting (--write): one post per kind in #known-issues, whose first message is EDITED with the current numbers. There is
 never a new message per run.
 - A run opens at most --max-new posts (10), only for kinds over the threshold in the last 24 h: launcher crashes first,
-  then the biggest.
+  then the biggest. A crash or client kind needs two players too: what a client reports about itself could be made up.
 - The tags Known, Fixing, Fixed and Ignore are created on the forum if missing. A new post gets Known. Staff change the
   tag, and the tool reads it every run:
   - Known or Fixing: the numbers are kept current.
@@ -76,6 +76,10 @@ CONT_KEPT = 12                # continuation lines read per record
 RECOVER_PER_RUN = 25          # first messages read per run to find posts the state lost
 LINK_LOOKUPS_PER_RUN = 25     # #bug-tracker first messages read per run to place snapshots
 WRITE_GAP_S = 0.5             # between Discord writes
+# What a player's own client or launcher reports: one player could make up as many kinds as they like, so a kind from
+# these needs this many players before it gets a post
+SELF_REPORTED = ('launcher', 'client')
+CRASH_MIN_PLAYERS = 2
 SOURCE_LABEL = {'server': 'Server error', 'client': 'Client error (dboDiag)', 'launcher': 'Game crash (launcher)'}
 
 # ---- reading the log ----------------------------------------------------------------------------------------------
@@ -128,7 +132,8 @@ SECRET_RES = (
 
 
 def mask(text):
-    """The parts of a line that name someone or something private, masked; numbers and words kept (the sample)."""
+    """The parts of a line that name someone or something private, masked: ids, addresses, JSON, quoted text that is not
+    a name, player names. Numbers and words are kept (the sample)."""
     s = URL_RE.sub('<url>', text)
     s = EMAIL_RE.sub('<email>', s)
     s = IPV4_RE.sub('<ip>', s)
@@ -137,6 +142,7 @@ def mask(text):
         if t == s:
             break
         s = t
+    s = quoted(s)
     s = MENTION_RE.sub('<@user>', s)
     s = TOKENISH_RE.sub('<secret>', s)
     s = LONG_HEX_RE.sub('<hex>', s)
@@ -148,11 +154,15 @@ def mask(text):
     return s.replace('`', "'")
 
 
-def normalise(text):
-    """The kind of a line: masked, with quoted text and every number gone too, so one kind is one signature."""
-    s = mask(text)
+def quoted(s):
+    """Quoted text masked unless it is a name (a method, a property): quotes carry a parser's input, bytes, player text."""
     s = DQ_RE.sub(lambda m: m.group(0) if IDENT_RE.fullmatch(m.group(1)) else '"<s>"', s)
-    s = SQ_RE.sub(lambda m: m.group(0) if IDENT_RE.fullmatch(m.group(1)) else "'<s>'", s)
+    return SQ_RE.sub(lambda m: m.group(0) if IDENT_RE.fullmatch(m.group(1)) else "'<s>'", s)
+
+
+def normalise(text):
+    """The kind of a line: masked, with editor ids and every number gone too, so one kind is one signature."""
+    s = mask(text)
     s = EDID_RE.sub('<edid>', s)
     s = DIGIT_ID_RE.sub('<id>', s)
     s = NUM_RE.sub('<n>', s)
@@ -204,7 +214,7 @@ def classify(msg, cont):
     sig, sample = normalise(body), mask(body)
     frame = next((FRAME_RE.match(line) for line in cont if FRAME_RE.match(line)), None)
     if frame:
-        sig = f'{sig} @ {os.path.basename(frame.group(1))}'
+        sig = f'{sig} @ {normalise(os.path.basename(frame.group(1)))}'      # a bundle's temp file name changes per load
         sample = f"{sample} | {mask(next(line for line in cont if FRAME_RE.match(line)).strip())}"
     return 'server', sig[:220], clip(sample, 400), players
 
@@ -392,9 +402,18 @@ def read_log(st, path, final_live=False, notes=None):
     return out
 
 
-EXIT_NAMES = {3221225477: '0xC0000005, access violation', 3221226505: '0xC0000409, stack buffer overrun',
-              3221225725: '0xC00000FD, stack overflow', 3221225794: '0xC0000142, DLL failed to start',
-              3221225501: '0xC000001D, illegal instruction', 3221225620: '0xC0000094, divide by zero'}
+# A crash's exit code is the launcher's own report, so a made-up code must not open a post of its own. Each code named
+# here is a kind; any other code is one of two kinds, by whether a crash log was written. A crash kind also needs
+# CRASH_MIN_PLAYERS players before it is posted (candidates()).
+EXIT_NAMES = {1: 'exit code 1', 3221225477: 'access violation (0xC0000005)',
+              3221226505: 'stack buffer overrun (0xC0000409)', 3221226356: 'heap corruption (0xC0000374)',
+              3221225725: 'stack overflow (0xC00000FD)', 3221225794: 'DLL failed to start (0xC0000142)',
+              3221225501: 'illegal instruction (0xC000001D)', 3221225620: 'divide by zero (0xC0000094)'}
+VERSION_RE = re.compile(r'^\d+(?:\.\d+){1,3}$')
+
+
+def version_of(v):
+    return v if isinstance(v, str) and VERSION_RE.match(v) else '?'
 
 
 def read_session_ends(st, path):
@@ -419,11 +438,15 @@ def read_session_ends(st, path):
             if r.get('outcome') != 'crash':
                 continue
             code = r.get('exitCode')
-            name = EXIT_NAMES.get(code)
-            sig = f'Game crashed, exit code {code}' + (f' ({name})' if name else '')
-            files, launcher = str(r.get('filesVersion') or '?')[:20], str(r.get('launcherVersion') or '?')[:20]
-            sample = (f"crash, exit code {code}{f' ({name})' if name else ''}, client files {files}, launcher {launcher}, "
-                      f"crash log {'written' if r.get('crashLog') else 'none'}")
+            code = code if isinstance(code, int) and not isinstance(code, bool) and -2 ** 31 <= code < 2 ** 32 else None
+            log = r.get('crashLog') is True
+            if code in EXIT_NAMES:
+                sig = f'Game crashed: {EXIT_NAMES[code]}'
+            else:
+                sig = 'Game crashed: another exit code' + (', crash log written' if log else '')
+            files, launcher = version_of(r.get('filesVersion')), version_of(r.get('launcherVersion'))
+            sample = (f"crash, exit code {code if code is not None else 'not a valid code'}, client files {files}, "
+                      f"launcher {launcher}, crash log {'written' if log else 'none'}")
             when = (r.get('endedAt') if isinstance(r.get('endedAt'), (int, float)) else at) / 1000
             t = time.gmtime(when)
             out.append((time.strftime('%Y-%m-%d', t), time.strftime('%H:%M', t), sig, mask(sample),
@@ -560,11 +583,14 @@ def secret_in(text):
 
 
 def candidates(st, args, now):
-    """Kinds that would get a new post: not ignored or muted, no post yet, over the threshold. Launcher crashes come
-    first, ahead of every server and client kind, since they are what staff most need to see; then the biggest."""
+    """Kinds that would get a new post: not ignored or muted, no post yet, over the threshold, and for what a client or
+    the launcher reports about itself, seen from two players at least. Launcher crashes come first, ahead of every server
+    and client kind, since they are what staff most need to see; then the biggest."""
     out = []
     for k, s in st['sigs'].items():
         if s.get('thread') or s.get('muted') or s.get('ignored'):
+            continue
+        if s['source'] in SELF_REPORTED and len(s['players']) < CRASH_MIN_PLAYERS and not s.get('playersMore'):
             continue
         n24 = window(s, 24, now)
         if n24 >= (args.crash_threshold if s['source'] == 'launcher' else args.threshold):

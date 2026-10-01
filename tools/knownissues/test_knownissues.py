@@ -190,6 +190,11 @@ def signatures():
     ok(login[1] == 'Error logging in client: <json> Error: getUserProfile: HTTP error <n> clientOutdated @ login.ts',
        'a stack keeps its first file, without line numbers', login[1])
     ok('28d06c8b' not in login[2] and '<json>' in login[2] and 'login.ts:80' in login[2], '...the session id is masked in the sample', login[2])
+    n1 = cls("[console] [info] [gamemode] naming.js failed to load: ReferenceError: Cannot access 'onUi' before initialization",
+             ['    at Object.<anonymous> (/tmp/skymp5-serverGhisVT/0.6e1f2a3b4c5d6e7f8-1790658382588.js:1280:5)'])
+    n2 = cls("[console] [info] [gamemode] naming.js failed to load: ReferenceError: Cannot access 'onUi' before initialization",
+             ['    at Object.<anonymous> (/tmp/skymp5-servergmlQuJ/0.9a8b7c6d5e4f3a2b1-1790658786704.js:1280:5)'])
+    ok(n1[1] == n2[1], "a bundle's temp file name in a stack does not split a kind", (n1[1], n2[1]))
     named = cls('[console] [error] something failed for Aldemar Vauclaire #8HSY near Lord Velas Silvershaft #Z7EG')
     ok('Aldemar' not in named[1] + named[2] and 'Velas' not in named[1] + named[2] and named[3] == {'t8HSY', 'tZ7EG'},
        'player names are masked, and each tag counts a player', named)
@@ -197,9 +202,15 @@ def signatures():
     ok('<ip>' in ip[1] and '127.0.0.1' not in ip[2], 'addresses are masked', ip)
     who = cls('[console] [error] role sync failed for <@123456789012345678> (discord 123456789012345678) at https://discord.com/api/webhooks/1/abc')
     ok('123456789012345678' not in who[2] and 'webhooks' not in who[2], 'Discord ids, mentions and URLs are masked', who[2])
+    tick = cls("[console] [error] TickSaveStorage - received UpsertFailedException [json.exception.parse_error.101] parse error "
+               "at line 1, column 1: syntax error while parsing value - invalid literal; last read: 'x7 Bob owes 300 gold'")
+    ok("'<s>'" in tick[2] and 'Bob owes' not in tick[2], "quoted text that is not a name is masked in the posted sample too", tick[2])
+    said = cls('[console] [error] charter text rejected: "my secret plan for Bruma" by request <n>')
+    ok('"<s>"' in said[2] and 'secret plan' not in said[2], '...in double quotes as well', said[2])
     m1 = cls("[error] VirtualMachine::CallMethod - Method not found - 'Add'")
     m2 = cls("[error] VirtualMachine::CallMethod - Method not found - 'GetAngleZ'")
-    ok(m1[1] != m2[1] and "'Add'" in m1[1], 'a quoted method name stays: two methods are two kinds', (m1[1], m2[1]))
+    ok(m1[1] != m2[1] and "'Add'" in m1[1] and "'Add'" in m1[2], 'a quoted method name stays, in the kind and the sample: '
+       'two methods are two kinds', (m1, m2[1]))
     z1 = cls("[console] [error] NpcSpawnSystem: 'wild:fox:2943' failed to spawn 2ebe2:Skyrim.esm: Error: Form with id 0x2ebe2 doesn't exist")
     z2 = cls("[console] [error] NpcSpawnSystem: 'dungeon:bandit:12' failed to spawn 5f056:BSHeartland.esm: Error: Form with id 0x5f056 doesn't exist")
     ok(z1[1] == z2[1], 'quoted text that is not a name, and form descs, fold', (z1[1], z2[1]))
@@ -294,7 +305,7 @@ def reading(d):
     st = state(d)
     crash = sig_of(st, 'Game crashed')
     ok(crash and st['sigs'][crash]['count'] == 4 and st['sigs'][crash]['source'] == 'launcher'
-       and st['sigs'][crash]['sig'] == 'Game crashed, exit code 3221225477 (0xC0000005, access violation)',
+       and st['sigs'][crash]['sig'] == 'Game crashed: access violation (0xC0000005)',
        'session ends: the four crashes, by exit code; the clean closes are not counted', st['sigs'].get(crash))
     ok(len(st['sigs'][crash]['players']) == 3 and st['sigs'][crash]['versions'] == {'0.3.72': 4},
        '...three players (hashed profile ids) and the client version', st['sigs'][crash])
@@ -305,6 +316,8 @@ def reading(d):
     append(f'{d}/session-ends.jsonl', json.dumps(dict(rows[0], at=1790859999999)) + '\n')
     run(d, '--collect')
     ok(state(d)['sigs'][crash]['count'] == 5, '...the next run reads only the new session ends')
+
+    crash_codes(f'{d}/s2')
 
     # /bug snapshots: their error kinds, ignored ones left out
     snap = {'at': 0, 'by': 'Dar #U6T6', 'text': 'x', 'view': {}, 'voice': [], 'log': [
@@ -320,10 +333,48 @@ def reading(d):
        'a /bug snapshot keeps the kinds of its errors (not the ignored one) and adds no count', e)
 
 
+def crash_codes(d):
+    """Self-reported exit codes: named ones are kinds, any other is one of two; one player opens nothing."""
+    os.makedirs(d)
+    at = NOW * 1000 - 3600 * 1000
+    one = [(12345, False), ('abc', False), (99999, False), (77777, False), (True, False), (31337, True), (3221226356, False)]
+    rows = [dict(at=at + i, profileId=50, discordId='998877665544332211', name='Secret Name', outcome='crash', exitCode=c,
+                 crashLog=log, startedAt=0, endedAt=at + i, launcherVersion='<b>hi</b>', filesVersion='0.3.72; drop')
+            for i, (c, log) in enumerate(one)]
+    with open(f'{d}/session-ends.jsonl', 'w') as fh:
+        fh.write(''.join(json.dumps(r) + '\n' for r in rows))
+    run(d, '--collect')
+    st = state(d)
+    kinds = {s['sig']: s['count'] for s in st['sigs'].values()}
+    ok(kinds == {'Game crashed: another exit code': 5, 'Game crashed: another exit code, crash log written': 1,
+                 'Game crashed: heap corruption (0xC0000374)': 1},
+       'made-up exit codes fall into "another exit code" (by crash log); a named code is its own kind', kinds)
+    other = next(k for k, s in st['sigs'].items() if s['sig'] == 'Game crashed: another exit code')
+    samples = json.dumps(st['sigs'])
+    ok('abc' not in samples and '<b>' not in samples and 'drop' not in samples and "'?'" not in samples
+       and st['sigs'][other]['versions'] == {'?': 5}, 'a code or version that is not one never reaches the state or a post',
+       [s['sample'] for s in st['sigs'].values()])
+    args = type('A', (), {'threshold': 20, 'crash_threshold': 3})()
+    ok(other not in K.candidates(st, args, NOW), "one player's five crashes, over the threshold, open no post", st['sigs'][other])
+    rc, out = run(d, '--offline')
+    ok('would open' not in out, '...nor does a dry run say it would', out)
+    append(f'{d}/session-ends.jsonl', json.dumps(dict(rows[0], at=at + 50, profileId=51, exitCode=424242)) + '\n')
+    run(d, '--collect')
+    st = state(d)
+    ok(other in K.candidates(st, args, NOW) and len(st['sigs'][other]['players']) == 2, '...a second player\'s crash opens it',
+       st['sigs'][other])
+    one_client = K.new_state()
+    for i in range(30):
+        K.count(one_client, 'client', 'window error: made up', 'x', '2026-10-01', '15:00', {'p21'})
+    ok(K.candidates(one_client, args, NOW) == [], "a client kind one player reports, 30 times, opens nothing either")
+    K.count(one_client, 'client', 'window error: made up', 'x', '2026-10-01', '15:00', {'p22'})
+    ok(len(K.candidates(one_client, args, NOW)) == 1, '...until a second player reports it')
+
+
 # ---- posting ------------------------------------------------------------------------------------------------------
 def posting(d):
     st = state(d)
-    form, refr, crash = sig_of(st, 'Form with id'), sig_of(st, 'Refr pointer'), sig_of(st, 'Game crashed')
+    form, refr, crash = sig_of(st, 'Form with id'), sig_of(st, 'Refr pointer'), sig_of(st, 'access violation')
     log = f'{d}/server.log'
     lines = []
     for i in range(30):            # fourteen more kinds over the threshold, and the not-a-hoster noise

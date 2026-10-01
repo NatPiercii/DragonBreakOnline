@@ -52,6 +52,10 @@ sudo systemctl daemon-reload && sudo systemctl enable --now knownissues.timer
    - It creates the tags Known, Fixing, Fixed and Ignore if they are missing.
    - It opens at most `--max-new` posts (10). Only kinds over the threshold get one: 20 lines in 24 h, or 3 launcher
      crashes. Launcher crashes take their slots first, then the biggest kinds of the last 24 h.
+   - What a player's own launcher or client reports could be made up, so:
+     - a crash or client kind also needs two players before it gets a post;
+     - exit codes go into fixed kinds: the named ones (exit code 1, access violation, stack buffer overrun, heap
+       corruption and a few more), then "another exit code", with or without a crash log.
 2. Then the timer, in `/etc/systemd/system/knownissues.service`: change `--collect` to `--write`, then
    `sudo systemctl daemon-reload`.
 3. **Undo posting:** change it back to `--collect`. To remove posts, delete them in Discord: a deleted post mutes its kind
