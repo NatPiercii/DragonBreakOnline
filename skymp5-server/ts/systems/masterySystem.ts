@@ -1152,7 +1152,9 @@ export class MasterySystem implements System {
     const hit = this.schoolCache.get(spellId); if (hit !== undefined) return hit;
     let school = "";
     const spell = this.lookup(ctx, spellId);
-    if (spell) {
+    // A staff's enchantment (ENCH) has the same EFIDs but trains no school, as in vanilla
+    const type = spell ? String(spell.record.type || "") : "";
+    if (type === "SPEL" || type === "SCRL") {
       const effects = this.fieldFormIds(spell, "EFID");
       for (const mgefId of effects) {
         const mgef = this.lookup(ctx, mgefId); if (!mgef) continue;
