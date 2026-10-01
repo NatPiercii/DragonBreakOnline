@@ -333,6 +333,17 @@ check('a round begun (the first press) and abandoned still rests the shrine', Nu
 t = touch();
 check('so the next touch is refused for those minutes', !t.w && /prayed here recently/.test(t.said), t.said);
 
+// ---- 12. the same for Escape (the relay's close), which the client-judged prayer now answers ---------------------
+props.delete(ACTOR + '|private.prayedShrines');
+t = touch();
+clear(); fire('close', []);
+check('Escape before the first press rests nothing either, and says so', !rests()[SHRINE.toString(16)] && /without praying/.test(out.personals.join(' | ')), JSON.stringify(rests()));
+t = touch();
+check('...so the shrine opens a round again at once', !!t.w && !/prayed here recently/.test(t.said), t.said);
+clear(); fire('prayerStart', [t.w.nonce]);
+virtual += 3000; clear(); fire('close', []);
+check('Escape after the first press still rests the shrine', Number(rests()[SHRINE.toString(16)]) === wallClock + 5 * 60000, JSON.stringify(rests()));
+
 console.log('');
 console.log('deity        cast  learned  via');
 for (const x of rows) console.log(`${x.id.padEnd(12)} ${String(x.sent).padEnd(5)} ${String(x.learnedNow).padEnd(8)} ${x.via}`);

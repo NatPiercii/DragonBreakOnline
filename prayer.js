@@ -719,6 +719,12 @@ module.exports = (api) => {
       log(`prayer hidden ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms: the round stays live, no rest`);
       return;
     }
+    // Escape before the first press is no failed prayer, as with Rise (ad7aff44): an offering wants the shrine touched,
+    // and closing that round to type /offer must not rest the shrine before the prayer the offering is for
+    if (!hidden && !round.begun) {
+      log(`prayer abandon(close) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, before the first press: no rest`);
+      return finish(a, round, false, 'You rise without praying. Kneel again when you are ready.', 'lose', false, 'say');
+    }
     log(`prayer abandon(${hidden ? 'hidden' : 'close'}) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms${hidden ? ', no rest' : ''}`);
     if (hidden) sessions.delete(a);
     else finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose', true, 'say');
