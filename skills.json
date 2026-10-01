@@ -1687,7 +1687,7 @@
     "combatBoon": true,
     "lawful": true,
     "sphere": "The honoured dead of House and family, the heart of Dunmer faith. The Tribunal is gone since the Third Era; the New Temple keeps the ancestors and the three Good Daedra.",
-    "boon": "Fire burns you a quarter less while the blessing lasts - the dead of your House stand in the flame with you.",
+    "boon": "Fire spells burn you a quarter less while the blessing lasts - the dead of your House stand in the flame with you.",
     "replacedBoon": "Ancestor's Wrath (PowerDarkElfFlameCloak e40d4:Skyrim.esm), once a day: a racial power, which the client dispels the moment it is used (magicSyncService BLOCKED_POWER_IDS: \"Racial powers are disabled on this server\"), so until 2026-10-01 this blessing gave nothing that worked.",
     "blessingDesign": "Fire damage taken x0.75 while the blessing runs: gamemode.js blessingCombat target.ancestors, element fire (a hit whose effects are resisted by Resist Fire, the MGEF resist value, as the game resists a fire spell, a dragon's breath or a flame cloak). The Dunmer's fire, turned to a ward; Trinimac turns 25% of all spells.",
     "blessingImplemented": true,
