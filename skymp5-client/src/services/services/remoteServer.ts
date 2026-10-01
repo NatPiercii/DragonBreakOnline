@@ -1262,7 +1262,7 @@ export class RemoteServer extends ClientListener {
         this.cloneCastStoppedAt.set(key, now);
         // A copy whose 3D is still loading has no graph to stop yet: sweepCloneCasts stops it once loaded
         if (!ac.is3DLoaded()) {
-          this.cloneCastWatch.set(key, { casterRemoteId: msg.data.caster, expiresAt: now, castingSource: msg.data.castingSource, animVars: actorAnimationVariables, wasDrawn: false });
+          this.cloneCastWatch.set(key, { casterRemoteId: msg.data.caster, expiresAt: now, castingSource: msg.data.castingSource, animVars: actorAnimationVariables, wasDrawn: false, held: true });
           return;
         }
         this.cloneCastWatch.delete(key);
@@ -1276,16 +1276,20 @@ export class RemoteServer extends ClientListener {
       const cloneSpellGuard = this.controller.lookupListener(CloneSpellGuardService);
 
       // Keep-alives only refresh a running clone, recasting would stack concentration casts
+      // A keep-alive overtaking its own stop must not restart the clone
+      if (msg.data.keepAlive && now - (this.cloneCastStoppedAt.get(key) ?? 0) < this.cloneCastStopMemoryMs) {
+        return;
+      }
       const watch = this.cloneCastWatch.get(key);
       if (msg.data.keepAlive && watch) {
+        // A stop held for the copy's 3D stays due: a keep-alive must not push it back
+        if (watch.held) {
+          return;
+        }
         watch.expiresAt = now + this.cloneCastTimeoutMs;
         if (spellId) {
           cloneSpellGuard.guardHostileReplay(ac.getFormID(), spellId, this.cloneCastTimeoutMs);
         }
-        return;
-      }
-      // A keep-alive overtaking its own stop must not restart the clone
-      if (msg.data.keepAlive && now - (this.cloneCastStoppedAt.get(key) ?? 0) < this.cloneCastStopMemoryMs) {
         return;
       }
       this.cloneCastStoppedAt.delete(key);
@@ -1387,7 +1391,7 @@ export class RemoteServer extends ClientListener {
     });
   }
 
-  private cloneCastWatch = new Map<string, { casterRemoteId: number, expiresAt: number, castingSource: number, animVars: ActorAnimationVariables, wasDrawn: boolean }>();
+  private cloneCastWatch = new Map<string, { casterRemoteId: number, expiresAt: number, castingSource: number, animVars: ActorAnimationVariables, wasDrawn: boolean, held?: boolean }>();
   private cloneCastStoppedAt = new Map<string, number>();
   private readonly cloneCastTimeoutMs = 8000;
   private readonly cloneCastStopMemoryMs = 2000;
