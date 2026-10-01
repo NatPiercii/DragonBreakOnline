@@ -169,7 +169,14 @@ module.exports = (api) => {
   const setHealth = (a, h) => { const p = health(a); if (!p) return; try { mp.set(a, 'percentages', { health: Math.max(0, Math.min(1, h)), magicka: p.magicka, stamina: p.stamina }); } catch (e) { /* offline */ } };
   const isOutdoors = (a) => { try { return isWorldspace(String(mp.get(a, 'worldOrCellDesc') || '')); } catch (e) { return false; } };
   const distance = (a, b) => { try { if (mp.get(a, 'worldOrCellDesc') !== mp.get(b, 'worldOrCellDesc')) return Infinity; const p = mp.get(a, 'pos'), q = mp.get(b, 'pos'); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); } catch (e) { return Infinity; } };
-  const quietNear = (a, text, reach) => { for (const o of onlineActors()) if (o !== a && distance(a, o) <= (reach || 3000)) personal(o, text); };
+  // The name a viewer knows a player by (playermenu.js: introduced, else Stranger or the mask name); an NPC keeps its own
+  const nameTo = (viewer, x) => {
+    if (!(profileOf(x) >= 0)) return nameOf(x);
+    try { if (typeof globalThis.__dboNameFor === 'function') return globalThis.__dboNameFor(Number(viewer) >>> 0, Number(x) >>> 0); } catch (e) { /* playermenu not loaded */ }
+    return 'Someone';
+  };
+  // text may be a function of the viewer, so each onlooker sees the names they know
+  const quietNear = (a, text, reach) => { for (const o of onlineActors()) if (o !== a && distance(a, o) <= (reach || 3000)) personal(o, typeof text === 'function' ? text(o) : text); };
   // gamemode's needs system sets health and stamina recovery and asks __dboSuperRateMult (below) for a vampire's share
   const refreshRates = (a) => { try { if (typeof globalThis.__dboNeedsRefresh === 'function') globalThis.__dboNeedsRefresh(a); } catch (e) { /* no needs system */ } };
   // Plays an idle on a player's own client, as downed.js plays its poses; watchers see it through the animation sync
@@ -1072,7 +1079,7 @@ module.exports = (api) => {
       if (!onCorpse) {
         const p = health(t);
         if (p) setHealth(t, Math.max(o.long ? 0.05 : 0.1, p.health - (o.long ? Number(C.feed.longHealthTaken) : Number(C.feed.healthTaken))));
-        personal(t, o.long ? `${nameOf(a)} drinks long from you. The world goes dark.` : `${nameOf(a)} drinks from you. You feel weak.`);
+        personal(t, o.long ? `${nameTo(t, a)} drinks long from you. The world goes dark.` : `${nameTo(t, a)} drinks from you. You feel weak.`);
         if (o.long) blackout(t);
         if (Math.random() < C.infectFeed) infect(t, 'vampire', a);
       }
@@ -1213,9 +1220,9 @@ module.exports = (api) => {
     if (o.onCorpse) { fedOn.add(t); if (fedOn.size > 2048) fedOn.clear(); }
     playAnim(a, ev);
     try { sendPacket(a, { customPacketType: 'dboBanner', text: o.long ? 'Feeding deeply...' : 'Feeding...', seconds: Math.ceil(seconds) }); } catch (e) { /* old client */ }
-    if (!o.onCorpse) personal(t, o.willing ? `${nameOf(a)} drinks from your neck.` : `${nameOf(a)} sinks their teeth into your neck.`);
-    else if (lying) personal(t, `${nameOf(a)} bends over you and drinks.`);
-    quietNear(a, o.onCorpse ? `You see ${nameOf(a)} feed on the fallen.` : `You see ${nameOf(a)} feed on ${nameOf(t)}.`, 1500);
+    if (!o.onCorpse) personal(t, o.willing ? `${nameTo(t, a)} drinks from your neck.` : `${nameTo(t, a)} sinks their teeth into your neck.`);
+    else if (lying) personal(t, `${nameTo(t, a)} bends over you and drinks.`);
+    quietNear(a, (v) => (o.onCorpse ? `You see ${nameTo(v, a)} feed on the fallen.` : `You see ${nameTo(v, a)} feed on ${nameTo(v, t)}.`), 1500);
     log(`supernatural: ${display(a)} started ${o.long ? 'a deep feed' : 'feeding'} on ${display(t)} (${seconds} s${ev ? `, ${ev}` : ''})`);
     return true;
   };
@@ -1606,7 +1613,7 @@ module.exports = (api) => {
     personal(a, first ? `Without blood, your body begins to wither. Your wounds and breath mend ${pct(wither)}% slower until you feed.`
       : `The withering deepens. Your wounds and breath mend ${pct(wither)}% slower.`);
     // Onny: a starving new vampire loses some control. Shown, never forced: those close by see the hunger
-    if (wither >= 0.3) quietNear(a, `${nameOf(a)} stares at your throat a moment too long.`, 800);
+    if (wither >= 0.3) quietNear(a, (v) => `${nameTo(v, a)} stares at your throat a moment too long.`, 800);
     log(`supernatural: ${display(a)} unfed for ${hours.toFixed(1)} game hours of play: withering ${pct(wither)}%`);
   };
   // gamemode's needs system multiplies health and stamina recovery by this: the withering, and a deep feed's lift
@@ -1696,7 +1703,7 @@ module.exports = (api) => {
       p *= forcedMult(a);
       if (Math.random() >= p) continue;
       personal(a, hunger >= 60 ? 'Hunger claws its way up your throat, and the beast tears free.' : 'Something wakes in your blood, and the beast takes you without asking.');
-      quietNear(a, `${nameOf(a)} doubles over, and something tears its way out of them.`, 3000);
+      quietNear(a, (v) => `${nameTo(v, a)} doubles over, and something tears its way out of them.`, 3000);
       log(`supernatural: ${display(a)} went feral (hunger ${Math.round(hunger)}, chance ${(p * 100).toFixed(1)}%/min)`);
       if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
     }
