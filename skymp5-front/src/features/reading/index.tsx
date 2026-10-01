@@ -5,10 +5,12 @@ import './styles.scss';
 // Scholar reading mini-game, opened by the gamemode through the dbo relay
 // (widget type "reading"). A sentence from the book arrives with its words
 // shuffled; the reader puts them back in order before the candle gutters. The
-// server is the only judge: a wrong reading comes back with the words already
-// right locked in place and the candle burnt lower, and the round goes on.
+// server judges the words: a wrong reading comes back with the words already
+// right locked in place, and the round goes on. With judge 'client' the candle
+// is this widget's own: it stops while a reading is being judged, takes the
+// penalty itself, and its clock goes with every report.
 //
-//   Browser -> client -> server: sendMessage('dbo:reading', nonce, JSON order)
+//   Browser -> client -> server: sendMessage('dbo:reading', nonce, JSON order, JSON { v: 2, elapsedMs, pausedMs, leftMs, attempts, guttered })
 //   Escape / Give up:            sendMessage('dbo:readingCancel', nonce)
 export interface ReadingData {
   id: number;
@@ -23,6 +25,9 @@ export interface ReadingData {
   result?: string;      // set by the server when the round is over
   resultKind?: 'win' | 'lose';
   answer?: string;      // the sentence, shown after a lost round
+  judge?: 'client';     // the candle is this widget's to keep
+  candleMs?: number;    // the whole candle, exact
+  penaltyMs?: number;   // what a wrong reading burns
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -47,14 +52,31 @@ const Reading = ({ data }: { data: ReadingData }) => {
   const deadline = useRef(Date.now() + total);
   const placedRef = useRef<number[]>([]);
   placedRef.current = placed;
+  // The widget's own clock, performance.now() so the machine's time service cannot step it
+  const own = data.judge === 'client';
+  const candle = Number(data.candleMs) || total;
+  const clock = useRef({ nonce: '', burnt: 0, paused: 0, tick: 0, sentAt: 0 });
+  // One send per reading even if Enter and the candle land in the same frame, before sent re-renders
+  const sentRef = useRef(false);
+  const ownLeft = () => candle - clock.current.burnt - (data.attempt || 0) * (Number(data.penaltyMs) || 0);
 
-  // New round or a wrong-reading verdict: locked words stay, the candle follows the server.
+  // New round or a wrong-reading verdict: locked words stay. The candle follows the server, or with judge 'client'
+  // runs on from where it stopped, less the penalty, and the time spent waiting on the verdict is not burnt.
   useEffect(() => {
     setPlaced(locked.slice());
     setSent(false);
-    const ends = typeof data.endsInMs === 'number' ? data.endsInMs : total;
-    deadline.current = Date.now() + ends;
-    setLeft(ends);
+    sentRef.current = false;
+    const now = performance.now();
+    if (own) {
+      const c = clock.current;
+      if (c.nonce !== data.nonce) { clock.current = { nonce: data.nonce, burnt: 0, paused: 0, tick: now, sentAt: 0 }; }
+      else { if (c.sentAt) c.paused += now - c.sentAt; c.sentAt = 0; c.tick = now; }
+      setLeft(ownLeft());
+    } else {
+      const ends = typeof data.endsInMs === 'number' ? data.endsInMs : total;
+      deadline.current = Date.now() + ends;
+      setLeft(ends);
+    }
     if (data.attempt) {
       setShake(true);
       const t = window.setTimeout(() => setShake(false), 450);
@@ -64,20 +86,35 @@ const Reading = ({ data }: { data: ReadingData }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.nonce, data.attempt]);
 
-  const submit = (order: number[]) => {
-    if (sent || over) return;
+  const submit = (order: number[], guttered?: boolean) => {
+    if (sentRef.current || sent || over) return;
+    sentRef.current = true;
     setSent(true);
-    send('dbo:reading', data.nonce, JSON.stringify(order));
+    if (!own) { send('dbo:reading', data.nonce, JSON.stringify(order)); return; }
+    const c = clock.current; const now = performance.now();
+    c.burnt += now - c.tick; c.tick = now; c.sentAt = now;
+    const leftMs = ownLeft();
+    send('dbo:reading', data.nonce, JSON.stringify(order), JSON.stringify({
+      v: 2, elapsedMs: Math.floor(c.burnt), pausedMs: Math.floor(c.paused), leftMs: Math.floor(leftMs),
+      attempts: data.attempt || 0, guttered: !!guttered || leftMs <= 0,
+    }));
   };
 
   // The candle: when it gutters, whatever is placed goes to the server.
   useEffect(() => {
     if (sent || over) return undefined;
     const t = window.setInterval(() => {
-      const remaining = deadline.current - Date.now();
+      let remaining: number;
+      if (own) {
+        const c = clock.current; const now = performance.now();
+        c.burnt += now - c.tick; c.tick = now;
+        remaining = ownLeft();
+      } else {
+        remaining = deadline.current - Date.now();
+      }
       if (remaining <= 0) {
         setLeft(0);
-        submit(placedRef.current);
+        submit(placedRef.current, true);
       } else {
         setLeft(remaining);
       }
