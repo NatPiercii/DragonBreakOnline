@@ -238,7 +238,7 @@ export type GainOutcome = {
   gained: number;              // levels gained by the skill that worked
   units: number;               // units the bucket and the caps actually allowed
   tookFrom: Array<{ id: string; units: number; levels: number }>;
-  refused?: "bucket" | "daily" | "cap" | "pool";
+  refused?: "bucket" | "daily" | "cap" | "pool" | "lock";
 };
 
 const dayKey = (now: number): string => new Date(now).toISOString().slice(0, 10);
@@ -251,6 +251,8 @@ const dayKey = (now: number): string => new Date(now).toISOString().slice(0, 10)
  */
 export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: PointConfig, now: number, boost = 1): GainOutcome => {
   const s = rec.skills[id] || (rec.skills[id] = { level: 0, xp: 0, lock: "raise" });
+  // A Waning skill does not rise (SKILLS_DESIGN.md 3.6): refused before the bucket and the day's caps, so nothing is charged
+  if (s.lock === "lower") return { gained: 0, units: 0, tookFrom: [], refused: "lock" };
   const today = dayKey(now);
   if (s.day !== today) { s.day = today; s.spentToday = 0; }
   if (rec.day !== today) { rec.day = today; rec.spentToday = 0; }
