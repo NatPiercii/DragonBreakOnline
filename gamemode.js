@@ -4526,12 +4526,36 @@ const masteryDamageMult = (aggressorId, sourceId) => {
 };
 // Blessings the guide promises, made real where the server decides damage (Nat, 2026-09-25: everything server-side).
 // The damage formula reads armour only, so a "+10 skill" or "resist" blessing changed nothing before. Config
-// "blessingCombat": { enabled, attacker: { deity: { hands: one|two|bow|any, spell, mult } }, target: { deity: { spell, mult } } }.
+// "blessingCombat": { enabled, attacker: { deity: { hands: one|two|bow|any, spell, mult } }, target: { deity: { spell, element, mult } } }.
+// A target rule's element (fire, shock, frost) takes only a hit whose source carries an effect that element's resistance
+// resists, as the game decides it: the MGEF DATA resist value (i32 at 16: 41 FireResist, 42 ElectricResist, 43 FrostResist;
+// libespm MGEF.h) of any effect of the spell, enchantment or scroll. A fire bolt, a dragon's fire breath, a flame cloak.
+// The Ancestors' ward (2026-10-01) replaced Ancestor's Wrath, a racial power the client blocks (skills.json).
 // Block (Stendarr, Malacath) and poison (Peryite) are not here: the server does not know a hit was blocked or poisoned.
 const BLESS_COMBAT = Object.assign({ enabled: true,
   attacker: { talos: { hands: 'two', mult: 1.1 }, boethiah: { hands: 'one', mult: 1.1 }, auriel: { hands: 'bow', mult: 1.1 },
     malacath: { hands: 'any', mult: 1.1 }, mehrunes: { spell: true, mult: 1.1 } },
-  target: { azura: { spell: true, mult: 0.9 }, trinimac: { spell: true, mult: 0.75 } } }, cfg.blessingCombat || {});
+  target: { azura: { spell: true, mult: 0.9 }, trinimac: { spell: true, mult: 0.75 }, ancestors: { element: 'fire', mult: 0.75 } } }, cfg.blessingCombat || {});
+const ELEMENT_RESIST = { fire: 41, shock: 42, frost: 43 };
+const sourceResistCache = new Map();
+// The resistances a hit's source is resisted by (a Set of actor value indexes), read once per source
+const sourceResistsOf = (sourceId) => {
+  if (sourceResistCache.has(sourceId)) return sourceResistCache.get(sourceId);
+  const out = new Set();
+  const r = recordOf(sourceId);
+  if (r && ['SPEL', 'ENCH', 'SCRL'].includes(String(r.record.type))) {
+    for (const f of r.record.fields || []) {
+      if (!f || f.type !== 'EFID' || !(f.data instanceof Uint8Array) || f.data.byteLength < 4) continue;
+      const local = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(0, true);
+      const m = recordOf(typeof r.toGlobalRecordId === 'function' ? r.toGlobalRecordId(local) >>> 0 : local);
+      const data = m && String(m.record.type) === 'MGEF' && (m.record.fields || []).find((x) => x && x.type === 'DATA' && x.data instanceof Uint8Array && x.data.byteLength >= 20);
+      if (data) out.add(new DataView(data.data.buffer, data.data.byteOffset, data.data.byteLength).getInt32(16, true));
+    }
+  }
+  sourceResistCache.set(sourceId, out);
+  return out;
+};
+const fitsElement = (element, sourceId) => ELEMENT_RESIST[element] !== undefined && sourceResistsOf(sourceId).has(ELEMENT_RESIST[element]);
 const weaponHandsCache = new Map();
 // one (swords, daggers, axes, maces), two (greatswords, battleaxes, warhammers), bow (bows, crossbows), or '' when not a weapon
 const weaponHandsOf = (sourceId) => {
@@ -4560,7 +4584,7 @@ const blessingDamageMult = (aggressorId, targetId, sourceId) => {
     if (fits) m *= Number(atk.mult) || 1;
   }
   const def = (BLESS_COMBAT.target || {})[blessedDeityOf(targetId)];
-  if (def && (def.spell ? isSpellSource(sourceId) : true)) m *= Number(def.mult) || 1;
+  if (def && (def.element ? fitsElement(def.element, sourceId) : def.spell ? isSpellSource(sourceId) : true)) m *= Number(def.mult) || 1;
   return m;
 };
 // The server's hit formula counts only the bow's WEAP damage; vanilla adds the worn arrow's (AMMO DATA float at byte 8)

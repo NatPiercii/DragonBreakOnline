@@ -2,8 +2,8 @@
 // vitals report to its own regeneration (CropRegeneration.cpp), which a blessing's rate effects never reach, so Akatosh,
 // Hircine, Meridia and the Worm Cult sped up only the player's own bar and the server pulled it back. Now a tick raises the
 // worshipper's percentage by what the blessing adds, read from the blessing's own record the way the game counts it (a
-// rate effect adds its magnitude to the rate, a Mult effect its magnitude % of the race's rate); a deity with no spell
-// can name its own in skills.json (blessingRegen). Loads the real module with a mock gamemode api, and records
+// rate effect adds its magnitude to the rate, a Mult effect its magnitude % of the race's rate), and the Hist and the
+// Yokudan gods name theirs in skills.json (blessingRegen). Loads the real module with a mock gamemode api, and records
 // shaped like the real ones (SPEL SPIT/EFID/EFIT, MGEF DATA, RACE DATA). Run it from this folder's parent with
 //
 //   node tests/blessing-regen-harness.js
@@ -70,6 +70,7 @@ records.set(spellOf('hircine'), spel(0, 1, [E('FortifyStaminaRateFFSelf', 10), E
 records.set(spellOf('meridia'), spel(0, 1, [E('AlchFortifyHealRate', 25), E('CureDiseaseEffect', 25, 0)]));
 records.set(spellOf('julianos'), spel(0, 1, [E('FortifyMagickaFFSelf', 25), E('CureDiseaseEffect', 25, 0)]));
 records.set(spellOf('wormcult'), spel(4, 0, [E('doomMagickaRecoveryAbility', 100, 0)]));
+records.set(0xe40d5, spel(2, 1, [E('PerkArgonianFortifyHealRateNonCombat', 10, 60)]));           // Histskin, the old Hist blessing
 records.set(0xabcde, spel(0, 1, [E('DisDamageMagickaRegen', 50), E('HostileStaminaRate', 50), E('TestStaminaRateMult', 20)]));
 records.set(NORD, race(0.7, 3, 5));
 records.set(0x13748, race(1.4, 6, 10));    // a race of our own, twice the Nord's rates
@@ -122,7 +123,8 @@ load();
 // ---- what is held, read from the records -------------------------------------------------------------------------------
 const line = out.logs.find((l) => /regeneration held by the server/.test(l)) || '';
 check('the boot line names every regeneration blessing, as the tick reads it',
-  /akatosh MagickaRateMult \+10/.test(line) && /hircine StaminaRate \+10/.test(line) && /meridia HealRateMult \+25/.test(line) && /wormcult MagickaRateMult \+100/.test(line)
+  /akatosh MagickaRateMult \+10/.test(line) && /hircine StaminaRate \+10/.test(line) && /meridia HealRateMult \+25/.test(line)
+  && /hist HealRateMult \+50/.test(line) && /yokudan StaminaRateMult \+100/.test(line) && /wormcult MagickaRateMult \+100/.test(line)
   && !/julianos/.test(line), line.replace(/^.*: /, ''));
 check('the tick runs every second', timers.get('prayerBlessingRegen').ms === 1000);
 
@@ -132,6 +134,8 @@ const RATES = [
   ['hircine', 'stamina', 0.10, 'StaminaRate +10: 10% a second on top of 5%, three times the stamina regeneration'],
   ['meridia', 'health', 0.00175, 'HealRateMult +25: a quarter of the Nord\'s 0.7% a second'],
   ['wormcult', 'magicka', 0.03, 'MagickaRateMult +100 (an Ability): the Nord\'s 3% a second again'],
+  ['hist', 'health', 0.0035, 'blessingRegen HealRateMult +50: half the Nord\'s 0.7% a second'],
+  ['yokudan', 'stamina', 0.05, 'blessingRegen StaminaRateMult +100: the Nord\'s 5% a second again'],
 ];
 const table = [];
 for (const [deity, stat, perSec, why] of RATES) {
@@ -172,6 +176,9 @@ check('a long stall pays at most three ticks', (() => { bless('hircine'); setPc(
 bless('testgod');
 check('only boosts count: a detrimental or hostile rate effect is left out, a plain Value Modifier is in',
   (() => { const h = globalThis.__dboBlessingRegen(ACTOR); return h.length === 1 && h[0].av === 'StaminaRateMult' && near(h[0].perSecond, 0.01); })(), JSON.stringify(globalThis.__dboBlessingRegen(ACTOR)));
+props.set(ACTOR + '|private.dboBlessing', { deity: 'hist', spell: 0xe40d5, until: wallClock + H, via: 'spell' });
+check('a Hist blessing from before (Histskin\'s record) runs the Hist\'s boon of today, not the power\'s HealRate +10',
+  (() => { const h = globalThis.__dboBlessingRegen(ACTOR); return h.length === 1 && h[0].av === 'HealRateMult' && near(h[0].perSecond, 0.0035); })(), JSON.stringify(globalThis.__dboBlessingRegen(ACTOR)));
 props.set(ACTOR + '|appearance', { raceId: 0x13748 });
 check('the race\'s own rate is read from its record: twice the rate, twice the Mult boon', (() => { bless('akatosh'); return near(globalThis.__dboBlessingRegen(ACTOR)[0].perSecond, 0.006); })());
 check('a rate effect does not depend on the race', (() => { bless('hircine'); return near(globalThis.__dboBlessingRegen(ACTOR)[0].perSecond, 0.10); })());

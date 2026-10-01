@@ -1656,11 +1656,16 @@
    {
     "id": "hist",
     "name": "The Hist",
-    "blessing": "e40d5:Skyrim.esm",
-    "blessingEditorId": "PowerArgonianHistskin",
+    "blessing": "",
+    "blessingRegen": {
+     "HealRateMult": 50
+    },
     "lawful": true,
     "sphere": "The great trees of Black Marsh, older than memory, whose sap made the Saxhleel what they are. The Hist remembers, and it gives.",
-    "boon": "Histskin: once a day, health regenerates ten times faster for 60 seconds.",
+    "boon": "Health regenerates 50% faster while the blessing lasts - the sap remembers.",
+    "replacedBoon": "Histskin (PowerArgonianHistskin e40d5:Skyrim.esm), once a day: a racial power, which the client dispels the moment it is used (magicSyncService BLOCKED_POWER_IDS: \"Racial powers are disabled on this server\"), so until 2026-10-01 this blessing gave nothing that worked.",
+    "blessingDesign": "Histskin's own theme, made passive: the server's regeneration tick (prayer.js) adds half the race's health regeneration again while the blessing runs. Between Meridia's +25% and the Worm Cult's +100%, as the faiths' rarer, shorter blessings run a little stronger than the Princes'.",
+    "blessingImplemented": true,
     "alsoKnownAs": [
      "The Root",
      "The Hist trees"
@@ -1669,7 +1674,7 @@
     "placements": 0,
     "inPlaytest": 0,
     "inBruma": 0,
-    "blessingSource": "vanilla",
+    "blessingSource": "server",
     "kind": "faith",
     "prayAnywhere": true,
     "blessingChanceMult": 0.5,
@@ -1678,11 +1683,14 @@
    {
     "id": "ancestors",
     "name": "The Ancestors",
-    "blessing": "e40d4:Skyrim.esm",
-    "blessingEditorId": "PowerDarkElfFlameCloak",
+    "blessing": "",
+    "combatBoon": true,
     "lawful": true,
     "sphere": "The honoured dead of House and family, the heart of Dunmer faith. The Tribunal is gone since the Third Era; the New Temple keeps the ancestors and the three Good Daedra.",
-    "boon": "Ancestor's Wrath: once a day, a cloak of flame burns anyone who comes close, 10 damage a second for 60 seconds.",
+    "boon": "Fire burns you a quarter less while the blessing lasts - the dead of your House stand in the flame with you.",
+    "replacedBoon": "Ancestor's Wrath (PowerDarkElfFlameCloak e40d4:Skyrim.esm), once a day: a racial power, which the client dispels the moment it is used (magicSyncService BLOCKED_POWER_IDS: \"Racial powers are disabled on this server\"), so until 2026-10-01 this blessing gave nothing that worked.",
+    "blessingDesign": "Fire damage taken x0.75 while the blessing runs: gamemode.js blessingCombat target.ancestors, element fire (a hit whose effects are resisted by Resist Fire, the MGEF resist value, as the game resists a fire spell, a dragon's breath or a flame cloak). The Dunmer's fire, turned to a ward; Trinimac turns 25% of all spells.",
+    "blessingImplemented": true,
     "alsoKnownAs": [
      "Ancestor worship",
      "The New Temple"
@@ -1691,7 +1699,7 @@
     "placements": 0,
     "inPlaytest": 0,
     "inBruma": 0,
-    "blessingSource": "vanilla",
+    "blessingSource": "server",
     "kind": "faith",
     "prayAnywhere": true,
     "blessingChanceMult": 0.5,
@@ -1700,11 +1708,16 @@
    {
     "id": "yokudan",
     "name": "The Yokudan Gods",
-    "blessing": "e40ce:Skyrim.esm",
-    "blessingEditorId": "PowerRedguardStaminaRegen",
+    "blessing": "",
+    "blessingRegen": {
+     "StaminaRateMult": 100
+    },
     "lawful": true,
     "sphere": "The gods the Redguards brought from drowned Yokuda: Satakal the world-skin, Tu'whacca who guards the Far Shores, and HoonDing, the Make-Way god who clears the path when the people need one.",
-    "boon": "Adrenaline Rush: once a day, stamina comes back far faster for 60 seconds.",
+    "boon": "Stamina returns twice as fast while the blessing lasts - HoonDing makes the way.",
+    "replacedBoon": "Adrenaline Rush (PowerRedguardStaminaRegen e40ce:Skyrim.esm), once a day: a racial power, which the client dispels the moment it is used (magicSyncService BLOCKED_POWER_IDS: \"Racial powers are disabled on this server\"), so until 2026-10-01 this blessing gave nothing that worked.",
+    "blessingDesign": "Adrenaline Rush's own theme, made passive: the server's regeneration tick (prayer.js) doubles the race's stamina regeneration while the blessing runs, as the Worm Cult's doubles magicka.",
+    "blessingImplemented": true,
     "alsoKnownAs": [
      "HoonDing",
      "Tu'whacca",
@@ -1715,7 +1728,7 @@
     "placements": 0,
     "inPlaytest": 0,
     "inBruma": 0,
-    "blessingSource": "vanilla",
+    "blessingSource": "server",
     "kind": "faith",
     "prayAnywhere": true,
     "blessingChanceMult": 0.5,
@@ -1724,11 +1737,13 @@
    {
     "id": "riddlethar",
     "name": "The Riddle'Thar",
-    "blessing": "aa01d:Skyrim.esm",
-    "blessingEditorId": "PowerKhajiitNightEye",
+    "blessing": "1209c7:DragonBreak Online Edits.esp",
+    "blessingEditorId": "DBO_BlessingOfVaermina",
     "lawful": true,
     "sphere": "The Two-Moons Dance, the Khajiiti faith of Masser and Secunda and the Riddle-Thar, the cosmic order that shapes every Khajiit by the moons of their birth.",
-    "boon": "Night Eye: see in the dark for 60 seconds, whenever you wish.",
+    "boon": "You see in the dark while the blessing lasts, as the moons' children do.",
+    "replacedBoon": "Night Eye (PowerKhajiitNightEye aa01d:Skyrim.esm), whenever you wish: a racial power, which the client dispels the moment it is used (magicSyncService BLOCKED_POWER_IDS: \"Racial powers are disabled on this server\"), so until 2026-10-01 this blessing gave nothing that worked.",
+    "blessingDesign": "The Khajiit's Night Eye for the blessing's length: cast on the worshipper (dboCastSelf) from DBO_BlessingOfVaermina, the one plain Night Eye spell in the server's load order (NightEyeEffect and the shrines' Cure Disease, 8 h). The client's Active Effects page names it the Blessing of Vaermina; a record of Riddle'Thar's own is a plugin follow-up.",
     "alsoKnownAs": [
      "The Two-Moons Dance",
      "Ja-Kha'jay",
@@ -1813,7 +1828,7 @@
   ],
   "_placements": "Measured, not assumed: server\\shrine-placements.json, regenerate with py ck-mcp\\shrines.py. placements = every reference of this deity's shrine bases in the load order; inPlaytest = those inside the region lock; inBruma = those in Bruma county, the only released and walkable part of Beyond Skyrim Cyrodiil. A deity with inBruma 0 cannot be prayed to until Skyrim opens.",
   "_lore": "The roster is the canonical one for Cyrodiil, not whoever happened to have a shrine already: the Nine Divines plus Auri-El, and Oblivion's fifteen Daedric shrines plus Mephala. JYGGALAG IS DELIBERATELY ABSENT - he was Sheogorath until the Greymarch ended in 3E 433 and has walked free since, but he has no cult, no shrine and no worshippers in 4E 201, and a shrine to him would be the one thing in this list that lore actually forbids. Every boon below is grounded in the Prince's sphere, and every magic effect it names exists in this load order (measured by ck-mcp\\blessings.py; see server\\blessing-effects.json).",
-  "_blessingSource": "vanilla = a real SPEL that works today, whether Bethesda's or one of the eleven DBO_BlessingOf* records authored on 2026-09-20 by SSEEdit 4.1.5f\\Edit Scripts\\DBO_Blessings.pas. server = prayer.js does it and no record exists. pending = a boon still waiting on a spell; there are none left.",
+  "_blessingSource": "vanilla = a real SPEL that works today, whether Bethesda's or one of the eleven DBO_BlessingOf* records authored on 2026-09-20 by SSEEdit 4.1.5f\\Edit Scripts\\DBO_Blessings.pas. server = the gameplay does it and no record exists (prayer.js; for the Ancestors, gamemode.js blessingCombat). pending = a boon still waiting on a spell; there are none left.",
   "_deadStats": "NO BOON MAY BE A DEAD STAT. This server is entirely player-run: no merchants, no dialogue, no barter, and no speech skill among the eighteen. Persuasion, Speechcraft and Pickpocket therefore do nothing at all, and four boons that used them have been replaced (see replacedBoon). Where the replacement overrides a vanilla shrine, Bethesda's record is left untouched on disk and skills.json simply points elsewhere, so reverting is one line. Check any new boon against what this server actually runs: combat and the damage formula, health/magicka/stamina and their regen, carry weight, sneak, the magic schools, alchemy, lockpicking, and the needs meter - all real; anything that needs an NPC to talk to - not.",
   "_authored": "The eleven DBO_BlessingOf* SPELs live at DragonBreak Online Edits.esp:1209BF-1209C9. Each is a copy of AltarNocturnalSpell - a fire-and-forget SELF spell, NOT a constant ability - with one effect swapped and CureDiseaseEffect kept, 28800 s. Namira is the exception: she keeps Fortify Sneak and her second effect is Night Eye instead of cure disease, which suits the Prince of decay. Re-running the script is safe; it leaves records that already exist alone.",
   "_testSite": "Nat placed a statue of every Prince at the Namira shrine site (CYRNamirasShrineExterior and around it, grid 23,47) on 2026-09-20 as one central place to test worship. They went in as STATICS, which the engine never fires an activation on; DBO_ShrineActivators2.pas gave each Prince a DBO_ShrineOf* ACTI using that same statue mesh and repointed the references at it, so the statue itself is the shrine.",
