@@ -9,6 +9,7 @@ import './styles.scss';
 //   running  Class in Progress: teacher, spell, the countdown, who has signed up. A visitor signs up (told first what
 //            their rank would take from it), a student may leave, the teacher ends it after the time or cancels it.
 //   Browser -> client -> server: sendMessage(events.start, nonce, spellDesc), events.join/leave/end/cancel (nonce), events.close
+// The Preach pulpit (widget 76) is this panel with the sermon's own `words`; without them it reads as a class
 interface LecternSpell {
   id: string;
   name: string;
@@ -43,7 +44,22 @@ export interface ClassLecternData {
   gain?: string;
   canJoin?: boolean;
   canEnd?: boolean;
+  words?: Partial<LecternWords>;
 }
+
+interface LecternWords {
+  lead: string; teacher: string; lesson: string; students: string; none: string; teacherAway: string;
+  begin: string; join: string; leave: string; end: string; cancel: string;
+  cancelTitle: string; cancelText: string; cancelYes: string; cancelNo: string;
+}
+
+const CLASS_WORDS: LecternWords = {
+  lead: 'Choose the spell your class is set by. It decides the school and the rank; your students do not learn it. The class runs {minutes} minutes.',
+  teacher: 'Teacher', lesson: 'Lesson', students: 'Students', none: 'None yet',
+  teacherAway: 'The teacher has left the classroom. The class is cancelled in {clock} unless they return.',
+  begin: 'Begin the class', join: 'Sign up', leave: 'Leave the class', end: 'End Class', cancel: 'Cancel the class',
+  cancelTitle: 'Cancel the class?', cancelText: 'Nobody is paid for a cancelled class.', cancelYes: 'Cancel it', cancelNo: 'Keep teaching',
+};
 
 const send = (key: string, ...args: unknown[]): void => {
   try {
@@ -106,6 +122,7 @@ const ClassLectern = ({ data }: { data: ClassLecternData }) => {
     send(event, data.nonce, ...args);
   };
 
+  const words: LecternWords = Object.assign({}, CLASS_WORDS, data.words || {});
   const spells = (data.spells || []).slice().sort((a, b) => SCHOOL_ORDER.indexOf(a.school) - SCHOOL_ORDER.indexOf(b.school) || a.rank - b.rank || a.name.localeCompare(b.name));
   const students = data.students || [];
 
@@ -122,7 +139,7 @@ const ClassLectern = ({ data }: { data: ClassLecternData }) => {
         {data.mode === 'idle' ? (
           data.canTeach ? (
             <>
-              <p className="classLectern__lead">Choose the spell your class is set by. It decides the school and the rank; your students do not learn it. The class runs {data.minutes || 30} minutes.</p>
+              <p className="classLectern__lead">{words.lead.replace('{minutes}', String(data.minutes || 30))}</p>
               <div className="tomeShop__grid classLectern__spells">
                 {spells.map((s) => (
                   <button
@@ -145,16 +162,16 @@ const ClassLectern = ({ data }: { data: ClassLecternData }) => {
         ) : (
           <div className="classLectern__class">
             <div className="classLectern__facts">
-              <span className="classLectern__label">Teacher</span><span>{data.teacher}</span>
-              <span className="classLectern__label">Lesson</span><span>{data.spell} ({data.school}, {data.rankName})</span>
-              <span className="classLectern__label">Students</span>
+              <span className="classLectern__label">{words.teacher}</span><span>{data.teacher}</span>
+              <span className="classLectern__label">{words.lesson}</span><span>{data.spell} ({data.school}, {data.rankName})</span>
+              <span className="classLectern__label">{words.students}</span>
               <span>
                 {students.length
                   ? students.map((s, i) => <span key={s.name + i} className={s.away ? 'classLectern__away' : ''}>{i ? ', ' : ''}{s.name}{s.away ? ' (away)' : ''}</span>)
-                  : 'None yet'}
+                  : words.none}
               </span>
             </div>
-            {data.teacherAway ? <p className="tomeShop__why">The teacher has left the classroom. The class is cancelled in {clock(data.teacherAway)} unless they return.</p> : null}
+            {data.teacherAway ? <p className="tomeShop__why">{words.teacherAway.replace('{clock}', clock(data.teacherAway))}</p> : null}
             {data.gain ? <p className="classLectern__gain">{data.gain}</p> : null}
             {data.whyNot ? <p className="tomeShop__why">{data.whyNot}</p> : null}
           </div>
@@ -166,18 +183,18 @@ const ClassLectern = ({ data }: { data: ClassLecternData }) => {
           <span />
           <div className="tomeShop__actions">
             {data.mode === 'idle' && data.canTeach ? (
-              <button className="tomeShop__button" disabled={busy || !picked} onClick={() => act(ev.start, picked)}>Begin the class</button>
+              <button className="tomeShop__button" disabled={busy || !picked} onClick={() => act(ev.start, picked)}>{words.begin}</button>
             ) : null}
             {data.mode === 'running' && data.role === 'visitor' && data.canJoin ? (
-              <button className="tomeShop__button" disabled={busy} onClick={() => act(ev.join)}>Sign up</button>
+              <button className="tomeShop__button" disabled={busy} onClick={() => act(ev.join)}>{words.join}</button>
             ) : null}
             {data.mode === 'running' && data.role === 'student' ? (
-              <button className="tomeShop__button" disabled={busy} onClick={() => act(ev.leave)}>Leave the class</button>
+              <button className="tomeShop__button" disabled={busy} onClick={() => act(ev.leave)}>{words.leave}</button>
             ) : null}
             {data.mode === 'running' && data.role === 'teacher' ? (
               <>
-                <button className="tomeShop__button" disabled={busy || !data.canEnd} onClick={() => act(ev.end)}>End Class</button>
-                <button className="tomeShop__button" disabled={busy} onClick={() => setCancelling(true)}>Cancel the class</button>
+                <button className="tomeShop__button" disabled={busy || !data.canEnd} onClick={() => act(ev.end)}>{words.end}</button>
+                <button className="tomeShop__button" disabled={busy} onClick={() => setCancelling(true)}>{words.cancel}</button>
               </>
             ) : null}
             <button className="tomeShop__button" onClick={() => send(ev.close)}>Close</button>
@@ -187,11 +204,11 @@ const ClassLectern = ({ data }: { data: ClassLecternData }) => {
         {cancelling ? (
           <div className="tomeShop__shade">
             <div className="tomeShop__confirm">
-              <h3 className="tomeShop__confirm-title">Cancel the class?</h3>
-              <p className="tomeShop__confirm-text">Nobody is paid for a cancelled class.</p>
+              <h3 className="tomeShop__confirm-title">{words.cancelTitle}</h3>
+              <p className="tomeShop__confirm-text">{words.cancelText}</p>
               <div className="tomeShop__actions">
-                <button className="tomeShop__button" disabled={busy} onClick={() => act(ev.cancel)}>Cancel it</button>
-                <button className="tomeShop__button" onClick={() => setCancelling(false)}>Keep teaching</button>
+                <button className="tomeShop__button" disabled={busy} onClick={() => act(ev.cancel)}>{words.cancelYes}</button>
+                <button className="tomeShop__button" onClick={() => setCancelling(false)}>{words.cancelNo}</button>
               </div>
             </div>
           </div>
