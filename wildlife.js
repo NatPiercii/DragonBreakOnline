@@ -188,6 +188,9 @@ module.exports = (api) => {
   globalThis.__dboCampChest = (targetId, casterId) => {
     const hit = campChests.get(targetId);
     if (!hit || !C.enabled) return null;
+    // Camp loot is for players: a goblin or giant whose AI opens its own chest is turned away as before, but takes nothing
+    let pid = -1; try { pid = Number(profileOf(casterId >>> 0)); } catch (e) { pid = -1; }
+    if (!(pid >= 0)) return false;
     const say = (t) => { if (Date.now() - (denyAt.get(casterId) || 0) > 1500) { denyAt.set(casterId, Date.now()); personal(casterId, t); } return false; };
     const loots = lootsOf(casterId);
     const until = Number(loots[targetId.toString(16)]) || 0;
