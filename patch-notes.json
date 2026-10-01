@@ -57,6 +57,39 @@
     ]
   },
   {
+    "title": "Mini-games and a slow connection",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Lag no longer fails you",
+        "items": [
+          "Praying: a prayer you held through to the end is no longer refused because your connection was slow.",
+          "Mining and woodcutting: a slow connection no longer loses a round you played. It counts even if it reaches the server minutes late.",
+          "Skinning: standing still while you skin no longer fails the cut.",
+          "Reading: a right answer now counts even if it reaches the server up to 30 seconds after the candle goes out, instead of 2.5 seconds.",
+          "Struggling against bonds: a slow connection no longer loses your pulls."
+        ]
+      },
+      {
+        "heading": "Lockpicking",
+        "items": [
+          "The lock no longer freezes after two misses in a row, or after a try on a tumbler that is not the loose one.",
+          "Leaving a lock with Escape no longer leaves every chest and door unresponsive for a minute."
+        ]
+      },
+      {
+        "heading": "Rites",
+        "items": [
+          "The strike window in a rite is wider and more forgiving of lag.",
+          "Until the next game update, Molag Bal's Embrace and the Great Hunt cannot be begun. A rite that can kill must not be lost to a slow connection, and the update lets your own game judge each strike. They open again with it.",
+          "Until then, losing a Blood Fever rite or Hircine's Hunt breaks the fever without killing you."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Three spell tomes in their proper schools",
     "date": "2026-10-01",
     "version": "Server update",
