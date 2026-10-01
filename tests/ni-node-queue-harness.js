@@ -36,6 +36,12 @@ check('...two frames on it goes', p.next(22, loaded({ [0xff000301]: true })) ===
 check('the player\'s own waits a frame only when a copy went out this frame', p.copySentIn(22) === true && p.copySentIn(23) === false);
 p.forget(0xff000301);
 check('forget drops a waiting copy', p.waiting === 0);
+p = new NiNodeQueuePlan();
+p.request(0xff000401);
+p.wantPlayer();
+check('while the player\'s own waits, no copy goes', p.playerWaiting === true && p.next(30, loaded({ [0xff000401]: true })) === 0);
+p.playerQueued(31);
+check('...it is cleared when the player\'s goes', p.playerWaiting === false);
 
 // ---- 2. niNodeQueue.ts against fake natives that expire with their frame ----
 const FORK = process.env.FORK, FORK_SERVER = process.env.FORK_SERVER;
@@ -103,6 +109,20 @@ else {
   check('the player\'s own waits a frame when a copy went out this frame', sent.length === 0 && frame === copyFrame);
   tick();
   check('...and goes the next frame, alone', sent.length === 1 && sent[0][0] === 0x14 && sent[0][1] === copyFrame + 1, sent);
+  // F's case (review N1): two loaded copies queued, the player asks right after A went out; the player goes before B,
+  // whatever order SkyrimPlatform runs the frame's "update" callbacks in
+  for (let i = 0; i < 3; i++) tick();
+  sent.length = 0;
+  world.set(0xff000b01, { loaded: true, race: 0x13746 }); world.set(0xff000b02, { loaded: true, race: 0x13746 });
+  Q.queueCopyNiNodeUpdate(0xff000b01); Q.queueCopyNiNodeUpdate(0xff000b02);
+  tick();
+  check('F: copy A goes first', sent.length === 1 && sent[0][0] === 0xff000b01, sent);
+  Q.queuePlayerNiNodeUpdate();
+  for (let i = 0; i < 6; i++) tick();
+  const order = sent.map(([id]) => id);
+  const at = (id) => (sent.find(([x]) => x === id) || [0, -1])[1];
+  check('F: the player goes the very next frame, before copy B', order.join() === [0xff000b01, 0x14, 0xff000b02].join() && at(0x14) === at(0xff000b01) + 1, sent.map(([id, f]) => [id.toString(16), f]));
+  check('F: B waits two frames after the player\'s', at(0xff000b02) - at(0x14) >= 2, sent.map(([id, f]) => [id.toString(16), f]));
 
   // ---- 3. the call sites ----
   const read = (rel) => fs.readFileSync(path.join(FORK, 'skymp5-client/src', rel), 'utf8');
