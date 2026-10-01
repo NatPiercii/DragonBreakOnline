@@ -1,5 +1,19 @@
 [
   {
+    "title": "Character Names",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Naming your character",
+        "items": [
+          "A name may now end in a regnal number from II to X, like Titus Mede II, and the name of a character you deleted is free again at once."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Welcome to the Alpha",
     "date": "2026-10-01",
     "version": "Server update",

@@ -841,8 +841,10 @@ const findAnyByName = (query) => {
   const q = String(query).trim().toLowerCase();
   try {
     const tagMatch = q.match(/#([a-z0-9]{4})$/);
-    if (tagMatch) { const r = mp.findFormsByPropertyValue('private.indexed.tagKey', tagMatch[1]); if (Array.isArray(r) && r.length) return Number(r[0]); }
-    const r = mp.findFormsByPropertyValue('private.indexed.nameKey', q.replace(/\s*#[a-z0-9]{4}$/, ''));
+    // A deleted character stays in the name and tag indexes until a restart (naming.js __dboFormGone)
+    const live = (ids) => (Array.isArray(ids) ? ids.filter((id) => !(typeof globalThis.__dboFormGone === 'function' && globalThis.__dboFormGone(id))) : []);
+    if (tagMatch) { const r = live(mp.findFormsByPropertyValue('private.indexed.tagKey', tagMatch[1])); if (r.length) return Number(r[0]); }
+    const r = live(mp.findFormsByPropertyValue('private.indexed.nameKey', q.replace(/\s*#[a-z0-9]{4}$/, '')));
     if (Array.isArray(r) && r.length === 1) return Number(r[0]);
     if (Array.isArray(r) && r.length > 1) return -r.length; // ambiguous
   } catch (e) { log('name lookup failed', e.message); }

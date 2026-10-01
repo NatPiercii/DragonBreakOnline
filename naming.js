@@ -60,6 +60,10 @@ module.exports = (api) => {
   const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i' };
   const fold = (s) => String(s).toLowerCase().replace(/./gu, (c) => LEET[c] || c).replace(/[^\p{L}]/gu, '');
 
+  // A regnal number after the name, II to X ("Titus Mede II"): the shape rules read the name without it
+  const REGNAL = /^(II|III|IV|V|VI|VII|VIII|IX|X)$/;
+  const regnalOf = (words) => (words.length >= 2 && REGNAL.test(words[words.length - 1]) ? words[words.length - 1] : '');
+
   // The creator's rules (fork nameFilter.ts checkName), or null when the name will do
   const problemWith = (name) => {
     const r = readRules();
@@ -69,10 +73,13 @@ module.exports = (api) => {
     if (/^[' -]|[' -]$/.test(name) || /[' -]{2}/.test(name)) return 'Names cannot start, end or run two separators together.';
     const words = name.split(' ');
     if (words.length > r.maxWords) return `Names are at most ${r.maxWords} words.`;
-    const letters = name.replace(/[^\p{L}]/gu, '');
+    const regnal = regnalOf(words);
+    const nameWords = regnal ? words.slice(0, -1) : words;
+    const core = nameWords.join(' ');
+    const letters = core.replace(/[^\p{L}]/gu, '');
     if (letters.length >= 4 && letters === letters.toUpperCase()) return 'Names are not written in capitals.';
-    if (new RegExp(`(\\p{L})\\1{${r.maxRepeatedLetters},}`, 'u').test(name.toLowerCase())) return `No letter repeats more than ${r.maxRepeatedLetters} times in a row.`;
-    for (const word of words) {
+    if (new RegExp(`(\\p{L})\\1{${r.maxRepeatedLetters},}`, 'u').test(core.toLowerCase())) return `No letter repeats more than ${r.maxRepeatedLetters} times in a row.`;
+    for (const word of nameWords) {
       if (!/^\p{L}/u.test(word)) return 'Each word starts with a letter.';
       for (let i = 1; i < word.length; i++) {
         const c = word.charAt(i);
@@ -83,7 +90,7 @@ module.exports = (api) => {
     }
     const folded = fold(name);
     if (r.blocked.some((bad) => bad && folded.includes(bad))) return 'That name will not do here. Choose one in keeping with the world.';
-    if (r.reserved.some((taken) => taken && folded === taken)) return 'That name is reserved.';
+    if (r.reserved.some((taken) => taken && (folded === taken || (regnal && fold(core) === taken)))) return 'That name is reserved.';
     return null;
   };
   // A forged pigeon signature (gamemode.js /sign): the blocked words, and the reserved names whole or as any one word
@@ -97,10 +104,16 @@ module.exports = (api) => {
     if (r.reserved.some((taken) => taken && (folded === taken || words.includes(taken)))) return 'That name is reserved.';
     return null;
   };
+  // A deleted character stays in the world state's name index until the next restart (destroyActor leaves the index;
+  // fork 1e853ee0 clears it, not live): its form is gone, and only that exact error frees the name
+  const formGone = (id) => {
+    try { mp.get(Number(id) >>> 0, 'type'); return false; } catch (e) { return /doesn't exist/.test(String(e && e.message)); }
+  };
+  globalThis.__dboFormGone = formGone;
   const takenBy = (key, self) => {
     try {
       const found = mp.findFormsByPropertyValue(INDEX, key);
-      return Array.isArray(found) && found.some((id) => (Number(id) >>> 0) !== (self >>> 0));
+      return Array.isArray(found) && found.some((id) => (Number(id) >>> 0) !== (self >>> 0) && !formGone(id));
     } catch (e) { log('naming: uniqueness check failed, letting the name through', e.message); return false; }
   };
   // For staff /rename (gamemode.js): the same key and the same uniqueness check as a player's own naming
