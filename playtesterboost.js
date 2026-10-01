@@ -7,7 +7,9 @@
 // this module keeps each account's window in playtester-boost.json (runtime, gitignored) and copies it onto the character
 // the player is on at every login. Nothing is started, copied or promised unless the running server build says it honours
 // the property (globalThis.__alduinakXpBoost holds its name), so a gameplay deploy ahead of the server build is inert.
-// `enabled` gates only the automatic start for role holders; windows already running and staff grants work either way.
+// `enabled` gates the automatic start for role holders. Off, it also ends the playtester windows still running (Nate,
+// 2026-10-01: ended early while skill gain is rebalanced); each player is told once, at once or at their next login.
+// Staff grants work either way.
 //   /boost                             your boost and the time left
 //   /boost <player>                    a player's boost (staff)
 //   /boost grant <player> [hours]      a window of `hours` from now (Lead GM and above)
@@ -78,6 +80,32 @@ module.exports = (api) => {
     return rec;
   };
 
+  // Off: the playtester windows still running end now. A staff window of its own (never claimed) runs on.
+  const EARLY = 'The playtester double progress has ended early while we rebalance how fast skills grow. Thank you for testing!';
+  const endEarly = () => {
+    if (C.enabled) return 0;
+    const now = Date.now();
+    let n = 0;
+    for (const [pid, rec] of Object.entries(store.profiles)) {
+      if (!rec || !rec.claimed || !active(rec, now)) continue;
+      const leftMs = rec.until - now;
+      rec.until = now; rec.endedEarly = now; rec.told = false;
+      audit(`BOOST profile ${pid} playtester boost ended early (x${rec.mult}, ${left(leftMs)} left)`);
+      n++;
+    }
+    if (n) save();
+    return n;
+  };
+  // Says it once to whoever is on a character of an account whose window ended early, and refreshes that character
+  const tellEarly = (a) => {
+    const rec = recOf(a);
+    if (!rec || !rec.endedEarly || rec.told) return;
+    rec.told = true;
+    save();
+    ended.add(`${profileOf(a)}:${rec.until}`);
+    personal(a, EARLY);
+  };
+
   const welcome = (a, rec, now) => system(a, `Thank you for playtesting DragonBreak Online. For the next ${left(rec.until - now)} your skills rise ${times(rec.mult)}. Type /boost to see the time left.`);
   const reminder = (a, rec, now) => personal(a, `Your skill boost is on: your skills rise ${times(rec.mult)} for another ${left(rec.until - now)}.`);
 
@@ -89,12 +117,15 @@ module.exports = (api) => {
     if (!prop()) return;
     const fresh = claim(a, now);
     const rec = fresh || recOf(a);
+    // A character still holding a window that has since ended is brought up to date
+    if (rec && !active(rec, now)) { mirror(a, rec); tellEarly(a); return; }
     if (!active(rec, now) || !mirror(a, rec)) return;
     if (fresh) welcome(a, rec, now); else reminder(a, rec, now);
   };
 
   // Once a minute: start the window for role holders already logged in when the launch comes, and say when one ends
   const ended = globalThis.__dboBoostEnded instanceof Set ? globalThis.__dboBoostEnded : (globalThis.__dboBoostEnded = new Set());
+  if (endEarly() && prop()) for (const a of onlineActors()) { const rec = recOf(a); if (rec && rec.endedEarly) { mirror(a, rec); tellEarly(a); } }
   const tick = () => {
     if (!prop()) return;
     const now = Date.now();

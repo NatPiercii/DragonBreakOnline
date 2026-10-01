@@ -60,7 +60,7 @@ module.exports = (api) => {
   const denyAt = new Map();
   globalThis.__dboPlaytestActivate = (targetId, casterId) => {
     if (!active() || !blockedDoors.has(targetId)) return null;
-    if (Date.now() - (denyAt.get(casterId) || 0) > 1500) { denyAt.set(casterId, Date.now()); personal(casterId, `The road to Skyrim is closed for now. The playtest stays in ${C.name}.`); }
+    if (Date.now() - (denyAt.get(casterId) || 0) > 1500) { denyAt.set(casterId, Date.now()); personal(casterId, `The road to Skyrim is closed for now. The alpha begins in ${C.name}.`); }
     return false;
   };
 
@@ -80,7 +80,7 @@ module.exports = (api) => {
         if (now - (bounced.get(a) || 0) < 10000) continue;
         bounced.set(a, now);
         if (sendToArrival(a, 'bounce')) {
-          system(a, `Skyrim is closed while we playtest ${C.name}. You have been brought back.`);
+          system(a, `Skyrim is closed for now: the alpha begins in ${C.name}. You have been brought back.`);
           audit(`PLAYTEST ${who(a)} was outside the region (${place}) and was returned to ${C.name}`);
         }
       } catch (e) { log('playtest check failed', e.message); }
@@ -90,7 +90,7 @@ module.exports = (api) => {
 
   registerChatCommand('playtest', (a) => {
     if (!active()) return personal(a, 'No region lock is active; the whole world is open.');
-    personal(a, `Playtest lock: ${C.name}. Hub gates lead there, ${blockedDoors.size} border door(s) are closed, and anyone outside is brought back.${isAdmin(a) ? ' Admins are exempt. Config: gamemode-config.json "playtest".' : ''}`);
+    personal(a, `The alpha is in ${C.name}. Hub gates lead there, ${blockedDoors.size} border door(s) are closed, and anyone outside is brought back.${isAdmin(a) ? ' Admins are exempt. Config: gamemode-config.json "playtest".' : ''}`);
   }, { help: 'what part of the world is open' });
 
   log(`playtest lock ${active() ? 'ON' : 'off'}: ${C.name}, ${allowedWorlds.size} world(s), ${allowedPlugins.size} plugin(s) for interiors, ${blockedDoors.size} border door(s)${C.enabled && !arrival ? ' (enabled but no arrival spot set, so inactive)' : ''}`);
