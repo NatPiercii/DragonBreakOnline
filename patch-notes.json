@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "Two friends at one cave mouth",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "If someone else claims a cave or dungeon while you are choosing its difficulty, you are now put back outside the entrance instead of freezing on the spot. To go in together, party up with /party invite before anyone claims it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Playtester double progress ended early",
     "date": "2026-10-01",
     "version": "Server update",
