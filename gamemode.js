@@ -1381,15 +1381,27 @@ const DIAG_SEEN = globalThis.__dboDiagSeen || (globalThis.__dboDiagSeen = new Ma
 // under their actor once they have one, still lasts the whole run.
 const diagConnectionKey = (userId) => `u${userId}`;
 const resetDiagForConnection = (userId) => { DIAG_SEEN.delete(diagConnectionKey(userId)); };
+// Each player's last few voice lines, kept past the log allowance: a /bug from anyone near them carries them (debugsnap.js)
+const VOICE_LINES = globalThis.__dboVoiceLines || (globalThis.__dboVoiceLines = new Map());
+const VOICE_LINES_KEPT = 4;
+const keepVoiceLine = (a, text) => {
+  const key = (a >>> 0).toString(16);
+  const kept = (VOICE_LINES.get(key) || []).concat({ at: new Date().toISOString(), line: text }).slice(-VOICE_LINES_KEPT);
+  VOICE_LINES.delete(key);
+  VOICE_LINES.set(key, kept);
+  if (VOICE_LINES.size > 500) VOICE_LINES.delete(VOICE_LINES.keys().next().value);
+};
 const writeDiagLines = (userId, lines) => {
   const a = actorOf(userId);
   const key = a || diagConnectionKey(userId);
   const who = a ? `profile ${profileOf(a)} ${display(a)}` : `user ${userId}`;
   let n = DIAG_SEEN.get(key) || 0;
   for (const raw of (Array.isArray(lines) ? lines : [])) {
-    if (n >= DIAG_MAX_PER_PLAYER) break;
+    const text = String(raw).slice(0, 500);
+    if (a && text.startsWith('voice ')) keepVoiceLine(a, text);
+    if (n >= DIAG_MAX_PER_PLAYER) continue;
     n++;
-    log(`[dboDiag] ${who} ${String(raw).slice(0, 500)}`);
+    log(`[dboDiag] ${who} ${text}`);
   }
   if (n > (DIAG_SEEN.get(key) || 0)) DIAG_SEEN.set(key, n);
 };

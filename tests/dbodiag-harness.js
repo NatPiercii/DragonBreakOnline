@@ -76,10 +76,20 @@ logged.length = 0;
 api2(7, { customPacketType: 'dboDiag', lines: ['after the reload'] });
 check('...so a reload does not reopen the tap', logged.length === 0, JSON.stringify(logged));
 
+// Voice lines are kept per player past the cap, the last four, for /bug (debugsnap.js)
+logged.length = 0;
+for (let i = 1; i <= 6; i++) api2(7, { customPacketType: 'dboDiag', lines: [`voice echo loop on (${i} packets); activation ptt; mics 1, aec on`, 'beat x'] });
+const voice = globalThis.__dboVoiceLines && globalThis.__dboVoiceLines.get('14');
+check('a capped player\'s voice lines are still kept, by actor id in hex', !!voice && logged.length === 0, JSON.stringify(voice));
+check('...the last four, newest last, with the time', voice && voice.length === 4 && /\(3 packets\)/.test(voice[0].line) && /\(6 packets\)/.test(voice[3].line) && /^\d{4}-\d\d-\d\dT/.test(voice[3].at), JSON.stringify(voice));
+check('...and only lines that start with "voice "', voice && voice.every((v) => v.line.startsWith('voice ')));
+api(99, { customPacketType: 'dboDiag', lines: ['voice echo loop on'] });
+check('a connection with no actor yet keeps none', globalThis.__dboVoiceLines.size === 1);
+
 // A packet that is not ours falls through to the handlers after it
 check('another packet type is left to the rest of the handler', api(7, { customPacketType: 'dbo' }) === 'fellthrough');
 
-delete globalThis.__dboDiagSeen;
+delete globalThis.__dboDiagSeen; delete globalThis.__dboVoiceLines;
 console.log('');
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);
