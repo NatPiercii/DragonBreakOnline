@@ -43,8 +43,21 @@ const LAUNCHER_CUT = /^\t\[\d+ more line\(s\) cut\]$/
 // Crash Logger reads at most 999 characters of a string (Introspection.cpp analyze_string), newlines and tabs included
 const STRING_MAX = 1000
 
+const quotes = line => line.split('"').length - 1
+
+// Quotes Crash Logger writes around its own text: a plugin file name and the exception name
+const PROTECTED = /\bFile:[ \t]*"[^"\n]*"|"(?:EXCEPTION_[A-Z_]{3,40}|C\+\+ Exception)"/g
+
+// Crash Logger leaves quotes inside a string unescaped (a JSON packet), so a line with more than two is cut at its first
+function cutQuotedText(line, counted) {
+  const bare = line.replace(PROTECTED, m => ' '.repeat(m.length))
+  if (quotes(bare) <= 2) return line
+  counted.n++
+  return `${line.slice(0, bare.indexOf('"'))}""`
+}
+
 function keptLine(line, counted) {
-  return line
+  return cutQuotedText(line, counted)
     .replace(NAME_VALUE, (_m, label) => { counted.n++; return `${label}<name>` })
     .replace(QUOTED, (m, file) => {
       if (file || EXCEPTION_NAME.test(m)) return m
@@ -52,8 +65,6 @@ function keptLine(line, counted) {
       return '""'
     })
 }
-
-const quotes = line => line.split('"').length - 1
 
 // Returns the filtered log and how many names, strings, register values and sections were left out
 function filterCrashLog(input) {
@@ -119,7 +130,7 @@ function filterCrashLog(input) {
     if (!shown(section)) {
       if (line.trim()) { leftOut++; blanks = 0 } else blanks++
     } else if (section === OBJECTS) {
-      const kept = SECTION_FILTERS.relevantObjects(line.replace(NAME_VALUE, '$1<name>'))
+      const kept = SECTION_FILTERS.relevantObjects(cutQuotedText(line, counted).replace(NAME_VALUE, '$1<name>'))
       if (kept !== line) counted.n++
       out.push(kept)
     } else if (section === REGISTERS) {

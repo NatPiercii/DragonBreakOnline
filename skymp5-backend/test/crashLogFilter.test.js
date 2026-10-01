@@ -221,3 +221,36 @@ test("Crash Logger's own GetFullName label goes the way of every Name value", ()
   assert.match(text, /\tRSP\+70: \(TESNPC\*\) GetFullName: <name>$/)
   assert.strictEqual(filterNames(`x GetFullName: ${SECRETS.otherPlayer}`).text, 'x GetFullName: <name>')
 })
+
+test('a kept line whose string holds quotes of its own is cut at its first quote', () => {
+  // Crash Logger's quoted() does not escape, so a JSON packet's text would sit between the quote pairs
+  const packet = `{"t":"chat","msg":"${SECRETS.chat} ${SECRETS.email} <@${SECRETS.mention}>"}`
+  const log = [
+    'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF6D2A1B2C3 SkyrimSE.exe+06B2C3',
+    'Exception Information Parameters:',
+    `\tParameter[1]: 0x1D3A5B0C400 (char*) "${packet}"`,
+    '',
+    'C++ EXCEPTION:',
+    `\tType: (char*) "${packet}"`,
+    '',
+    'POSSIBLE RELEVANT OBJECTS:',
+    `\tRSI: (Character*) "Bob "${SECRETS.otherPlayer}" Smith" [0xFF000D2E] (DragonBreak.esp)`,
+    '\tRBX: (PlayerCharacter*) "Kept" [0x00000014] (Skyrim.esm)',
+    '\t\tFile: "DragonBreak.esp"',
+  ].join('\n')
+  const { text } = filterCrashLog(log)
+  for (const value of [SECRETS.chat, SECRETS.email, SECRETS.mention, SECRETS.otherPlayer]) assert.ok(!text.includes(value), text)
+  assert.strictEqual(text, [
+    'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF6D2A1B2C3 SkyrimSE.exe+06B2C3',
+    'Exception Information Parameters:',
+    '\tParameter[1]: 0x1D3A5B0C400 (char*) ""',
+    '',
+    'C++ EXCEPTION:',
+    '\tType: (char*) ""',
+    '',
+    'POSSIBLE RELEVANT OBJECTS:',
+    '\tRSI: (Character*) ""',
+    '\tRBX: (PlayerCharacter*) "" [0x00000014] (Skyrim.esm)',
+    '\t\tFile: "DragonBreak.esp"',
+  ].join('\n'))
+})
