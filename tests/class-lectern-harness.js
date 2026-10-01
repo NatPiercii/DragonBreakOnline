@@ -46,5 +46,30 @@ check('...after it: End Class enabled', /<button class="tomeShop__button">End Cl
 t = text(render(ClassLectern, running({ role: 'teacher', gain: '', teacherAway: 4 * 60000 })));
 check('the grace period is shown while the teacher is away', /The class is cancelled in 4:00 unless they return/.test(t), t);
 
+// ---- the Preach pulpit: the same panel (widget 76) with the sermon's words (schools.js sermonWords.panel) ----
+if (!/cancelYes/.test(fs.readFileSync(bundle, 'utf8'))) {
+  console.log('ok   skipped: this front draws no sermon words yet (the pulpit reads as a class until it does)');
+} else {
+  const PEV = { start: 'dbo:preachStart', join: 'dbo:preachJoin', leave: 'dbo:preachLeave', end: 'dbo:preachEnd', cancel: 'dbo:preachCancel', close: 'dbo:preachClose' };
+  const WORDS = {
+    lead: 'Choose the Restoration spell your sermon is on. It decides the rank; your listeners do not learn it. The sermon runs 30 minutes.',
+    teacher: 'Priest', lesson: 'Sermon', students: 'Listeners', none: 'None yet',
+    teacherAway: 'The priest has left the temple. The sermon is cancelled in {clock} unless they return.',
+    begin: 'Begin the sermon', join: 'Join', leave: 'Leave the sermon', end: 'End Sermon', cancel: 'Cancel the sermon',
+    cancelTitle: 'Cancel the sermon?', cancelText: 'Nobody is paid for a cancelled sermon.', cancelYes: 'Cancel it', cancelNo: 'Keep preaching',
+  };
+  const pulpit = (over) => Object.assign({ id: 76, nonce: 'r1', title: 'Sermon', result: '', resultKind: '', events: PEV, words: WORDS }, over);
+  t = text(render(ClassLectern, pulpit({ mode: 'idle', status: 'No sermon is being given here.', canTeach: true, whyNot: '', minutes: 30, spells: [{ id: 'b62ee:Skyrim.esm', name: 'Grand Healing', school: 'Restoration', rank: 3, rankName: 'Expert' }] })));
+  check('pulpit, idle: Sermon, the sermon lead, the Restoration spell and Begin the sermon', /^ ?Sermon No sermon is being given here\. Choose the Restoration spell your sermon is on/.test(t) && /Restoration Expert Grand Healing/.test(t) && /Begin the sermon/.test(t) && !/class/i.test(t), t);
+  t = text(render(ClassLectern, pulpit({ mode: 'running', status: 'Sermon in Progress', teacher: 'Mara\'s Priest', spell: 'Grand Healing', school: 'Restoration', rankName: 'Expert', endsInMs: 1800000, teacherAway: 125000, students: [{ name: 'Listener', away: false }], role: 'teacher', gain: '', canJoin: false, whyNot: '', canEnd: false })));
+  check('pulpit, running, the preacher: Priest, Sermon, Listeners, the away line, End Sermon and Cancel the sermon', /Priest Mara's Priest Sermon Grand Healing \(Restoration, Expert\) Listeners Listener/.test(t) && /The priest has left the temple\. The sermon is cancelled in 2:05 unless they return\./.test(t) && /End Sermon Cancel the sermon/.test(t) && !/class/i.test(t), t);
+  t = text(render(ClassLectern, pulpit({ mode: 'running', status: 'Sermon in Progress', teacher: 'P', spell: 'Healing', school: 'Restoration', rankName: 'Novice', endsInMs: 600000, teacherAway: 0, students: [], role: 'visitor', gain: 'At your rank in Priest you would take the full sermon.', canJoin: true, whyNot: '', canEnd: false })));
+  check('pulpit, a visitor: None yet and Join', /Listeners None yet/.test(t) && / Join /.test(t) && !/Sign up/.test(t), t);
+  t = text(render(ClassLectern, pulpit({ mode: 'running', status: 'Sermon in Progress', teacher: 'P', spell: 'Healing', school: 'Restoration', rankName: 'Novice', endsInMs: 600000, teacherAway: 0, students: [{ name: 'Me', away: false }], role: 'student', gain: '', canJoin: false, whyNot: '', canEnd: false })));
+  check('pulpit, a listener: Leave the sermon', /Leave the sermon/.test(t), t);
+  t = text(render(ClassLectern, lectern({ mode: 'running', status: 'Class in Progress', teacher: 'T', spell: 'Incinerate', school: 'Destruction', rankName: 'Expert', endsInMs: 600000, teacherAway: 0, students: [], role: 'teacher', gain: '', canJoin: false, whyNot: '', canEnd: true })));
+  check('the Class Lectern without words is word for word as before', /Teacher T Lesson Incinerate \(Destruction, Expert\) Students None yet/.test(t) && /End Class Cancel the class/.test(t), t);
+}
+
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);
