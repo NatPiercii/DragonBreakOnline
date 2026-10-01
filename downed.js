@@ -38,6 +38,9 @@ module.exports = (api) => {
     reviveRange: 1500, reviveConeDeg: 25, reviveFallbackMs: 1200, groupReviveRange: 400,
     // The Draught is poured by hand from as far as the gamemode lets anyone activate an actor: 6.5 m, 70 units each
     pourReach: 455,
+    // A player who falls in beast form gets the panel again this long after, once their client has turned them back:
+    // the first one lost the keyboard to that change (Purr, 2026-10-01: no cursor, no Give up, the whole bleed-out)
+    beastPanelRetryMs: 2000,
     // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
     // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
     finishGraceSeconds: 3, finishWeaponOnly: true,
@@ -390,8 +393,11 @@ module.exports = (api) => {
     const inner = mp.onDeath;
     if (typeof inner === 'function') {
       mp.onDeath = function (actorId, killerId, ...rest) {
-        const out = inner.call(this, actorId, killerId, ...rest);
         const a = Number(actorId) >>> 0;
+        // Read before the inner chain, whose deathHook turns the beast back
+        let wasBeast = false;
+        try { wasBeast = typeof globalThis.__dboBeastOriginalRace === 'function' && globalThis.__dboBeastOriginalRace(a) > 0; } catch (e) { wasBeast = false; }
+        const out = inner.call(this, actorId, killerId, ...rest);
         try {
           if (isPlayer(a) && mp.get(a, 'private.permaDead') !== true) {
             const d = { at: Date.now(), by: Number(killerId) >>> 0, nonce: `${a.toString(16)}-${Date.now().toString(36)}` };
@@ -399,6 +405,9 @@ module.exports = (api) => {
             // The panel says it all; chat keeps a line for anyone who closes it
             personal(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or choose Give up (or say /respawn). A Priest's healing or a Draught of Revival can bring you back where you fell.`);
             openPanel(a, d);
+            if (wasBeast && C.beastPanelRetryMs > 0) {
+              setTimeout(() => { try { if (S.downed.get(a) === d && isDead(a)) openPanel(a, d); } catch (e) { /* gone */ } }, C.beastPanelRetryMs);
+            }
             pushTimers(true);
             if (Number(C.inputDiagSeconds) > 0) sendPacket(a, { customPacketType: 'dboInputDiag', seconds: Number(C.inputDiagSeconds), reason: 'down' });
             log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
