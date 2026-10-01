@@ -99,6 +99,10 @@ class Esp:
         self.me = self.p.key
 
     def norm(self, fid):
+        """A form id by name: (master, local id), or ('self', local id) for the file's own records, so a candidate
+        under another file name compares the same (review G5)"""
+        if fid >> 24 >= len(self.p.masters):
+            return ('self', fid & 0xFFFFFF)
         s, loc = self.p.modindex_source(fid)
         return ((s or '?').lower(), loc & 0xFFFFFF)
 
@@ -276,28 +280,33 @@ def main():
         elif nl and nn:
             le, lp = navi_info.resolved(live.subs(NAVI), live.norm)
             ne, np_ = navi_info.resolved(new.subs(NAVI), new.norm)
-            # The links (form ids: merges, doors, cell) must match; island geometry is recomputed by every CK save, and
-            # NVPP's order changes with it, so those are reported, not failed
-            links = lambda e: sorted(map(repr, e[0]))
-            missing = [k for k in le if k not in ne]
-            relinked = [k for k in le if k in ne and links(le[k]) != links(ne[k])]
-            regeom = [k for k in le if k in ne and k not in relinked and le[k] != ne[k]]
-            extra = [k for k in ne if k not in le]
+            c = navi_info.compare(le, ne, lp, np_)
             show = lambda ks: ', '.join('%s %06X' % k for k in sorted(ks)[:8]) + (' ...' if len(ks) > 8 else '')
+            plural = lambda n, one, many: f'{n} {one if n == 1 else many}'
             msgs = []
-            if missing:
-                msgs.append(f'{len(missing)} live entr{"y" if len(missing) == 1 else "ies"} missing: {show(missing)}')
-            if relinked:
-                msgs.append(f'{len(relinked)} entr{"y" if len(relinked) == 1 else "ies"} with other links: {show(relinked)}')
-            if lp and np_ and sorted(map(repr, lp[0])) != sorted(map(repr, np_[0])):
-                msgs.append('the preferred pathing (NVPP) names other navmeshes')
-            notes = ([f'{len(regeom)} with recomputed island geometry'] if regeom else []) + \
-                    (['NVPP in another order'] if lp != np_ and not any('NVPP' in m for m in msgs) else []) + \
-                    ([f'{len(extra)} new'] if extra else [])
+            if c['missing']:
+                msgs.append(f"{plural(len(c['missing']), 'live entry', 'live entries')} missing: {show(c['missing'])}")
+            if c['relinked']:
+                by = {}
+                for k, names in c['relinked'].items():
+                    for n in names:
+                        by.setdefault(n, []).append(k)
+                msgs.append(f"{plural(len(c['relinked']), 'entry', 'entries')} with other links ("
+                            + '; '.join(f'{n}: {show(ks)}' for n, ks in sorted(by.items())) + ')')
+            if c['flipped']:
+                msgs.append(f"{plural(len(c['flipped']), 'entry', 'entries')} with the Is Island flag flipped: {show(c['flipped'])}")
+            if c['nvppMoved']:
+                msgs.append('the preferred pathing (NVPP) names other navmeshes or triangles')
+            # Everything else is reported by field, not failed: a CK save recomputes island data, and NVPP's order
+            notes = [f'{len(ks)} with other {name}' for name, ks in sorted(c['notes'].items())] + \
+                    (['NVPP in another order'] if c['nvppOrder'] else []) + ([f"{len(c['extra'])} new"] if c['extra'] else [])
+            present = len(le) - len(c['missing'])
             if msgs and not a.allow_navi:
                 fails.append('navmesh info: ' + '; '.join(msgs) + ' (a Creation Kit re-save? rebuild with live\'s NAVI, or --allow-navi if this build edits navmeshes)')
             else:
-                oks.append(f'navmesh info: {len(le)} live entries present with their links' + (' (' + ', '.join(notes) + ')' if notes else '')
+                oks.append(f'navmesh info: {present} of {len(le)} live entries present'
+                           + (' with their links' if not c['relinked'] else '')
+                           + (' (' + ', '.join(notes) + ')' if notes else '')
                            + (' (--allow-navi: ' + '; '.join(msgs) + ')' if msgs else ''))
     except navi_info.Bad as e:
         fails.append(f'navmesh info: NAVI 00012FB4 does not parse ({e})')

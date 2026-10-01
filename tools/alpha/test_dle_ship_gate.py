@@ -90,6 +90,67 @@ def navi_island_geometry(e, fh):                 # a float of the island bounds 
     fh.write(struct.pack('<f', x + 2.0))
 
 
+def rebuild_nvmi(src, dst, change):
+    """Writes dst = src with one NVMI entry replaced by change(fields, bytes) -> new bytes or None (skip to the next
+    entry); the record's and the NAVI group's sizes follow"""
+    import navi_info
+    e = G.Esp(src)
+    t, fl, off, sz = e.rec[G.NAVI]
+    assert not fl & 0x40000
+    buf = bytearray(open(src, 'rb').read())
+    body = bytes(buf[off:off + sz])
+    out, i, done = [], 0, False
+    while i < len(body):
+        sig, n = body[i:i + 4], struct.unpack_from('<H', body, i + 4)[0]
+        v = body[i + 6:i + 6 + n]
+        if sig == b'NVMI' and not done:
+            w = change(navi_info.parse_nvmi(v)[0], v)
+            if w is not None:
+                v, done = w, True
+        out.append(sig + struct.pack('<H', len(v)) + v)
+        i += 6 + n
+    assert done, 'no entry to change'
+    data = b''.join(out)
+    p = buf.rfind(b'GRUP', 0, off)
+    while bytes(buf[p + 8:p + 12]) != b'NAVI':
+        p = buf.rfind(b'GRUP', 0, p)
+    struct.pack_into('<I', buf, p + 4, struct.unpack_from('<I', buf, p + 4)[0] + len(data) - sz)
+    struct.pack_into('<I', buf, off - 20, len(data))
+    buf[off:off + sz] = data
+    open(dst, 'wb').write(buf)
+
+
+def nvmi_layout(f):
+    """Offsets inside an NVMI: (edge count, island flag)"""
+    edge_at = 4 + 4 + 12 + 4
+    island_at = edge_at + 4 + 4 * len(f['merged']) + 4 + 4 * len(f['pref']) + 4 + 8 * len(f['doors'])
+    return edge_at, island_at
+
+
+def grid_x_plus_one(f, v):                       # an exterior entry's grid X moves one cell
+    if f['world'] == 0:
+        return None
+    y, x = struct.unpack_from('<hh', v, len(v) - 4)
+    return v[:-4] + struct.pack('<hh', y, x + 1)
+
+
+def edge_to_preferred(f, v):                     # the last edge link becomes a preferred edge link
+    if not f['merged'] or f['pref']:
+        return None
+    edge_at, _ = nvmi_layout(f)
+    k = len(f['merged'])
+    last = v[edge_at + 4 * k:edge_at + 4 + 4 * k]
+    after = edge_at + 4 + 4 * k + 4               # past the edge list and the (empty) preferred count
+    return v[:edge_at] + struct.pack('<I', k - 1) + v[edge_at + 4:edge_at + 4 * k] + struct.pack('<I', 1) + last + v[after:]
+
+
+def island_flag_off(f, v):                       # Is Island cleared (and its island data with it)
+    if not f['island']:
+        return None
+    _, at = nvmi_layout(f)
+    return v[:at] + b'\x00' + v[at + 1 + len(f['islandData']):]
+
+
 def unlink_border_cell(e, fh):
     for k in sorted(e.border_cells()):
         t, fl, off, sz = e.rec[k]
@@ -109,15 +170,18 @@ def unlink_border_cell(e, fh):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--v8', default='/tmp/claude-nate-v8flag/DragonBreak Online Edits.esp')
+    # A PC build that passes every check (DLE v9b), kept outside /tmp, which a reboot wipes (review G4)
+    ap.add_argument('--candidate', '--v8', dest='v8',
+                    default=os.path.expanduser('~nate/claude-nate-release/gate-fixtures/dle-v9b/DragonBreak Online Edits.esp'))
     a = ap.parse_args()
     rc, f = gate(LIVE)
     ok(rc == 0, 'the live DLE passes against itself', f)
     if not os.path.exists(a.v8):
-        print(f'skip: no v8 at {a.v8}')
-        return 1 if fails else 0
+        ok(False, f'the candidate build exists ({a.v8}); without it nothing below is tested')
+        print(f'\n{fails} FAILED')
+        return 1
     rc, f = gate(a.v8)
-    ok(rc == 0, 'DLE v8 passes against live (its border is the live polygon wound the other way)', f)
+    ok(rc == 0, 'the candidate (DLE v9b) passes against live (its border is the live polygon wound the other way, its masters in another order)', f)
     me = G.Esp(a.v8).me
     cases = [
         ('a server-spawned goblin not Initially Disabled', set_flags((me, 0x154071), off=0x800), 'spawns:'),
@@ -138,13 +202,27 @@ def main():
             ok(rc == 1 and any(expect in x for x in f), f'fails on {what}', f)
     finally:
         shutil.rmtree(d, ignore_errors=True)
-    # recomputed island geometry alone passes, with a note
+    # entries rebuilt (their size changes): each is a real breakage and must fail (review G1)
+    d = tempfile.mkdtemp(prefix='claude-nate-gate-')
+    try:
+        for what, change, expect in [
+            ("an exterior entry's grid X + 1", grid_x_plus_one, 'cell or grid:'),
+            ('an edge link moved into the preferred links', edge_to_preferred, 'preferred edge links:'),
+            ('the Is Island flag cleared', island_flag_off, 'Is Island flag flipped'),
+        ]:
+            dst = os.path.join(d, 'DragonBreak Online Edits.esp')
+            rebuild_nvmi(a.v8, dst, change)
+            rc, f = gate(dst)
+            ok(rc == 1 and any(expect in x for x in f), f'fails on {what}', f)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    # recomputed island data alone passes, with a note
     d = tempfile.mkdtemp(prefix='claude-nate-gate-')
     try:
         dst = os.path.join(d, 'DragonBreak Online Edits.esp')
         mutate(a.v8, dst, navi_island_geometry)
         r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_ship_gate.py'), dst], capture_output=True, text=True)
-        ok(r.returncode == 0 and 'recomputed island geometry' in r.stdout, 'passes on recomputed island geometry, and says so', r.stdout[-400:])
+        ok(r.returncode == 0 and '1 with other island data' in r.stdout, 'passes on recomputed island data, and names it', r.stdout[-400:])
     finally:
         shutil.rmtree(d, ignore_errors=True)
     # the polygon comparison on its own
