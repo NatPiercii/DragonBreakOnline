@@ -43,7 +43,10 @@ check('a fall asks the fallen player for the input diagnostic, once', r.diag.len
 check('for 180 seconds (the bleed-out and two minutes after), reason "down"', r.diag[0] && r.diag[0][1].seconds === 180 && r.diag[0][1].reason === 'down', r.diag[0]);
 check('nobody else is asked', !r.diag.some(([a]) => a === r.NEAR));
 r = run({ inputDiagSeconds: 0 });
-check('downed.inputDiagSeconds 0 switches it off', r.diag.length === 0, r.diag);
+check('downed.inputDiagSeconds 0 opens no diagnostic window: no "down" request', !r.diag.some(([, p]) => p.reason === 'down'), r.diag);
+check('...only the crash check\'s one short probe is sent (reason crash-check, 5 s)', r.diag.length === 1 && r.diag[0][0] === r.P && r.diag[0][1].reason === 'crash-check' && r.diag[0][1].seconds === 5, r.diag);
+r = run({ inputDiagSeconds: 0, crashForgive: false });
+check('...and with crash forgiveness off too, nothing at all', r.diag.length === 0, r.diag);
 r = run({ inputDiagSeconds: 60 });
 check('the length follows the config', r.diag.length === 1 && r.diag[0][1].seconds === 60, r.diag);
 console.log(failures ? `${failures} FAILED` : 'all checks passed');

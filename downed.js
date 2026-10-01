@@ -52,6 +52,12 @@ module.exports = (api) => {
     // the Chill then
     crashForgive: true, crashNotesFile: '/opt/alduinak/skymp5-backend/data/session-ends.jsonl',
     crashWithinMinutes: 10, crashQuietSeconds: 5, crashForgivePerDay: 2, crashLateMinutes: 30,
+    // A client that answered the down within crashSilenceSeconds was not crashed; a note must arrive within
+    // crashNoteDelaySeconds of the crash it reports
+    crashSilenceSeconds: 10, crashNoteDelaySeconds: 120,
+    // ...and from the moment that note lands the body cannot be harmed (gamemode.js offlineBodyProtected asks), once
+    // the client has stayed silent crashProbeSeconds after being asked to answer, while it neither moves nor strikes
+    crashShield: true, crashProbeSeconds: 3, crashStillUnits: 64,
     // Finishing is deliberate (Nate, 2026-09-28, after swag was finished 0.3 s after falling by a spell already hitting
     // him): nothing finishes a fallen player in their first finishGraceSeconds, and then only a weapon or bare hands
     finishGraceSeconds: 3, finishWeaponOnly: true,
@@ -125,6 +131,7 @@ module.exports = (api) => {
       const downedAttempt = function (aggressorId, targetId, sourceId, damage, ...rest) {
         const agg = Number(aggressorId) >>> 0, tgt = Number(targetId) >>> 0, dmg = Number(damage) || 0;
         S.pending = null;
+        if (agg !== tgt) { try { if (globalThis.__dboCrashStruck) globalThis.__dboCrashStruck(agg); } catch (e) { /* not loaded */ } }
         // A logged-out body cannot be finished or harmed (gamemode.js offlineBodyProtected); this wrapper runs first
         try { if (agg !== tgt && typeof globalThis.__dboOfflineBodyProtected === 'function' && globalThis.__dboOfflineBodyProtected(tgt)) return inner.call(this, aggressorId, targetId, sourceId, damage, ...rest) && false; } catch (e) { /* gamemode older than the gate */ }
         // The gamemode's hit bonuses are noted by the inner handler; a stale one would land on the respawned body
@@ -416,6 +423,7 @@ module.exports = (api) => {
             // The panel says it all; chat keeps a line for anyone who closes it
             personal(a, `You are down. You wake at the temple in ${C.bleedoutSeconds} seconds, or choose Give up (or say /respawn). A Priest's healing or a Draught of Revival can bring you back where you fell.`);
             openPanel(a, d);
+            noteAnswer(a, d);
             if (wasBeast && C.beastPanelRetryMs > 0) {
               setTimeout(() => { try { if (S.downed.get(a) === d && isDead(a)) openPanel(a, d); } catch (e) { /* gone */ } }, C.beastPanelRetryMs);
             }
@@ -482,11 +490,15 @@ module.exports = (api) => {
   // ---- a crash before the fall ------------------------------------------------------------------------------------
   // The launcher reports how the game closed (POST /api/files/session-end) and the backend keeps every note in
   // data/session-ends.jsonl. Only its 'crash' counts (a crash log, or an error exit code): a quit, Alt-F4 or a kill from
-  // Task Manager still costs the temple and the Chill, so a fight cannot be left by quitting. The note is the player's
-  // own launcher's word, so the server checks what it can: the down began after the crash and soon after it, nothing
-  // came from that client after the crash, and it is forgiven at most crashForgivePerDay times a day.
+  // Task Manager still costs the temple and the Chill, so a fight cannot be left by quitting. The down must begin after
+  // the crash and soon after it, with nothing from that client since; a client that answered the down was not crashed.
+  // At most crashForgivePerDay times a day.
   S.crashes = S.crashes instanceof Map ? S.crashes : new Map();         // profileId -> [{ endedAt, at, exitCode, crashLog }]
   S.recentWakes = S.recentWakes instanceof Map ? S.recentWakes : new Map(); // actor -> { d, wokeAt }, chilled wakes a late note may forgive
+  S.shielded = S.shielded instanceof Map ? S.shielded : new Map();       // actor -> endedAt of the crash note shielding the body
+  S.unshielded = S.unshielded instanceof Map ? S.unshielded : new Map(); // actor -> endedAt of a note that shields nothing
+  S.probes = S.probes instanceof Map ? S.probes : new Map();             // actor -> { note, sentAt, pos, world }, a client asked to answer
+  S.struckAt = S.struckAt instanceof Map ? S.struckAt : new Map();       // player -> their last blow, by any hit attempt
   const FORGIVEN = 'private.dboCrashForgiven';
   const DAY = 24 * 3600000;
   const iso = (t) => new Date(t).toISOString().slice(11, 19) + 'Z';
@@ -514,23 +526,45 @@ module.exports = (api) => {
       byProfile.get(p).push({ endedAt: Number(n.endedAt), at: Number(n.at) || 0, exitCode: n.exitCode, crashLog: n.crashLog === true });
     }
     S.crashes = byProfile;
+    for (const m of [S.shielded, S.unshielded]) for (const [a, t] of m) if (Date.now() - t > DAY) m.delete(a);
+    for (const [a, pr] of S.probes) if (Date.now() - pr.note.endedAt > DAY) S.probes.delete(a);
+    askToAnswer();
     return lateForgive();
   };
   every('downedCrashNotes', 2000, () => readCrashNotes().catch((e) => log(`downed: crash notes unreadable: ${e.message}`)));
   // The launcher's crash note that forgives this down, or null
+  const landedInTime = (n) => !(n.at - n.endedAt > C.crashNoteDelaySeconds * 1000);
   const crashBefore = (a, d) => {
     if (!C.crashForgive || !d || !Number.isFinite(d.at)) return null;
-    const quiet = (t) => !(Number(d.lastPacket) > t + C.crashQuietSeconds * 1000);
+    // A down from before this check has no answer noted: judged by what came from the client since it began
+    const answered = d.answered !== undefined ? d.answered : Number(lastPacketOf(a)) > d.at;
+    if (answered) return null;
+    const grace = C.crashQuietSeconds * 1000;
+    const quiet = (t) => !(Number(d.lastPacket) > t + grace) && !(Number(S.struckAt.get(a)) > t + grace);
     return (S.crashes.get(Number(profileOf(a))) || [])
-      .find((n) => n.endedAt <= d.at && d.at - n.endedAt <= C.crashWithinMinutes * 60000 && quiet(n.endedAt)) || null;
+      .find((n) => n.endedAt <= d.at && d.at - n.endedAt <= C.crashWithinMinutes * 60000 && landedInTime(n) && quiet(n.endedAt)) || null;
+  };
+  // Whether the client answered the down, noted once the silence has had time to show. The down's diagnostic asks it;
+  // with that diagnostic off the client is still asked once, briefly (reason crash-check), as the crash check needs it.
+  const noteAnswer = (a, d) => {
+    if (!C.crashForgive) return;
+    if (!(Number(C.inputDiagSeconds) > 0)) sendPacket(a, { customPacketType: 'dboInputDiag', seconds: 5, reason: 'crash-check' });
+    setTimeout(() => { try { if (S.downed.get(a) === d) d.answered = Number(lastPacketOf(a)) > d.at; } catch (e) { /* gone */ } }, C.crashSilenceSeconds * 1000);
+  };
+  const crashWords = (note) => `the game crashed at ${iso(note.endedAt)} (launcher: exit ${note.exitCode === null || note.exitCode === undefined ? 'none' : '0x' + (Number(note.exitCode) >>> 0).toString(16)}${note.crashLog ? ', crash log' : ''})`;
+  // One crash counts once a day, whether it shielded the body or forgave a down; false when the day's limit is reached
+  const countCrash = (a, note, what) => {
+    if (S.shielded.get(a) === note.endedAt) return true;
+    let times = [];
+    try { const v = mp.get(a, FORGIVEN); times = Array.isArray(v) ? v.filter((t) => Date.now() - t < DAY) : []; } catch (e) { times = []; }
+    if (times.length >= C.crashForgivePerDay) { audit(`CRASH-DOWN not forgiven ${who(a)}: ${crashWords(note)}${what}; already ${times.length} today`); return false; }
+    try { mp.set(a, FORGIVEN, times.concat([Date.now()])); } catch (e) { /* not an actor */ }
+    return true;
   };
   // late: the wake already happened and chilled them; the Chill goes, and the place and health only while they are away
   const forgive = (a, d, note, late) => {
-    let times = [];
-    try { const v = mp.get(a, FORGIVEN); times = Array.isArray(v) ? v.filter((t) => Date.now() - t < DAY) : []; } catch (e) { times = []; }
-    const crash = `the game crashed at ${iso(note.endedAt)} (launcher: exit ${note.exitCode === null || note.exitCode === undefined ? 'none' : '0x' + (Number(note.exitCode) >>> 0).toString(16)}${note.crashLog ? ', crash log' : ''}), the down began at ${iso(d.at)}`;
-    if (times.length >= C.crashForgivePerDay) { audit(`CRASH-DOWN not forgiven ${who(a)}: ${crash}; already ${times.length} today`); return false; }
-    try { mp.set(a, FORGIVEN, times.concat([Date.now()])); } catch (e) { /* not an actor */ }
+    const crash = `${crashWords(note)}, the down began at ${iso(d.at)}`;
+    if (!countCrash(a, note, `, the down began at ${iso(d.at)}`)) return false;
     const away = !onlineActors().includes(a);
     if (late) liftChill(a, 0);
     if (!late || away) {
@@ -559,6 +593,59 @@ module.exports = (api) => {
     }
     return n;
   };
+  // While the server still holds a crashed player's connection their body cannot be harmed, so no down begins at all.
+  // When the note lands the client is asked to answer; only silence, a body that stays put and strikes no one, shields.
+  const placeNow = (a) => { try { return { pos: mp.get(a, 'pos'), world: mp.get(a, 'worldOrCellDesc') }; } catch (e) { return null; } };
+  const stillAt = (a, pr) => {
+    const p = placeNow(a);
+    return !!(p && Array.isArray(p.pos) && Array.isArray(pr.pos) && p.world === pr.world && Math.hypot(p.pos[0] - pr.pos[0], p.pos[1] - pr.pos[1], p.pos[2] - pr.pos[2]) <= C.crashStillUnits);
+  };
+  const askToAnswer = () => {
+    if (!C.crashShield || !C.crashForgive) return;
+    const now = Date.now();
+    for (const a of onlineActors()) {
+      if (S.downed.has(a)) continue;
+      const n = (S.crashes.get(Number(profileOf(a))) || []).find((x) => x.endedAt <= now && now - x.endedAt <= C.crashWithinMinutes * 60000 && landedInTime(x));
+      if (!n || (S.probes.get(a) || {}).note === n || S.unshielded.get(a) === n.endedAt) continue;
+      if (Number(lastPacketOf(a)) > n.endedAt + C.crashQuietSeconds * 1000) { S.unshielded.set(a, n.endedAt); continue; }
+      const p = placeNow(a);
+      if (!p) continue;
+      S.probes.set(a, { note: n, sentAt: now, pos: p.pos, world: p.world });
+      sendPacket(a, { customPacketType: 'dboInputDiag', seconds: 5, reason: 'crash-check' });
+    }
+  };
+  const dropShield = (a, endedAt, why) => {
+    if (S.shielded.get(a) === endedAt) audit(`CRASH-DOWN shield dropped ${who(a)}: ${why}`);
+    S.shielded.delete(a);
+    S.unshielded.set(a, endedAt);
+    return false;
+  };
+  const crashShield = (a) => {
+    if (!C.crashShield || !C.crashForgive) return false;
+    a = Number(a) >>> 0;
+    const pr = S.probes.get(a);
+    if (!pr || S.downed.has(a) || S.unshielded.get(a) === pr.note.endedAt) return false;
+    const now = Date.now(), n = pr.note;
+    if (now - n.endedAt > C.crashWithinMinutes * 60000 || now - pr.sentAt < C.crashProbeSeconds * 1000) return false;
+    const last = Number(lastPacketOf(a));
+    if (last > pr.sentAt || last > n.endedAt + C.crashQuietSeconds * 1000) return dropShield(a, n.endedAt, 'the client answered');
+    if (Number(S.struckAt.get(a)) > n.endedAt + C.crashQuietSeconds * 1000) return dropShield(a, n.endedAt, 'they struck a blow');
+    if (!stillAt(a, pr)) return dropShield(a, n.endedAt, 'the body moved');
+    if (S.shielded.get(a) === n.endedAt) return true;
+    if (!countCrash(a, n, '; the body was left open')) { S.unshielded.set(a, n.endedAt); return false; }
+    S.shielded.set(a, n.endedAt);
+    audit(`CRASH-DOWN shielded ${who(a)}: ${crashWords(n)}; the body cannot be harmed until they are back`);
+    return true;
+  };
+  // A player who strikes is still playing: no crash before it counts, and a shield drops
+  globalThis.__dboCrashStruck = (agg) => {
+    agg = Number(agg) >>> 0;
+    if (!isPlayer(agg)) return;
+    S.struckAt.set(agg, Date.now());
+    const t = S.shielded.get(agg);
+    if (t !== undefined) dropShield(agg, t, 'they struck a blow');
+  };
+  globalThis.__dboCrashShield = crashShield;
   globalThis.__dboCrashNotesRead = readCrashNotes;
 
   // Wakes at the spawn point (the temple of the area, set on death) the way the engine's own respawn does

@@ -1415,6 +1415,7 @@ const writeDiagLines = (userId, lines) => {
 
 // When each player's client last sent anything: downed.js forgives a down only if nothing came after their game crashed
 const lastPacketAt = globalThis.__dboLastPacketAt instanceof Map ? globalThis.__dboLastPacketAt : (globalThis.__dboLastPacketAt = new Map());
+
 globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
   try {
     if (!floodPacketOk(userId, rawContent)) return;
@@ -3424,9 +3425,12 @@ globalThis.__dboNoteLogout = (a) => {
 };
 const offlineBodyProtected = globalThis.__dboOfflineBodyProtected = (t) => {
   t = Number(t) >>> 0;
-  if (!(profileOf(t) >= 0) || userOf(t) >= 0) return false;   // an NPC, or someone playing
+  if (!(profileOf(t) >= 0)) return false;   // an NPC
+  // A player whose game crashed (downed.js) is out of the world before the server lets go of the connection
+  const crashed = () => { try { return typeof globalThis.__dboCrashShield === 'function' && globalThis.__dboCrashShield(t) === true; } catch (e) { return false; } };
+  if (userOf(t) >= 0) return crashed();     // someone playing, unless their game crashed
   const left = logoutAt.get(t);
-  return !(left && left.fighting);
+  return !(left && left.fighting) || crashed();
 };
 const offlineSaid = new Map();
 const refuseOfflineBody = (agg, tgt) => {

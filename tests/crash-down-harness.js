@@ -36,10 +36,13 @@ const mp = {
   callPapyrusFunction: () => true,
   onHitDamageAttempt: () => true, onHitDamage: () => undefined, onDeath: () => undefined, onSpellHit: () => undefined, onSpellCast: () => undefined,
 };
-const timers = {}, ui = {};
-global.setTimeout = () => 0;
+const timers = {}, ui = {}, sent = [];
+// Timers run when the clock passes them (runDue), so the down's 10 s answer check happens in order
+let queue = [];
+global.setTimeout = (fn, ms) => { queue.push({ due: now + (Number(ms) || 0), fn }); return 0; };
+const runDue = () => { const due = queue.filter((q) => q.due <= now).sort((x, y) => x.due - y.due); queue = queue.filter((q) => q.due > now); due.forEach((q) => q.fn()); };
 const api = {
-  mp, log: () => {}, personal: () => {}, sendPacket: () => true, audit: (t) => audits.push(t), who: String, display: String,
+  mp, log: () => {}, personal: () => {}, sendPacket: (a, p) => { sent.push([a, p]); return true; }, audit: (t) => audits.push(t), who: String, display: String,
   profileOf: (a) => Number(get(a, 'profileId')), nameOf: String, onlineActors: () => online,
   every: (n, ms, fn) => { timers[n] = fn; }, registerChatCommand: () => {},
   cfg: { downed: { giveUpAfterSeconds: 0, crashNotesFile: NOTES } },
@@ -56,12 +59,13 @@ const fresh = (at) => {
   set(P, 'pos', FELL.slice()); set(P, 'worldOrCellDesc', 'a764b:BSHeartland.esm'); set(P, 'angle', [0, 0, 135]);
   set(P, 'spawnPoint', { cellOrWorldDesc: 'temple:BSHeartland.esm', pos: TEMPLE, rot: [0, 0, 0] });
   set(P, 'private.dboDeathChill', undefined); set(P, 'private.dboCrashForgiven', undefined);
-  online = [P]; audits.length = 0;
-  const S = globalThis.__dboDownedState; if (S) { S.downed.clear(); S.recentWakes && S.recentWakes.clear(); }
+  online = [P]; audits.length = 0; sent.length = 0; queue = [];
+  const S = globalThis.__dboDownedState; if (S) { S.downed.clear(); for (const k of ['recentWakes', 'shielded', 'unshielded', 'probes', 'struckAt']) if (S[k]) S[k].clear(); }
 };
 const packet = (at) => { (globalThis.__dboLastPacketAt = globalThis.__dboLastPacketAt || new Map()).set(P, T(at)); };
 const down = (at) => { now = T(at); set(P, 'percentages', { health: 0, stamina: 0.2, magicka: 0.3 }); set(P, 'isDead', true); mp.onDeath(P, BANDIT); };
-const respawn = (at) => { now = T(at); mp.set(P, 'locationalData', get(P, 'spawnPoint')); set(P, 'isDead', false); timers.downedPanel(); };
+const clock = (at) => { now = T(at); runDue(); };
+const respawn = (at) => { clock(at); mp.set(P, 'locationalData', get(P, 'spawnPoint')); set(P, 'isDead', false); timers.downedPanel(); };
 const read = async () => (globalThis.__dboCrashNotesRead ? globalThis.__dboCrashNotesRead() : 0);
 const chilled = () => { const c = get(P, 'private.dboDeathChill'); return !!(c && c.leftMs > 0); };
 const at = () => (get(P, 'pos') || []).join(',');
@@ -93,6 +97,8 @@ const at = () => (get(P, 'pos') || []).join(',');
   writeNotes([note('crash', T('14:22:18.166'))]);
   await read();
   down('14:22:27');
+  clock('14:22:37');
+  check('Jake: 10 s after the down, his client had not answered it', globalThis.__dboDownedState.downed.get(P).answered === false);
   now = T('14:23:17'); online = [];
   respawn('14:23:27');
   check('Jake: no Death\'s Chill', !chilled());
@@ -117,6 +123,25 @@ const at = () => (get(P, 'pos') || []).join(',');
   await costs('another profile\'s crash: the temple and the Chill', [note('crash', T('15:00:05'), { profileId: 2 })], async () => { down('15:00:10'); respawn('15:01:10'); });
   await costs('a crash note a day old: the temple and the Chill', [note('crash', T('15:00:05') - 25 * 3600000)], async () => { now = T('15:00:05') - 25 * 3600000 + 5000; down2(); });
   function down2() { /* the down sits right after the old crash, yet the note is past the day it is kept */ now = T('15:00:05') - 25 * 3600000 + 5000; set(P, 'isDead', true); mp.onDeath(P, BANDIT); now = T('15:00:05') - 25 * 3600000 + 65000; mp.set(P, 'locationalData', get(P, 'spawnPoint')); set(P, 'isDead', false); timers.downedPanel(); }
+
+  // ---- a client that answered the down was not crashed ----
+  await costs('A: downed while playing, a note posted 13 s later claims a crash 1 s before: the temple and the Chill', [], async () => {
+    down('15:00:10'); packet('15:00:10.300');
+    now = T('15:00:23'); writeNotes([note('crash', T('15:00:09'), { at: T('15:00:23') })]); await read();
+    respawn('15:01:10');
+  });
+  await costs('B: a note posted mid-fight, the down 3 minutes later: the temple and the Chill', [note('crash', T('15:00:05'), { at: T('15:00:06') })], async () => {
+    packet('15:02:50'); down('15:03:05'); packet('15:03:05.400'); respawn('15:04:05');
+  });
+  await costs('B, with a client that holds back its answers: blows struck after the claimed crash still cost the temple and the Chill', [note('crash', T('15:00:05'), { at: T('15:00:06') })], async () => {
+    now = T('15:01:30'); mp.onHitDamageAttempt(P, BANDIT, 0x12eb7, 20); down('15:03:05'); respawn('15:04:05');
+  });
+  await costs('a note that arrived more than 120 s after the crash it reports: the temple and the Chill', [note('crash', T('15:00:05'), { at: T('15:02:30') })], async () => { down('15:00:10'); respawn('15:01:10'); });
+  fresh('15:10:00'); packet('15:10:00');
+  writeNotes([note('crash', T('15:10:05'))]); await read();
+  down('15:10:10'); clock('15:10:20'); packet('15:10:50');
+  respawn('15:11:10');
+  check('a crashed player who rejoins inside the bleed-out keeps the forgiveness (judged 10 s after the down)', !chilled() && at() === FELL.join(','));
 
   // ---- the note lands after the wake ----
   fresh('16:00:00'); packet('16:00:00');
@@ -158,6 +183,93 @@ const at = () => (get(P, 'pos') || []).join(',');
   down('20:00:10'); respawn('20:01:10');
   check('a third crash-down in a day: the temple and the Chill', chilled() && at() === TEMPLE.join(','));
   check('...with a line saying why', audits.some((t) => /^CRASH-DOWN not forgiven .*already 2 today$/.test(t)), audits);
+
+  // ---- the shield: once the note lands the body cannot be harmed, so no down begins (gamemode.js offlineBodyProtected) ----
+  const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
+  const from = gm.indexOf('const combatAt = globalThis.__dboCombatAt'), to = gm.indexOf('const offlineSaid', from);
+  check('the offline-body block is where the harness expects it in gamemode.js', from >= 0 && to > from);
+  let users = new Map([[P, 7]]);
+  new Function('cfg', 'profileOf', 'userOf', 'log', 'display', gm.slice(from, to))({}, (a) => Number(get(a, 'profileId') === undefined ? -1 : get(a, 'profileId')), (a) => (users.has(a) ? users.get(a) : -1), () => {}, String);
+  globalThis.__dboCombatAt.clear(); globalThis.__dboLogoutAt.clear();
+  const hit = () => mp.onHitDamageAttempt(BANDIT, P, 0x12eb7, 30);
+  const S = globalThis.__dboDownedState;
+  const shieldReset = () => { S.shielded.clear(); S.unshielded.clear(); users = new Map([[P, 7]]); };
+
+  fresh('14:22:00'); shieldReset(); packet('14:22:17.900');
+  writeNotes([]); await read();
+  now = T('14:22:19');
+  check('shield: before the note lands the body can be hit as ever', hit() === true);
+  now = T('14:22:21'); writeNotes([note('crash', T('14:22:18.166'))]); await read();
+  check('shield: when the note lands the client is asked to answer (crash-check)', sent.some(([a, p]) => a === P && p.customPacketType === 'dboInputDiag' && p.reason === 'crash-check' && p.seconds === 5));
+  now = T('14:22:23');
+  check('shield: not before the client has had 3 s to answer', hit() === true);
+  now = T('14:22:27');
+  check('shield, Jake: the bandits\' blow at 14:22:27 is refused', hit() === false);
+  check('shield, Jake: no down begins', !S.downed.has(P) && get(P, 'isDead') === false);
+  check('shield, Jake: one CRASH-DOWN shielded line', audits.filter((t) => /^CRASH-DOWN shielded .*crashed at 14:22:18Z \(launcher: exit 0x1, crash log\); the body cannot be harmed until they are back$/.test(t)).length === 1, audits);
+  now = T('14:22:40'); hit(); hit();
+  check('shield: every later blow is refused, and the crash counts once', hit() === false && audits.filter((t) => /shielded/.test(t)).length === 1 && (get(P, 'private.dboCrashForgiven') || []).length === 1);
+  now = T('14:23:17'); globalThis.__dboCombatAt.set(P, T('14:23:00')); globalThis.__dboNoteLogout(P); users.delete(P);
+  check('shield: after LEAVE the body stays out of reach, even when the logout looks like mid-fight', hit() === false);
+  check('shield: NPCs are never shielded', globalThis.__dboOfflineBodyProtected(BANDIT) === false);
+  // The same crash forgiving a down later does not count it twice
+  set(P, 'isDead', true); now = T('14:23:20'); S.downed.set(P, { at: T('14:23:20'), by: 0, nonce: 'x', fell: null, lastPacket: T('14:22:17.900') });
+  respawn('14:24:20');
+  check('shield then a down from the same crash: forgiven, still counted once', !chilled() && (get(P, 'private.dboCrashForgiven') || []).length === 1);
+
+  fresh('15:30:00'); shieldReset(); packet('15:30:00');
+  now = T('15:30:07'); writeNotes([note('crash', T('15:30:05'))]); await read();
+  packet('15:30:07.300');
+  now = T('15:30:12');
+  check('shield: a client that answers the question is not shielded', hit() === true && !audits.some((t) => /shielded/.test(t)));
+
+  fresh('15:35:00'); shieldReset(); packet('15:35:00');
+  now = T('15:35:07'); writeNotes([note('crash', T('15:35:05'))]); await read();
+  now = T('15:35:12');
+  check('shield: a silent client is shielded', hit() === false);
+  set(P, 'pos', [FELL[0] + 300, FELL[1], FELL[2]]);
+  now = T('15:35:20');
+  check('shield: a body that walks away loses it', hit() === true && audits.some((t) => /^CRASH-DOWN shield dropped .*: the body moved$/.test(t)), audits);
+
+  fresh('15:37:00'); shieldReset(); packet('15:37:00');
+  now = T('15:37:07'); writeNotes([note('crash', T('15:37:05'))]); await read();
+  now = T('15:37:12');
+  check('shield: shielded again on a new crash', hit() === false);
+  mp.onHitDamageAttempt(P, BANDIT, 0x12eb7, 20);
+  check('shield: a body that strikes a blow loses it', hit() === true && audits.some((t) => /^CRASH-DOWN shield dropped .*: they struck a blow$/.test(t)), audits);
+
+  fresh('15:40:00'); shieldReset(); packet('15:40:00');
+  writeNotes([note('closed', T('15:40:05'))]); await read();
+  now = T('15:40:10');
+  check('shield: Alt-F4 in a fight shields nothing', hit() === true);
+
+  fresh('15:50:00'); shieldReset(); packet('15:50:00');
+  set(P, 'private.dboCrashForgiven', [T('10:00:00'), T('12:00:00')]);
+  now = T('15:50:06'); writeNotes([note('crash', T('15:50:05'))]); await read();
+  now = T('15:50:10'); const r1 = hit(); hit(); hit();
+  check('shield: past the day\'s limit the body is left open', r1 === true);
+  check('...with one line saying why, not one per blow', audits.filter((t) => /^CRASH-DOWN not forgiven .*; the body was left open; already 2 today$/.test(t)).length === 1, audits);
+
+  fresh('16:30:00'); shieldReset(); packet('16:30:00');
+  now = T('16:30:07'); writeNotes([note('crash', T('16:30:05'))]); await read();
+  now = T('16:30:12');
+  check('shield: shielded within the 10 minutes', hit() === false);
+  now = T('16:41:00');
+  check('shield: it ends 10 minutes after the crash', hit() === true);
+
+  // ---- with the down's diagnostic off the client is still asked once, briefly, for the crash check ----
+  api.cfg.downed.inputDiagSeconds = 0; load(MODULE);
+  fresh('22:00:00'); packet('22:00:00');
+  writeNotes([note('crash', T('22:00:05'))]); await read();
+  down('22:00:10');
+  check('diagnostic off: the down sends one crash-check probe and no "down" request', sent.filter(([a, p]) => a === P && p.customPacketType === 'dboInputDiag').length === 1 && sent.some(([, p]) => p.reason === 'crash-check' && p.seconds === 5) && !sent.some(([, p]) => p.reason === 'down'));
+  packet('22:00:10.300'); clock('22:00:20');
+  respawn('22:01:10');
+  check('diagnostic off: a client that answers the probe is refused', chilled() && at() === TEMPLE.join(','));
+  fresh('22:10:00'); packet('22:10:00');
+  writeNotes([note('crash', T('22:10:05'))]); await read();
+  down('22:10:10'); clock('22:10:20'); online = []; respawn('22:11:10');
+  check('diagnostic off: a silent client is still forgiven', !chilled() && at() === FELL.join(','));
 
   // ---- a broken file changes nothing ----
   fs.writeFileSync(NOTES, '{"outcome":"crash", broken\nnot json at all\n'); mtime++; fs.utimesSync(NOTES, mtime, mtime);
