@@ -66,12 +66,15 @@ cancellation is not working sends the voices they hear back through their open m
 speaker twice (Double Voice, #bugs 1555114080350507049, 1 Oct). Relogging the listeners does not help; the speaker
 walking away does.
 
-1. On the dev server: `sudo python3 tools/voice-room.py --watch 8` (read-only; prints identities, never keys). The
-   identities are the characters' actor ids in hex, the same ids the server log uses.
+1. On the dev server: `sudo python3 tools/voice-room.py --watch 8` (read-only; prints identities, never keys). On the
+   live build the identities are the characters' actor ids in hex, the same ids the server log uses; the scheme changes
+   to profile ids (`p<n>`) when the profile-identity build ships.
    - `in the room twice` or `more than one audio track` names a stuck connection: the player relogs.
    - `mic open in samples: ff00xxxx 7/8` is a mic that stays open: that player is on voice activation. Ask them first.
 2. From client 0.3.75 the server log says which players have no echo cancellation:
    `grep -a "voice echo loop" /var/log/skymp-server.log | tail`, e.g. `voice echo loop off (...); activation vad (using
    ptt)`. Those clients already fall back to push-to-talk and told the player once.
 3. What to tell players, short and friendly: use headphones, or switch the launcher's Voice setting to push-to-talk
-   (the default). Going through a door and back clears it for the moment.
+   (the default). Moving away helps only for the moment: a door resets nothing (the room is server-wide and the voice
+   session restarts only with a new game connection), but indoors the speaker is in another cell, so the echoing player
+   no longer plays them and nothing is sent back. Near that player again, it returns.
