@@ -254,3 +254,18 @@ test('a kept line whose string holds quotes of its own is cut at its first quote
     '\t\tFile: "DragonBreak.esp"',
   ].join('\n'))
 })
+
+test('a crash log loses emails, mentions, player tags and OneDrive organisations; CommunityShaders.log its organisation', () => {
+  const org = 'OneDrive - Contoso Secret Org'
+  const log = [
+    `Minidump written to: C:\\Users\\Arvel\\${org}\\Documents\\My Games\\Skyrim Special Edition\\SKSE\\crash.dmp`,
+    `\tParameter[1]: 0x1D3A5B0C400 note ${SECRETS.email} <@${SECRETS.mention}> Brelyna #Q7K2`,
+  ].join('\n')
+  const { text } = filterCrashLog(log)
+  for (const value of ['Contoso', SECRETS.email, SECRETS.mention, '#Q7K2']) assert.ok(!text.includes(value), text)
+  assert.match(text, /\\OneDrive - <org>\\Documents\\/)
+  assert.match(text, /note <email> <discord> <player>$/)
+  const cs = filterNames(`[2026-09-28 21:15:00.000] [info] [4120] [State.cpp:390] Loading "C:\\Users\\Arvel\\${org}\\Documents\\x.ini"`)
+  assert.strictEqual(cs.redactions, 1)
+  assert.match(cs.text, /\\OneDrive - <org>\\Documents\\x\.ini"$/)
+})

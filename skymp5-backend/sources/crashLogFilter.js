@@ -11,10 +11,15 @@
 // - the header, the exception analysis, the call stacks, SYSTEM SPECS, MODULES, SKSE PLUGINS and PLUGINS are kept under
 //   the same name and string rules (the quoted exception name stays); a C++ exception's message is left out;
 // - any other section (PROCESS INFO, THREAD CONTEXT, or one a later Crash Logger adds) is left out with a marker.
-// The JWT, S3-S10 and IP rules of scrubLog.scrub run after this, on what is left.
+// What is left then loses emails, mentions, player tags and OneDrive organisations (S12-S15), and scrubLog.scrub's JWT,
+// S3-S10 and IP rules run after this.
 
 const { SECTION_FILTERS, QUOTED } = require('./autoSchema')
-const { clean } = require('./autoScrub')
+const { clean, RULES } = require('./autoScrub')
+
+// Email, Discord mention, player tag and OneDrive organisation (scrub-rules.json), which scrubLog's S3-S10 do not cover
+const CRASH_RULES = RULES.filter(rule => ['S12', 'S13', 'S14', 'S15'].includes(rule.id))
+const CS_RULES = RULES.filter(rule => rule.id === 'S15')
 
 // autoSchema's NAME_VALUE plus Crash Logger's own GetFullName label (Introspection.cpp TESFullName)
 const NAME_VALUE = /\b((?:GetFull|Full )?Name[ \t]*:[ \t]*)[^\n]*/gi
@@ -54,6 +59,15 @@ function cutQuotedText(line, counted) {
   if (quotes(bare) <= 2) return line
   counted.n++
   return `${line.slice(0, bare.indexOf('"'))}""`
+}
+
+function applyRules(text, rules, counted) {
+  for (const rule of rules) {
+    const found = text.match(rule.re)
+    if (found) counted.n += found.length
+    text = text.replace(rule.re, rule.replacement)
+  }
+  return text
 }
 
 function keptLine(line, counted) {
@@ -142,7 +156,7 @@ function filterCrashLog(input) {
     } else out.push(keptLine(line, counted))
   }
   endSection()
-  return { text: out.join('\n'), redactions: counted.n }
+  return { text: applyRules(out.join('\n'), CRASH_RULES, counted), redactions: counted.n }
 }
 
 // CommunityShaders.log holds only Community Shaders' own messages (spdlog, '[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] [%s:%#] %v'):
@@ -150,9 +164,9 @@ function filterCrashLog(input) {
 // (InverseSquareLighting.cpp), which goes the way of every Name value. Its quoted values are its own paths, setting keys
 // and weather editor ids, which staff need, so the string rule does not apply to it.
 function filterNames(input) {
-  let n = 0
-  const text = clean(input).replace(NAME_VALUE, (_m, label) => { n++; return `${label}<name>` })
-  return { text, redactions: n }
+  const counted = { n: 0 }
+  const text = clean(input).replace(NAME_VALUE, (_m, label) => { counted.n++; return `${label}<name>` })
+  return { text: applyRules(text, CS_RULES, counted), redactions: counted.n }
 }
 
 module.exports = { filterCrashLog, filterNames, SECTION, KEPT }
