@@ -557,25 +557,14 @@ function listFilesRel(dir) {
   return out
 }
 
-/** Streaming SHA-256 of a file (handles multi-GB archives without buffering). */
-function sha256File(p) {
-  const fd  = fs.openSync(lp(p), 'r')
-  const h   = crypto.createHash('sha256')
-  const buf = Buffer.alloc(1 << 20)
-  try {
-    let n
-    while ((n = fs.readSync(fd, buf, 0, buf.length, null)) > 0) h.update(buf.subarray(0, n))
-  } finally { fs.closeSync(fd) }
-  return h.digest('hex')
-}
-
-/** True when the archive on disk matches the manifest's expected sha256. */
-function verifyArchive(archivePath, sha256) {
-  try { return sha256File(archivePath).toLowerCase() === String(sha256).toLowerCase() }
-  catch { return false }
-}
-
-/** verifyArchive without blocking the main process: a multi-GB archive hashes in the background. */
+/**
+ * True when the archive on disk matches the manifest's expected sha256, hashed in the background.
+ *
+ * There used to be a synchronous pair beside this one, sha256File and verifyArchive, built on openSync and a readSync
+ * loop. Nothing called them by 2.1.36, but they were still exported, and one careless call would have frozen the window
+ * again on a multi-GB archive: the "launcher crash" players reported on 2.1.34 (thedirthawk and Veltrius, 2026-09-30).
+ * They are gone so the freeze cannot come back, and test/noSyncHash.test.js keeps them from returning.
+ */
 async function verifyArchiveAsync(archivePath, sha256) {
   try { return (await sha256FileAsync(archivePath)).toLowerCase() === String(sha256).toLowerCase() }
   catch { return false }
@@ -1530,9 +1519,7 @@ module.exports = {
   findArchiveByHash,
   adoptArchive,
   extractArchive,
-  verifyArchive,
   verifyArchiveAsync,
-  sha256File,
   sha256FileAsync,
   listFilesRel,
   lp,
