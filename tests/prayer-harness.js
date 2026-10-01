@@ -778,7 +778,68 @@ res = playC(f, { noStart: true, reportArrive: f.start + 1000 + f.w.totalMs + 300
 check('...a report after it is still judged, its verdict told in chat', verdictOf(res.log) === 'held' && !res.result && /answers|takes note/.test(res.said), res.said);
 f = freshC();
 virtual = f.start + 500; clear(); fire('close', ['hidden']);
-check('F2 hiding the panel ends the round with no rest', /prayer abandon\(hidden\)/.test(out.logs.join(' | ')) && restOf(AKATOSH_SHRINE) < wallClock, out.logs.join(' | '));
+check('F2 hiding the panel keeps the round live, with no rest', /prayer hidden .*stays live/.test(out.logs.join(' | ')) && (globalThis.__dboPrayerRounds.get(ACTOR) || {}).nonce === f.w.nonce && restOf(AKATOSH_SHRINE) < wallClock, out.logs.join(' | '));
+// Review F1 (2026-10-01): touch, F2, touch, F2... used to stack rounds at one shrine, and every report paid
+{
+  const nonces = new Set([f.w.nonce]);
+  for (let i = 0; i < 5; i++) {
+    virtual += 1000;
+    r = activate(AKATOSH_SHRINE);
+    if (r.w) nonces.add(r.w.nonce);
+    clear(); fire('close', ['hidden']);
+  }
+  check('touching the shrine after F2, five times over, draws the same round each time: no second round', nonces.size === 1, [...nonces].join(','));
+  res = playC(f, { startArrive: virtual + 10, reportArrive: virtual + 10 + f.w.totalMs });
+  check('...its report is held once, told in chat while the panel is hidden', verdictOf(res.log) === 'held' && res.events.length === 1 && !res.result && /takes note|answers/.test(res.said), res.log);
+  virtual += 200; clear(); fire('prayer', [f.w.nonce, JSON.stringify(wholeHold(f.w)), f.w.totalMs, claimC()]);
+  check('...and the same report again pays nothing', /prayer replay/.test(out.logs.join(' | ')) && out.events.length === 0, out.logs.join(' | '));
+}
+// The same through /pray (a faith prayed anywhere has no distance check at all)
+{
+  props.set(ACTOR + '|private.dboDeity', { id: 'hist', name: 'The Hist', kind: 'faith', at: 1, convertedAt: 1 });
+  props.delete(ACTOR + '|private.prayedShrines');
+  wallClock += 61 * 60000; virtual += 1000000;
+  say('pray');
+  const w1 = out.widgets[out.widgets.length - 1];
+  const start = virtual;
+  clear(); fire('close', ['hidden']);
+  virtual += 1000; say('pray');
+  const w2 = out.widgets[out.widgets.length - 1];
+  clear(); fire('close', ['hidden']);
+  check('/pray, F2, /pray draws the same prayer again: no second round', !!w1 && !!w2 && w1.nonce === w2.nonce, `${w1 && w1.nonce} ${w2 && w2.nonce}`);
+  const hf = { start, w: w1 };
+  res = playC(hf, { startArrive: virtual + 10, reportArrive: virtual + 10 + w1.totalMs });
+  const res2 = playC(hf, { noStart: true, reportArrive: virtual + 200 });
+  check('...and the prayers through /pray pay out once', verdictOf(res.log) === 'held' && res.events.length === 1 && res2.events.length === 0 && /prayer replay/.test(res2.log), `${res.log} || ${res2.log}`);
+  props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', at: wallClock - 30 * 86400000 });
+  props.delete(ACTOR + '|private.prayedShrines');
+}
+// A closed round's report is not paid when the shrine has rested since for another round, and that rest is kept
+f = freshC();
+virtual = f.start + 1000; clear(); fire('prayerStart', [f.w.nonce]);
+virtual = f.start + 1000 + f.w.totalMs + 50; clear(); fire('close', ['escape']);
+{
+  const other = wallClock + 59 * 60000;
+  props.set(ACTOR + '|private.prayedShrines', { [AKATOSH_SHRINE.toString(16)]: other });
+  res = playC(f, { noStart: true, reportArrive: f.start + 1000 + f.w.totalMs + 300 });
+  check("a closed round's hold is refused(rested) when another round's rest already holds the shrine", verdictOf(res.log) === 'rested' && res.events.length === 0, res.log);
+  check('...and that rest is not shortened to the fail rest', restOf(AKATOSH_SHRINE) === other, String(restOf(AKATOSH_SHRINE) - wallClock));
+}
+// A new round at the same shrine drops a closed one still waiting for its report (its fail rest ran out first)
+f = freshC();
+virtual = f.start + 1000; clear(); fire('prayerStart', [f.w.nonce]);
+virtual = f.start + 1000 + f.w.totalMs + 50; clear(); fire('close', ['escape']);
+wallClock += 6 * 60000;
+virtual += 1000;
+r = activate(AKATOSH_SHRINE);
+check('a new round at the same shrine supersedes the closed one', !!r.w && r.w.nonce !== f.w.nonce && /prayer superseded/.test(out.logs.join(' | ')), out.logs.join(' | '));
+{
+  const g = { start: virtual, w: r.w };
+  res = playC(f, { noStart: true, reportArrive: virtual + 300 });
+  check('...whose late report then pays nothing', res.events.length === 0 && !/prayer held/.test(res.log) && /prayer (ignored|replay)/.test(res.log), res.log);
+  res = playC(g, { startArrive: virtual + 10, reportArrive: virtual + 10 + g.w.totalMs });
+  check('...while the new round is held as usual', verdictOf(res.log) === 'held' && res.events.length === 1, res.log);
+}
 f = freshC();
 clear(); globalThis.__dboPrayerLeave(ACTOR);
 check('a logout ends the round with no rest', /prayer abandon\(logout\)/.test(out.logs.join(' | ')) && restOf(AKATOSH_SHRINE) < wallClock, out.logs.join(' | '));

@@ -443,6 +443,13 @@ module.exports = (api) => {
   };
 
   const startRound = (a, round) => {
+    // A closed round of this worshipper at the same shrine can no longer be paid once a new one is issued there: one
+    // round per shrine at a time (review F1, 2026-10-01). Its fail rest normally stops a new round until it is gone.
+    for (const [n, c] of closing) {
+      if (c.a !== a || c.round.refId !== round.refId) continue;
+      closing.delete(n);
+      log(`prayer superseded ${display(a)} ${c.round.deityName}: a closed round (${c.how}) dropped by a new round at the same shrine`);
+    }
     sessions.set(a, round);
     round.openedAt = round.startedAt = nowMs();
     // Every round issued is logged, so one that never comes back (cancelled, hidden, lost) can be counted
@@ -468,14 +475,15 @@ module.exports = (api) => {
   };
   // Touching the shrine again while a round is live: the panel was lost (a reload, F2, a crash), so it is drawn again.
   // Same nonce, so a panel still showing it keeps its state.
-  const reshow = (a, round) => { if (clientJudged()) openWidget(a, packetFor(round), true); return true; };
+  const reshow = (a, round) => { if (clientJudged()) { round.hidden = false; openWidget(a, packetFor(round), true); } return true; };
 
   // show: 'widget' re-sends the panel with the verdict (the default), 'say' tells it in chat (the panel is gone), 'none'
   // says nothing (a provisional end that a report still on its way replaces)
   const finish = (a, round, win, text, kind, rest, show) => {
     if (rest !== false) {
       const rests = restsOf(a);
-      rests[round.refId.toString(16)] = Date.now() + (win ? SHRINE_COOLDOWN_MS : CFG.failRestMinutes * 60000);
+      // restUntil: the rest this round wrote itself, so its own report can tell it from one another round wrote since
+      round.restUntil = rests[round.refId.toString(16)] = Date.now() + (win ? SHRINE_COOLDOWN_MS : CFG.failRestMinutes * 60000);
       saveRests(a, rests);
     }
     if (show === 'say') personal(a, text);
@@ -699,6 +707,15 @@ module.exports = (api) => {
     const round = sessions.get(a);
     if (!round) return;
     const hidden = Array.isArray(args) && args[0] === 'hidden';
+    if (hidden && clientJudged()) {
+      // Client-judged: F2 leaves the round live, so it can never run beside a new one. Touching the shrine or /pray draws
+      // it again (reshow), and its report is judged as usual, the verdict told in chat while the panel is hidden. It used
+      // to leave sessions with no rest while its report could still be paid, so touch, F2, touch, F2... stacked rounds
+      // at one shrine and every one of them paid: mastery, a blessing roll and the fever cure (review F1, 2026-10-01).
+      round.hidden = true;
+      log(`prayer hidden ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms: the round stays live, no rest`);
+      return;
+    }
     log(`prayer abandon(${hidden ? 'hidden' : 'close'}) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms${hidden ? ', no rest' : ''}`);
     if (hidden) sessions.delete(a);
     else finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose', true, 'say');
@@ -764,6 +781,7 @@ module.exports = (api) => {
     const replayHeld = !v.bad;
     let win = !v.bad;
     let near;
+    let foreignRest = false;
     if (cj) {
       // Cleanup bound only: minutes past the verses
       if (now > limitOf(round)) { v.bad = 'expired'; win = false; }
@@ -789,6 +807,13 @@ module.exports = (api) => {
       // counted from when it SENT the round (lag only lengthens that)
       const own = claim && Number.isFinite(claim.durMs) ? claim.durMs : at;
       if (win && (own < round.totalMs - MG.floorAllowance(round.totalMs, CFG.clockSlackMs) || MG.serverTooSoon(sinceSent, round.totalMs, CFG.clockSlackMs))) { v.bad = 'fast'; win = false; }
+      // One paid prayer per shrine per rest: a rest at this shrine that this round did not write itself means another
+      // round here was judged first, so this one pays nothing and leaves that rest as it is (review F1, 2026-10-01)
+      const until = Number(restsOf(a)[round.refId.toString(16)]) || 0;
+      if (until > Date.now() && until !== round.restUntil) {
+        foreignRest = true;
+        if (win) { v.bad = 'rested'; win = false; }
+      }
     }
     // One line per prayer: the verdict, how long the key was actually down against the round, the
     // worst uncovered verse (0 is a prayer never broken), the report's own clock and its lag; then who judged, the
@@ -799,14 +824,14 @@ module.exports = (api) => {
       + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: cj ? round.totalMs : undefined, near: near !== undefined ? near : undefined, claim: cj ? (claim ? (claim.win ? 'held' : `lose${claim.why ? ':' + claim.why : ''}`) : null) : undefined, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
       + extra);
     // A verdict that lands after the panel was closed is told in chat; one after Stand up re-draws the open panel
-    const show = closed === 'close' || closed === 'hidden' ? 'say' : 'widget';
+    const show = closed === 'close' || closed === 'hidden' || round.hidden ? 'say' : 'widget';
 
     if (!win) {
-      return finish(a, round, false, 'The verses slip away from you. The shrine gives nothing.', 'lose', true, show);
+      return finish(a, round, false, v.bad === 'rested' ? 'This shrine has already heard you. It gives nothing more for now.' : 'The verses slip away from you. The shrine gives nothing.', 'lose', !foreignRest, show);
     }
 
     const d = deityById(round.deityId);
-    if (!d) return finish(a, round, false, 'The shrine is silent.', 'lose', true, show);
+    if (!d) return finish(a, round, false, 'The shrine is silent.', 'lose', !foreignRest, show);
 
     // The Priest is credited by the mastery system, which already has `prayer` in its candidate map
     // bound to priest - so nothing server-side needed rebuilding for this.
