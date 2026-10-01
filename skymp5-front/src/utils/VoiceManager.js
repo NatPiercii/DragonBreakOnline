@@ -14,6 +14,7 @@
 //   'voice::ready', 'voice::micDenied', 'voice::error' <text>,
 //   'voice::speaking' <json array of {id, level}: own voice plus audible speakers, every 150 ms while anyone talks, [] once when quiet>
 
+import { effectiveActivation, vadBlocked, BLOCKED_NOTICE } from './voiceEchoGate';
 import { Room, RoomEvent, Track } from 'livekit-client';
 
 import whisperImg from '../img/voice/Whisper.png';
@@ -89,6 +90,9 @@ class VoiceManager {
     this.peerNodes = new Map(); // identity -> { source, gain }
     this.mic = null;           // { stream, ctx, gain, analyser, track, pub }
     this.vadOpenUntil = 0;
+    this.echo = 'none';         // the playback's echo cancellation (voiceEchoGate.js)
+    this.echoDetail = '';
+    this.vadNoticeShown = false;
     this.transmitting = false;
   }
 
@@ -108,6 +112,7 @@ class VoiceManager {
     if (this.mix) this.mix.master.gain.value = this.prefs.outputVolume;
     if (this.prefs.outputLabel !== prev.outputLabel) this.applySink();
     if (this.prefs.inputLabel !== prev.inputLabel && this.room) this.restartMic();
+    if (this.prefs.activation !== prev.activation) this.reportEcho();
     this.updateTransmit();
   }
 
@@ -136,11 +141,13 @@ class VoiceManager {
       out.srcObject = dest.stream;
       document.body.appendChild(out);
       this.mix = { ctx, master, dest, out, loop: null };
+      this.setEcho('pending', '');
       this.applySink();
       const p = out.play(); if (p && p.catch) p.catch(() => { /* autoplay is unlocked by the CEF switch */ });
       this.startLoopback(this.mix);
     } catch (e) {
       this.mix = null; // falls back to per-element volume
+      this.setEcho('elements', String(e && e.message || e));
     }
     return this.mix;
   }
@@ -151,7 +158,7 @@ class VoiceManager {
   // connections and the far end is what plays, which Chromium treats as call audio. Stereo Opus keeps the panning.
   // Until the loop connects, or if it cannot, the mix plays directly as before.
   async startLoopback(mix) {
-    if (typeof RTCPeerConnection !== 'function') return;
+    if (typeof RTCPeerConnection !== 'function') { this.setEcho('off', 'no RTCPeerConnection'); return; }
     const stereo = (sdp) => {
       const m = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i);
       if (!m) return sdp;
@@ -185,14 +192,37 @@ class VoiceManager {
       setTimeout(async () => {
         let packets = 0;
         try { (await b.getStats()).forEach((r) => { if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) packets += Number(r.packetsReceived) || 0; }); } catch (e) { /* no stats */ }
-        if (mix.loop && packets > 0) sendToGame('voice::echoLoop', `on (${packets} packets)`);
-        else { this.stopLoopback(mix); sendToGame('voice::echoLoop', `off (state ${b.connectionState}/${b.iceConnectionState}, ${packets} packets)`); }
+        if (mix.loop && packets > 0) this.setEcho('on', `${packets} packets`);
+        else { this.stopLoopback(mix); this.setEcho('off', `state ${b.connectionState}/${b.iceConnectionState}, ${packets} packets`); }
       }, 5000);
     } catch (e) {
       try { if (a) a.close(); if (b) b.close(); } catch (e2) { /* closed */ }
       mix.loop = null;
       mix.out.srcObject = mix.dest.stream;
-      sendToGame('voice::echoLoop', 'failed: ' + String(e && e.message || e));
+      this.setEcho('failed', String(e && e.message || e));
+    }
+  }
+
+  // The player's chosen activation stays in prefs; this is the one in force (voiceEchoGate.js)
+  activation() {
+    return effectiveActivation(this.prefs.activation, this.echo);
+  }
+
+  setEcho(state, detail) {
+    this.echo = state;
+    this.echoDetail = detail || '';
+    if (state !== 'pending') this.reportEcho();
+    if (this.activation() !== 'vad') this.vadOpenUntil = 0;
+    this.updateTransmit();
+  }
+
+  // To the game: the loop's result and the activation chosen and in force (a dboDiag line), and once a notice when
+  // voice activation has to wait for push-to-talk
+  reportEcho() {
+    sendToGame('voice::echoLoop', this.echo + (this.echoDetail ? ` (${this.echoDetail})` : ''), this.prefs.activation, this.activation());
+    if (vadBlocked(this.prefs.activation, this.echo) && !this.vadNoticeShown) {
+      this.vadNoticeShown = true;
+      sendToGame('voice::peer', BLOCKED_NOTICE);
     }
   }
 
@@ -315,7 +345,7 @@ class VoiceManager {
 
   // Open while push-to-talk is held, or while voice activation hears you (and briefly after)
   updateTransmit() {
-    const vad = this.prefs.activation === 'vad' && this.mic && Date.now() < this.vadOpenUntil;
+    const vad = this.activation() === 'vad' && this.mic && Date.now() < this.vadOpenUntil;
     const want = !!(this.ptt || vad);
     if (want === this.transmitting) return;
     this.transmitting = want;
@@ -327,7 +357,7 @@ class VoiceManager {
   }
 
   vadTick() {
-    if (this.prefs.activation !== 'vad' || !this.mic) return;
+    if (this.activation() !== 'vad' || !this.mic) return;
     if (this.micLevel() >= this.prefs.vadThreshold) this.vadOpenUntil = Date.now() + VAD_HOLD_MS;
     this.updateTransmit();
   }
