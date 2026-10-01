@@ -61,7 +61,7 @@ const sandbox = {
   out: {},
 };
 vm.createContext(sandbox);
-for (const name of ['DIAG_MAX_PER_PLAYER', 'diagConnectionKey', 'resetDiagForConnection', 'writeDiagLines']) {
+for (const name of ['DIAG_MAX_PER_PLAYER', 'DIAG_LINES_PER_PACKET', 'diagConnectionKey', 'resetDiagForConnection', 'writeDiagLines']) {
   vm.runInContext(`${declOf(name)}\nout.${name} = ${name};`, sandbox);
 }
 const { DIAG_MAX_PER_PLAYER, resetDiagForConnection, writeDiagLines } = sandbox.out;

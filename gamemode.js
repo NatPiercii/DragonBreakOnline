@@ -1384,6 +1384,8 @@ const resetDiagForConnection = (userId) => { DIAG_SEEN.delete(diagConnectionKey(
 // Each player's last few voice lines, kept past the log allowance: a /bug from anyone near them carries them (debugsnap.js)
 const VOICE_LINES = globalThis.__dboVoiceLines || (globalThis.__dboVoiceLines = new Map());
 const VOICE_LINES_KEPT = 4;
+// Bound the per-packet line walk: the client sends at most 8 a packet
+const DIAG_LINES_PER_PACKET = 200;
 const keepVoiceLine = (a, text) => {
   const key = (a >>> 0).toString(16);
   const kept = (VOICE_LINES.get(key) || []).concat({ at: new Date().toISOString(), line: text }).slice(-VOICE_LINES_KEPT);
@@ -1396,7 +1398,7 @@ const writeDiagLines = (userId, lines) => {
   const key = a || diagConnectionKey(userId);
   const who = a ? `profile ${profileOf(a)} ${display(a)}` : `user ${userId}`;
   let n = DIAG_SEEN.get(key) || 0;
-  for (const raw of (Array.isArray(lines) ? lines : [])) {
+  for (const raw of (Array.isArray(lines) ? lines.slice(0, DIAG_LINES_PER_PACKET) : [])) {
     const text = String(raw).slice(0, 500);
     if (a && text.startsWith('voice ')) keepVoiceLine(a, text);
     if (n >= DIAG_MAX_PER_PLAYER) continue;

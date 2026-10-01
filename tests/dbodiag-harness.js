@@ -86,6 +86,20 @@ check('...and only lines that start with "voice "', voice && voice.every((v) => 
 api(99, { customPacketType: 'dboDiag', lines: ['voice echo loop on'] });
 check('a connection with no actor yet keeps none', globalThis.__dboVoiceLines.size === 1);
 
+// The walk over one packet's lines is bounded, and the voice lines inside the bound are still kept
+globalThis.__dboVoiceLines.clear();
+let reads = 0;
+const big = new Array(100000).fill('beat x');
+big[10] = 'voice echo loop on (inside); activation ptt';
+big[5000] = 'voice echo loop on (outside); activation ptt';
+const counted = new Proxy(big, { get: (t, k) => { if (/^\d+$/.test(String(k))) reads++; return t[k]; } });
+logged.length = 0;
+api(8, { customPacketType: 'dboDiag', lines: counted });
+const v8 = globalThis.__dboVoiceLines.get('15');
+check('an oversized packet reads no more than the first 200 lines', reads <= 200, `${reads} reads`);
+check('...keeps the voice line inside that bound and not one past it', !!v8 && v8.length === 1 && /\(inside\)/.test(v8[0].line), JSON.stringify(v8));
+check('...and logs within the player\'s cap', logged.length > 0 && logged.length <= 60, `${logged.length} lines`);
+
 // A packet that is not ours falls through to the handlers after it
 check('another packet type is left to the rest of the handler', api(7, { customPacketType: 'dbo' }) === 'fellthrough');
 
