@@ -18,9 +18,9 @@
 // Introductions: every character holds ff_knownIds (owner-visible), the actor ids that introduced
 // themselves to it. Clients show "Stranger" for anyone not on their list.
 //
-// Masks (H key, dbo event "maskToggle"): puts a face covering on and shows "Masked Person" instead of the
-// name; the real name is kept in maskName. Pressing H again takes it off. Logging out or switching
-// characters always unmasks, so the character list never shows the mask.
+// Masks (H key, dbo event "maskToggle"): lends a face covering (by race: maskItemByRace, else maskItem) and shows
+// "Masked Person" instead of the name; the real name is kept in maskName. Pressing H again takes it off and back.
+// Logging out or switching characters always unmasks, so the character list never shows the mask.
 //
 // gamemode-config.json "playerMenu": { maskItem: "808:Armors of the Velothi Pt2.esp", maskName: "Masked Person" }
 'use strict';
@@ -229,7 +229,10 @@ module.exports = (api) => {
       if (lost) { try { mp.set(a, 'private.maskLost', 0); } catch (e) { /* asked again next time */ } } else giveItem(a, itemId, 1);
       setTimeout(() => { try { papyrus('EquipItem', a, itemId); } catch (e) { log('mask equip failed', e.message); } }, 300);
     }
-    personal(a, 'You pull your mask up. Others see a Masked Person. Press H to take it off.');
+    // The covering is lent, not given: a /bug (2026-10-01) read the race mask turning up in the inventory as a free item
+    personal(a, itemId
+      ? 'You pull up a borrowed mask. Others see a Masked Person. Press H to take it off and hand it back.'
+      : 'You pull your mask up. Others see a Masked Person. Press H to take it off.');
   };
   const unmask = (a, quiet) => {
     const real = String(get(a, MASK_PROP, '') || '');
@@ -241,7 +244,7 @@ module.exports = (api) => {
       try { papyrus('UnequipItem', a, itemId); } catch (e) { /* not worn */ }
       setTimeout(() => { if (!removeOne(a, itemId)) { try { mp.set(a, 'private.maskLost', itemId); } catch (e) { log('mask loss not recorded', e.message); } } }, 1500);
     }
-    if (!quiet) personal(a, 'You take your mask off.');
+    if (!quiet) personal(a, itemId ? 'You take the borrowed mask off and hand it back.' : 'You take your mask off.');
   };
   // A mask taken off is removed 1.5 s later; toggling again inside that let a burst of H hand out a mask each time
   const MASK_TOGGLE_MS = 2000;
