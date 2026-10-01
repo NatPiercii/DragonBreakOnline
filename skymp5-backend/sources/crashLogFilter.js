@@ -13,8 +13,11 @@
 // - any other section (PROCESS INFO, THREAD CONTEXT, or one a later Crash Logger adds) is left out with a marker.
 // The JWT, S3-S10 and IP rules of scrubLog.scrub run after this, on what is left.
 
-const { SECTION_FILTERS, NAME_VALUE, QUOTED } = require('./autoSchema')
+const { SECTION_FILTERS, QUOTED } = require('./autoSchema')
 const { clean } = require('./autoScrub')
+
+// autoSchema's NAME_VALUE plus Crash Logger's own GetFullName label (Introspection.cpp TESFullName)
+const NAME_VALUE = /\b((?:GetFull|Full )?Name[ \t]*:[ \t]*)[^\n]*/gi
 
 // 'REGISTERS:', 'POSSIBLE RELEVANT OBJECTS (12):', 'CALL STACK (HYBRID):', 'CALL STACK ([P]robable / [S]tack scan):',
 // 'C++ EXCEPTION:'. Crash Logger writes its headers at the start of a line, so an indented line is never one.
@@ -116,7 +119,7 @@ function filterCrashLog(input) {
     if (!shown(section)) {
       if (line.trim()) { leftOut++; blanks = 0 } else blanks++
     } else if (section === OBJECTS) {
-      const kept = SECTION_FILTERS.relevantObjects(line)
+      const kept = SECTION_FILTERS.relevantObjects(line.replace(NAME_VALUE, '$1<name>'))
       if (kept !== line) counted.n++
       out.push(kept)
     } else if (section === REGISTERS) {

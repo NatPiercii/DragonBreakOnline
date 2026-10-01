@@ -206,3 +206,18 @@ test('CommunityShaders.log loses Name values and keeps its own quoted paths and 
   assert.match(text, /'textures\\rain\.dds' not found on disk\n/)
   assert.match(text, /Loading "Data\\SKSE\\Plugins\\CommunityShaders\\Features\\GrassLighting\.ini"$/)
 })
+
+test("Crash Logger's own GetFullName label goes the way of every Name value", () => {
+  const log = [
+    'Exception Information Parameters:',
+    `\tParameter[1]: 0x1D3A5B0C800 (TESNPC*)\n\t\tGetFullName: ${SECRETS.nestedName}`,
+    '',
+    'POSSIBLE RELEVANT OBJECTS:',
+    `\tRSP+70: (TESNPC*) GetFullName: ${SECRETS.unquotedName}`,
+  ].join('\n')
+  const { text } = filterCrashLog(log)
+  assert.ok(!text.includes(SECRETS.nestedName) && !text.includes(SECRETS.unquotedName), text)
+  assert.match(text, /\t\tGetFullName: <name>\n/)
+  assert.match(text, /\tRSP\+70: \(TESNPC\*\) GetFullName: <name>$/)
+  assert.strictEqual(filterNames(`x GetFullName: ${SECRETS.otherPlayer}`).text, 'x GetFullName: <name>')
+})
