@@ -57,6 +57,28 @@
     ]
   },
   {
+    "title": "Dungeon loot rebalanced",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Weapons and armour",
+        "items": [
+          "For now, dungeon chests, bosses, fallen enemies, expeditions and camp chests hand out weapons and armour of iron and steel only, at every difficulty, enchanted or not. That includes Cyrodiil's own steel.",
+          "Elven, Dwarven, Steel Plate, Scaled, Glass and anything better no longer drop. This holds until a proper rarity system is ready. Whatever you already own is yours to keep."
+        ]
+      },
+      {
+        "heading": "Arrows and gold",
+        "items": [
+          "Arrows are rare: they turn up about a quarter as often as before, in small stacks, and an archer's quiver seldom survives the fight.",
+          "Gold from dungeon chests, urns, bodies and camp chests is halved from now on. The gold you already have stays."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your First Spell",
     "date": "2026-10-01",
     "version": "Server update",
