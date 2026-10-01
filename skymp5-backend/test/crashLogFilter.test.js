@@ -53,11 +53,17 @@ test('REGISTERS keeps each register and its type, without values, strings or nes
   ].join('\n'))
 })
 
-test('STACK, PROCESS INFO and THREAD CONTEXT are left out, each as one line', () => {
+test('STACK is left out as one line; PROCESS INFO keeps only its uptime, THREAD CONTEXT its priority and role', () => {
   const { text } = filterCrashLog(crashLog())
   assert.match(text, /\n\nSTACK: \[11 line\(s\) left out by the server, values read from memory\]\n\nMODULES:\n/)
-  assert.match(text, /\n\nPROCESS INFO: \[4 line\(s\) left out by the server\]\n\nTHREAD CONTEXT: \[2 line\(s\) left out by the server\]\n\nSYSTEM SPECS:\n/)
-  assert.doesNotMatch(text, /RSP\+0 |\[RSP\+|Working Directory|Command Line|Likely Role/)
+  assert.match(text, /\n\nPROCESS INFO:\n\tProcess Uptime: 01:12:44 \(4364000ms\)\n\t\[3 line\(s\) left out by the server\]\n\n/)
+  assert.match(text, /\nTHREAD CONTEXT \(HEURISTIC\):\n\tThread Priority: 0\n\tLikely Role: Main thread\n\nSYSTEM SPECS:\n/)
+  assert.doesNotMatch(text, /RSP\+0 |\[RSP\+|Working Directory|Command Line|Process ID/)
+  // An uptime or role line that does not look like Crash Logger's own is left out with the rest
+  const odd = filterCrashLog(['PROCESS INFO:', `\tProcess Uptime: ${SECRETS.chat}`, '', 'THREAD CONTEXT (HEURISTIC):',
+    `\tLikely Role: <@${SECRETS.mention}>`].join('\n')).text
+  assert.strictEqual(odd, ['PROCESS INFO:', '\t[1 line(s) left out by the server]', '', 'THREAD CONTEXT (HEURISTIC):',
+    '\t[1 line(s) left out by the server]'].join('\n'))
 })
 
 test('POSSIBLE RELEVANT OBJECTS goes through the auto report filter: every name, every quoted string but File', () => {

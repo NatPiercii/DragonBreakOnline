@@ -255,13 +255,14 @@ test('a crash log reaches staff without the names and strings Crash Logger read 
   // Registers as register and type, STACK as one line, objects without names or strings
   assert.match(crash.text, /\nREGISTERS:\n\tRAX \(size_t\)\n\tRCX \(PlayerCharacter\*\)\n\tRDX \(char\*\)\n/)
   assert.match(crash.text, /\n\nSTACK: \[11 line\(s\) left out by the server, values read from memory\]\n\nMODULES:\n/)
+  assert.match(crash.text, /\nPROCESS INFO:\n\tProcess Uptime: 01:12:44 \(4364000ms\)\n\t\[3 line\(s\) left out by the server\]\n/)
   assert.match(crash.text, /\tRBX: \(PlayerCharacter\*\) "" \[0x00000014\] \(Skyrim\.esm\)\n/)
   assert.match(crash.text, /\t\tName: <name>\n\t\tFull Name: <name>\n\t\tFormID: 0xFF000D2F\n\t\tFile: "DragonBreak\.esp"\n/)
   // The JWT rule covers the context fields and the description as well
   assert.match(posted.summary, /\nerror: voice failed with <jwt-redacted>\n/)
   assert.match(posted.summary, /my voice token was <jwt-redacted>/)
   const counted = Number(posted.summary.match(/_2 log file\(s\), (\d+) redaction\(s\)/)[1])
-  assert.ok(counted >= 25, `${counted} redactions`)
+  assert.ok(counted >= 24, `${counted} redactions`)
 })
 
 test('a filtered crash log over 64 KB keeps its head and tail, inside the cap, with nothing read from memory', async () => {

@@ -39,6 +39,11 @@ const STACK = 'STACK'
 // Crash Logger's print order from REGISTERS on (CrashHandler.cpp): after condenseCrashLog's cut a memory string's line can
 // look like a header, so inside REGISTERS or STACK one counts only for a later section and as its last line in the log
 const MEMORY_ORDER = [REGISTERS, STACK, 'MODULES', 'SKSE PLUGINS', 'PLUGINS']
+// Lines a left-out section keeps, written by Crash Logger without memory data (CrashHandler.cpp:1163-1316)
+const PARTIAL = {
+  'PROCESS INFO': /^\tProcess Uptime: (?:\d{2,}:\d{2}:\d{2} \(\d+ms\)|Unable to determine)$/,
+  'THREAD CONTEXT': /^\t(?:Thread Priority: -?\d{1,3}|Likely Role: [A-Za-z0-9 ,()/&+-]{1,120}|Unavailable|No frames available)$/,
+}
 const shown = section => !section || KEPT.has(section) || section === OBJECTS || section === REGISTERS
 // The quoted exception name of 'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at ...' is Crash Logger's own text
 const EXCEPTION_NAME = /^"(?:EXCEPTION_[A-Z_]{3,40}|C\+\+ Exception)"$/
@@ -95,9 +100,11 @@ function filterCrashLog(input) {
 
   const endSection = () => {
     if (!shown(section)) {
-      out.push(`${section}: [${leftOut} line(s) left out by the server${section === STACK ? ', values read from memory' : ''}]`)
+      if (!PARTIAL[section]) {
+        out.push(`${section}: [${leftOut} line(s) left out by the server${section === STACK ? ', values read from memory' : ''}]`)
+      } else if (leftOut) out.push(`\t[${leftOut} line(s) left out by the server]`)
       for (; blanks > 0; blanks--) out.push('')
-      counted.n++
+      if (!PARTIAL[section] || leftOut) counted.n++
     }
     leftOut = 0
     blanks = 0
@@ -133,7 +140,7 @@ function filterCrashLog(input) {
     if (header && startsSection(header[1], i)) {
       endSection()
       section = header[1]
-      if (shown(section)) out.push(line)
+      if (shown(section) || PARTIAL[section]) out.push(line)
       continue
     }
 
@@ -152,7 +159,8 @@ function filterCrashLog(input) {
     if (quotes(line) % 2) open = line.length - line.lastIndexOf('"')
 
     if (!shown(section)) {
-      if (line.trim()) { leftOut++; blanks = 0 } else blanks++
+      if (PARTIAL[section] && PARTIAL[section].test(line)) { out.push(line); blanks = 0 }
+      else if (line.trim()) { leftOut++; blanks = 0 } else blanks++
     } else if (section === OBJECTS) {
       const kept = SECTION_FILTERS.relevantObjects(cutQuotedText(line, counted).replace(NAME_VALUE, '$1<name>'))
       if (kept !== line) counted.n++
