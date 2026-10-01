@@ -65,7 +65,7 @@
       {
         "heading": "Learning magic",
         "items": [
-          "Magic now begins with Arcane Arts. Raise it by studying at a Study Magic shelf, such as the Synod's bookcases in Bruma, or by casting Flames, which everyone knows. Your first sitting at the books takes up Arcane Arts, which needs a free skill point.",
+          "Magic now begins with Arcane Arts. Raise it by studying at a Study Magic shelf, such as the Synod's bookcases in Bruma; casting Flames, which everyone knows, counts toward it too. Your first sitting at the books takes up Arcane Arts, which needs a free skill point.",
           "At Arcane Arts 25 you are ready for your first spell. Choose your school of magic and you learn its first spell at once, no tome needed: Frostbite for Destruction, Courage for Illusion, Bound Sword for Conjuration, Candlelight for Alteration.",
           "If you reach 25 at the books, the choice opens right there. Otherwise choose on the Arcane Arts page of your skills (K), or when you next log in.",
           "Your school starts at your Arcane Arts level, so at 25 you can read its Apprentice tomes straight away. Until you have chosen, tomes of the four schools will not settle in your mind.",
@@ -75,7 +75,7 @@
       {
         "heading": "Already chose a school?",
         "items": [
-          "If you chose a school before this update and have no spell of it yet, you are given its first spell: right away if you are online, or when you next log in.",
+          "If you chose a school before this update and have no spell of it yet, you are given its first spell: right away if you are online, or when you next log in. With a spell in your book, Study Magic has nothing more to teach you; your school grows by casting and in classes.",
           "Nobody loses a school they have already chosen."
         ]
       }
