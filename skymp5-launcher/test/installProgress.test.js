@@ -124,7 +124,7 @@ test('what the player reads at each phase', () => {
 })
 
 test('the warning says to keep the launcher open, not to press Install again, and to choose Wait', () => {
-  assert.strictEqual(P.BANNER, "Installing. The first install downloads about 16 GB and needs about 60 GB of free space. Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.")
+  assert.strictEqual(P.BANNER, "Installing. The first install downloads about 16 GB and needs about 65 GB of free space. Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.")
 })
 
 test('the gate refuses a second install until the first ends', () => {
@@ -182,4 +182,27 @@ test('the Nexus wait names the one page and file it waits for, not every remaini
   assert.match(main, /Waiting for you: click "Slow download" on the Nexus page that just opened \(page \$\{w\.page\} of \$\{w\.pages\}\): \$\{w\.name\}/)
   const mo2 = fs.readFileSync(path.join(__dirname, '..', 'src', 'mo2.js'), 'utf8')
   assert.doesNotMatch(mo2, /Waiting for downloads: \$\{remaining\.join/)
+})
+
+test('the settings an install reads cannot be changed while it runs, but the others still save', () => {
+  const body = handler('settings:save')
+  // The install-critical keys are named in one place and refused with the gate's own message
+  assert.match(main, /const INSTALL_SETTINGS = \['skyrimPath', 'baseDirPath', 'archiveDir', 'mo2Enabled', 'isolatedGame'\]/)
+  assert.match(body, /if \(installGate\.running\(\)\) \{/)
+  assert.match(body, /const blocked = INSTALL_SETTINGS\.filter\(k => k in clean\)/)
+  assert.match(body, /error: installGate\.refusal\(\)/)
+  // The rest of the payload is still written, so changing the server while installing keeps working
+  assert.match(body, /for \(const k of blocked\) delete clean\[k\]\s*\n\s*if \(Object\.keys\(clean\)\.length\) store\.set\(clean\)/)
+  // activeServerIndex is deliberately NOT install-critical
+  assert.doesNotMatch(main, /const INSTALL_SETTINGS = \[[^\]]*activeServerIndex/)
+})
+
+test('the install banner asks for the peak free space, not the end state', () => {
+  // 60.5 GiB is what is left AFTER the install; during it each mod is built aside before the swap, so the peak is
+  // higher and a player with exactly 60 GB free can run out near the end (Worker F's W1)
+  assert.match(P.BANNER, /needs about 65 GB of free space/)
+  const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8')
+  assert.match(renderer, /about 65 GB free: the game copy, MO2, the mods and their downloads/)
+  assert.doesNotMatch(P.BANNER, /60 GB/)
+  assert.doesNotMatch(renderer, /about 60 GB free/)
 })

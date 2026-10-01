@@ -158,7 +158,7 @@
     }
   }
 
-  const BANNER = `Installing. The first install downloads about 16 GB and needs about 60 GB of free space. Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.`
+  const BANNER = `Installing. The first install downloads about 16 GB and needs about 65 GB of free space. Keep the launcher open, and don't close it or press Install again. It carries on even if Windows says Not Responding: choose Wait.`
   const BUSY_TITLE = 'An install is running. Wait for it to finish.'
 
   return { createTracker, createGate, describe, overall, FLOWS, LABELS, BANNER, BUSY_TITLE, DOWNLOAD_WEIGHT }

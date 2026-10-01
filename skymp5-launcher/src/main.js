@@ -386,11 +386,24 @@ ipcMain.handle('settings:load', async () => {
     discordUser:       store.get('discordUser') || null,
   }
 })
+// Settings an install reads as it goes: where the game is, where things are installed, where archives live, and which
+// install shape to use. Changing one mid-install would point later steps somewhere else than the earlier ones, so they
+// are refused while the gate is held (Worker F's F1). Everything else still saves, so the server picker keeps working.
+const INSTALL_SETTINGS = ['skyrimPath', 'baseDirPath', 'archiveDir', 'mo2Enabled', 'isolatedGame']
 ipcMain.handle('settings:save', (_e, data) => {
   const allowed = ['skyrimPath', 'baseDirPath', 'activeServerIndex', 'mo2Enabled', 'isolatedGame', 'archiveDir']
   const clean = {}
-  for (const k of allowed) if (k in data) clean[k] = data[k]
+  for (const k of allowed) if (k in (data || {})) clean[k] = data[k]
+  if (installGate.running()) {
+    const blocked = INSTALL_SETTINGS.filter(k => k in clean)
+    if (blocked.length) {
+      for (const k of blocked) delete clean[k]
+      if (Object.keys(clean).length) store.set(clean)
+      return { ok: false, error: installGate.refusal(), blocked }
+    }
+  }
   store.set(clean)
+  return { ok: true }
 })
 
 // Graphics / hotkey settings (Settings tab)
