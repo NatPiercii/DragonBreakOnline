@@ -31,6 +31,8 @@ const PEER_MAX = 2;
 const PEERS_KEY = 'dboVoicePeers';
 const DEFAULT_PREFS = { inputLabel: '', outputLabel: '', micGain: 1, outputVolume: 1, activation: 'ptt', vadThreshold: 0.06 };
 
+const LOADING_SETTLE_MS = 2000;  // after a loading screen, before the mic state is read again
+
 // Connects two local peer connections to each other; munge may rewrite each SDP
 const pairUp = async (a, b, munge = (sdp) => sdp) => {
   a.onicecandidate = (e) => { if (e.candidate) b.addIceCandidate(e.candidate).catch(() => {}); };
@@ -244,7 +246,27 @@ class VoiceManager {
       const s = this.mic.stream.getAudioTracks()[0].getSettings();
       if (typeof s.echoCancellation === 'boolean') aec = s.echoCancellation ? 'on' : 'off';
     } catch (e) { /* LiveKit's own mic, or none */ }
-    return `mics ${mics}, aec ${aec}`;
+    const state = (read) => { try { return read() || 'none'; } catch (e) { return '?'; } };
+    const cap = state(() => { const t = this.mic && this.mic.stream.getAudioTracks()[0]; return t && (t.readyState !== 'live' ? t.readyState : t.muted ? 'muted' : 'live'); });
+    const ctx = state(() => this.mic && this.mic.ctx.state);
+    const mix = state(() => this.mix && this.mix.ctx.state);
+    const loop = state(() => this.mix && this.mix.loop && this.mix.loop.b.connectionState);
+    return `mics ${mics}, aec ${aec}, cap ${cap}, ctx ${ctx}, mix ${mix}, loop ${loop}`;
+  }
+
+  // Called by the game as a loading screen opens and closes; the browser is hidden in between. The mic state either side
+  // goes to the game when it changed, and once a session as a baseline, so a reset by a cell change shows in the log.
+  markLoading(open) {
+    if (open) { this.beforeLoading = this.micSummary(); return; }
+    const before = this.beforeLoading;
+    this.beforeLoading = null;
+    if (!before || !this.room) return;
+    setTimeout(() => {
+      const after = this.micSummary();
+      if (after === before && this.loadingReported) return;
+      this.loadingReported = true;
+      sendToGame('voice::loading', before, after);
+    }, LOADING_SETTLE_MS);
   }
 
   // For DevTools (the PC test). Chromium reports echo cancellation stats only for a mic track sent over a peer connection,

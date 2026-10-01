@@ -5,9 +5,12 @@ import { showSystemNotification } from "./systemNotification";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { RemoteServer } from "./remoteServer";
-import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
+import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, Menu } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 import { IdentityMap, parseIdentityMap, peerKey } from "./voicePeerKey";
+
+// The page's mic summary, e.g. "mics 1, aec on, cap live, ctx running, mix running, loop connected"; nothing else passes
+const MIC_SHAPE = /^mics \d{1,2}(, [a-z]{2,4} [a-z?]{1,12}){1,6}$/;
 
 // Proximity voice chat: push-to-talk (default V, launcher-configurable via voicePushToTalkKeyCode) + LiveKit room managed by VoiceManager in the skymp5-front CEF page.
 // This service owns the game side: room token requests, peer distances to the browser, and the PTT key; audibility is distance vs the server-provided range (chat "say" range by default), same-world only.
@@ -43,6 +46,9 @@ export class VoiceService extends ClientListener {
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onCustomPacketMessage(e));
     this.controller.on("update", () => this.onUpdate());
+    // The page reads its mic state either side of a loading screen (Double Voice: a cell change ended a doubled voice)
+    this.controller.on("menuOpen", (e) => { if (e.name === Menu.Loading) this.markLoading(true); });
+    this.controller.on("menuClose", (e) => { if (e.name === Menu.Loading) this.markLoading(false); });
     // Fresh game connection = fresh voice session; also kills ghost rooms that would outlive a disconnect back to the main menu
     this.controller.emitter.on("browserWindowLoaded", () => { if (this.mode) setTimeout(() => this.announceMode(this.mode), 1500); setTimeout(() => this.pushPrefs(), 1500); });
     this.controller.emitter.on("connectionAccepted", () => this.resetSession());
@@ -183,6 +189,10 @@ export class VoiceService extends ClientListener {
     } catch (e) { }
   }
 
+  private markLoading(open: boolean) {
+    this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.markLoading && window.__alduinakVoice.markLoading(${open})`);
+  }
+
   private releasePtt() {
     this.pttDown = false;
     this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPtt(false)`);
@@ -211,7 +221,16 @@ export class VoiceService extends ClientListener {
       const raw = String(e.arguments[1] ?? "");
       const echo = /^(none|pending|on|off|failed|elements)( \([A-Za-z0-9 /,]{0,80}\))?$/.test(raw) ? raw : (raw.match(/^[a-z]{1,12}/) || ["?"])[0];
       const mic = String(e.arguments[4] ?? "");
-      const line = `echo loop ${echo}; activation ${chosen || "?"}${used && used !== chosen ? ` (using ${used})` : ""}${/^mics \d{1,2}, aec (on|off|\?)$/.test(mic) ? `; ${mic}` : ""}`;
+      const line = `echo loop ${echo}; activation ${chosen || "?"}${used && used !== chosen ? ` (using ${used})` : ""}${MIC_SHAPE.test(mic) ? `; ${mic}` : ""}`;
+      logTrace(this, `voice ${line}`);
+      const note = (globalThis as any).__dboDiagNote;
+      if (typeof note === "function") note("voice", line);
+    } else if (kind === "voice::loading") {
+      // The mic state before and after a loading screen, sent when it changed and once a session
+      const before = String(e.arguments[1] ?? "");
+      const after = String(e.arguments[2] ?? "");
+      if (!MIC_SHAPE.test(before) || !MIC_SHAPE.test(after)) return;
+      const line = `loading screen: ${before === after ? `unchanged, ${after}` : `before ${before}; after ${after}`}`;
       logTrace(this, `voice ${line}`);
       const note = (globalThis as any).__dboDiagNote;
       if (typeof note === "function") note("voice", line);
