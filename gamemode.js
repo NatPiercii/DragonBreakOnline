@@ -4586,6 +4586,46 @@ const npcPowerHitMult = (agg, tgt, flags, dmg) => {
   if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return 1;
   return m;
 };
+// ---- NPC damage by kind: how hard one kind of creature or NPC hits a player ---------------------------------------------
+// gamemode-config npcDamage.byKind { <kind>: mult } scales every hit a creature or NPC of that kind lands on a player. The
+// kind is the middle of the attacker's spawn tag, wild:<kind>:... (wildlife.js and owned-spawns.json, the same kinds the
+// ownedSpawns factions and animalBody use). Players' own hits, PvP and hits on NPCs are never touched. Read per hit, so a
+// config edit or a hot reload takes effect at once (Nate, 1 Oct: "boars are too strong").
+const npcKindOf = (id) => {
+  let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { return ''; }
+  return tag.startsWith('wild:') ? (tag.split(':')[1] || '') : '';
+};
+const npcKindDamageMult = (agg, tgt, dmg) => {
+  const by = (cfg.npcDamage || {}).byKind;
+  if (!by || typeof by !== 'object' || !(dmg > 0) || agg === tgt) return 1;
+  if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return 1;
+  const kind = npcKindOf(agg);
+  if (!kind || !Object.prototype.hasOwnProperty.call(by, kind)) return 1;
+  const m = Number(by[kind]);
+  return m > 0 ? m : 1;
+};
+// A hit scaled below 1 is given back after the engine applied it (masteryBonusDamage), but only to a target that lived
+// through the engine's full hit: at 50 health a boar's 50-point bite downed a player although the scaled bite would not
+// have, so no scale could make more than a few bites survivable, and npcPowerHits did nothing below 100 health. On a
+// creature's or NPC's hit on a player that the engine would make lethal and the scale would not, health is raised first by
+// what the scale takes off; the server reads the target's values again after this hook (ActionListener, review SCH2-3), so
+// the engine's own deduction lands on the scaled hit. Health cannot go above full, so when the raise is capped the rest
+// is given back afterwards by masteryBonusDamage: rest is the mult its give-back uses (1 when nothing is left over).
+// Returns null when it did nothing, else { health: the raised fraction, rest }. Players' hits and PvP are never touched.
+const npcLethalGuard = (agg, tgt, dmg, mult, flags) => {
+  if (!(mult > 0 && mult < 1) || !(dmg > 0) || agg === tgt) return null;
+  if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return null;
+  const max = Number((flags && typeof flags === 'object' ? flags : {}).targetMaxHealth);
+  if (!(max > 0)) return null;
+  let p = null; try { p = mp.get(tgt, 'percentages'); } catch (e) { return null; }
+  if (!p || !(p.health > 0)) return null;
+  const health = p.health * max;
+  if (dmg < health || dmg * mult >= health) return null;    // not lethal as dealt, or lethal even scaled
+  const raisedPts = Math.min(max, health + dmg * (1 - mult));
+  try { mp.set(tgt, 'percentages', { health: raisedPts / max, magicka: p.magicka, stamina: p.stamina }); } catch (e) { return null; }
+  const short = (health - dmg * mult) - (raisedPts - dmg);   // what the cap kept from the raise
+  return { health: raisedPts / max, rest: short > 1e-9 ? 1 - short / dmg : 1 };
+};
 const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => {
   const agg = Number(aggressorId) >>> 0;
   const tgt = Number(targetId) >>> 0;
@@ -4662,6 +4702,15 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     if (combat) { try { mult *= combat.onAttempt(agg, tgt, src, dmg, flags, mult); } catch (e) { log('combat failed', e.message); } }
     // A creature's or NPC's power attack on a player, without the formula's flat x2 when npcPowerHits.mult says so
     mult *= npcPowerHitMult(agg, tgt, flags, dmg);
+    // A kind of creature's or NPC's hits on a player (npcDamage.byKind)
+    mult *= npcKindDamageMult(agg, tgt, dmg);
+    // Would the engine's full hit down a player the scaled hit would not? Then it lands scaled from the start, and what a
+    // capped raise could not hold back is given back after it like any scaled hit
+    const guard = npcLethalGuard(agg, tgt, dmg, mult, flags);
+    if (guard) {
+      if (guard.rest < 1) globalThis.__dboMasteryPending = { agg, tgt, mult: guard.rest, health: guard.health };
+      return true;
+    }
     if (mult !== 1 && dmg > 0) {
       const p = mp.get(tgt, 'percentages');
       if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };

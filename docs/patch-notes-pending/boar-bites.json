@@ -1,0 +1,15 @@
+{
+  "title": "Gentler Boars",
+  "date": "",
+  "version": "Server update",
+  "tag": "Fix",
+  "sections": [
+    {
+      "heading": "Wildlife",
+      "items": [
+        "Bruma's boars bite much less hard. A new character can now take seven bites before going down, where three were enough before.",
+        "A creature's hit that is scaled down, such as a boar's power bite or a blow your Defense armour softens, no longer knocks you down when the smaller hit would not have."
+      ]
+    }
+  ]
+}
