@@ -58,6 +58,7 @@ declare -A NEEDS=(
   [voice-echo-gate]=client:skymp5-front/src/utils/voiceEchoGate.js
   [client-calendar]=client:skymp5-client/src/services/services/calendar.ts
   [input-diag-request]=client:skymp5-client/src/services/services/inputDiagRequest.ts
+  [cast-self-queue]=client:skymp5-client/src/services/services/castSelfQueue.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
