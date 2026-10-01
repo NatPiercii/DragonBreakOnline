@@ -26,7 +26,12 @@ module.exports = (api) => {
   // added some half the time, and smallLoot's "nothing rolled" fallback added some again. With ~88
   // containers in a lease that is a flood. Now a chest carries coin goldChance of the time and the
   // amount is scaled by goldMult. A boss chest always carries coin whatever goldChance says.
-  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, bossReturnMinutes: 10, partyMax: 6, raidMax: 12, raidXpMult: 0.5, partyKeepHours: 12, entranceReach: 2500, goldChance: 0.35, goldMult: 0.6, bodyGoldChance: 0.4, bodyGoldMult: 0.3, lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  // Halved on 1 Oct (Jake and Nate, with the steel ceiling): goldMult 0.6 -> 0.3, bodyGoldMult 0.3 -> 0.15, and a body's
+  // own purse by corpseGoldMult 0.5. arrowChance scales every arrow roll (0.25: a quarter of before), arrowStack and
+  // containerArrowStack are the stacks of an untrimmed chest and urn (were 5-15 and 3-8).
+  const C = Object.assign({ enabled: true, restoreOutfits: false, leaseMinutes: 60, cooldownMinutes: 60, warnMinutes: 5, graceMinutes: 3, bossReturnMinutes: 10, partyMax: 6, raidMax: 12, raidXpMult: 0.5, partyKeepHours: 12, entranceReach: 2500, goldChance: 0.35, goldMult: 0.3, bodyGoldChance: 0.4, bodyGoldMult: 0.15, corpseGoldMult: 0.5, arrowChance: 0.25, arrowStack: [2, 5], containerArrowStack: [1, 3], corpseArrows: [1, 3], lockedShare: { story: 0, normal: 0.2, hard: 0.35, nightmare: 0.5 } }, cfg.dungeons || {});
+  const ARROW_CHANCE = Math.max(0, Number(C.arrowChance));
+  const stackOr = (v, dflt) => (Array.isArray(v) && v.length === 2 && Number(v[0]) >= 0 && Number(v[1]) >= Number(v[0]) ? [Number(v[0]), Number(v[1])] : dflt);
   const GOLD_CHANCE = Math.max(0, Math.min(1, Number(C.goldChance)));
   const GOLD_MULT = Math.max(0, Number(C.goldMult));
   const goldAmount = (n) => Math.max(1, Math.round(n * GOLD_MULT));
@@ -479,7 +484,7 @@ module.exports = (api) => {
   };
   const AYLEID_CFG = Object.assign({ enabled: true, ruins: 'expeditions' }, C.ayleidLoot || {});
   const ayleidTable = (diffId) => Object.assign({}, AYLEID_DEFAULTS[diffId] || AYLEID_DEFAULTS.normal, (AYLEID_CFG.byDifficulty || {})[diffId] || {});
-  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')) && !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !['never', 'uniform'].includes(TIERS.classOf(it.id).kind));
+  const AYLEID_LOOT = ((readJson('ayleid-loot.json', { items: [] }).items) || []).filter((it) => it && it.id && !BANNED_LOOT.test(String(it.name || '')) && !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !['never', 'uniform', 'capped'].includes(TIERS.classOf(it.id).kind));
   const AYLEID_NAMES = new Set(((readJson('ayleid-loot.json', { items: [] }).items) || []).map((it) => it && it.name).filter(Boolean));
   const AYLEID_TIERS = ['common', 'uncommon', 'rare', 'rarest'];
   const ayleidLootHere = (d) => AYLEID_CFG.enabled !== false && AYLEID_LOOT.length > 0 && (d && d.expedition || (AYLEID_CFG.ruins === 'all' && isAyleidRuin(d)));
@@ -510,7 +515,7 @@ module.exports = (api) => {
   // (loottiers.js) made each piece better, so fewer of them keep a clear's value in the budget above (Nate, 2026-09-28:
   // about half the old value). A boss chest's and a master's own piece stays certain. 1 = as an ordinary dungeon.
   const EXPL = Object.assign({ gearScale: { boss: { story: 0.5, normal: 0.5, hard: 0.5, nightmare: 0.5 }, raid: { story: 0.5, normal: 0.5, hard: 0.5, nightmare: 0.5 } }, scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67, ordinary: true }, C.expeditionLoot || {});
-  const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: [5, 15], containerArrows: [3, 8], ench: 1, ayleid: 1, single: false, gear: 1 };
+  const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: stackOr(C.arrowStack, [2, 5]), containerArrows: stackOr(C.containerArrowStack, [1, 3]), ench: 1, ayleid: 1, single: false, gear: 1 };
   const chanceOr = (v, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.max(0, Math.min(1, Number(v))) : dflt);
   const ORDINARY_TORCH = chanceOr(C.torchChance, 0.12);
   const EXPEDITION_TORCH = chanceOr(C.expeditionTorchChance, 0.35);
@@ -539,7 +544,7 @@ module.exports = (api) => {
     if (p(0.4)) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, k.single ? 2 : 3));
     if (p(0.25)) addEntry(entries, pickFrom(pool('materials', 0, ok)), rnd(1, 2));
     if (diff.id !== 'story' && p(boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
-    if (p(0.3)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.arrows[0], k.arrows[1]));
+    if (p(0.3 * ARROW_CHANCE)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.arrows[0], k.arrows[1]));
     if (p(0.2)) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, k.single ? 2 : 3));
     // Torches: common in the dark Ayleid ruins (Nate, 2026-09-28), rarer elsewhere, where they crowded out the rest
     // (groundedpasta, 2026-09-29: "4 torches in one cave"). Config dungeons.torchChance / expeditionTorchChance
@@ -584,7 +589,7 @@ module.exports = (api) => {
     if (p(foodish ? 0.5 : 0.1)) addEntry(entries, pickFrom(PROVISIONS), k.single ? 1 : rnd(1, 2));
     if (p(0.3)) addEntry(entries, pickFrom(lootIngredients(ok)), k.single ? 1 : rnd(1, 2));
     if (p(Number(POT.container))) addEntry(entries, potionPick(Math.max(0, diff.potionTier - 1), ok), 1);
-    if (p(0.12)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.containerArrows[0], k.containerArrows[1]));
+    if (p(0.12 * ARROW_CHANCE)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.containerArrows[0], k.containerArrows[1]));
     // An urn that rolled nothing used to be topped up with coin, which is a third guaranteed source.
     // Most of the time it should simply be empty; looting a bare sack is honest.
     if (!entries.length && p(GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, 3)));
@@ -1464,10 +1469,11 @@ module.exports = (api) => {
     for (const e of entries) {
       const baseId = Number(e.baseId) >>> 0; const rec = recordOf(baseId); const type = rec ? String(rec.type) : '';
       const count = Number(e.count) || 0;
-      if (baseId === GOLD_BASE) { kept.push({ baseId, count: Math.min(count, diff.gold[1]) }); continue; }
+      if (baseId === GOLD_BASE) { const n = Math.round(Math.min(count, diff.gold[1]) * Math.max(0, Number(C.corpseGoldMult))); if (n > 0) kept.push({ baseId, count: n }); continue; }
       if (rec && (BANNED_LOOT.test(String(rec.editorId || '')) || ARTIFACT.test(String(rec.editorId || '')))) continue;
       if (rec && AYLEID_NAMES.has(String(rec.editorId || ''))) continue;   // only the Ayleid table hands these out, by difficulty
-      if (type === 'AMMO') { kept.push({ baseId, count: Math.min(count, 15) }); continue; }
+      // Arrows are rare (1 Oct): an archer's quiver stays arrowChance of the time, a few of them
+      if (type === 'AMMO') { const st = stackOr(C.corpseArrows, [1, 3]); if (Math.random() < ARROW_CHANCE) kept.push({ baseId, count: Math.min(count, rnd(st[0], st[1])) }); continue; }
       // A creature's own potions stay only now and then, one at most (food and poisons are not ranked, so they stay)
       if (type === 'ALCH' && rankOf(String((rec && rec.editorId) || ''))) { if (Math.random() < Number(POT.corpseKeep)) kept.push({ baseId, count: 1 }); continue; }
       if (type === 'ALCH' || type === 'INGR' || type === 'MISC' || type === 'SLGM' || type === 'KEYM' || type === 'BOOK' || type === 'SCRL') { kept.push({ baseId, count }); continue; }
@@ -1765,5 +1771,5 @@ module.exports = (api) => {
 
   // Boot: no lease survives a restart, so nothing of ours should be in the spawn file.
   if (!globalThis.__dboDungeonsBooted) { globalThis.__dboDungeonsBooted = true; ST.leases.clear(); writeSpawnZones(); }
-  log(`dungeons ${C.enabled ? 'on' : 'off'}: ${byId.size} dungeons, ${outsideDoors.size} entrances, ${chestRefs.size} lootable chests, loot pools ${Object.keys(LOOT).map((k) => `${k} ${LOOT[k].length}`).join(', ')}, ${C.leaseMinutes} min lease, ${C.cooldownMinutes} min rest, ${ST.leases.size} active`);
+  log(`dungeons ${C.enabled ? 'on' : 'off'}: ${byId.size} dungeons, ${outsideDoors.size} entrances, ${chestRefs.size} lootable chests, loot pools ${Object.keys(LOOT).map((k) => `${k} ${LOOT[k].length}`).join(', ')}, gear capped at ${TIERS.cap}, gold x${GOLD_MULT}, arrows x${ARROW_CHANCE}, ${C.leaseMinutes} min lease, ${C.cooldownMinutes} min rest, ${ST.leases.size} active`);
 };
