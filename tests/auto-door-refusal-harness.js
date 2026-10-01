@@ -1,3 +1,4 @@
+// Fallback branch auto-door-refusal-any: ANY answer but "go through" at an automatic door steps the player back.
 // A refused dungeon door that is automatic steps the player back (/bug 2026-10-01 01:43, Plundered Mine): an automatic
 // load door (DOOR FNAM 0x02, AutoLoadDoor01) starts the engine's load before the server answers, and a refusal left the
 // Fader and Mist menus up and the player frozen. dungeons.js now also moves the refused player onto the entrance's
@@ -19,12 +20,13 @@ const W = 'a764b:BSHeartland.esm';
 const entrance = (out, inside, pos) => ({ outsideDesc: out, insideDesc: inside, world: W, cell: 'a7646:BSHeartland.esm', pos, rot: [0, 0, 1.5708], insidePos: [0, 0, 0], insideCell: '9999:BSHeartland.esm' });
 const MINE = { id: 'CYRPlunderedMineLocation', name: 'Plundered Mine', type: 'mine', cells: [{ desc: '1111:BSHeartland.esm' }], chests: [], zones: [], entrances: [entrance('35f7:BSHeartland.esm', '35f8:BSHeartland.esm', [87525, 209776, 2648])] };
 const FORT = { id: 'CYRFortHorunnLocation', name: 'Fort Horunn', type: 'fort', cells: [{ desc: '2222:BSHeartland.esm' }], chests: [], zones: [], entrances: [entrance('5000:BSHeartland.esm', '5001:BSHeartland.esm', [1000, 2000, 300])] };
-fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [MINE, FORT] }));
+const RUIN = { id: 'TestRuinLocation', name: 'Test Ruin', type: 'ruin', cells: [{ desc: '3333:BSHeartland.esm' }], chests: [], zones: [], entrances: [Object.assign(entrance('6000:BSHeartland.esm', '6001:BSHeartland.esm', [3000, 4000, 500]), { expedition: true })] };
+fs.writeFileSync('dungeons.json', JSON.stringify({ dungeons: [MINE, FORT, RUIN] }));
 
 const ids = new Map(); let next = 0x01000000;
 const idOf = (d) => { const k = String(d).toLowerCase(); if (!ids.has(k)) ids.set(k, next++); return ids.get(k); };
 const AUTO_BASE = '31897:Skyrim.esm', NORMAL_BASE = '60010f:BSAssets.esm';
-const baseOf = new Map([[idOf('35f7:BSHeartland.esm'), AUTO_BASE], [idOf('5000:BSHeartland.esm'), NORMAL_BASE]]);
+const baseOf = new Map([[idOf('35f7:BSHeartland.esm'), AUTO_BASE], [idOf('5000:BSHeartland.esm'), NORMAL_BASE], [idOf('6000:BSHeartland.esm'), AUTO_BASE]]);
 const records = new Map([[idOf(AUTO_BASE), { type: 'DOOR', fields: [{ type: 'FNAM', data: new Uint8Array([0x02]) }] }], [idOf(NORMAL_BASE), { type: 'DOOR', fields: [{ type: 'FNAM', data: new Uint8Array([0x00]) }] }]]);
 const A = 0x14, PID = 3, OTHER = 9;
 const moves = [], said = [], logs = [], widgets = [];
@@ -44,7 +46,7 @@ require(DUNGEONS)({
   sendPacket: () => true, findByName: () => 0, display: () => 'P', who: () => 'P', profileOf: (a) => (a === A ? PID : -1), nameOf: () => 'P',
   onlineActors: () => [A], isAdmin: () => false, giveItem: () => true, cfg: {}, every: () => {},
 });
-ok(logs.some((l) => /1 of 2 entrance doors are automatic/.test(l)), 'at load the automatic entrances are counted from the door records (1 of 2)', logs.filter((l) => /automatic/.test(l)));
+ok(logs.some((l) => /2 of 3 entrance doors are automatic/.test(l)), 'at load the automatic entrances are counted from the door records (2 of 3)', logs.filter((l) => /automatic/.test(l)));
 
 // Refused at the automatic mine door: the message stays, and the player is put on the outside marker
 const mineDoor = idOf('35f7:BSHeartland.esm');
@@ -71,7 +73,17 @@ moves.length = 0; widgets.length = 0;
 Date.now = () => realNow() + 10000;
 globalThis.__dboDungeonActivate(mineDoor, A);
 Date.now = realNow;
-ok(!moves.length && widgets.some((w) => w.type === 'dungeonGate'), 'an automatic door that is not refused opens the claim panel and moves nobody', { moves, widgets: widgets.map((w) => w.type) });
+ok(moves.length === 1 && moves[0][1].pos.join() === '87525,209776,2648' && widgets.some((w) => w.type === 'dungeonGate'), 'an automatic door that is not refused opens the claim panel and steps the player back onto the marker too (the fallback)', { moves, widgets: widgets.map((w) => w.type) });
+// A member of the live claim goes straight through (true): nobody is stepped back
+moves.length = 0;
+globalThis.__dboDungeons.leases.set(MINE.id, Object.assign(lease(MINE), { members: new Set([PID, OTHER]) }));
+const through = globalThis.__dboDungeonActivate(mineDoor, A);
+ok(through === true && !moves.length, 'a member of the claim walks through an automatic door and is not moved', { through, moves });
+// An expedition member whom the gate carries in itself is not stepped back out again
+globalThis.__dboDungeons.leases.set(RUIN.id, Object.assign(lease(RUIN), { members: new Set([PID, OTHER]) }));
+moves.length = 0;
+const carried = globalThis.__dboDungeonActivate(idOf('6000:BSHeartland.esm'), A);
+ok(carried === false && moves.length === 1 && moves[0][1].cellOrWorldDesc === '9999:BSHeartland.esm', 'an expedition member the gate carries inside is not stepped back out', moves);
 
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

@@ -165,7 +165,8 @@ module.exports = (api) => {
   const atEntrance = (a, e) => (e && e.expedition && Array.isArray(e.startCells) ? e.startCells.includes(whereIs(a)) : distance(a, e.doorPos || e.pos, e.world || e.cell) <= C.entranceReach);
   const distance = (a, pos, world) => { try { if (world && normDesc(mp.get(a, 'worldOrCellDesc')) !== normDesc(world)) return Infinity; const p = mp.get(a, 'pos'); return Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]); } catch (e) { return Infinity; } };
   // dungeons.json rotations are XTEL radians; locationalData takes degrees (captureSystem.ts converts the same way)
-  const teleport = (a, where, pos, rot) => { try { mp.set(a, 'locationalData', { cellOrWorldDesc: where, pos, rot: (rot || [0, 0, 0]).map((x) => (Number(x) || 0) * 180 / Math.PI) }); return true; } catch (e) { log('teleport failed', e.message); return false; } };
+  let teleportSeq = 0;   // counts server moves, so the automatic-door step back can tell when the gate already carried someone
+  const teleport = (a, where, pos, rot) => { teleportSeq++; try { mp.set(a, 'locationalData', { cellOrWorldDesc: where, pos, rot: (rot || [0, 0, 0]).map((x) => (Number(x) || 0) * 180 / Math.PI) }); return true; } catch (e) { log('teleport failed', e.message); return false; } };
   const glow = (a, refs, on, kind) => { for (let i = 0; i < refs.length; i += 150) sendPacket(a, { customPacketType: 'dboGlow', refs: refs.slice(i, i + 150), on: !!on, kind: kind || 'loot' }); };
   // A ref can be glowing as either kind, and "off" only matches the kind it is sent with
   const glowOff = (a, refs) => { glow(a, refs, false, 'loot'); glow(a, refs, false, 'locked'); };
@@ -1083,9 +1084,7 @@ module.exports = (api) => {
   const denyAt = new Map();
   const denySwallowed = new Map();
   // A refusal used to reach the player only, so nobody could tell afterwards why a claim failed; reasons are logged too
-  let denySeq = 0;   // counts every refusal, swallowed ones too (an automatic door steps the player back on each)
   const deny = (a, text, why) => {
-    denySeq++;
     const now = Date.now();
     if (now - (denyAt.get(a) || 0) <= 1500) { denySwallowed.set(a, (denySwallowed.get(a) || 0) + 1); return false; }
     denyAt.set(a, now);
@@ -1167,9 +1166,12 @@ module.exports = (api) => {
     if (inside) return true; // leaving is always allowed
     const out = outsideDoors.get(targetId);
     if (out) {
-      const before = denySeq;
+      // Any answer but "go through" at an automatic door steps the player back: a refusal, and the claim panel too,
+      // which can open under the half-started load (the fallback for step 8 of test-notes/auto-door-refusal.md).
+      // Not when the gate already carried the player (an expedition member joining the party).
+      const movedBefore = teleportSeq;
       const v = offerGate(casterId, out.d, out.entrance);
-      if (denySeq !== before && isAutomaticDoor(targetId)) stepBack(casterId, out.entrance);
+      if (v === false && teleportSeq === movedBefore && isAutomaticDoor(targetId)) stepBack(casterId, out.entrance);
       return v;
     }
     const chest = chestRefs.get(targetId);
