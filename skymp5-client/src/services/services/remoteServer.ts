@@ -46,7 +46,7 @@ import { UpdateAppearanceMessage } from '../messages/updateAppearanceMessage';
 import { TeleportMessage } from '../messages/teleportMessage';
 import { DeathStateContainerMessage } from '../messages/deathStateContainerMessage';
 import { RespawnNeededError } from '../../lib/errors';
-import { noteActorCall, queueReseat, safeDelete } from '../../view/npcLifetimeRuntime';
+import { hostBackoff, noteActorCall, queueReseat, safeDelete } from '../../view/npcLifetimeRuntime';
 import { OpenContainerMessage } from '../messages/openContainerMessage';
 import { ActivateMessage } from '../messages/activateMessage';
 import { ClientListener, CombinedController, Sp } from './clientListener';
@@ -194,6 +194,7 @@ export class RemoteServer extends ClientListener {
     if (!(hosted as Array<unknown>).includes(target)) {
       (hosted as Array<unknown>).push(target);
     }
+    hostBackoff.answered(target);
 
     // The copy may still be sliding (translateTo, no collision) from its first movement sample; its own AI drives it now
     once('update', () => {

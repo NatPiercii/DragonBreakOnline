@@ -7,8 +7,8 @@ import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
 import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
-import { isSettling } from "./npcLifetime";
-import { safeDelete } from "./npcLifetimeRuntime";
+import { HOST_TRY_GHOST_AFTER, isSettling } from "./npcLifetime";
+import { hostBackoff, safeDelete } from "./npcLifetimeRuntime";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -1087,9 +1087,14 @@ export class FormView {
       const acWorld = ObjectReferenceEx.getWorldOrCell(ac);
       const modelWorld = worldOrCell;
       const sameWorld = (acWorld && acWorld === pcWorld) || (modelWorld && modelWorld === pcWorld);
-      if (sameWorld || (!acWorld && !modelWorld)) {
+      if ((sameWorld || (!acWorld && !modelWorld)) && hostBackoff.due(remoteId, Date.now())) {
         lastTryHost[remoteId] = Date.now();
         tryHost(remoteId);
+        // Unanswered attempts back off: a copy of an NPC the server destroyed asked once a second for up to 40 minutes
+        if (hostBackoff.sent(remoteId, Date.now()) === HOST_TRY_GHOST_AFTER) {
+          const note = (globalThis as any).__dboDiagNote;
+          if (typeof note === "function") note("fv:ghost", `${(remoteId >>> 0).toString(16)} local=${(this.refrId >>> 0).toString(16)}: ${HOST_TRY_GHOST_AFTER} host attempts unanswered, now every 15 s`);
+        }
         return true;
       }
     }
