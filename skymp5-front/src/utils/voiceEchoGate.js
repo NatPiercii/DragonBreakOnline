@@ -14,6 +14,6 @@ export const effectiveActivation = (chosen, echo) => (chosen === 'vad' && !CANCE
 // True when the player should be told, once, that voice activation is off for now (not while the loop is still connecting)
 export const vadBlocked = (chosen, echo) => chosen === 'vad' && (echo === 'off' || echo === 'failed');
 
-export const BLOCKED_NOTICE = 'push-to-talk only for now. Echo cancellation is not working here, so voice activation would send others\' voices back. Headphones help.';
+export const BLOCKED_NOTICE = 'push-to-talk only for now. Echo cancellation is not working here. Please use headphones: on speakers, others hear their own voices come back while you talk.';
 
 export default effectiveActivation;
