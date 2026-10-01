@@ -4,8 +4,9 @@
 //   zone       gamemode.js zoneOfActor: Bruma (zone-cells.json, hot-reloadable; zones.json is untouched because the
 //              fork's zones.ts reads it only at boot), where it fell to wherever the player last stood outside
 //   doors      doors.json names its two load doors: "Bruma" from inside, "Bank of Bruma" from outside
-// Each is checked live-then-new: the version on origin/server first, then this branch's over the same globalThis state,
-// as a hot reload (or the overrides file's save) would do it on the live server.
+// Each is checked live-then-new: the version before the change first (pinned to 17777668, the last server tree without
+// it; origin/server carries it since release-1006), then this branch's over the same globalThis state, as a hot reload
+// (or the overrides file's save) would do it on the live server.
 //   node tests/bruma-bank-place-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -23,8 +24,13 @@ const BANK = '130040:DragonBreak Online Edits.esp';
 const BRUMA = 'a764b:BSHeartland.esm';
 const JERALL_INN = '6c3d7:BSHeartland.esm';        // any BSHeartland interior
 const WHITERUN = '3c:Skyrim.esm';
-// What origin/server holds, when git can show it (the live files equal it on 30 Sep); else the checks run new-only
-const before = (f) => { try { return execFileSync('git', ['-C', SERVER, 'show', `origin/server:${f}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { return null; } };
+// The tree before the change, when git can show it; else the before-checks are skipped and the rest run new-only. A
+// before tree that already holds the change (BEFORE pointed at a later commit) is skipped the same way, and says so.
+const BEFORE = process.env.BANK_BEFORE || '17777668';
+const show = (f) => { try { return execFileSync('git', ['-C', SERVER, 'show', `${BEFORE}:${f}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { return null; } };
+const beforeHasIt = /130040:DragonBreak Online Edits\.esp/i.test(show('regions-overrides.json') || '') || /zoneOfCell/.test(show('gamemode.js') || '');
+if (beforeHasIt) console.log(`ok    skipped the before-checks: ${BEFORE} already holds the bank change`);
+const before = (f) => (beforeHasIt ? null : show(f));
 
 // ---- provinces: regions.js ----
 fs.copyFileSync(path.join(SERVER, 'regions.json'), path.join(dir, 'regions.json'));
@@ -38,7 +44,7 @@ if (oldOvr) {
   fs.writeFileSync('regions-overrides.json', oldOvr);
   const R = loadRegions();
   const p = R.placeOf(BANK);
-  ok(p.province === 'skyrim' && p.source === 'default', 'on origin/server the bank falls to the default province, Skyrim', p);
+  ok(p.province === 'skyrim' && p.source === 'default', 'before the change the bank falls to the default province, Skyrim', p);
 }
 // The new overrides file is saved over it: regions.js re-reads it within 2 s, no reload
 fs.writeFileSync('regions-overrides.json', fs.readFileSync(path.join(SERVER, 'regions-overrides.json')));
@@ -79,7 +85,7 @@ if (oldGm && oldZones && slice(oldGm)) {
   const Z0 = zoneFns(slice(oldGm), zonesOf(oldZones));
   put(A, BANK, [0, 0, 0], { world: WHITERUN, pos: [20000, -10000, 0] });
   put(B, BANK, [0, 0, 0], null);
-  ok(Z0.zoneOfActor(A) === 'whiterun' && Z0.zoneOfActor(B) === null, 'on origin/server the bank takes the zone of where you last stood outside (Whiterun here), or none', [Z0.zoneOfActor(A), Z0.zoneOfActor(B)]);
+  ok(Z0.zoneOfActor(A) === 'whiterun' && Z0.zoneOfActor(B) === null, 'before the change the bank takes the zone of where you last stood outside (Whiterun here), or none', [Z0.zoneOfActor(A), Z0.zoneOfActor(B)]);
 }
 fs.copyFileSync(path.join(SERVER, 'zone-cells.json'), path.join(dir, 'zone-cells.json'));
 const code = slice(gm);
@@ -106,12 +112,11 @@ const oldDoors = before('doors.json');
 if (oldDoors) {
   const o = JSON.parse(oldDoors).doors;
   const added = Object.keys(doors).filter((k) => !(k in o));
-  // The only other edits allowed are the door-name fixes (door-names-harness.js): a name whose words were glued
-  const changed = Object.keys(o).filter((k) => doors[k] !== o[k] && !(/[a-z](of|the|and)\b|Nchuand Zel/.test(o[k]) && doors[k].replace(/[\s'-]/g, '').toLowerCase() === o[k].replace(/[\s'-]/g, '').toLowerCase()));
-  ok(added.length === 2 && changed.length === 0, 'only the two bank doors were added to doors.json; nothing else changed but glued names split', { added, changed });
+  // Names of existing doors may change later (door-names-harness.js owns them); the bank change added exactly its two
+  ok(['1300aa:DragonBreak Online Edits.esp', '1300d7:DragonBreak Online Edits.esp'].every((k) => added.includes(k)) && Object.keys(o).every((k) => k in doors), 'the bank change added its two doors to doors.json and removed none', { added: added.slice(0, 5) });
 }
 ok(JSON.parse(fs.readFileSync(path.join(SERVER, 'zone-cells.json'), 'utf8'))[BANK] === 'bruma', 'zone-cells.json gives the bank cell to Bruma');
-if (oldZones) ok(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8') === oldZones, 'zones.json is unchanged (restart-only: the fork reads it at boot)');
+if (oldZones) ok(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8') === oldZones, 'zones.json is unchanged since before the change (restart-only: the fork reads it at boot)');
 // A zone-cells.json that is missing or broken leaves the old fallback, and says so
 fs.writeFileSync(path.join(dir, 'zone-cells.json'), '{ broken');
 const logs = [];
