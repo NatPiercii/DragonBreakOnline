@@ -60,7 +60,8 @@ const send = (key: string, ...args: unknown[]): void => {
 
 const KIND_LABEL: Record<string, string> = { hold: 'Hold', stronghold: 'Stronghold', guild: 'Guild', cult: 'Cult' };
 
-const Faction = ({ data }: { data: FactionData }) => {
+// The menu's content, alone (panel 37) or in the journal's Faction tab without its own Close
+export const FactionContent = ({ data, embedded }: { data: FactionData; embedded?: boolean }) => {
   const factions = data.factions || [];
   const [selected, setSelected] = useState<string>(data.selected || (factions[0] ? factions[0].id : ''));
   const [inviteName, setInviteName] = useState('');
@@ -78,9 +79,7 @@ const Faction = ({ data }: { data: FactionData }) => {
   const act = (key: string, ...args: unknown[]) => { setBusy(true); send(key, data.nonce, ...args); };
 
   return (
-    <div className="faction">
-      <div className="faction__fade" />
-      <div className="faction__panel">
+    <>
         <h1 className="faction__title">{f ? f.name : 'Factions'}</h1>
         {f && (
           <p className="faction__subtitle">
@@ -166,15 +165,23 @@ const Faction = ({ data }: { data: FactionData }) => {
         </div>}
 
         <div className="faction__footer">
-          <span className="faction__hint">F3 opens this menu. X on a player invites them.</span>
+          <span className="faction__hint">{embedded ? 'X on a player invites them.' : 'F3 opens this menu. X on a player invites them.'}</span>
           <div className="faction__actions">
             {f && f.myRank >= 0 && <button className="faction__button" disabled={busy} onClick={() => act('dbo:factionLeave', f.id)}>Leave faction</button>}
-            <button className="faction__button" onClick={() => send('dbo:factionClose', data.nonce)}>Close</button>
+            {!embedded && <button className="faction__button" onClick={() => send('dbo:factionClose', data.nonce)}>Close</button>}
           </div>
         </div>
-      </div>
-    </div>
+    </>
   );
 };
+
+const Faction = ({ data }: { data: FactionData }) => (
+  <div className="faction">
+    <div className="faction__fade" />
+    <div className="faction__panel">
+      <FactionContent data={data} />
+    </div>
+  </div>
+);
 
 export default Faction;

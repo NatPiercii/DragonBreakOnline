@@ -97,7 +97,7 @@ const Voice = ({ mode, talking }: { mode: string; talking: boolean }) => {
 
 // The panels this UI can draw, told to the server (dbo:uiCaps) so it opens them only for a client that has them and
 // uses chat for an older one. The HUD first draws after login; the repeat covers a switch to another character.
-const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 'playerMenu', 'spellbook', 'expeditionBoard', 'namePrompt', 'shrinePanel', 'schools',
+const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 'playerMenu', 'spellbook', 'expeditionBoard', 'namePrompt', 'shrinePanel', 'schools', 'journal',
   // Not a panel: the client plays the server's interaction idles (EmoteService dboIdle), so the server may hold a chest
   // for the crouch before it opens (gamemode.js chestHold)
   'dboIdle'];
