@@ -70,6 +70,17 @@ const bad = names.filter((n) => BANNED.test(n));
 const weapons = names.filter((n) => LOOT.weapons.some((w) => w.name === n));
 ok(weapons.length > 300 && !bad.length, `4000 camp chests: ${weapons.length} weapons, none Ebony, Daedric, Dragon, Stalhrim or Orcish, and no ebony or orichalcum ingot`, [...new Set(bad)].slice(0, 8));
 // Without dungeons.js's pattern the chest gives no weapon and no material rather than an unfiltered one
+// The material check too (globalThis.__dboLootable, loottiers.js): the untextured CYRIronFalchion (loot-overrides.json),
+// faction uniforms and unknown items never come out of a camp chest; without the check no weapon does
+ok(typeof globalThis.__dboLootable === 'function', 'dungeons.js publishes its material check for the camp chests');
+ok(weapons.length > 300 && !names.includes('CYRIronFalchion') && !names.some((n) => /^(Imperialsword|ImperialBow|AkaviriKatana|DLC1Dawnguard)/.test(n)), `none of the ${weapons.length} camp weapons is the untextured Iron Falchion or a faction piece`);
+{
+  const saved = globalThis.__dboLootable;
+  delete globalThis.__dboLootable;
+  const none = roll(1000);
+  ok(!none.some((n) => LOOT.weapons.some((w) => w.name === n)) && none.length > 0, 'without the material check the camp chest gives no weapon, and still its gold and the rest');
+  globalThis.__dboLootable = saved;
+}
 delete globalThis.__dboBannedLoot;
 const bare = roll(1000);
 ok(!bare.some((n) => LOOT.weapons.some((w) => w.name === n) || LOOT.materials.some((m) => m.name === n)), 'without the ban the camp chest gives no weapon and no material (fails closed)');

@@ -102,11 +102,16 @@ module.exports = (api) => {
   for (const camp of (DATA.giantCamps || []).concat(OWNED.camps || [])) for (const ch of camp.chests || []) { const id = idOf(ch.ref); if (id) campChests.set(id, { camp, chest: ch }); }
   const lootsOf = (a) => { try { const r = mp.get(a, 'private.campLoot'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
   // No Ebony, Daedric or Dragon gear either, nor the ebony ingot (dungeons.js BANNED_LOOT, shared through
-  // globalThis.__dboBannedLoot); without that pattern the chest gives no weapon and no material at all
+  // globalThis.__dboBannedLoot); without that pattern the chest gives no weapon and no material at all. Weapons also pass
+  // the dungeon loot's material check (globalThis.__dboLootable, loottiers.js: never-loot and hand-kept-out items, faction
+  // uniforms, anything the map does not know); without it, no weapon. Both are looked up as the chest fills, so either
+  // module may load first
   const pool = (name) => {
     const banned = globalThis.__dboBannedLoot instanceof RegExp ? globalThis.__dboBannedLoot : null;
+    const lootable = typeof globalThis.__dboLootable === 'function' ? globalThis.__dboLootable : null;
     if (!banned && (name === 'weapons' || name === 'materials')) return [];
-    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || ''))));
+    if (!lootable && name === 'weapons') return [];
+    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || ''))) && (name !== 'weapons' || lootable(it.id)));
   };
   const campLoot = () => {
     const out = [];

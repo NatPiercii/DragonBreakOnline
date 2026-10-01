@@ -116,8 +116,13 @@ module.exports = (api) => {
   // (beside this file: the server folder on the live server, the repo in a harness)
   const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
   delete require.cache[LOOT_TIERS_JS];
-  const besideJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`${file} unreadable: no weapon or armour is loot`, e.message); return fallback; } };
-  const TIERS = require(LOOT_TIERS_JS)({ materials: besideJson('loot-materials.json', { items: {} }), factionGear: besideJson('faction-gear.json', { items: {} }), overrides: besideJson('loot-overrides.json', { never: {} }), cfg: C.lootTiers });
+  const besideJson = (file, fallback, without) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`${file} unreadable: ${without}`, e.message); return fallback; } };
+  const TIERS = require(LOOT_TIERS_JS)({
+    materials: besideJson('loot-materials.json', { items: {} }, 'no weapon or armour is loot'),
+    factionGear: besideJson('faction-gear.json', { items: {} }, 'only the uniform families are kept out, not the named faction pieces'),
+    overrides: besideJson('loot-overrides.json', { never: {} }, 'no hand overrides (an item kept out by hand may drop)'),
+    cfg: C.lootTiers,
+  });
   const GEAR_POOLS = new Set(['weapons', 'armor', 'ench_weapons', 'ench_armor']);
   const descOfId = (id) => { try { return String(mp.getDescFromId(id >>> 0) || ''); } catch (e) { return ''; } };
   const byId = new Map();            // dungeon id -> dungeon
@@ -380,6 +385,8 @@ module.exports = (api) => {
   // The camp chests (wildlife.js) take the same pattern from globalThis.__dboBannedLoot.
   const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric|Dragon(?:plate|scale|bone)|DLC1Keeper|DragonHide|Dragonsteel|DragonPriestDagger|Orcish|Orichalcum|Stalhrim/i;
   globalThis.__dboBannedLoot = BANNED_LOOT;
+  // The camp chests (wildlife.js) take their weapons through the same material check
+  globalThis.__dboLootable = TIERS.lootable;
   // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json)
   const ARTIFACT = (() => {
     const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
