@@ -107,6 +107,20 @@
     ]
   },
   {
+    "title": "A crash no longer costs you the temple",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Falling in battle",
+        "items": [
+          "A crash no longer costs you Death's Chill: if your game crashed before you fell, you wake where you fell, at full health, instead of at the temple. Quitting the game still counts as a fall."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Found Your Own Faction",
     "date": "2026-10-01",
     "version": "Server update",
