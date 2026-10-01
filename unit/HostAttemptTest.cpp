@@ -1,5 +1,7 @@
 #include "TestUtils.hpp"
 
+PartOne& GetPartOne();
+
 namespace {
 nlohmann::json HostAttempt(uint32_t remoteId)
 {
@@ -31,7 +33,10 @@ TEST_CASE("A host attempt for an NPC that is gone is ignored quietly",
 TEST_CASE("A host attempt for an NPC that is there still hosts it",
           "[PartOne][Host]")
 {
-  PartOne p;
+  // GetPartOne() rather than a bare PartOne: hosting an NPC that EXISTS reaches code that reads the espm, and a bare
+  // instance has none attached, so this threw "No espm attached" rather than testing the host. The sibling test above
+  // passes with a bare instance only because its NPC is already destroyed and the path stops before it needs espm.
+  PartOne& p = GetPartOne();
   DoConnect(p, 0);
   p.CreateActor(0xff000000, { 0.f, 0.f, 0.f }, 0.f, 0x3c);
   p.SetUserActor(0, 0xff000000);
