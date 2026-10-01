@@ -51,7 +51,7 @@ ok(/ARTIFACT\.test\(String\(rec\.editorId \|\| ''\)\)\)\) continue;/.test(dj), "
 const pn = JSON.parse(fs.readFileSync(path.join(ROOT, 'patch-notes.json'), 'utf8'));
 ok(pn.some((n) => JSON.stringify(n).includes('Artifacts are no longer found as loot')), 'the patch notes say so');
 const wj = fs.readFileSync(path.join(ROOT, 'wildlife.js'), 'utf8');
-ok(/const pool = \(name\) => [\s\S]{0,400}?\(LOOT\[name\] \|\| \[\]\)\.filter\(\(it\) => !ARTIFACT\.test/.test(wj), 'wildlife.js: giant camp chests leave them out');
+ok(/const pool = \(name(?:, [^)]*)?\) => [\s\S]{0,900}?\(LOOT\[name\] \|\| \[\]\)\.filter\(\(it\) => !ARTIFACT\.test/.test(wj), 'wildlife.js: giant camp chests leave them out');
 ok(/readJson\('artifacts\.json'/.test(dj) && /readJson\('artifacts\.json'/.test(wj), 'both read artifacts.json');
 
 console.log(`${pass}/${pass + fail}`);

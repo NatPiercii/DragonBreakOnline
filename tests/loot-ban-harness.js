@@ -62,6 +62,10 @@ ok(/const AYLEID_LOOT = [^\n]*!BANNED_LOOT\.test/.test(src), '...and the Ayleid 
 ok((src.match(/BANNED_LOOT\.test\((?:String\()?(?:rec\.editorId|edid)/g) || []).length >= 2, '...and what a corpse keeps and its equipment trim');
 
 // ---- the camp chests: real rolls ----
+// The camp's province is where the chest is opened (regions.js provinceAt); Dusk Thorn is in Bruma
+let campProvince = 'cyrodiil';
+globalThis.__dboRegions = { provinceAt: () => ({ province: campProvince }) };
+const PROV = new Map(Object.values(LOOT).flat().map((it) => [it.name, it.p]));
 require(path.join(ROOT, 'wildlife.js'))(api);
 const CHEST = idOf('1234:Test.esp');
 const roll = (n) => { given.length = 0; for (let i = 0; i < n; i++) { props.clear(); globalThis.__dboCampChest(CHEST, 0xff000014); } return given.map((id) => nameOfId.get(id) || ''); };
@@ -70,6 +74,26 @@ const bad = names.filter((n) => BANNED.test(n));
 const weapons = names.filter((n) => LOOT.weapons.some((w) => w.name === n));
 ok(weapons.length > 300 && !bad.length, `4000 camp chests: ${weapons.length} weapons, none Ebony, Daedric, Dragon, Stalhrim or Orcish, and no ebony or orichalcum ingot`, [...new Set(bad)].slice(0, 8));
 // Without dungeons.js's pattern the chest gives no weapon and no material rather than an unfiltered one
+// Province (Nate: gear is region-locked): a Bruma camp never gives a weapon tagged for other provinces only, save the
+// three families every province has (Steel plate, Scaled, Elven gilded)
+{
+  const ANY = /SteelPlate|Scaled|ElvenGilded/i;
+  const foreign = weapons.filter((n) => { const p = PROV.get(n); return Array.isArray(p) && !p.includes('cyrodiil') && !ANY.test(n); });
+  ok(weapons.length > 300 && !foreign.length, `a Bruma camp's ${weapons.length} weapons are all Cyrodiil's`, [...new Set(foreign)].slice(0, 8));
+  campProvince = 'skyrim';
+  const sky = roll(3000).filter((n) => LOOT.weapons.some((w) => w.name === n));
+  const notSky = sky.filter((n) => { const p = PROV.get(n); return Array.isArray(p) && !p.includes('skyrim') && !ANY.test(n); });
+  ok(sky.length > 200 && !notSky.length, `a Skyrim camp's ${sky.length} weapons are all Skyrim's`, [...new Set(notSky)].slice(0, 8));
+  campProvince = '';
+  ok(!roll(1000).some((n) => LOOT.weapons.some((w) => w.name === n)), 'a camp whose province is not known gives no weapon');
+  campProvince = 'cyrodiil';
+  const savedR = globalThis.__dboRegions; delete globalThis.__dboRegions;
+  ok(!roll(1000).some((n) => LOOT.weapons.some((w) => w.name === n)), 'without regions.js the camp gives no weapon');
+  globalThis.__dboRegions = savedR;
+  const savedP = globalThis.__dboLootInProvince; delete globalThis.__dboLootInProvince;
+  ok(typeof savedP === 'function' && !roll(1000).some((n) => LOOT.weapons.some((w) => w.name === n)), 'without dungeons.js\'s province rule the camp gives no weapon');
+  globalThis.__dboLootInProvince = savedP;
+}
 // The material check too (globalThis.__dboLootable, loottiers.js): the untextured CYRIronFalchion (loot-overrides.json),
 // faction uniforms and unknown items never come out of a camp chest; without the check no weapon does
 ok(typeof globalThis.__dboLootable === 'function', 'dungeons.js publishes its material check for the camp chests');

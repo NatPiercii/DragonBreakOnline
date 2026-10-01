@@ -387,6 +387,8 @@ module.exports = (api) => {
   globalThis.__dboBannedLoot = BANNED_LOOT;
   // The camp chests (wildlife.js) take their weapons through the same material check
   globalThis.__dboLootable = TIERS.lootable;
+  // ...and the province rule (gear by province; Steel plate, Scaled and Elven gilded everywhere): a province, or nothing
+  globalThis.__dboLootInProvince = (it, prov) => !!prov && (hasProv(it, prov) || TIERS.anyProvince(it.id));
   // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json)
   const ARTIFACT = (() => {
     const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);

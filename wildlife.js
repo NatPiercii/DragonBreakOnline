@@ -106,14 +106,18 @@ module.exports = (api) => {
   // the dungeon loot's material check (globalThis.__dboLootable, loottiers.js: never-loot and hand-kept-out items, faction
   // uniforms, anything the map does not know); without it, no weapon. Both are looked up as the chest fills, so either
   // module may load first
-  const pool = (name) => {
+  // Weapons are also of the camp's province (Nate: gear is region-locked; dungeons.js's own rule through
+  // globalThis.__dboLootInProvince, the province from where the chest is opened); no province known, no weapon
+  const pool = (name, province = '') => {
     const banned = globalThis.__dboBannedLoot instanceof RegExp ? globalThis.__dboBannedLoot : null;
     const lootable = typeof globalThis.__dboLootable === 'function' ? globalThis.__dboLootable : null;
+    const inProvince = typeof globalThis.__dboLootInProvince === 'function' ? globalThis.__dboLootInProvince : null;
     if (!banned && (name === 'weapons' || name === 'materials')) return [];
-    if (!lootable && name === 'weapons') return [];
-    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || ''))) && (name !== 'weapons' || lootable(it.id)));
+    if ((!lootable || !inProvince || !province) && name === 'weapons') return [];
+    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || ''))) && (name !== 'weapons' || (lootable(it.id) && inProvince(it, province))));
   };
-  const campLoot = () => {
+  const provinceOf = (a) => { try { const R = globalThis.__dboRegions; const p = R && typeof R.provinceAt === 'function' ? R.provinceAt(a) : null; return p && typeof p.province === 'string' && p.province !== 'none' ? p.province : ''; } catch (e) { return ''; } };
+  const campLoot = (province = '') => {
     const out = [];
     const add = (item, count) => { if (!item) return; const id = idOf(item.id); if (id) out.push({ id, count, name: item.name }); };
     out.push({ id: GOLD_BASE, count: rnd(15, 45), name: 'Gold' });
@@ -121,7 +125,7 @@ module.exports = (api) => {
     if (Math.random() < 0.5) add(pickFrom(pool('materials')), rnd(1, 2));
     if (Math.random() < 0.25) add(pickFrom(pool('gems').filter((g) => !/flawless/i.test(g.name))), 1);
     if (Math.random() < 0.15) add(pickFrom(pool('soulgems').filter((g) => /petty|lesser/i.test(g.name))), 1);
-    if (Math.random() < 0.2) add(pickFrom(pool('weapons').filter((w) => Number(w.value) <= 300)), 1);
+    if (Math.random() < 0.2) add(pickFrom(pool('weapons', province).filter((w) => Number(w.value) <= 300)), 1);
     return out;
   };
   // A camp chest glows for a player while it holds a roll for them and goes dark while theirs is spent, so a glow always
@@ -210,7 +214,7 @@ module.exports = (api) => {
     loots[targetId.toString(16)] = Date.now() + C.campLootMinutes * 60000;
     try { mp.set(casterId, 'private.campLoot', loots); } catch (e) { log('campLoot save failed', e.message); }
     campGlow(casterId);
-    const got = campLoot().filter((it) => giveItem(casterId, it.id, it.count));
+    const got = campLoot(provinceOf(casterId)).filter((it) => giveItem(casterId, it.id, it.count));
     personal(casterId, `You rummage through the ${hit.camp.owners || 'giants'}' chest: ${got.map((it) => `${it.count} ${it.name.replace(/([a-z])([A-Z])/g, '$1 $2')}`).join(', ')}.`);
     audit(`CAMP ${who(casterId)} looted ${hit.camp.name}: ${got.map((it) => `${it.count}x ${it.name}`).join(', ')}`);
     return false;
