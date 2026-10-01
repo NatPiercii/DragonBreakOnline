@@ -23,11 +23,16 @@
 //     A teacher gone for `graceMinutes` (5; a disconnect or crash counts) cancels it with nothing paid; a student gone as
 //     long drops out. Cooldowns: the teacher `teacherCooldownMinutes` after a class they finished, a student
 //     `studentCooldownHours` between paid classes.
+//   Priest Studies: a PriestStudy activator (base editor id `priestStudy.edid`, or a ref in `priestStudy.refs`; DLE v10's
+//     temples) plays the same reading idle under the same windows and limits, its own window, and pays Priest: no school
+//     meter, only the Wheel's cast credit with a Novice Restoration spell every `wheelEverySeconds`. It closes for good
+//     once a Restoration spell studied through Priest is in the spellbook, as Study Magic closes at the first school spell.
 // Study and classes also feed Arcane Arts itself through masterySystem's own "cast" credit (__alduinakMasteryEvent with a
 // spell of the school), so the Wheel's hourly bucket and daily caps hold for them as for any cast.
 //
 // State, on the character: private.dboSchools
-//   { v, primary, secondary, levels: { <school>: { level, xp } }, grandfathered: [spell desc...], study: { log: [[from, to] ms...] }, cast: { day, units: {} },
+//   { v, primary, secondary, levels: { <school>: { level, xp } }, grandfathered: [spell desc...], study: { log: [[from, to] ms...] },
+//     priestStudy: { log: [[from, to] ms...] }, cast: { day, units: {} },
 //     ring: [{ h, at }], classAt, paidAt, teacher: { by, at } }
 // Classes live on globalThis and end with the process (a restart cancels a class in progress).
 'use strict';
@@ -53,6 +58,10 @@ module.exports = (api) => {
       enabled: true, edid: 'StudyMagic', refs: [], tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20, windowHours: 4,
       moveLimitMeters: 1.5, anim: 'IdleBook_PageTurn', exitAnim: 'IdleForceDefaultState', wheelEverySeconds: 60, wheelValue: 0,
     },
+    priestStudy: {
+      enabled: true, edid: 'PriestStudy', refs: [], skill: 'priest', school: 'Restoration', tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20,
+      windowHours: 4, moveLimitMeters: 1.5, anim: 'IdleBook_PageTurn', exitAnim: 'IdleForceDefaultState', wheelEverySeconds: 60, wheelValue: 0,
+    },
     classes: {
       enabled: true, edid: 'ClassLectern', lecterns: [], sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
       teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: true, teacherGuilds: ['synod', 'college-of-winterhold', 'college-of-whispers'],
@@ -72,6 +81,7 @@ module.exports = (api) => {
   const raw = cfg.schools || {};
   const C = Object.assign({}, DEFAULTS, raw, {
     study: Object.assign({}, DEFAULTS.study, raw.study || {}),
+    priestStudy: Object.assign({}, DEFAULTS.priestStudy, raw.priestStudy || {}),
     classes: Object.assign({}, DEFAULTS.classes, raw.classes || {}),
     wheel: Object.assign({}, DEFAULTS.wheel, raw.wheel || {}),
   });
@@ -88,6 +98,7 @@ module.exports = (api) => {
   const PROP = 'private.dboSchools';
   const CLASS_PANEL_ID = 72;
   const STUDY_PANEL_ID = 73;
+  const PRIEST_PANEL_ID = 75;
   const MIN = 60000, HOUR = 3600000;
 
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
@@ -131,7 +142,7 @@ module.exports = (api) => {
     return { held: !!(r && Array.isArray(r.order) && r.order.includes(C.arcaneSkill)), level: p ? Math.max(0, Number(p.level) || 0) : 0 };
   };
   const bookOf = (a) => { try { return typeof globalThis.__dboSpellsBook === 'function' ? (globalThis.__dboSpellsBook(a) || []) : []; } catch (e) { return []; } };
-  const fresh = () => ({ v: 1, primary: null, secondary: null, grandfathered: [], levels: {}, study: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
+  const fresh = () => ({ v: 1, primary: null, secondary: null, grandfathered: [], levels: {}, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
   // A mage from before the rework keeps what they had: the school most of their studied spells belong to becomes the
   // primary at their Arcane Arts level, and a second school they hold spells of becomes the secondary when the level
   // allows one. Anyone else starts with no school and chooses.
@@ -196,13 +207,17 @@ module.exports = (api) => {
 
   // ---- the Wheel: Arcane Arts through masterySystem's own cast credit ----------------------------------------------
   // One Novice spell of each school from spell-tomes.json, vanilla first, stands for the school when nothing was cast
+  let PRIEST_SPELL = '';
   const SCHOOL_SPELL = (() => {
     const out = {};
     let list = [];
     try { list = (JSON.parse(require('fs').readFileSync(require('path').resolve('spell-tomes.json'), 'utf8')).tomes) || []; } catch (e) { /* no tome list */ }
     const canonToDesc = (c) => { const i = String(c).lastIndexOf(':'); return i < 0 ? '' : `${parseInt(c.slice(i + 1), 16).toString(16)}:${c.slice(0, i)}`; };
     const sorted = list.filter((t) => t && t.spellId && Number(t.rank) === 0).sort((x, y) => (String(x.spellId).startsWith('Skyrim.esm:') ? 0 : 1) - (String(y.spellId).startsWith('Skyrim.esm:') ? 0 : 1));
-    for (const t of sorted) if (SCHOOLS.includes(t.school) && !out[t.school]) out[t.school] = canonToDesc(t.spellId);
+    for (const t of sorted) if ((SCHOOLS.includes(t.school) || t.school === C.priestStudy.school) && !out[t.school]) out[t.school] = canonToDesc(t.spellId);
+    // Restoration is Priest's, never a school: it stands only for Priest Studies' credit
+    PRIEST_SPELL = out[C.priestStudy.school] || '';
+    if (!SCHOOLS.includes(C.priestStudy.school)) delete out[C.priestStudy.school];
     return out;
   })();
   const wheel = (a, spellId, value, times) => {
@@ -380,6 +395,8 @@ module.exports = (api) => {
   const STUDY_REFS = refSet(C.study.refs);
   const LECTERN_REFS = refSet(C.classes.lecterns);
   const isStudy = (ref) => C.study.enabled && (STUDY_REFS.has(ref) || (!!C.study.edid && baseEdidOf(ref) === String(C.study.edid).toLowerCase()));
+  const PRIEST_REFS = refSet(C.priestStudy.refs);
+  const isPriestStudy = (ref) => C.priestStudy.enabled && (PRIEST_REFS.has(ref) || (!!C.priestStudy.edid && baseEdidOf(ref) === String(C.priestStudy.edid).toLowerCase()));
   const isLectern = (ref) => C.classes.enabled && (LECTERN_REFS.has(ref) || (!!C.classes.edid && baseEdidOf(ref) === String(C.classes.edid).toLowerCase()));
 
   // ---- Study Magic ---------------------------------------------------------------------------------------------------
@@ -389,27 +406,27 @@ module.exports = (api) => {
   const studyNonces = S.studyNonces instanceof Map ? S.studyNonces : (S.studyNonces = new Map());
   const studyAt = S.studyAt instanceof Map ? S.studyAt : (S.studyAt = new Map()); // actor -> the study ref of the open panel
   const anim = (a, ev) => { if (!ev) return; try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: descOf(a) }, ev]); } catch (e) { log(`schools: ${ev} failed for ${display(a)}: ${e.message}`); } };
-  const windowMs = () => Math.max(1, Number(C.study.windowHours) || 4) * HOUR;
-  const budgetMs = () => Math.max(0, Number(C.study.minutesPerWindow) || 0) * MIN;
+  const windowMs = (conf = C.study) => Math.max(1, Number(conf.windowHours) || 4) * HOUR;
+  const budgetMs = (conf = C.study) => Math.max(0, Number(conf.minutesPerWindow) || 0) * MIN;
   // The sittings of the last windowHours, as [from, to]; a record from before the rolling window is one sitting
-  const studyLog = (s) => {
-    const st = s.study || {};
+  const studyLog = (s, conf = C.study, key = 'study') => {
+    const st = s[key] || {};
     const log = Array.isArray(st.log) ? st.log : (Number(st.usedMs) > 0 ? [[Number(st.windowAt) || 0, (Number(st.windowAt) || 0) + Number(st.usedMs)]] : []);
-    return log.filter((x) => Array.isArray(x) && Number(x[1]) > Date.now() - windowMs()).map((x) => [Number(x[0]) || 0, Number(x[1]) || 0]);
+    return log.filter((x) => Array.isArray(x) && Number(x[1]) > Date.now() - windowMs(conf)).map((x) => [Number(x[0]) || 0, Number(x[1]) || 0]);
   };
   // Study time inside the rolling window that ends at `at`
-  const usedAt = (log, at) => log.reduce((n, [from, to]) => n + Math.max(0, Math.min(to, at) - Math.max(from, at - windowMs())), 0);
+  const usedAt = (log, at, conf = C.study) => log.reduce((n, [from, to]) => n + Math.max(0, Math.min(to, at) - Math.max(from, at - windowMs(conf))), 0);
   // { usedMs, leftMs, resetsIn }: resetsIn is how long until the window has room for one more tick
-  const studyBudget = (s) => {
-    const now = Date.now(), log = studyLog(s), used = usedAt(log, now);
-    const room = budgetMs() - Math.max(1000, C.study.tickSeconds * 1000);
+  const studyBudget = (s, conf = C.study, key = 'study') => {
+    const now = Date.now(), log = studyLog(s, conf, key), used = usedAt(log, now, conf);
+    const room = budgetMs(conf) - Math.max(1000, conf.tickSeconds * 1000);
     let resetsIn = 0;
     if (used > room) {
-      let lo = 0, hi = windowMs();
-      while (hi - lo > 1000) { const mid = (lo + hi) / 2; if (usedAt(log, now + mid) > room) lo = mid; else hi = mid; }
+      let lo = 0, hi = windowMs(conf);
+      while (hi - lo > 1000) { const mid = (lo + hi) / 2; if (usedAt(log, now + mid, conf) > room) lo = mid; else hi = mid; }
       resetsIn = hi;
     }
-    return { usedMs: used, leftMs: Math.max(0, budgetMs() - used), resetsIn };
+    return { usedMs: used, leftMs: Math.max(0, budgetMs(conf) - used), resetsIn };
   };
   // A spell learned through Arcane Arts: a priest's Alteration spells do not close the shelves to a new mage
   const firstSpell = (a) => bookOf(a).find((sp) => sp && SCHOOLS.includes(sp.school) && (!sp.book || sp.book === C.arcaneSkill)) || null;
@@ -506,13 +523,120 @@ module.exports = (api) => {
   onUi('studyClose', (a) => { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); closeWidget(a, STUDY_PANEL_ID); });
   onUi('close', (a, args, widgetId) => {
     if (widgetId === STUDY_PANEL_ID) { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); }
+    if (widgetId === PRIEST_PANEL_ID) { stopPriest(a, 'closed'); priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); }
     if (widgetId === CLASS_PANEL_ID) lecternOpen.delete(a >>> 0);
   });
   const useStudy = (ref, a) => {
+    if (S.priestStudying.has(a >>> 0)) { stopPriest(a, 'closed'); closeWidget(a, PRIEST_PANEL_ID); }
     const s = stateOf(a);
     if (!s.primary) return openStudy(a, ref);
     if (S.studying.has(a >>> 0)) return openStudy(a, ref);
     startStudy(a, ref);
+  };
+
+  // ---- Priest Studies ------------------------------------------------------------------------------------------------
+  // Study Magic's sittings, windows and limits under C.priestStudy, paying Priest through the Wheel; the same panel
+  const PS = C.priestStudy;
+  S.priestStudying = S.priestStudying instanceof Map ? S.priestStudying : new Map(); // actor -> { ref, at, pos, cell, lastTick, lastWheel, gained }
+  const priestNonces = S.priestNonces instanceof Map ? S.priestNonces : (S.priestNonces = new Map());
+  const priestAt = S.priestAt instanceof Map ? S.priestAt : (S.priestAt = new Map()); // actor -> the study ref of the open panel
+  const priestOf = (a) => {
+    const r = get(a, 'private.mastery', null);
+    const p = r && r.skills && r.skills[PS.skill];
+    const held = !!(r && Array.isArray(r.order) && r.order.includes(PS.skill));
+    return { held, level: p ? Math.max(0, Number(p.level) || 0) : 0, rank: p ? Math.max(0, Number(p.rank) || 0) : 0 };
+  };
+  // A Restoration spell studied through Priest: the race's own Healing is no study
+  const firstPriestSpell = (a) => bookOf(a).find((sp) => sp && sp.school === PS.school && sp.book === PS.skill) || null;
+  const priestRefusal = (a, s) => {
+    if (!C.enabled || !PS.enabled) return 'Study is closed.';
+    const first = firstPriestSpell(a);
+    if (first) return `You have learned ${first.name}; the shelves have nothing more to teach you. Priest grows now by casting and in prayer.`;
+    const b = studyBudget(s, PS, 'priestStudy');
+    if (b.leftMs <= 0) return `You've done enough studying for the day. Come back in ${inWords(b.resetsIn || windowMs(PS))}.`;
+    return '';
+  };
+  const openPriest = (a, ref, result, resultKind, focus = true) => {
+    const s = stateOf(a);
+    const kept = !focus && priestAt.get(a >>> 0) === ref ? priestNonces.get(a >>> 0) : '';
+    const nonce = kept || mkNonce('p', a);
+    priestNonces.set(a >>> 0, nonce);
+    priestAt.set(a >>> 0, ref);
+    const ses = S.priestStudying.get(a >>> 0);
+    const b = studyBudget(s, PS, 'priestStudy');
+    const pr = priestOf(a);
+    openWidget(a, {
+      type: 'studyMagic', id: PRIEST_PANEL_ID, nonce, title: 'Priest Studies',
+      mode: ses ? 'studying' : 'idle',
+      school: 'Priest', level: pr.level, rank: pr.held ? RANKS[Math.min(RANKS.length - 1, pr.rank)] : 'Not yet taken up',
+      fill: Math.max(0, Math.min(1, pr.level / 100)),
+      leftSeconds: Math.round(b.leftMs / 1000), tickSeconds: PS.tickSeconds,
+      gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
+      whyNot: priestRefusal(a, s),
+      choices: [],
+      result: result || '', resultKind: resultKind || '',
+      events: { choose: 'dbo:priestStudyStart', start: 'dbo:priestStudyStart', stop: 'dbo:priestStudyStop', close: 'dbo:priestStudyClose' },
+    }, focus);
+  };
+  const startPriest = (a, ref) => {
+    const s = stateOf(a);
+    const why = priestRefusal(a, s);
+    if (why) return openPriest(a, ref, why, 'refused');
+    S.priestStudying.set(a >>> 0, { ref, at: Date.now(), pos: posOf(a), cell: String(get(a, 'worldOrCellDesc', '')), lastTick: Date.now(), lastWheel: Date.now(), gained: 0 });
+    anim(a, PS.anim);
+    audit(`SCHOOLS ${who(a)} began Priest Studies at ${descOf(ref)}`);
+    openPriest(a, ref, `You open the books on ${PS.school}.`, 'ok');
+  };
+  const stopPriest = (a, why) => {
+    const ses = S.priestStudying.get(a >>> 0);
+    if (!ses) return;
+    S.priestStudying.delete(a >>> 0);
+    anim(a, PS.exitAnim);
+    const s = stateOf(a);
+    s.priestStudy = { log: studyLog(s, PS, 'priestStudy').concat(ses.lastTick > ses.at ? [[ses.at, ses.lastTick]] : []) };
+    save(a, s);
+    audit(`SCHOOLS ${who(a)} stopped Priest Studies (${why}): ${Math.round(ses.gained * 10) / 10} units`);
+    if (why !== 'offline' && why !== 'closed') personal(a, why === 'budget' ? `You've done enough studying for the day. Come back in ${inWords(studyBudget(s, PS, 'priestStudy').resetsIn || windowMs(PS))}.` : 'You close the books.');
+  };
+  const priestTick = () => {
+    const now = Date.now();
+    for (const [a, ses] of [...S.priestStudying.entries()]) {
+      if (!online(a)) { stopPriest(a, 'offline'); continue; }
+      const p = posOf(a);
+      const moved = !p || !ses.pos || Math.hypot(p[0] - ses.pos[0], p[1] - ses.pos[1], p[2] - ses.pos[2]) / 70 > PS.moveLimitMeters;
+      if (moved || String(get(a, 'worldOrCellDesc', '')) !== ses.cell) { stopPriest(a, 'moved'); closeWidget(a, PRIEST_PANEL_ID); continue; }
+      const s = stateOf(a);
+      const b = studyBudget(s, PS, 'priestStudy');
+      const tickMs = Math.max(1000, PS.tickSeconds * 1000);
+      const ticks = Math.floor((now - ses.lastTick) / tickMs);
+      if (ticks <= 0) continue;
+      const room = Math.floor(Math.max(0, b.leftMs - (ses.lastTick - ses.at)) / tickMs);
+      const paid = Math.min(ticks, room);
+      ses.gained += paid * PS.unitsPerTick;
+      ses.lastTick += paid * tickMs;
+      if (paid > 0 && PS.wheelEverySeconds > 0 && now - ses.lastWheel >= PS.wheelEverySeconds * 1000) {
+        ses.lastWheel = now;
+        wheel(a, idOf(PRIEST_SPELL), PS.wheelValue, 1);
+      }
+      if (paid < ticks) { stopPriest(a, 'budget'); closeWidget(a, PRIEST_PANEL_ID); continue; }
+      if (priestAt.get(a) === ses.ref) openPriest(a, ses.ref, '', '', false);
+    }
+  };
+  const priestNonce = (a, args) => priestNonces.get(a >>> 0) === String(args[0] || '');
+  onUi('priestStudyStart', (a, args) => { if (!priestNonce(a, args)) return; const ref = priestAt.get(a >>> 0); if (ref && !S.priestStudying.has(a >>> 0)) startPriest(a, ref); });
+  onUi('priestStudyStop', (a, args) => { if (!priestNonce(a, args)) return; stopPriest(a, 'stopped'); const ref = priestAt.get(a >>> 0); if (ref) openPriest(a, ref); });
+  onUi('priestStudyClose', (a) => { stopPriest(a, 'closed'); priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); closeWidget(a, PRIEST_PANEL_ID); });
+  // One set of books at a time: opening one study ends a sitting at the other
+  const usePriest = (ref, a) => {
+    if (S.studying.has(a >>> 0)) { stopStudy(a, 'closed'); closeWidget(a, STUDY_PANEL_ID); }
+    if (S.priestStudying.has(a >>> 0)) return openPriest(a, ref);
+    startPriest(a, ref);
+  };
+  // DLE v10 brings the activator; until a ref of it is used, this is never reached. Said once per process when it is.
+  const notePriestStudy = (ref) => {
+    if (S.priestStudySeen) return;
+    S.priestStudySeen = true;
+    log(`schools: Priest Studies found its first ${PS.edid} activator (${descOf(ref)})`);
   };
 
   // ---- classes --------------------------------------------------------------------------------------------------------
@@ -738,11 +862,13 @@ module.exports = (api) => {
     if (!ready(casterId) || !isPlayer(casterId)) return false;
     if (isLectern(targetId)) { openLectern(casterId, targetId >>> 0); return true; }
     if (isStudy(targetId)) { useStudy(targetId >>> 0, casterId >>> 0); return true; }
+    if (isPriestStudy(targetId)) { notePriestStudy(targetId >>> 0); usePriest(targetId >>> 0, casterId >>> 0); return true; }
     return false;
   };
   // A player who logs out or changes cell mid-study stops; one who disconnects mid-class is caught by the class tick
   every('schools.tick', 2000, () => {
     try { studyTick(); } catch (e) { log('schools: study tick failed', e.stack || e.message); }
+    try { priestTick(); } catch (e) { log('schools: Priest Studies tick failed', e.stack || e.message); }
   });
   every('schools.classes', 10000, () => {
     try { classTick(); } catch (e) { log('schools: class tick failed', e.stack || e.message); }
@@ -782,4 +908,5 @@ module.exports = (api) => {
   }, { admin: true, help: 'a player\'s schools of magic (or reset them)' });
 
   log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${S.classes.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}; Alteration ${ALTERATION}`);
+  log(`schools: Priest Studies ${PS.enabled && C.enabled ? `${PS.minutesPerWindow} min per ${PS.windowHours} h at ${PS.edid}${PRIEST_REFS.size ? ` + ${PRIEST_REFS.size} refs` : ''}, paying ${PS.skill} with ${PRIEST_SPELL || 'no Restoration spell'}${S.priestStudySeen ? '' : `; inert until a ${PS.edid} activator is used (DLE v10)`}` : 'off'}`);
 };
