@@ -4634,6 +4634,40 @@ const npcLethalGuard = (agg, tgt, dmg, mult, flags) => {
   const short = (health - dmg * mult) - (raisedPts - dmg);   // what the cap kept from the raise
   return { health: raisedPts / max, rest: short > 1e-9 ? 1 - short / dmg : 1 };
 };
+// ---- NPC damage taken by kind: how hard players hit one kind of creature or NPC -----------------------------------------
+// gamemode-config npcDamage.takenByKind { <kind>: mult } scales the hits a player, or someone fighting for a player (a
+// companion or summon: ff_companionOf names a player, downed.js sideOf), lands on a creature or NPC of that kind (the
+// wild:<kind>:... tag, as byKind). Never player on player, never NPC on NPC. Read per hit (Nate, 1 Oct: boars "barely
+// take damage").
+const npcTakenDamageMult = (agg, tgt, dmg) => {
+  const by = (cfg.npcDamage || {}).takenByKind;
+  if (!by || typeof by !== 'object' || !(dmg > 0) || agg === tgt) return 1;
+  if (profileOf(tgt) >= 0) return 1;
+  let side = agg;
+  if (profileOf(agg) < 0) { try { side = Number(mp.get(agg, 'ff_companionOf')) >>> 0; } catch (e) { side = 0; } }
+  if (!side || profileOf(side) < 0) return 1;
+  const kind = npcKindOf(tgt);
+  if (!kind || !Object.prototype.hasOwnProperty.call(by, kind)) return 1;
+  const m = Number(by[kind]);
+  return m > 0 ? m : 1;
+};
+// The extra of a hit above 1 is taken after the engine's hit (masteryBonusDamage), but it never kills: it stops at
+// MASTERY_MIN_HEALTH, so a boar left at 1% needed one more blow than its numbers. On a weapon hit the extra comes off
+// before the engine's hit instead (the server reads the target's values again after this hook, ActionListener OnHit),
+// leaving at least a sliver, so the engine's own blow is the one that kills and the kill is credited as usual. Not on a
+// spell hit: OnSpellHit writes its snapshot back after the hook (fork 713d6463 ActionListener.cpp 2099, 2145-2152), so
+// there the extra goes the usual way. Returns true when it lowered the health.
+const npcTakenLowerFirst = (tgt, dmg, m, flags) => {
+  const f = flags && typeof flags === 'object' ? flags : {};
+  if (!(m > 1) || !(dmg > 0) || f.spell) return false;
+  const max = Number(f.targetMaxHealth); if (!(max > 0)) return false;
+  let p = null; try { p = mp.get(tgt, 'percentages'); } catch (e) { return false; }
+  if (!p || !(p.health > 0)) return false;
+  const lowered = Math.max(0.0001, p.health - (dmg * (m - 1)) / max);
+  if (!(lowered < p.health)) return false;
+  try { mp.set(tgt, 'percentages', { health: lowered, magicka: p.magicka, stamina: p.stamina }); } catch (e) { return false; }
+  return true;
+};
 const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => {
   const agg = Number(aggressorId) >>> 0;
   const tgt = Number(targetId) >>> 0;
@@ -4719,9 +4753,14 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
       if (guard.rest < 1) globalThis.__dboMasteryPending = { agg, tgt, mult: guard.rest, health: guard.health };
       return true;
     }
+    // The health before anything below changes it: the give-back measures the hit from here
+    const before = mp.get(tgt, 'percentages');
+    // A player's hit on a kind of creature or NPC (npcDamage.takenByKind): more lands before the engine's hit when it can
+    // (weapon hits), else it joins the give-back's mult like any other factor
+    const taken = npcTakenDamageMult(agg, tgt, dmg);
+    if (!(taken > 1 && npcTakenLowerFirst(tgt, dmg, taken, flags))) mult *= taken;
     if (mult !== 1 && dmg > 0) {
-      const p = mp.get(tgt, 'percentages');
-      if (p && p.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: p.health };
+      if (before && before.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: before.health };
     }
   } catch (e) { /* not an actor */ }
   return true;

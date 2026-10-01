@@ -26,7 +26,7 @@ put(WOLF, 'private.npcSpawner', 'wild:wolf:12');
 put(BANDIT, 'private.npcSpawner', 'dungeon:plunderedmine:3');
 const mp = { get: (id, k) => props.get(id + '|' + k), set: (id, k, v) => props.set(id + '|' + k, v) };
 const profileOf = (a) => (a === PLAYER || a === PLAYER2 ? 7 : -1);
-const load = (src, cfg) => new Function('mp', 'cfg', 'profileOf', src + '\nreturn { npcPowerHitMult, npcKindDamageMult: typeof npcKindDamageMult === "function" ? npcKindDamageMult : null, npcLethalGuard: typeof npcLethalGuard === "function" ? npcLethalGuard : null, npcKindOf: typeof npcKindOf === "function" ? npcKindOf : null };')(mp, cfg, profileOf);
+const load = (src, cfg) => new Function('mp', 'cfg', 'profileOf', src + '\nreturn { npcPowerHitMult, npcKindDamageMult: typeof npcKindDamageMult === "function" ? npcKindDamageMult : null, npcLethalGuard: typeof npcLethalGuard === "function" ? npcLethalGuard : null, npcKindOf: typeof npcKindOf === "function" ? npcKindOf : null, npcTakenDamageMult: typeof npcTakenDamageMult === "function" ? npcTakenDamageMult : null, npcTakenLowerFirst: typeof npcTakenLowerFirst === "function" ? npcTakenLowerFirst : null };')(mp, cfg, profileOf);
 
 // ---- npcKindDamageMult ------------------------------------------------------------------------------------------------
 const cfg = { npcPowerHits: { mult: 0.5 }, npcDamage: { byKind: { boar: 0.4, wolf: 0 } } };
@@ -139,6 +139,7 @@ const bitesToDown = (fx, { power = false, ar = 0, defense = 1, max = 150 } = {})
   return Infinity;
 };
 const LIVE_SRC = (() => { try { return cut(execSync('git show ce22b2c7:gamemode.js', { cwd: SERVER, encoding: 'utf8', maxBuffer: 64 << 20 })); } catch (e) { return null; } })();
+const LIVE_BOAR = (() => { try { return cut(execSync('git show 9ec5e741:gamemode.js', { cwd: SERVER, encoding: 'utf8', maxBuffer: 64 << 20 })); } catch (e) { return null; } })();
 if (!LIVE_SRC) console.log('skip  the live comparison (ce22b2c7 is not in this clone)');
 const live = LIVE_SRC ? load(LIVE_SRC, { npcPowerHits: { mult: 0.5 } }) : null;
 const now0 = load(NEW, { npcPowerHits: { mult: 0.5 } });                                  // this code, byKind empty (as shipped)
@@ -166,6 +167,70 @@ if (live) {
   }
   ok(same, 'live then new: npcPowerHitMult gives the same answer for every attacker, target, flag and damage');
   ok(live.npcKindDamageMult === null && live.npcLethalGuard === null, 'the live block has neither function: a hot reload adds them, and they keep no state on globalThis');
+}
+
+// ---- npcDamage.takenByKind: players' hits on a kind (Nate, 1 Oct: boars "barely take damage") ---------------------------
+{
+  const COMPANION = 0xff000300, STRAY = 0xff000301;
+  put(COMPANION, 'ff_companionOf', PLAYER2);
+  put(STRAY, 'ff_companionOf', BOAR);
+  const tcfg = { npcPowerHits: { mult: 0.5 }, npcDamage: { byKind: { boar: 0.4 }, takenByKind: { boar: 5, wolf: -1 } } };
+  const T = load(NEW, tcfg);
+  ok(T.npcTakenDamageMult(PLAYER, BOAR, 7) === 5, "a player's hit on a boar takes takenByKind.boar");
+  ok(T.npcTakenDamageMult(COMPANION, BOAR, 7) === 5, "...and so does a hit by someone fighting for a player (ff_companionOf names a player)");
+  ok(T.npcTakenDamageMult(STRAY, BOAR, 7) === 1 && T.npcTakenDamageMult(WOLF, BOAR, 7) === 1, 'an NPC fighting for no player, or an NPC on an NPC, is untouched');
+  ok(T.npcTakenDamageMult(PLAYER, PLAYER2, 7) === 1 && T.npcTakenDamageMult(BOAR, PLAYER, 7) === 1, 'PvP and NPC-on-player hits are untouched');
+  ok(T.npcTakenDamageMult(PLAYER, WOLF, 7) === 1 && T.npcTakenDamageMult(PLAYER, BANDIT, 7) === 1 && T.npcTakenDamageMult(PLAYER, PLAIN, 7) === 1, 'a value not above 0, a kind not listed, or no kind: untouched');
+  ok(load(NEW, { npcDamage: { byKind: { boar: 0.4 } } }).npcTakenDamageMult(PLAYER, BOAR, 7) === 1, 'no takenByKind: untouched');
+  tcfg.npcDamage.takenByKind.boar = 3;
+  ok(T.npcTakenDamageMult(PLAYER, BOAR, 7) === 3, 'read per hit: a config edit takes effect at once');
+  tcfg.npcDamage.takenByKind.boar = 5;
+  // lower first: weapon hits only, a sliver left so the engine's own blow kills
+  const BMAX = 200;
+  const setBoar = (pts) => put(BOAR, 'percentages', { health: pts / BMAX, magicka: 0, stamina: 0.7 });
+  const boarPts = () => mp.get(BOAR, 'percentages').health * BMAX;
+  setBoar(200);
+  ok(T.npcTakenLowerFirst(BOAR, 7, 5, { targetMaxHealth: BMAX }) === true && Math.abs(boarPts() - 172) < 1e-9 && mp.get(BOAR, 'percentages').stamina === 0.7, 'a 7-point sword blow at x5: 28 comes off first (200 -> 172), the engine takes the 7, stamina kept', boarPts());
+  setBoar(20);
+  ok(T.npcTakenLowerFirst(BOAR, 7, 5, { targetMaxHealth: BMAX }) === true && boarPts() > 0 && boarPts() < 7, '...at 20 health the extra leaves only a sliver, so the engine\'s own blow kills', boarPts());
+  setBoar(100);
+  ok(T.npcTakenLowerFirst(BOAR, 7, 5, { targetMaxHealth: BMAX, spell: true }) === false && boarPts() === 100, 'a spell hit is not lowered first (OnSpellHit writes its snapshot back): its extra goes the usual way');
+  ok(T.npcTakenLowerFirst(BOAR, 7, 5, {}) === false && T.npcTakenLowerFirst(BOAR, 7, 1, { targetMaxHealth: BMAX }) === false && T.npcTakenLowerFirst(BOAR, 7, 0.5, { targetMaxHealth: BMAX }) === false && boarPts() === 100, 'no max health from the server, or a mult of 1 or less: nothing is lowered');
+
+  // hits to kill a boar (BSKEncBoar01, level 7, BSKBoarRace 200 health, no armour): a new character's weapon hits, the
+  // formula's damage (base WEAP damage or the race's unarmed 4, x2 power, no armour penalty, no NPC x2), tier 0 and iron
+  // add nothing; through the hook (lower first) and the engine's deduction
+  const hitsToKill = (fx, dmg) => {
+    let h = BMAX;
+    for (let n = 1; n <= 200; n++) {
+      put(BOAR, 'percentages', { health: h / BMAX, magicka: 0, stamina: 1 });
+      const m = fx.npcTakenDamageMult ? fx.npcTakenDamageMult(PLAYER, BOAR, dmg) : 1;
+      if (m > 1 && fx.npcTakenLowerFirst) fx.npcTakenLowerFirst(BOAR, dmg, m, { targetMaxHealth: BMAX });
+      h = mp.get(BOAR, 'percentages').health * BMAX - dmg;
+      if (h <= 1e-9) return n;                                  // the engine's hit killed it (allowing for float error)
+    }
+    return Infinity;
+  };
+  const SAME = { npcPowerHits: { mult: 0.5 }, npcDamage: { byKind: { boar: 0.4 } } };
+  const liveT = LIVE_BOAR ? load(LIVE_BOAR, SAME) : null;
+  const rows = [['fists (unarmed 4)', 4], ['iron dagger (4)', 4], ['iron sword (7)', 7], ['iron sword, power attack (14)', 14], ['Khajiit fists (unarmed 10)', 10]];
+  const res = {};
+  for (const [label, dmg] of rows) {
+    res[label] = { live: liveT ? hitsToKill(liveT, dmg) : Math.ceil(BMAX / dmg), x5: hitsToKill(T, dmg) };
+    console.log(`      boar, ${label}: ${res[label].live} hits today, ${res[label].x5} with takenByKind.boar 5`);
+  }
+  ok(res['iron sword (7)'].live === 29 && res['fists (unarmed 4)'].live === 50, 'today: a new character needs 29 iron-sword blows or 50 punches for a boar', res);
+  ok(res['iron sword (7)'].x5 === 6 && res['iron dagger (4)'].x5 === 10 && res['iron sword, power attack (14)'].x5 === 3, 'with takenByKind.boar 5: 6 iron-sword blows, 10 dagger stabs, 3 power attacks', res);
+  if (liveT) {
+    let same = true;
+    for (const [a, t] of [[BOAR, PLAYER], [PLAYER, BOAR], [PLAYER, PLAYER2], [BOAR, WOLF], [COMPANION, PLAYER]]) for (const power of [true, false]) for (const d of [0, 50]) {
+      const nw = load(NEW, SAME);
+      if (liveT.npcPowerHitMult(a, t, { power }, d) !== nw.npcPowerHitMult(a, t, { power }, d)) same = false;
+      if (liveT.npcKindDamageMult(a, t, d) !== nw.npcKindDamageMult(a, t, d)) same = false;
+    }
+    ok(same, 'live (9ec5e741) then new: npcPowerHitMult and npcKindDamageMult answer the same in every case');
+    ok(liveT.npcTakenDamageMult === null, 'the live block has no takenByKind: a hot reload adds it, with no state on globalThis');
+  }
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nall checks passed');
