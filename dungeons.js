@@ -105,9 +105,10 @@ module.exports = (api) => {
     { name: 'the Fighters Guild', cells: ['f8d:BSHeartland.esm', '6c150:BSHeartland.esm'], cell: 'f8d:BSHeartland.esm', pos: [1.8, -538.2, -221.8], rot: [0, 0, 0] },
   ]).map((x) => Object.assign({}, x, { cellSet: new Set((x.cells || []).map((c) => normDesc(c))) }));
   DATA.dungeons = (DATA.dungeons || []).concat(EXPEDITIONS.filter((x) => !(DATA.dungeons || []).some((d) => d.id === x.id)));
-  // Sites the generator counts as dungeons that are not (Nat: Lakeside Retreat). Dropped before anything is built
-  // from them, so no gate, no lease, and their containers stay ordinary. More ids via config dungeons.exclude.
-  const EXCLUDED = new Set(['CYRLakesideRetreatLocation'].concat(Array.isArray(C.exclude) ? C.exclude : []));
+  // Sites the generator counts as dungeons that are not (Nat: Lakeside Retreat; Nate, 1 Oct: Fort Caractacus, the
+  // Legion's fort, whose garrison and prisoner a claim made a party kill). Dropped before anything is built from them,
+  // so no gate, no lease, and their containers stay ordinary. More ids via config dungeons.exclude.
+  const EXCLUDED = new Set(['CYRLakesideRetreatLocation', 'CYRFortCaractacusLocation'].concat(Array.isArray(C.exclude) ? C.exclude : []));
   DATA.dungeons = (DATA.dungeons || []).filter((d) => !EXCLUDED.has(d.id));
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
   const byId = new Map();            // dungeon id -> dungeon

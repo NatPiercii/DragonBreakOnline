@@ -265,6 +265,9 @@ def census(w):
     # dungeons a party can claim: an outside entrance door in reach, not excluded
     D = json.load(open(os.path.join(SERVER, 'dungeons.json')))['dungeons']
     excl = set((cfg.get('dungeons') or {}).get('exclude') or [])
+    # and the ids dungeons.js itself drops (its EXCLUDED set: Lakeside Retreat, Fort Caractacus)
+    m = re.search(r"const EXCLUDED = new Set\(\[([^\]]*)\]", open(os.path.join(SERVER, 'dungeons.js')).read())
+    if m: excl |= set(re.findall(r"'([^']+)'", m.group(1)))
     claim = []
     for d in D:
         if d['id'] in excl:
@@ -273,7 +276,7 @@ def census(w):
         hit = [k for k in doors if k in w.in_scope]
         if hit:
             claim.append((d['id'], hit[0]))
-    r = row('Dungeons claimable', 'dungeons.json entrances (minus dungeons.exclude)', [k for _, k in claim], w, f'{len(D)} dungeons in all')
+    r = row('Dungeons claimable', 'dungeons.json entrances (minus dungeons.exclude and dungeons.js EXCLUDED)', [k for _, k in claim], w, f'{len(D)} dungeons in all')
     r['where'] = ', '.join(sorted(i for i, _ in claim))[:400]
     rows.append(r)
     return rows
