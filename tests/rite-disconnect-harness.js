@@ -18,7 +18,10 @@ const api = {
   mp, log: (...x) => logs.push(x.join(' ')), audit: (t) => audits.push(t), personal: (a, t) => said.push(t), registerChatCommand: (n, f) => { cmds[n] = f; },
   onUi: (n, f) => { ui[n] = f; }, openWidget: noop, closeWidget: noop, sendPacket: noop, display: String, who: String,
   isAdmin: () => false, findByName: () => null, onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, profileOf: (a) => a,
-  nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => 0, cfg: {},
+  nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => 0,
+  // The rite's flow and outcomes, not how a strike is judged: legacyDeadly 'allow' lets this client without riteJudge take
+  // the deadly rites as before (review LAT-2); tests/rite-client-harness.js checks the 'safe' default.
+  cfg: { supernatural: { rite: { legacyDeadly: 'allow' } } },
 };
 require(path.resolve(__dirname, '..', 'supernatural.js'))(api);
 

@@ -42,8 +42,14 @@ module.exports = (api) => {
   // when that report arrived, and a round it never reports is a miss after silentMs (DESIGN.md section 4.6).
   // replayCheck: 'log' lets a claimed hit the widget's own press time does not bear out stand with a RITE-MISMATCH
   // audit line; 'refuse' scores the replay instead.
+  // legacyDeadly (review LAT-2, 2026-10-01): today's widget sends only "struck", so its strike is judged by when it ARRIVES,
+  // which holds only up to about 400 ms of round trip with no packet lost. 'safe' (the default, while clientJudged is on):
+  // a client without riteJudge is never put through a rite whose loss kills on such a judgement. Molag Bal's Embrace and
+  // the Great Hunt are declined with a line about the update; a fever rite still runs, but losing it breaks the fever
+  // without killing (the carrier lives and is not turned). 'allow': the arrival-judged rite kills as before.
   const RITE_DEFAULTS = { rounds: 5, needFever: 3, needVoluntary: 4, leadMs: 700, timeoutMs: 7000, latencyMs: 120, slackMs: 160,
-    clientJudged: true, lateWindowMs: 250, earlyWindowMs: 160, legacyExtraMs: 2500, graceMs: 100, silentMs: 120000, replayCheck: 'log' };
+    clientJudged: true, lateWindowMs: 250, earlyWindowMs: 160, legacyExtraMs: 2500, graceMs: 100, silentMs: 120000, replayCheck: 'log',
+    legacyDeadly: 'safe' };
   const C = Object.assign({
     // Werewolf harder to come by than vampirism (Nate, 2026-09-27: 5% -> 2%)
     infectVampire: 0.10, infectWerewolf: 0.02, infectFeed: 0.10,
@@ -570,6 +576,11 @@ module.exports = (api) => {
       rnonce: Math.floor(Math.random() * 0x7fffffff).toString(36), sentAt: performance.now() };
   };
   const riteClientJudged = () => MG.clientJudged(C.rite);
+  // A client whose strikes can only be judged by arrival, under legacyDeadly 'safe' (RITE_DEFAULTS above): no voluntary
+  // deadly rite for it, and a fever rite it loses does not kill. Rollback (clientJudged false) is today's rite for all.
+  const riteLegacySafe = (a) => riteClientJudged() && String(C.rite.legacyDeadly || 'safe').toLowerCase() !== 'allow'
+    && !(typeof hasUiCap === 'function' && hasUiCap(a, 'riteJudge'));
+  const legacyDeclined = (title) => `${title} needs the newer game client, which times every strike on your own machine. Your client can only be timed across the network, and this rite kills, so it stays closed to you until you update.`;
   const showRite = (a, r, result) => {
     const def = RITES[r.type]; const rd = r.current;
     const w = {
@@ -594,14 +605,23 @@ module.exports = (api) => {
   const RITE_LOGIN_GRACE_MS = Math.max(0, Number(C.rite.loginGraceSeconds) || 45) * 1000;
   const startRite = (a, type) => {
     if (rites.has(a)) return;
+    // A voluntary deadly rite (the Embrace, the Great Hunt) is never started for a client judged by arrival (legacyDeadly
+    // 'safe'): riteOffer already says so, and this catches a rite chosen before the update reached the server
+    if (RITES[type] && RITES[type].deadly && riteLegacySafe(a)) {
+      personal(a, legacyDeclined(RITES[type].title));
+      log(`supernatural: ${display(a)} ${RITES[type].title} declined: the client cannot judge its own strikes (no riteJudge)`);
+      return;
+    }
     const r = { type, nonce: `${a.toString(16)}-${Date.now().toString(36)}`, round: 0, hits: 0, misses: 0, current: null, timer: null };
     // Decided at the start: a client rite round is played without an arrival timer, which an old widget would not survive
     r.client = riteClientJudged() && typeof hasUiCap === 'function' && hasUiCap(a, 'riteJudge');
+    // A fever rite judged by arrival under legacyDeadly 'safe': lag may cost it, so losing it does not kill (finishRite)
+    r.legacySafe = !r.client && riteLegacySafe(a);
     rites.set(a, r);
     r.current = newRound(r);
     armTimer(a, r);
     showRite(a, r);
-    log(`supernatural: ${display(a)} began ${RITES[type].title} judge=${r.client ? 'client' : riteClientJudged() ? 'legacy' : 'server'}`);
+    log(`supernatural: ${display(a)} began ${RITES[type].title} judge=${r.client ? 'client' : riteClientJudged() ? 'legacy' : 'server'}${r.legacySafe ? ', a loss does not kill' : ''}`);
   };
   // A rite the player never touched has not been failed, it has not been played. Dying to a cursor that never
   // appeared (swag, 2026-09-27: the Blood Fever opened a second after joining, no mouse, no space, dead) is a
@@ -638,6 +658,13 @@ module.exports = (api) => {
     closeWidget(a, RITE_ID);
     const def = RITES[r.type];
     log(`supernatural: ${display(a)} ${won ? 'survived' : 'failed'} ${def.title} (${r.hits}/${C.rite.rounds})`);
+    // A fever rite judged by when its strikes arrived (legacyDeadly 'safe'): the fever breaks, and the carrier lives
+    if (!won && r.legacySafe && (r.type === 'fever_vampire' || r.type === 'fever_werewolf')) {
+      cureDisease(a, `the ${r.type === 'fever_vampire' ? 'fever' : 'hunt'} broke, judged by arrival: not lethal`);
+      audit(`RITE ${who(a)} lost ${def.title} judged by arrival (no riteJudge): the fever broke, no death`);
+      // cureDisease has said "The fever breaks."
+      return personal(a, r.type === 'fever_vampire' ? 'You live through it, and the curse does not take you.' : 'The Huntsman loses your trail, and the beast does not come out.');
+    }
     if (r.type === 'fever_vampire') return won ? becomeVampire(a, false) : (cureDisease(a, 'the fever took them'), personal(a, 'The fever takes you, and burns itself out with your life.'), mp.set(a, 'isDead', true));
     if (r.type === 'fever_werewolf') return won ? becomeWerewolf(a, false) : (cureDisease(a, 'the hunt took them'), personal(a, 'The Huntsman catches you. The beast dies with you.'), mp.set(a, 'isDead', true));
     // Nat: the blessing belongs to a pack's Alpha, not to anyone who survives the Hunt. Nat 2026-09-26: surviving the Hunt
@@ -789,12 +816,14 @@ module.exports = (api) => {
     if (deity === 'molagbal') {
       if (s.kind === 'vampire' && s.pure) return { reason: 'Your blood is already his.' };
       if (s.kind === 'werewolf') return { reason: 'Molag Bal will not take what Hircine has marked. Be cured first.' };
+      if (riteLegacySafe(a)) return { reason: legacyDeclined("Molag Bal's Embrace") };
       return { type: 'embrace', title: "Molag Bal's Embrace", confirm: 'Kneel', warning: "Molag Bal's Embrace makes a pure-blood of those who survive it. Many do not, and some never wake again." };
     }
     if (deity === 'hircine') {
       if (s.kind === 'werewolf') return { reason: 'The Huntsman already knows your scent.' };
       if (s.kind === 'vampire') return { reason: 'Hircine hunts the living, not the dead. Be cured first.' };
       if (s.disease) return { reason: s.disease.kind === 'werewolf' ? 'Sanies Lupinus is already in your blood. Wait for the fever.' : 'Another fever holds you. Be cured first.' };
+      if (riteLegacySafe(a)) return { reason: legacyDeclined('The Great Hunt') };
       return { type: 'hunt', title: 'The Great Hunt', confirm: 'Run the Hunt', warning: 'Hircine chases you, and if you run true he may mark you with Sanies Lupinus; when its fever peaks, the beast tries to come out. If he catches you, you may never rise.' };
     }
     if (deity === 'arkay' || deity === 'stendarr') {

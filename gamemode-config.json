@@ -206,13 +206,14 @@
    "feedPair": { "_comment": "The standing bite played for both players (client 0.3.71). Off until Nate has seen it in game; the release checks it is written here as false.", "enabled": false },
    "rite": {
     "_comment": "The rite mini-game (Blood Fever, Hircine's Hunt, Molag Bal's Embrace, the Great Hunt). Merged key by key with supernatural.js RITE_DEFAULTS, so a partial block like this one keeps rounds, need and leadMs.",
-    "_clientJudged": "Jake, 2026-09-30: about half the rite misses of the players we could measure came from lag. A client whose UI names riteJudge (the next client cut) judges each strike at the frame on screen with graceMs and reports it with its own times; the server checks the round (once only), that the press fits the round on the widget's clock and that the report did not arrive sooner than the round could be played, and never reads when it arrived. Today's widgets send no time, so they are still judged by arrival, now with one continuous window (lateWindowMs back, earlyWindowMs ahead) and legacyExtraMs more on the round's timer. replayCheck: 'log' lets a claimed hit the press time does not bear out stand with a RITE-MISMATCH audit line, 'refuse' scores the replay. ROLLBACK: set clientJudged to false and reload the gamemode; the three-sample arrival check and the 7.7 s timer come back for every client.",
+    "_clientJudged": "Jake, 2026-09-30: about half the rite misses of the players we could measure came from lag. A client whose UI names riteJudge (the next client cut) judges each strike at the frame on screen with graceMs and reports it with its own times; the server checks the round (once only), that the press fits the round on the widget's clock and that the report did not arrive sooner than the round could be played, and never reads when it arrived. Today's widgets send no time, so they are still judged by arrival, now with one continuous window (lateWindowMs back, earlyWindowMs ahead) and legacyExtraMs more on the round's timer. That holds only up to about 400 ms of round trip with no packet lost (review LAT-2, 2026-10-01: at 1 s, 9 in 100 centre-line Embraces survived), so legacyDeadly 'safe' puts no such client through a rite that kills: Molag Bal's Embrace and the Great Hunt are declined with a line about the update, and a fever rite it loses breaks the fever without killing (the carrier lives, not turned). 'allow' lets the arrival-judged rites kill as before. replayCheck: 'log' lets a claimed hit the press time does not bear out stand with a RITE-MISMATCH audit line, 'refuse' scores the replay. ROLLBACK: set clientJudged to false and reload the gamemode; the three-sample arrival check and the 7.7 s timer come back for every client.",
     "clientJudged": true,
     "replayCheck": "log",
     "graceMs": 100,
     "lateWindowMs": 250,
     "earlyWindowMs": 160,
-    "legacyExtraMs": 2500
+    "legacyExtraMs": 2500,
+    "legacyDeadly": "safe"
    }
  },
  "npcPowerHits": {

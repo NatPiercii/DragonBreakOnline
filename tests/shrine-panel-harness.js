@@ -48,7 +48,10 @@ const api = {
     lookupEspmRecordById: (id) => records.get(id) || null, callPapyrusFunction: () => null,
   },
   log: () => {}, audit: () => {}, personal: (a, t) => said.push(t), system: () => {},
-  display: () => 'Tester', who: () => 'Tester', nameOf: () => 'Tester', cfg: {},
+  display: () => 'Tester', who: () => 'Tester', nameOf: () => 'Tester',
+  // The rite's flow and outcomes, not how a strike is judged: legacyDeadly 'allow' lets this client without riteJudge take
+  // the deadly rites as before (review LAT-2); tests/rite-client-harness.js checks the 'safe' default.
+  cfg: { supernatural: { rite: { legacyDeadly: 'allow' } } },
   openWidget: (a, w, focus) => { trail.push({ op: 'open', id: w.id, type: w.type, focus: !!focus, w }); return true; },
   closeWidget: (a, id) => { trail.push({ op: 'close', id }); return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
