@@ -1,6 +1,6 @@
 'use strict';
 // One-off, Jake's request (2026-10-01, claude-jake): take back what GM Jake (profile 1) handed to profile 40's character
-// ff000304 through the admin panel's giveItem between 23:03:12 and 23:14:04Z. Each item goes back down to what the
+// ff000304 through the admin panel's giveItem between 23:03:12 and 23:14:04Z, and the 8 potions brewed from them. Each item goes back down to what the
 // character held at 23:00Z (the world snapshot just before the first gift); whatever was already used is not chased, and
 // the character's own stock is never touched. Runs once: the character keeps private.dboRevert1001 and later loads skip.
 // Remove this file and its block in gamemode.js once the audit line is in.
@@ -22,6 +22,9 @@ const ITEMS = [
   ['Blue Butterfly Wing', 0x000727de, 20, 0],
   ['Snowberries', 0x0001b3bd, 20, 0],
   ['Hagraven Claw', 0x0006b689, 20, 1],
+  // Brewed from the gifted ingredients at 23:10-23:17Z (alchemy audit lines), none held before: Jake asked for these too
+  ['Fortify Restoration potion', 0x0003995a, 6, 0],
+  ['Fortify Enchanting potion', 0x00039d02, 2, 0],
 ];
 
 module.exports = (api) => {

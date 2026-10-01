@@ -32,7 +32,7 @@ const ENTRIES = () => [
   { baseId: 0x00085500, count: 20 }, { baseId: 0x0007edf5, count: 20 }, { baseId: 0x00106e1b, count: 14 },
   { baseId: 0x0006bc0b, count: 20 }, { baseId: 0x12005eb6, count: 1 }, { baseId: 0x000a6d7f, count: 1 },
   { baseId: 0x0002e4f3, count: 20 }, { baseId: 0x000727de, count: 18 }, { baseId: 0x0001b3bd, count: 18 },
-  { baseId: 0x0006b689, count: 19 }, { baseId: 0x0000000f, count: 500 },
+  { baseId: 0x0006b689, count: 19 }, { baseId: 0x0000000f, count: 500 }, { baseId: 0x0003995a, count: 4 }, { baseId: 0x00039d02, count: 2 },
 ];
 
 {
@@ -41,6 +41,7 @@ const ENTRIES = () => [
   const inv = w.inv();
   check('every gifted item is taken back down to the 23:00Z count', count(inv, 0x00106e19) === 0 && count(inv, 0x03003545) === 0 && count(inv, 0x000727de) === 0 && count(inv, 0x040284fa) === 0, inv);
   check('the Hagraven Claw held before the gift stays', count(inv, 0x0006b689) === 1, count(inv, 0x0006b689));
+  check('potions brewed from the gift are taken (4 left of 6, 2 of 2)', count(inv, 0x0003995a) === 0 && count(inv, 0x00039d02) === 0, inv);
   check('unrelated items are untouched (gold 500)', count(inv, 0x0000000f) === 500);
   check('the run is marked done on the character', w.props.get(`${ACTOR}:private.dboRevert1001`) === true);
   check('one audit line names what was taken', w.audits.length === 1 && /Cyrodilic Spadetail x17/.test(w.audits[0]) && /Hagraven Claw x18/.test(w.audits[0]), w.audits);
