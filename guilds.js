@@ -87,6 +87,8 @@ module.exports = (api) => {
     }
     return best;
   };
+  // charters.js: the claimed property a player stands at, for a chartered faction's seat
+  globalThis.__dboPropertyAt = (a) => propertyAt(a >>> 0);
   const storageOf = (fid) => {
     const st = STORES[fid];
     return st && st.ref ? { ref: st.ref, name: st.name || 'the strongbox', hall: st.hall || '', by: st.by || '', at: st.at || 0 } : null;

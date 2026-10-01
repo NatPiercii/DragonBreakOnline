@@ -8,25 +8,29 @@
 // (phase 2).
 //
 //   /charter                        your charter, and what to do next
-//   /charter found <name>           start one, which you will lead
+//   /charter found <name>           start one, which you will lead; /charter cult <name> starts a cult
+//   /charter kind company|cult      change what it founds, while it gathers founders
 //   /charter pitch <text>           the purpose, or a lore pitch
-//   /charter seat <text>            optional: where it sits
-//   /charter invite <player> [officer|sergeant]   ask someone to co-found it in that role
+//   /charter seat here|none         optional: its seat, a property a founding member owns, where you stand
+//   /charter invite <player> [role] ask someone to co-found it as Officer, Sergeant, Mage, Blacksmith, Tailor or Member
 //   /charter confirm <n>            co-found charter n; /charter leave takes it back
 //   /charter submit                 send it to the GMs (and pay the fee, when one is set)
 //   /charter withdraw               take it back (a held fee is refunded)
+//   /charter disband <reason>       a chartered faction's leader asks the GMs to disband it
 //   staff: /charter list [all] | show <n> | approve <n> | deny <n> <reason> | edit <n> <field> <value>
-//          | dissolve <faction id> <reason>
+//          | approve-disband <faction id> | deny-disband <faction id> <reason> | dissolve <faction id> <reason>
 //
 // Jake's answers (to-do thread, 1 Oct 05:53Z and 05:57Z): the GM approves; up to 5 founders; no fee for now; the ranks follow
 // the seven roles of the website's faction guide; and "faction must have these roles filled in order to submit a faction
 // request: Founder: this will also be the leader / Officer / Sergeant". So three different players confirm as Founder (the
-// leader), Officer and Sergeant before a charter can be submitted; up to two more founding members join as further Officers
-// or Sergeants, and the other roles start empty. The rest of the defaults are the draft's recommended answers, which stay open
-// questions for Nate. Config "charters" overrides any of them (DEFAULTS below). Off unless "enabled" is true.
+// leader), Officer and Sergeant before a charter can be submitted; up to two more founding members join in any other role. At 06:33Z: disbanding needs a GM's approval and the treasury goes to the
+// Founder; players may found cults; the factions of the lore cannot be founded for now. The rest of the defaults are the
+// draft's recommended answers. At 06:35Z: a seat is only a building the faction owns, a property of a founding member
+// through the housing system; and founding members past the three may take any role but Leader. Config "charters"
+// overrides any default (DEFAULTS below). Off unless "enabled" is true.
 // State:
-//   - charters.json: { next, charters: { n: charter }, owed: { actor: gold }, notices: { actor: [text] },
-//     cooldowns: { profile: until } }
+//   - charters.json: { next, charters: { n: charter }, owed: { actor: gold }, owedWhy: { actor: [what] }, notices: { actor: [text] },
+//     cooldowns: { profile: until }, disbands: [request] }
 //   - player-factions.json: { factions: [def] }, read by guilds.js
 // Both are runtime files, never in git.
 'use strict';
@@ -40,7 +44,7 @@ module.exports = (api) => {
 
   const DEFAULTS = {
     enabled: false,
-    kinds: ['company'],                 // what players may found; a GM's edit may also make one a 'guild'
+    kinds: ['company', 'cult'],         // what players may found (Jake: cults too); a GM's edit may also make one a 'guild'
     minFounders: 3,                     // the founder included: the Founder, an Officer and a Sergeant at least (Jake)
     maxFounders: 5,                     // Jake: "Up to 5 founders"
     distinctAccounts: true,             // founders must be different accounts (profiles), not one player's characters
@@ -50,9 +54,10 @@ module.exports = (api) => {
     feeOnApproval: 'sink',              // 'sink': the fee leaves the economy; 'treasury': it seeds the new treasury
     cooldownDays: 7,                    // after a denial, before that account may file another charter
     approvers: 'gm',                    // Jake: "The GM approves": any GM and above; 'lead': a Lead GM and above
-    nameMin: 3, nameMax: 40, nameMaxWords: 6, pitchMax: 600, seatMax: 120,
-    allowPrinceNames: false,            // a charter named for a Daedric Prince would be a cult, which players do not found
-    // Canon factions not in the game: such a name is flagged for a lore decision, never refused by itself
+    nameMin: 3, nameMax: 40, nameMaxWords: 6, pitchMax: 600,
+    allowPrinceNames: false,            // a Daedric Prince in the name of anything but a cult
+    refuseCanonFactions: true,          // Jake: the lore's factions cannot be founded for now; false flags them for the GM instead
+    // Canon factions not in the game; those that are (the Thieves Guild, the Dark Brotherhood...) are refused as existing
     canonNotInGame: ['Penitus Oculatus', 'Morag Tong', 'East Empire Company', 'Mages Guild', 'Psijic Order', 'Greybeards',
       'Moth Priests', 'Elder Council', 'Aldmeri Dominion', 'Forsworn', 'Camonna Tong', 'Black Worm', 'Knights of the Nine',
       'Imperial Watch', 'Blackwood Company', 'Telvanni', 'Redoran', 'Hlaalu', 'Tribunal', 'Ebonheart Pact',
@@ -70,8 +75,10 @@ module.exports = (api) => {
   // blacksmiths, three tailors).
   const RANKS = [['Leader', 'leader'], ['Officer', 'officer'], ['Sergeant', 'sergeant'], ['Mage', 'mage'], ['Blacksmith', 'blacksmith'], ['Tailor', 'tailor'], ['Member', 'member']]
     .map(([title, role]) => ({ title, role }));
-  // The roles a charter must fill below its Founder before it is submitted, and the only ones its co-founders may take (Jake)
+  // The roles a charter must fill below its Founder before it is submitted (Jake); its co-founders may take any role but
+  // Leader, which is the Founder's alone
   const REQUIRED = ['officer', 'sergeant'];
+  const COFOUNDER_ROLES = RANKS.map((r) => r.role).filter((r) => r !== 'leader');
   const titleOf = (role) => (RANKS.find((r) => r.role === role) || {}).title || role;
 
   const readJson = (p, fallback) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return fallback; } };
@@ -80,7 +87,8 @@ module.exports = (api) => {
   const store = () => {
     if (!S.store) {
       const s = readJson(STORE_PATH, {});
-      S.store = { next: Number(s.next) > 0 ? Number(s.next) : 1, charters: s.charters || {}, owed: s.owed || {}, notices: s.notices || {}, cooldowns: s.cooldowns || {} };
+      S.store = { next: Number(s.next) > 0 ? Number(s.next) : 1, charters: s.charters || {}, owed: s.owed || {}, owedWhy: s.owedWhy || {}, notices: s.notices || {},
+        cooldowns: s.cooldowns || {}, disbands: Array.isArray(s.disbands) ? s.disbands : [] };
     }
     return S.store;
   };
@@ -126,8 +134,9 @@ module.exports = (api) => {
       princes: [...princes], deities,
     };
   };
-  // { error } for a name a charter cannot have, else { flags } for a GM to weigh. self: the charter being renamed
-  const checkName = (raw, self) => {
+  // { error } for a name a charter cannot have, else { name, flags, prince }: flags for a GM to weigh, and the Daedric Prince
+  // a cult's name calls on. self: the charter being renamed; kind: what it founds
+  const checkName = (raw, self, kind) => {
     const name = String(raw || '').trim().replace(/\s+/g, ' ');
     const r = filter();
     if (name.length < C.nameMin || name.length > C.nameMax) return { error: `A faction's name is ${C.nameMin}-${C.nameMax} characters.` };
@@ -148,13 +157,17 @@ module.exports = (api) => {
     let x = hit(L.factions); if (x) return { error: `${x} already exists. A charter founds a new faction; it cannot take an existing one's name.` };
     x = hit(L.places); if (x) return { error: `${x} is a hold or a region, not a name for a faction.` };
     for (const c of Object.values(store().charters)) if (OPEN.has(c.status) && c.n !== self && keyOf(c.name) === key) return { error: `Charter #${c.n} already asks for that name.` };
-    if (!C.allowPrinceNames) { x = L.princes.find((p) => key.includes(keyOf(p))); if (x) return { error: `That name calls on ${x}. Players found companies, not Daedric cults.` }; }
+    const prince = L.princes.find((p) => key.includes(keyOf(p))) || '';
+    if (prince && kind !== 'cult' && !C.allowPrinceNames) return { error: `That name calls on ${prince}; only a cult may name a Daedric Prince (/charter cult <name>).` };
+    const lorename = (C.canonNotInGame || []).find((n) => key.includes(keyOf(n)));
+    if (lorename && C.refuseCanonFactions) return { error: `${lorename} is a faction of the Elder Scrolls' lore, and those cannot be founded for now.` };
     const flags = [];
+    if (prince && kind === 'cult') flags.push(`a cult of ${prince}: a lore check`);
     for (const n of within(L.factions)) flags.push(`names an existing faction: ${n}`);
     for (const n of within(L.places)) flags.push(`names a hold or region: ${n}`);
-    for (const n of C.canonNotInGame || []) if (key.includes(keyOf(n))) flags.push(`canon, needs a lore decision: ${n}`);
+    if (lorename) flags.push(`canon, needs a lore decision: ${lorename}`);
     for (const n of L.deities) if (keyOf(n) === key || (keyOf(n).length >= 5 && key.includes(keyOf(n)))) flags.push(`names a deity: ${n}`);
-    return { name, flags: [...new Set(flags)] };
+    return { name, flags: [...new Set(flags)], prince: kind === 'cult' ? prince : '' };
   };
   const checkText = (text, max, what) => {
     const t = String(text || '').trim().replace(/\s+/g, ' ');
@@ -178,16 +191,21 @@ module.exports = (api) => {
     const k = String(a >>> 0); (store().notices[k] = store().notices[k] || []).push(text); save();
   };
   const tellAll = (c, text) => { for (const id of [c.founder.actor].concat(c.founders.map((f) => f.actor))) tell(id, text); };
-  // Gold owed back: paid at once when the character is online, else at the next sweep that finds them online
-  const owe = (a, n) => {
+  // Gold owed to a character (a fee returned, a disbanded faction's treasury): paid at once when they are online, else at the
+  // next sweep that finds them in the world. why: what it is, in their words
+  const owe = (a, n, why) => {
     n = Math.floor(Number(n) || 0); if (n <= 0) return;
     const k = String(a >>> 0);
-    if (isOnline(a) && typeof giveItem === 'function' && giveItem(a, GOLD, n)) { audit(`CHARTER refund ${n} gold to ${who(a)}`); return; }
-    store().owed[k] = (Number(store().owed[k]) || 0) + n; save();
-    audit(`CHARTER ${n} gold owed to ${k} (paid when they are online)`);
+    if (isOnline(a) && typeof giveItem === 'function' && giveItem(a, GOLD, n)) { audit(`CHARTER paid ${n} gold to ${who(a)} (${why})`); return; }
+    store().owed[k] = (Number(store().owed[k]) || 0) + n;
+    store().owedWhy = store().owedWhy || {}; store().owedWhy[k] = [].concat(store().owedWhy[k] || [], [why]);
+    save();
+    audit(`CHARTER ${n} gold owed to ${k} (${why}; paid when they are in the world)`);
   };
   const rolesLine = (c) => [`Founder ${c.founder.name}`].concat(c.founders.map((f) => `${titleOf(f.role)} ${f.name}`)).join(', ');
   const missing = (c) => REQUIRED.filter((role) => !c.founders.some((f) => f.role === role));
+  // A reason as a sentence: one full stop, whether the GM or player typed it or not
+  const sentence = (t) => (/[.!?]$/.test(String(t)) ? String(t) : `${t}.`);
   const summary = (c) => `#${c.n} ${c.name} (${c.kind}), ${c.status}: ${rolesLine(c)} (${c.founders.length + 1} of ${C.minFounders}-${C.maxFounders})${missing(c).length ? `, still to fill: ${missing(c).map(titleOf).join(', ')}` : ''}${c.flags.length ? `, flags: ${c.flags.join('; ')}` : ''}`;
   const feeNote = () => (C.fee > 0 ? `, and a ${C.fee} gold fee held until the GMs decide` : '');
   // To #staff-commands, which names the character who acted and their Discord account before the text (gamemode.js)
@@ -203,35 +221,73 @@ module.exports = (api) => {
   };
 
   // ---- the player's side ------------------------------------------------------------------------------------------------
-  const found = (a, rawName) => {
+  const found = (a, rawName, kind) => {
+    const k = String(kind || C.kinds[0] || 'company').toLowerCase();
+    if (!(C.kinds || []).includes(k)) return `A charter founds one of: ${(C.kinds || []).join(', ')}.`;
     const prof = profile(a);
     if (prof < 0) return 'Log in fully before founding a faction.';
     if (openFor(prof)) return 'Your account is already on an open charter. /charter shows it.';
     if (leadsPlayerFaction(prof)) return 'Your account already leads a faction founded by charter.';
     const until = Number(store().cooldowns[String(prof)]) || 0;
     if (until > Date.now()) return `A charter of yours was denied. You may file another in ${Math.ceil((until - Date.now()) / DAY)} day(s).`;
-    const chk = checkName(rawName, 0);
+    const chk = checkName(rawName, 0, k);
     if (chk.error) return chk.error;
     const s = store(); const n = s.next++;
     const now = Date.now();
     s.charters[String(n)] = {
-      n, status: 'gathering', name: chk.name, kind: C.kinds[0] || 'company', pitch: '', seat: '',
+      n, status: 'gathering', name: chk.name, kind: k, pitch: '', seat: null,
       founder: { actor: a >>> 0, profile: prof, name: nameOf(a) }, founders: [], invited: {},
       createdAt: now, windowEndsAt: now + C.founderWindowHours * HOUR, flags: chk.flags, fee: { held: 0 }, edits: [],
     };
     save();
-    audit(`CHARTER #${n} drafted by ${who(a)}: ${chk.name}${chk.flags.length ? ` (flags: ${chk.flags.join('; ')})` : ''}`);
-    return `Charter #${n} for ${chk.name} is drafted, and you are its Founder. Next: /charter pitch <its purpose>, then /charter invite <player> officer and /charter invite <player> sergeant (up to ${C.maxFounders - 1} co-founders, Officers or Sergeants), who confirm with /charter confirm ${n}. Submit within ${C.founderWindowHours} hours${C.fee > 0 ? ` (fee ${C.fee} gold)` : ''}.`;
+    audit(`CHARTER #${n} drafted by ${who(a)}: ${chk.name} (${k})${chk.flags.length ? ` (flags: ${chk.flags.join('; ')})` : ''}`);
+    return `Charter #${n} for ${chk.name}${k === 'company' ? '' : ` (a ${k})`} is drafted, and you are its Founder. Next: /charter pitch <its purpose>, then /charter invite <player> officer and /charter invite <player> sergeant (up to ${C.maxFounders - 1} co-founders, Officers or Sergeants), who confirm with /charter confirm ${n}. Submit within ${C.founderWindowHours} hours${C.fee > 0 ? ` (fee ${C.fee} gold)` : ''}.`;
   };
   const founderOnly = (a) => { const c = mine(a); return c && c.founder.actor === (a >>> 0) && c.status === 'gathering' ? c : null; };
   const setText = (a, field, value) => {
     const c = founderOnly(a); if (!c) return 'Only the founder changes a charter, before it is submitted.';
-    const t = field === 'pitch' ? checkText(value, C.pitchMax, 'purpose') : checkText(value, C.seatMax, 'seat');
+    const t = checkText(value, C.pitchMax, 'purpose');
     if (t.error) return t.error;
-    c[field] = t.text;
+    c.pitch = t.text;
     save();
-    audit(`CHARTER #${c.n} ${field} set by ${who(a)}`);
-    return `The ${field === 'pitch' ? 'purpose' : 'seat'} of ${c.name} is set.`;
+    audit(`CHARTER #${c.n} pitch set by ${who(a)}`);
+    return `The purpose of ${c.name} is set.`;
+  };
+  // ---- the seat: only a building the faction owns (Jake, 06:35Z), a property a founding member holds through the housing
+  // system. Checked when it is chosen, at submission, at a GM's edit and again at approval, in case it changed hands
+  const seatCheck = (c, ref) => {
+    const H = globalThis.__dboHousing;
+    if (!H || typeof H.recordOf !== 'function') return { error: 'The housing system is not loaded; no seat can be checked.' };
+    const rec = H.recordOf(ref);
+    if (!ref || !rec || !rec.owner) return { error: 'That is no one\'s property. A seat is a house a founding member owns.' };
+    const place = rec.name || `${rec.ownerName || 'someone'}'s property`;
+    if (!accountsOf(c).includes(Number(rec.owner))) return { error: `A faction may only take a building it owns: ${place} belongs to ${rec.ownerName || 'someone else'}, who is not a founding member of ${c.name}.` };
+    return { seat: { ref: (typeof H.primaryOf === 'function' && H.primaryOf(ref)) || ref, name: place, owner: Number(rec.owner), ownerName: rec.ownerName || '' } };
+  };
+  const seatProblem = (c) => {
+    if (!c.seat || !c.seat.ref) return '';
+    const chk = seatCheck(c, c.seat.ref);
+    return chk.error ? `Its seat no longer qualifies: ${chk.error}` : '';
+  };
+  const seatHere = (c, a) => seatCheck(c, typeof globalThis.__dboPropertyAt === 'function' ? globalThis.__dboPropertyAt(a) : 0);
+  const setSeat = (a, value) => {
+    const c = founderOnly(a); if (!c) return 'Only the founder changes a charter, before it is submitted.';
+    const v = String(value || '').trim().toLowerCase();
+    if (v === 'none') { c.seat = null; save(); audit(`CHARTER #${c.n} seat cleared by ${who(a)}`); return `${c.name} has no seat.`; }
+    if (v !== 'here') return 'Usage: /charter seat here (standing at a house a founding member owns) | /charter seat none';
+    const chk = seatHere(c, a); if (chk.error) return chk.error;
+    c.seat = chk.seat; save();
+    audit(`CHARTER #${c.n} seat set by ${who(a)}: ${c.seat.name} (${(c.seat.ref >>> 0).toString(16)})`);
+    return `${c.name} will sit in ${c.seat.name}.`;
+  };
+  const setKind = (a, value) => {
+    const c = founderOnly(a); if (!c) return 'Only the founder changes a charter, before it is submitted.';
+    const k = String(value || '').trim().toLowerCase();
+    if (!(C.kinds || []).includes(k)) return `A charter founds one of: ${(C.kinds || []).join(', ')}.`;
+    const chk = checkName(c.name, c.n, k); if (chk.error) return chk.error;
+    c.kind = k; c.flags = chk.flags; save();
+    audit(`CHARTER #${c.n} kind set by ${who(a)}: ${k}`);
+    return `${c.name} will be founded as a ${k}.`;
   };
   const inviteTo = (a, query) => {
     const c = founderOnly(a); if (!c) return 'Only the founder invites co-founders, before the charter is submitted.';
@@ -241,10 +297,10 @@ module.exports = (api) => {
     const last = (words[words.length - 1] || '').toLowerCase();
     let role = '';
     if (words.length > 1 && RANKS.some((r) => r.role === last)) { role = last; words.pop(); }
-    if (role && !REQUIRED.includes(role)) return `A charter names only its Officers and Sergeants; the ${titleOf(role)} and the other roles start empty.`;
-    if (!role) role = REQUIRED.find((x) => !c.founders.some((f) => f.role === x) && !Object.values(c.invited).some((i) => i && i.role === x)) || 'sergeant';
+    if (role === 'leader') return 'The Founder alone is the Leader. Co-founders are Officers, Sergeants, Mages, Blacksmiths, Tailors or Members.';
+    if (!role) role = REQUIRED.find((x) => !c.founders.some((f) => f.role === x) && !Object.values(c.invited).some((i) => i && i.role === x)) || 'member';
     const t = findByName(words.join(' '));
-    if (!t || !isOnline(t)) return 'They must be online. Usage: /charter invite <player|#TAG> [officer|sergeant]';
+    if (!t || !isOnline(t)) return 'They must be online. Usage: /charter invite <player|#TAG> [officer|sergeant|mage|blacksmith|tailor|member]';
     if ((t >>> 0) === c.founder.actor || c.founders.some((f) => f.actor === (t >>> 0))) return `${display(t)} is already a founder.`;
     if (c.founders.length + 1 >= C.maxFounders) return `A charter has at most ${C.maxFounders} founders.`;
     const prof = profile(t);
@@ -265,7 +321,7 @@ module.exports = (api) => {
     if (openFor(prof)) return 'Your account is already on an open charter.';
     if (c.founders.length + 1 >= C.maxFounders) return `${c.name} already has its ${C.maxFounders} founders.`;
     const inv = c.invited[String(a >>> 0)];
-    const role = REQUIRED.includes(inv && inv.role) ? inv.role : 'sergeant';
+    const role = COFOUNDER_ROLES.includes(inv && inv.role) ? inv.role : 'member';
     delete c.invited[String(a >>> 0)];
     c.founders.push({ actor: a >>> 0, profile: prof, name: nameOf(a), role, at: Date.now() });
     save();
@@ -288,12 +344,13 @@ module.exports = (api) => {
     if (missing(c).length) return `A charter needs its Founder, an Officer and a Sergeant confirmed before it is submitted; ${c.name} still needs: ${missing(c).map(titleOf).join(', ')}.`;
     if (c.founders.length + 1 < C.minFounders) return `A charter needs ${C.minFounders} founders; ${c.name} has ${c.founders.length + 1}.`;
     if (!c.pitch) return 'Give its purpose first: /charter pitch <text>.';
+    const seatErr = seatProblem(c); if (seatErr) return `${seatErr} Choose another with /charter seat here, or /charter seat none.`;
     const fee = Math.max(0, Math.floor(Number(C.fee) || 0));
     if (fee > 0 && !(typeof takeGold === 'function' && takeGold(a, fee))) return `The charter fee is ${fee} gold, and you do not carry it.`;
     c.fee = { held: fee }; c.status = 'pending'; c.submittedAt = Date.now();
     save();
     audit(`CHARTER #${c.n} submitted by ${who(a)}: ${c.name}, ${c.founders.length + 1} founders, fee ${fee} held`);
-    staff(a, 'charter submitted', `submitted charter #${c.n} for review: ${c.name} (${c.kind}): ${rolesLine(c)}. Purpose: ${c.pitch}${c.seat ? ` Seat: ${c.seat}.` : ''}${c.flags.length ? ` Flags: ${c.flags.join('; ')}.` : ''} In game: /charter show ${c.n}`);
+    staff(a, 'charter submitted', `submitted charter #${c.n} for review: ${c.name} (${c.kind}): ${rolesLine(c)}. Purpose: ${c.pitch}${c.seat ? ` Seat: ${c.seat.name}, owned by ${c.seat.ownerName}.` : ''}${c.flags.length ? ` Flags: ${c.flags.join('; ')}.` : ''} In game: /charter show ${c.n}`);
     tellAll(c, `Charter #${c.n} for ${c.name} is with the GMs. You will be told when they decide.`);
     return `Charter #${c.n} is submitted${fee > 0 ? `; ${fee} gold is held until the GMs decide` : ''}.`;
   };
@@ -301,7 +358,7 @@ module.exports = (api) => {
     const c = mine(a); if (!c || c.founder.actor !== (a >>> 0)) return 'Only the founder withdraws a charter.';
     const was = c.status;
     c.status = 'withdrawn'; c.decidedAt = Date.now(); save();
-    if (was === 'pending') owe(c.founder.actor, c.fee.held);
+    if (was === 'pending') owe(c.founder.actor, c.fee.held, `the fee for the charter of ${c.name}, withdrawn`);
     audit(`CHARTER #${c.n} withdrawn by ${who(a)} (${was}${was === 'pending' ? `, ${c.fee.held} gold refunded` : ''})`);
     if (was === 'pending') staff(a, 'charter withdrawn', `withdrew charter #${c.n} (${c.name}).`);
     for (const f of c.founders) tell(f.actor, `${c.name}'s charter was withdrawn.`);
@@ -319,18 +376,23 @@ module.exports = (api) => {
   };
 
   // ---- the GMs' side ----------------------------------------------------------------------------------------------------
-  const show = (c) => [summary(c), `Purpose: ${c.pitch || '(none yet)'}`, c.seat ? `Seat: ${c.seat}` : '',
+  const show = (c) => [summary(c), `Purpose: ${c.pitch || '(none yet)'}`, c.seat ? `Seat: ${c.seat.name}, owned by ${c.seat.ownerName}` : '',
     c.fee.held ? `Fee held: ${c.fee.held}` : '',
     c.reason ? `Reason: ${c.reason}` : '', c.factionId ? `Faction: ${c.factionId}` : '',
     c.edits.length ? `Edits: ${c.edits.map((e) => `${e.field} by ${e.by}`).join('; ')}` : ''].filter(Boolean).join(' | ');
   const approve = (a, n) => {
     const c = charter(n); if (!c || c.status !== 'pending') return 'Only a pending charter is approved. /charter list';
-    const chk = checkName(c.name, c.n);
+    const chk = checkName(c.name, c.n, c.kind);
     if (chk.error) return `It cannot be approved as it stands: ${chk.error} Rename it with /charter edit ${c.n} name <new name>.`;
+    const seatErr = seatProblem(c);
+    if (seatErr) return `It cannot be approved as it stands. ${seatErr} /charter edit ${c.n} seat none, or here at a founding member's house.`;
     if (typeof globalThis.__dboGuildFoundPlayer !== 'function') return 'The faction system (guilds.js) is not loaded; nothing was approved.';
     const id = slug(c.name);
     const def = { id, name: c.name, kind: c.kind, ranks: RANKS.map((r) => Object.assign({}, r)),
-      charter: c.n, foundedAt: Date.now(), leaderProfile: c.founder.profile, pitch: c.pitch, seat: c.seat || '' };
+      charter: c.n, foundedAt: Date.now(), leaderProfile: c.founder.profile, pitch: c.pitch };
+    // Its seat is its hall (/faction hall, the realm's seats): the property's name, held by a founding member
+    if (c.seat) { def.seat = { ref: c.seat.ref, name: c.seat.name, owner: c.seat.owner }; def.hall = { name: c.seat.name, note: `a house of ${c.seat.ownerName || 'a founding member'}` }; }
+    if (chk.prince) def.prince = chk.prince;   // the F3 panel reads "Cult of <Prince>"; nothing in the game grants by it
     const list = playerFactions();
     try { savePlayerFactions(list.concat([def])); } catch (e) { return `player-factions.json could not be written (${e.message}); nothing was approved.`; }
     const err = globalThis.__dboGuildFoundPlayer(def, c.founder.actor, c.founders.map((f) => ({ actor: f.actor, role: f.role })));
@@ -353,7 +415,7 @@ module.exports = (api) => {
     c.status = 'denied'; c.decidedAt = Date.now(); c.decidedBy = who(a); c.reason = why;
     store().cooldowns[String(c.founder.profile)] = Date.now() + C.cooldownDays * DAY;
     save();
-    owe(c.founder.actor, refund);
+    owe(c.founder.actor, refund, `the fee for the charter of ${c.name}, denied`);
     audit(`CHARTER #${c.n} denied by ${who(a)}: ${why} (${refund} of ${c.fee.held} gold refunded)`);
     staff(a, 'charter denied', `denied charter #${c.n} (${c.name}): ${why}`);
     tellAll(c, `The GMs denied the charter for ${c.name}: ${why}${refund ? ` ${refund} gold of the fee is returned to ${c.founder.name}.` : ''}`);
@@ -362,12 +424,24 @@ module.exports = (api) => {
   const edit = (a, n, field, value) => {
     const c = charter(n); if (!c || !OPEN.has(c.status)) return 'Only an open charter is edited. /charter list';
     const f = String(field || '').toLowerCase(); let from, to;
-    if (f === 'name') { const chk = checkName(value, c.n); if (chk.error) return chk.error; from = c.name; to = c.name = chk.name; c.flags = chk.flags; }
-    else if (f === 'pitch' || f === 'seat') { const t = checkText(value, f === 'pitch' ? C.pitchMax : C.seatMax, f === 'pitch' ? 'purpose' : 'seat'); if (t.error) return t.error; from = c[f]; to = c[f] = t.text; }
+    if (f === 'name') { const chk = checkName(value, c.n, c.kind); if (chk.error) return chk.error; from = c.name; to = c.name = chk.name; c.flags = chk.flags; }
+    else if (f === 'pitch') { const t = checkText(value, C.pitchMax, 'purpose'); if (t.error) return t.error; from = c.pitch; to = c.pitch = t.text; }
+    else if (f === 'seat') {
+      // A GM sets a seat the same way: none, here (where the GM stands), or a property's ref in hex
+      const v = String(value || '').trim().toLowerCase();
+      let chk = null;
+      if (v === 'none') chk = { seat: null };
+      else if (v === 'here') chk = seatHere(c, a);
+      else if (/^(0x)?[0-9a-f]{1,8}$/.test(v)) chk = seatCheck(c, parseInt(v.replace(/^0x/, ''), 16) >>> 0);
+      else return `Usage: /charter edit ${c.n} seat none|here|<property ref in hex>`;
+      if (chk.error) return chk.error;
+      from = c.seat ? c.seat.name : 'none'; c.seat = chk.seat; to = c.seat ? c.seat.name : 'none';
+    }
     else if (f === 'kind') {
       const k = String(value || '').trim().toLowerCase(); const allowed = [...new Set((C.kinds || []).concat(['guild']))];
       if (!allowed.includes(k)) return `A charter's kind is one of: ${allowed.join(', ')}.`;
-      from = c.kind; to = c.kind = k;
+      const chk = checkName(c.name, c.n, k); if (chk.error) return chk.error;
+      from = c.kind; to = c.kind = k; c.flags = chk.flags;
     } else return 'Usage: /charter edit <n> name|pitch|seat|kind <value>';
     c.edits.push({ by: who(a), at: Date.now(), field: f, from, to });
     save();
@@ -375,18 +449,80 @@ module.exports = (api) => {
     staff(a, 'charter edited', `edited charter #${c.n}'s ${f}: "${from}" -> "${to}"`);
     return `Charter #${c.n}'s ${f} is now "${to}".`;
   };
+  // A chartered faction leaves the game: out of player-factions.json, its roster gone (guilds.js). An error string, or ''
+  const removeFaction = (id) => {
+    try { savePlayerFactions(playerFactions().filter((f) => f.id !== id)); } catch (e) { return `player-factions.json could not be written (${e.message}).`; }
+    if (typeof globalThis.__dboGuildDissolvePlayer === 'function') globalThis.__dboGuildDissolvePlayer(id);
+    return '';
+  };
   const dissolve = (a, id, reason) => {
     const why = String(reason || '').trim();
     const list = playerFactions(); const def = list.find((f) => f.id === id);
     if (!def) return 'Only a faction founded by charter is dissolved this way. Usage: /charter dissolve <faction id> <reason>';
     if (!why) return 'Give the reason: /charter dissolve <faction id> <reason>';
-    try { savePlayerFactions(list.filter((f) => f.id !== id)); } catch (e) { return `player-factions.json could not be written (${e.message}).`; }
-    if (typeof globalThis.__dboGuildDissolvePlayer === 'function') globalThis.__dboGuildDissolvePlayer(id);
+    const err = removeFaction(id); if (err) return err;
     const c = charter(def.charter); if (c) { c.dissolvedAt = Date.now(); c.dissolvedBy = who(a); c.dissolveReason = why; save(); }
     // Its treasury stays in bank.json until Nate decides where a dissolved faction's gold goes (the draft's open question 9)
     audit(`CHARTER faction ${id} (${def.name}) dissolved by ${who(a)}: ${why}; its treasury is left in bank.json`);
     staff(a, 'charter faction dissolved', `dissolved ${def.name} (${id}): ${why}`);
     return `${def.name} is dissolved; its treasury stays in bank.json.`;
+  };
+
+  // ---- disbanding: the leader asks, a GM decides, and the treasury goes to the Founder (Jake, 06:33Z) ----------------------
+  // Only the exact error of a character that no longer exists (deleted) counts; anything else keeps the Founder as payee
+  const formGone = (id) => { try { mp.get(Number(id) >>> 0, 'type'); return false; } catch (e) { return /^Form with id \S+ doesn't exist$/.test(String(e && e.message)); } };
+  const pendingDisband = (fid) => store().disbands.find((d) => d.fid === fid && d.status === 'pending') || null;
+  const requestDisband = (a, reason) => {
+    const g = (typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) || [] : []).find((x) => x.player && x.role === 'leader');
+    if (!g) return 'Only the leader of a faction founded by charter may ask to disband it.';
+    const why = String(reason || '').trim();
+    if (!why) return 'Say why, for the GMs: /charter disband <reason>';
+    if (pendingDisband(g.id)) return `The GMs already have ${g.name}'s request to disband.`;
+    const def = playerFactions().find((f) => f.id === g.id);
+    const c = def && charter(def.charter);
+    store().disbands.push({ fid: g.id, name: g.name, by: a >>> 0, byName: nameOf(a), reason: why, at: Date.now(), status: 'pending' });
+    save();
+    audit(`CHARTER disband of ${g.id} (${g.name}) asked by ${who(a)}: ${why}`);
+    staff(a, 'disband requested', `asks to disband ${g.name} (${g.id}): ${sentence(why)} Its treasury would go to its Founder${c ? `, ${c.founder.name}` : ''}. In game: /charter approve-disband ${g.id} or /charter deny-disband ${g.id} <reason>`);
+    return `Your request to disband ${g.name} is with the GMs. Nothing changes until one decides.`;
+  };
+  const approveDisband = (a, fid) => {
+    const d = pendingDisband(fid); if (!d) return 'No request to disband that faction waits. /charter list';
+    const def = playerFactions().find((f) => f.id === fid);
+    if (!def) { d.status = 'void'; save(); return 'That faction is already gone.'; }
+    const c = charter(def.charter); const founder = c ? c.founder : null;
+    const gone = !founder || formGone(founder.actor);
+    let paid = 0, kept = 0;
+    if (!gone) {
+      // Closed while the faction still exists: the treasury is found through it (bank.js treasuryKeyOf)
+      paid = globalThis.__dboTreasury && typeof globalThis.__dboTreasury.close === 'function' ? globalThis.__dboTreasury.close(fid, `disbanded, paid to its Founder ${founder.name}`) : -1;
+      if (paid < 0) return 'The treasury could not be closed; nothing was done.';
+    } else kept = globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(fid) : 0;
+    const err = removeFaction(fid); if (err) return err;
+    d.status = 'approved'; d.decidedBy = who(a); d.decidedAt = Date.now(); d.paid = paid; d.kept = kept;
+    if (c) { c.dissolvedAt = Date.now(); c.dissolvedBy = who(a); c.dissolveReason = `disbanded at its leader's request: ${d.reason}`; }
+    save();
+    if (!gone && paid > 0) owe(founder.actor, paid, `the treasury of ${def.name}, disbanded, to its Founder`);
+    if (gone) {
+      audit(`CHARTER disband of ${fid} (${def.name}) approved by ${who(a)}; its Founder's character no longer exists, so ${kept} gold stays under faction:${fid}`);
+      staff(a, 'disband approved', `approved disbanding ${def.name} (${fid}). Its Founder's character no longer exists, so its ${kept} gold stays under faction:${fid} for staff to settle.`);
+    } else {
+      audit(`CHARTER disband of ${fid} (${def.name}) approved by ${who(a)}: ${paid} gold to its Founder ${founder.name} (${who(founder.actor)})`);
+      staff(a, 'disband approved', `approved disbanding ${def.name} (${fid}): its treasury, ${paid} gold, goes to its Founder ${founder.name}.`);
+      tell(founder.actor, `${def.name} is disbanded. Its treasury, ${paid} gold, is yours as its Founder${isOnline(founder.actor) ? '' : '; it is paid when you are next in the world'}.`);
+    }
+    if (d.by !== (founder && founder.actor)) tell(d.by, `The GMs approved disbanding ${def.name}.`);
+    return gone ? `${def.name} is disbanded. Its Founder's character no longer exists: ${kept} gold stays under faction:${fid}, flagged for staff.` : `${def.name} is disbanded; ${paid} gold goes to its Founder ${founder.name}.`;
+  };
+  const denyDisband = (a, fid, reason) => {
+    const d = pendingDisband(fid); if (!d) return 'No request to disband that faction waits. /charter list';
+    const why = String(reason || '').trim();
+    if (!why) return `Give the reason the leader will read: /charter deny-disband ${fid} <reason>`;
+    d.status = 'denied'; d.decidedBy = who(a); d.decidedAt = Date.now(); d.denyReason = why; save();
+    audit(`CHARTER disband of ${fid} (${d.name}) denied by ${who(a)}: ${why}`);
+    staff(a, 'disband denied', `denied disbanding ${d.name} (${fid}): ${why}`);
+    tell(d.by, `The GMs will not disband ${d.name}: ${why}`);
+    return `Denied; ${d.name} stands, and its treasury with it.`;
   };
 
   // ---- the sweep: lapsed charters, gold owed, and word for founders who were away -----------------------------------------
@@ -401,7 +537,11 @@ module.exports = (api) => {
     for (const a of onlineActors()) {
       const k = String(a >>> 0);
       const n = Math.floor(Number(s.owed[k]) || 0);
-      if (n > 0 && typeof giveItem === 'function' && giveItem(a, GOLD, n)) { delete s.owed[k]; dirty = true; audit(`CHARTER refund ${n} gold paid to ${who(a)}`); personal(a, `${n} gold from a charter's fee is returned to you.`); }
+      if (n > 0 && typeof giveItem === 'function' && giveItem(a, GOLD, n)) {
+        const why = ((s.owedWhy || {})[k] || []).join('; ') || 'owed to you';
+        delete s.owed[k]; if (s.owedWhy) delete s.owedWhy[k]; dirty = true;
+        audit(`CHARTER paid ${n} gold to ${who(a)} (${why})`); personal(a, `${n} gold is paid to you: ${why}.`);
+      }
       if (Array.isArray(s.notices[k]) && s.notices[k].length) { for (const t of s.notices[k]) personal(a, t); delete s.notices[k]; dirty = true; }
     }
     if (dirty) save();
@@ -414,31 +554,38 @@ module.exports = (api) => {
     const text = String(args || '').trim();
     const [sub, ...rest] = text.split(/\s+/);
     const s = (sub || '').toLowerCase(); const tail = text.slice((sub || '').length).trim();
-    const staffSubs = ['list', 'show', 'approve', 'deny', 'edit', 'dissolve'];
+    const staffSubs = ['list', 'show', 'approve', 'deny', 'edit', 'dissolve', 'approve-disband', 'deny-disband'];
     if (staffSubs.includes(s)) {
       if (!canReview(a)) return personal(a, 'That is for the GMs.');
       if (s === 'list') {
         const all = String(rest[0] || '').toLowerCase() === 'all';
-        const rows = Object.values(store().charters).filter((c) => (all ? OPEN.has(c.status) : c.status === 'pending')).map(summary);
-        return personal(a, rows.length ? rows.join('\n') : (all ? 'No open charters.' : 'No charters wait for a decision. /charter list all shows those still gathering founders.'));
+        const rows = Object.values(store().charters).filter((c) => (all ? OPEN.has(c.status) : c.status === 'pending')).map(summary)
+          .concat(store().disbands.filter((d) => d.status === 'pending').map((d) => `disband ${d.fid} (${d.name}), asked by ${d.byName}: ${d.reason}`));
+        return personal(a, rows.length ? rows.join('\n') : (all ? 'No open charters.' : 'No charters or disbandings wait for a decision. /charter list all shows those still gathering founders.'));
       }
       if (s === 'show') { const c = charter(rest[0]); return personal(a, c ? show(c) : 'Usage: /charter show <n>'); }
       if (!canDecide(a)) return personal(a, C.approvers === 'gm' ? 'That is for the GMs.' : 'Deciding a charter is for a Lead GM and above.');
       if (s === 'approve') return personal(a, approve(a, rest[0]));
       if (s === 'deny') return personal(a, deny(a, rest[0], rest.slice(1).join(' ')));
       if (s === 'edit') return personal(a, edit(a, rest[0], rest[1], rest.slice(2).join(' ')));
+      if (s === 'approve-disband') return personal(a, approveDisband(a, String(rest[0] || '').toLowerCase()));
+      if (s === 'deny-disband') return personal(a, denyDisband(a, String(rest[0] || '').toLowerCase(), rest.slice(1).join(' ')));
       return personal(a, dissolve(a, String(rest[0] || '').toLowerCase(), rest.slice(1).join(' ')));
     }
     if (!C.enabled) return personal(a, 'Faction charters are not open yet.');
     if (!s || s === 'status') return personal(a, status(a));
-    if (s === 'found') return personal(a, found(a, tail));
-    if (s === 'pitch' || s === 'seat') return personal(a, setText(a, s, tail));
+    if (s === 'found') return personal(a, found(a, tail, 'company'));
+    if (s === 'cult') return personal(a, found(a, tail, 'cult'));
+    if (s === 'kind') return personal(a, setKind(a, tail));
+    if (s === 'disband') return personal(a, requestDisband(a, tail));
+    if (s === 'pitch') return personal(a, setText(a, s, tail));
+    if (s === 'seat') return personal(a, setSeat(a, tail));
     if (s === 'invite') return personal(a, inviteTo(a, tail));
     if (s === 'confirm') return personal(a, confirm(a, rest[0]));
     if (s === 'leave') return personal(a, leave(a));
     if (s === 'submit') return personal(a, submit(a));
     if (s === 'withdraw') return personal(a, withdraw(a));
-    personal(a, 'Usage: /charter [found <name> | pitch <text> | seat <text> | invite <player> [officer|sergeant] | confirm <n> | leave | submit | withdraw]');
+    personal(a, 'Usage: /charter [found <name> | cult <name> | kind company|cult | pitch <text> | seat here|none | invite <player> [role] | confirm <n> | leave | submit | withdraw | disband <reason>]');
   }, { help: 'found a faction: a charter the GMs approve', hidden: !C.enabled });  // out of /help while charters are off
 
   const all = Object.values(store().charters);

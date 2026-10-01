@@ -1,7 +1,9 @@
 // Faction charters, phase 1 (server\charters.js, with guilds.js and bank.js), as Jake set it (to-do thread, 1 Oct 05:53Z):
 // "The GM approves / Up to 5 founders / No fee for now / This must follow the 7 roles as specified on the website", and at
 // 05:57Z: "faction must have these roles filled in order to submit a faction request: Founder: this will also be the leader /
-// Officer / Sergeant".
+// Officer / Sergeant", and at 06:33Z: disbanding needs a GM's approval and the treasury goes to the Founder; players may
+// found cults; the lore's factions cannot be founded for now; and at 06:35Z: a seat is only a building the faction owns (a
+// property of a founding member, through the housing system), and founding members past the three take any role but Leader.
 // The flow:
 //   - a player drafts a charter as its Founder and names an Officer and a Sergeant (up to 5 founding members, further
 //     Officers or Sergeants) on different accounts, who confirm within the window;
@@ -40,7 +42,8 @@ const A = {}; const NAME = {}; const PROFILE = {};
 NAMES.forEach((n, i) => { const id = 0x14 + i; const key = ['FOUNDER', 'ALT', 'CO1', 'CO2', 'CO3', 'POOR', 'GM', 'LEAD', 'OFF', 'U1', 'U2', 'U3', 'U4'][i]; A[key] = id; NAME[id] = n; PROFILE[id] = i + 1; });
 PROFILE[A.ALT] = PROFILE[A.FOUNDER];
 const props = new Map();
-const get = (id, p) => props.get(id + '|' + p);
+const destroyed = new Set();   // characters deleted this session: the engine's own error, as WorldState.h words it
+const get = (id, p) => { if (destroyed.has(id >>> 0)) throw new Error(`Form with id 0x${(id >>> 0).toString(16)} doesn't exist`); return props.get(id + '|' + p); };
 const set = (id, p, v) => props.set(id + '|' + p, v);
 const inv = (id, gold) => set(id, 'inventory', { entries: gold ? [{ baseId: GOLD, count: gold }] : [] });
 const goldOf = (id) => ((get(id, 'inventory') || {}).entries || []).filter((e) => e.baseId === GOLD).reduce((s, e) => s + e.count, 0);
@@ -94,11 +97,21 @@ const defsHash = () => crypto.createHash('sha256').update(fs.readFileSync('guild
 const defsBefore = defsHash();
 const load = (cfg) => { for (const k of Object.keys(cmds)) delete cmds[k]; for (const m of ['guilds.js', 'bank.js', 'charters.js']) { const f = path.join(SERVER, m); delete require.cache[f]; require(f)(api(cfg || {})); } };
 resetGlobals();
+// Housing (fork housingSystem.ts __dboHousing): properties and their owners by profile; housing.json is its index of claimed
+// refs, which guilds.js's property finder walks for the one a player stands at
+const CELL = '20ff:BSHeartland.esm';
+const HOUSE_F = 0x0b0aa001, HOUSE_OTHER = 0x0b0aa002;
+const owners = { [HOUSE_F]: { owner: PROFILE[A.FOUNDER], ownerName: 'Aela Stone', name: "Aela's House" }, [HOUSE_OTHER]: { owner: 99, ownerName: 'Hrolf', name: "Hrolf's Hall" } };
+fs.writeFileSync('housing.json', JSON.stringify([HOUSE_F, HOUSE_OTHER]));
+for (const [ref, pos] of [[HOUSE_F, [0, 0, 0]], [HOUSE_OTHER, [5000, 0, 0]]]) { set(ref, 'worldOrCellDesc', CELL); set(ref, 'pos', pos); }
+const standAt = (a, pos) => { set(a, 'worldOrCellDesc', CELL); set(a, 'pos', pos); };
+const housing = () => { globalThis.__dboHousing = { recordOf: (ref) => owners[ref >>> 0] || null, primaryOf: (ref) => (owners[ref >>> 0] ? ref >>> 0 : 0) }; };
 load({});
+housing();
 check('off unless switched on: a player is told charters are not open', /not open yet/.test(ch(A.FOUNDER, 'found Silver Sparrow Company')));
 check('...and the boot line gives Jake\'s defaults: 3-5 founders, no fee, any GM decides', out.logs.some((l) => /^charters off: 0 pending, 0 gathering, 0 player faction\(s\); 3-5 founders, fee 0, approvers gm$/.test(l)), out.logs.filter((l) => /charters/.test(l)));
 const ON = { charters: { enabled: true } };
-load(ON);
+load(ON); housing();
 
 // The seven roles. The source, website/guides/factions.html (live at dragonbreakonline.com/guides/factions.html since
 // 04:24Z): <h2 id="roles">The seven roles</h2> "Every rank title, from Harbinger to Footpad, maps to one of seven roles."
@@ -122,7 +135,9 @@ for (const [name, re, why] of [
   ['Hentai Traders', /will not do here/, 'a blocked word, folded'], ['H e n t a i', /will not do here/, 'a blocked word spelled out in single letters'], ['Staff Company', /reserved/, 'a reserved word'],
   ['The Companions', /already exists/, 'an existing faction, with "The"'], ['Companions', /already exists/, '...and without'], ['Imperial Legion', /already exists/, 'the Legion'],
   ['Whiterun', /hold or a region/, 'a hold'], ['Bruma', /hold or a region/, 'a region'], ['County of Bruma', /already exists/, 'the County'], ['The Rift', /already exists/, 'a hold\'s faction'],
-  ['Azura Traders', /Daedric cults/, 'a Daedric Prince'], ['The Mythic Dawn', /already exists/, 'a Daedric cult faction'],
+  ['Azura Traders', /only a cult may name a Daedric Prince/, 'a Daedric Prince in a company\'s name'], ['The Mythic Dawn', /already exists/, 'a Daedric cult faction'],
+  ['Penitus Oculatus Veterans', /faction of the Elder Scrolls' lore, and those cannot be founded for now/, 'a lore faction not in the game (Jake)'],
+  ['Order of the Morag Tong', /Morag Tong is a faction of the Elder Scrolls' lore/, '...inside a longer name too'], ['Thieves Guild', /already exists/, 'a lore faction in the game'],
 ]) { const got = refused(name, re); check(`a name is refused: ${why} ("${name}")`, got === true, got); }
 check('...and nothing was drafted by any of them', Object.keys(store().charters).length === 0);
 
@@ -135,7 +150,7 @@ check('...one open charter per account: the same player\'s other character canno
 check('...nor can the founder draft a second', /already on an open charter/.test(ch(A.FOUNDER, 'found Second Company')));
 check('a co-founder must be online', /must be online/.test(ch(A.FOUNDER, 'invite Olaf Away officer')));
 check('...and a different account: the founder\'s own alt is refused', /different players/.test(ch(A.FOUNDER, 'invite Aela Alt officer')));
-check('...and only as an Officer or a Sergeant: the other roles start empty', /names only its Officers and Sergeants; the Mage/.test(ch(A.FOUNDER, 'invite Brynn Vale mage')) && /the Member/.test(ch(A.FOUNDER, 'invite Brynn Vale member')) && /the Leader/.test(ch(A.FOUNDER, 'invite Brynn Vale leader')));
+check('...and never as Leader, which is the Founder\'s alone', /The Founder alone is the Leader/.test(ch(A.FOUNDER, 'invite Brynn Vale leader')));
 check('submitting with the Founder alone is refused: an Officer and a Sergeant are needed', /needs its Founder, an Officer and a Sergeant confirmed.*still needs: Officer, Sergeant/.test(ch(A.FOUNDER, 'submit')));
 check('an invitation without a role names the first one still unfilled (Officer)', /to co-found Bruma Traders Company as its Officer/.test(ch(A.FOUNDER, 'invite Brynn Vale')));
 check('...and tells the invitee the role and how to confirm', /asks you to co-found Bruma Traders Company \(charter #1\) as its Officer\. Type \/charter confirm 1/.test(said(A.CO1)));
@@ -147,19 +162,30 @@ check('...and the Founder hears what is still to fill', /Brynn Vale has confirme
 check('submitting without a Sergeant is refused', /still needs: Sergeant/.test(ch(A.FOUNDER, 'submit')));
 check('a purpose with a blocked word is refused', /will not do here/.test(ch(A.FOUNDER, 'pitch The hentai traders')));
 check('there is no rank-title command: the ranks are the seven roles', /^Usage: \/charter \[found/.test(ch(A.FOUNDER, 'ranks Factor, Clerk')));
+// The seat: only a building a founding member owns (Jake, 06:35Z)
+standAt(A.FOUNDER, [3000, 3000, 0]);
+check('a seat is refused away from any property', /no one's property/.test(ch(A.FOUNDER, 'seat here')));
+standAt(A.FOUNDER, [5100, 0, 0]);
+check('...and at a house no founding member owns', /may only take a building it owns: Hrolf's Hall belongs to Hrolf, who is not a founding member of Bruma Traders Company/.test(ch(A.FOUNDER, 'seat here')) && !c1().seat);
+standAt(A.FOUNDER, [100, 0, 0]);
+check('...and taken at the Founder\'s own house', /will sit in Aela's House/.test(ch(A.FOUNDER, 'seat here')) && c1().seat.ref === HOUSE_F && c1().seat.owner === PROFILE[A.FOUNDER]);
+check('...a free-text seat is no longer a thing', /Usage: \/charter seat here/.test(ch(A.FOUNDER, 'seat the old mill')));
 ch(A.FOUNDER, 'invite Corvus Ash sergeant');
 check('the Sergeant confirms; the three roles are named', /as its Sergeant/.test(ch(A.CO2, 'confirm 1')) && /the Founder, an Officer and a Sergeant are named/.test(said(A.FOUNDER)));
+owners[HOUSE_F].owner = 99;
+check('submitting re-checks the seat: a house sold since is refused', /seat no longer qualifies: A faction may only take a building it owns: Aela's House belongs to Aela Stone/.test(ch(A.FOUNDER, 'submit')) && c1().status === 'gathering');
+owners[HOUSE_F].owner = PROFILE[A.FOUNDER];
 r = ch(A.FOUNDER, 'submit');
 check('submitted once all three are confirmed, and no gold taken (no fee)', /^Charter #1 is submitted\.$/.test(r) && goldOf(A.FOUNDER) === 5000 && c1().status === 'pending' && c1().fee.held === 0, r);
-check('...the staff Discord log gets the request from the founder, with its roles, purpose and flags', out.staff.some(([w, d, a]) => w === 'charter submitted' && a === A.FOUNDER && /^submitted charter #1 for review: Bruma Traders Company \(company\): Founder Aela Stone, Officer Brynn Vale, Sergeant Corvus Ash\. Purpose: Honest traders.*Flags: names a hold or region: Bruma\. In game: \/charter show 1/.test(d)), out.staff);
+check('...the staff Discord log gets the request from the founder, with its roles, purpose and flags', out.staff.some(([w, d, a]) => w === 'charter submitted' && a === A.FOUNDER && /^submitted charter #1 for review: Bruma Traders Company \(company\): Founder Aela Stone, Officer Brynn Vale, Sergeant Corvus Ash\. Purpose: Honest traders.* Seat: Aela's House, owned by Aela Stone\. Flags: names a hold or region: Bruma\. In game: \/charter show 1/.test(d)), out.staff);
 check('...and every founder is told', [A.FOUNDER, A.CO1, A.CO2].every((a) => out.said.some((x) => x[0] === a && /is with the GMs/.test(x[1]))));
 
 // Five founding members at most: the three roles and two more Officers or Sergeants
 ch(A.U1, 'found Grey Harbour Company');
 const c2 = () => store().charters['2'];
-ch(A.U1, 'invite Rolf Gant'); ch(A.U1, 'invite Siv Mork'); ch(A.U1, 'invite Tove Ling officer'); ch(A.U1, 'invite Dagny Holt');
+ch(A.U1, 'invite Rolf Gant'); ch(A.U1, 'invite Siv Mork'); ch(A.U1, 'invite Tove Ling mage'); ch(A.U1, 'invite Dagny Holt');
 for (const a of [A.U2, A.U3, A.U4, A.CO3]) ch(a, 'confirm 2');
-check('five founding members: the defaults fill Officer, then Sergeant, then more Sergeants', c2().founders.map((f) => f.role).join() === 'officer,sergeant,officer,sergeant', c2().founders.map((f) => f.role));
+check('five founding members: a bare invite fills Officer, then Sergeant, then Member; a named one any role but Leader', c2().founders.map((f) => f.role).join() === 'officer,sergeant,mage,member', c2().founders.map((f) => f.role));
 check('...a sixth is refused at the invitation', /at most 5 founders/.test(ch(A.U1, 'invite Pell Poor')));
 c2().invited[String(A.POOR)] = { at: Date.now(), role: 'sergeant' };
 check('...and at the confirmation, however the invitation came', /already has its 5 founders/.test(ch(A.POOR, 'confirm 2')) && c2().founders.length === 4);
@@ -180,15 +206,21 @@ check('...and shows one', /Purpose: Honest traders/.test(ch(A.GM, 'show 1')) && 
 check('an edit to an existing faction\'s name is refused', /already exists/.test(ch(A.GM, 'edit 1 name The Fighters Guild')) && c1().name === 'Bruma Traders Company');
 r = ch(A.GM, 'edit 1 name Jerall Road Traders');
 check('a GM renames it: the flags are recomputed', /name is now "Jerall Road Traders"/.test(r) && c1().flags.length === 0, [r, c1().flags]);
-check('...a kind edit is limited to the chartered kinds and guild; ranks cannot be edited', /one of: company, guild/.test(ch(A.GM, 'edit 1 kind cult')) && /kind is now "guild"/.test(ch(A.GM, 'edit 1 kind guild')) && /Usage: \/charter edit <n> name\|pitch\|seat\|kind/.test(ch(A.GM, 'edit 1 ranks A, B')));
+check('...a kind edit is limited to the chartered kinds and guild; ranks cannot be edited', /one of: company, cult, guild/.test(ch(A.GM, 'edit 1 kind pack')) && /kind is now "guild"/.test(ch(A.GM, 'edit 1 kind guild')) && /Usage: \/charter edit <n> name\|pitch\|seat\|kind/.test(ch(A.GM, 'edit 1 ranks A, B')));
 check('...every edit is recorded, audited and sent to staff', c1().edits.length === 2 && out.audits.some((t) => /CHARTER #1 name edited by P1a: "Bruma Traders Company" -> "Jerall Road Traders"/.test(t)) && out.staff.some(([w]) => w === 'charter edited'));
+check('a GM\'s seat edit is held to the same rule: a stranger\'s house is refused', /belongs to Hrolf/.test(ch(A.GM, `edit 1 seat ${HOUSE_OTHER.toString(16)}`)) && c1().seat.ref === HOUSE_F);
+check('...none clears it, and the Founder\'s house by its ref is taken again', /seat is now "none"/.test(ch(A.GM, 'edit 1 seat none')) && !c1().seat && /seat is now "Aela's House"/.test(ch(A.GM, `edit 1 seat ${HOUSE_F.toString(16)}`)));
 check('a denial needs a reason', /Give the reason/.test(ch(A.GM, 'deny 1')));
+owners[HOUSE_F].owner = 99;
+check('approval re-checks the seat: the house changed hands, so it waits', /cannot be approved as it stands\. Its seat no longer qualifies/.test(ch(A.GM, 'approve 1')) && c1().status === 'pending');
+owners[HOUSE_F].owner = PROFILE[A.FOUNDER];
 r = ch(A.GM, 'approve 1');
 check('a GM approves (Jake: "The GM approves"), and the faction is live at once', /Approved: Jerall Road Traders is faction pf-jerall-road-traders, led by Aela Stone/.test(r) && globalThis.__dboGuildExists('pf-jerall-road-traders'), r);
 const pf = pfile();
 check('...its ranks are the seven roles of the guide, in order, with their role keys', JSON.stringify(pf[0].ranks.map((x) => x.title)) === JSON.stringify(SEVEN) && pf[0].ranks.every((x) => x.role === x.title.toLowerCase()), pf[0].ranks);
 check('...the Founder is its Leader, the Officer its Officer and the Sergeant its Sergeant', g(A.FOUNDER, 'pf-jerall-road-traders').role === 'leader' && g(A.FOUNDER, 'pf-jerall-road-traders').title === 'Leader' && g(A.CO1, 'pf-jerall-road-traders').title === 'Officer' && g(A.CO2, 'pf-jerall-road-traders').title === 'Sergeant' && g(A.FOUNDER, 'pf-jerall-road-traders').player === true && g(A.FOUNDER, 'pf-jerall-road-traders').kind === 'guild', [g(A.CO1, 'pf-jerall-road-traders'), g(A.CO2, 'pf-jerall-road-traders')]);
 check('...player-factions.json holds it (charter, founder\'s account, purpose)', pf.length === 1 && pf[0].id === 'pf-jerall-road-traders' && pf[0].charter === 1 && pf[0].leaderProfile === 1 && /Honest traders/.test(pf[0].pitch), pf);
+check('...its seat is its hall: /faction hall names the house', pf[0].seat && pf[0].seat.ref === HOUSE_F && pf[0].hall.name === "Aela's House" && globalThis.__dboGuildHall('pf-jerall-road-traders').name === "Aela's House", pf[0]);
 check('...guild-defs.json is untouched', defsHash() === defsBefore);
 check('...its treasury is a bank.json key, at 0', bank().factions['pf-jerall-road-traders'] === 0 && globalThis.__dboTreasury.balance('pf-jerall-road-traders') === 0, bank());
 check('...audited, sent to staff in the GM\'s name, and the founders told', out.audits.some((t) => /CHARTER #1 approved by P1a: Jerall Road Traders is faction pf-jerall-road-traders/.test(t)) && out.audits.some((t) => /BANK treasury of pf-jerall-road-traders opened with 0 gold/.test(t)) && out.staff.some(([w, d, a]) => w === 'charter approved' && a === A.GM && /^approved charter #1: Jerall Road Traders is now faction pf-jerall-road-traders, led by Aela Stone\.$/.test(d)) && /The GMs approved the charter\. Jerall Road Traders is founded/.test(said(A.CO1)));
@@ -210,7 +242,7 @@ check('...after which it may', /Charter #4 for Ashen Lantern Company is drafted/
 check('withdrawing a gathering charter costs nothing', /Charter #4 is withdrawn\.$/.test(ch(A.CO3, 'withdraw')));
 
 // ---- with a fee configured (the hold and refund code, off by default) and Lead-GM-only decisions ----
-load({ charters: { enabled: true, fee: 1000, filingFee: 100, approvers: 'lead' } });
+load({ charters: { enabled: true, fee: 1000, filingFee: 100, approvers: 'lead' } }); housing();
 ch(A.CO3, 'found Ninefold Lantern Company'); ch(A.CO3, 'pitch Lamplighters.'); ch(A.CO3, 'invite Pell Poor'); ch(A.POOR, 'confirm 5'); ch(A.CO3, 'invite Rolf Gant'); ch(A.U2, 'confirm 5');
 inv(A.CO3, 500);
 check('fee 1000: refused when not carried, and no gold taken', /fee is 1000 gold, and you do not carry it/.test(ch(A.CO3, 'submit')) && goldOf(A.CO3) === 500 && store().charters['5'].status === 'gathering');
@@ -222,8 +254,8 @@ r = ch(A.LEAD, 'deny 5 Too close to the Ashen Lantern.');
 check('...a Lead GM denies: 900 refunded (the 100 filing fee kept)', /Denied; 900 gold refunded to Dagny Holt/.test(r), r);
 check('...the founder was away: the 900 is owed, not paid yet', goldOf(A.CO3) === 4000 && store().owed[String(A.CO3)] === 900);
 online.push(A.CO3); timers.charters();
-check('...and paid at the sweep once they are online', goldOf(A.CO3) === 4900 && !store().owed[String(A.CO3)] && out.audits.some((t) => /CHARTER refund 900 gold paid to P18/.test(t)));
-load({ charters: { enabled: true, fee: 1000, approvers: 'lead', feeOnApproval: 'treasury', cooldownDays: 0 } });
+check('...and paid at the sweep once they are online, saying what it is', goldOf(A.CO3) === 4900 && !store().owed[String(A.CO3)] && out.audits.some((t) => /CHARTER paid 900 gold to P18 \(the fee for the charter of Ninefold Lantern Company, denied\)/.test(t)) && out.said.some((x) => x[0] === A.CO3 && /^900 gold is paid to you: the fee for the charter of Ninefold Lantern Company, denied\.$/.test(x[1])));
+load({ charters: { enabled: true, fee: 1000, approvers: 'lead', feeOnApproval: 'treasury', cooldownDays: 0 } }); housing();
 ch(A.U1, 'found Silver Sparrow Company'); ch(A.U1, 'pitch Couriers.'); ch(A.U1, 'invite Rolf Gant'); ch(A.U2, 'confirm 6'); ch(A.U1, 'invite Siv Mork'); ch(A.U3, 'confirm 6'); ch(A.U1, 'submit');
 check('a pending charter withdrawn gives the whole fee back', /withdrawn; your 1000 gold is returned/.test(ch(A.U1, 'withdraw')) && goldOf(A.U1) === 5000);
 ch(A.U1, 'found Silver Sparrow Company'); ch(A.U1, 'pitch Couriers.'); ch(A.U1, 'invite Rolf Gant'); ch(A.U2, 'confirm 7'); ch(A.U1, 'invite Siv Mork'); ch(A.U3, 'confirm 7'); ch(A.U1, 'submit');
@@ -233,7 +265,6 @@ check('feeOnApproval "treasury" seeds the new treasury with the fee', /Approved:
 load(ON);
 online.push(A.OFF);
 const flagsOf = (name) => { ch(A.OFF, 'withdraw'); ch(A.OFF, `found ${name}`); const c = byName(name); return c ? c.flags : null; };
-check('a canon faction not in the game is flagged for a lore decision', (flagsOf('Penitus Oculatus Veterans') || []).includes('canon, needs a lore decision: Penitus Oculatus'));
 check('...a deity\'s name is flagged ("Sons of Talos")', (flagsOf('Sons of Talos') || []).includes('names a deity: Talos'));
 check('...an existing faction inside a longer name is flagged ("Legion of the Thalmor Hunters")', (flagsOf('Legion of the Thalmor Hunters') || []).includes('names an existing faction: Thalmor'));
 check('..."The Night Watch" is a name: no blocked word is made across two words', Array.isArray(flagsOf('The Night Watch')));
@@ -247,12 +278,62 @@ check('a GM dissolves a chartered faction: gone from the factions, player-factio
 check('...its treasury key stays for Nate\'s decision, guild-defs.json is still untouched, and it is audited', 'pf-jerall-road-traders' in bank().factions && defsHash() === defsBefore && out.audits.some((t) => /CHARTER faction pf-jerall-road-traders \(Jerall Road Traders\) dissolved by P1a: Inactive since the alpha opened\.; its treasury is left in bank\.json/.test(t)));
 check('...a canon faction can never be dissolved this way', globalThis.__dboGuildDissolvePlayer('fighters-guild') === false && globalThis.__dboGuildExists('fighters-guild'));
 // Review S1 (Worker F): the same name chartered again gets a new id and an empty treasury; the old one's gold stays put
-ch(A.U2, 'found Jerall Road Traders'); ch(A.U2, 'pitch Traders again.'); ch(A.U2, 'invite Siv Mork officer'); ch(A.U3, 'confirm 12'); ch(A.U2, 'invite Tove Ling sergeant'); ch(A.U4, 'confirm 12');
-check('...the dissolved name may be chartered again', /submitted/.test(ch(A.U2, 'submit')) && store().charters['12'] && store().charters['12'].name === 'Jerall Road Traders', Object.values(store().charters).map((c) => [c.n, c.name, c.status]));
-r = ch(A.GM, 'approve 12');
+ch(A.U2, 'found Jerall Road Traders');
+const again = Object.values(store().charters).filter((c) => c.name === 'Jerall Road Traders').pop();
+ch(A.U2, 'pitch Traders again.'); ch(A.U2, 'invite Siv Mork officer'); ch(A.U3, `confirm ${again.n}`); ch(A.U2, 'invite Tove Ling sergeant'); ch(A.U4, `confirm ${again.n}`);
+check('...the dissolved name may be chartered again', /submitted/.test(ch(A.U2, 'submit')) && again.n !== 1 && again.status === 'pending', Object.values(store().charters).map((c) => [c.n, c.name, c.status]));
+r = ch(A.GM, `approve ${again.n}`);
 check('...as a new faction id, never the dissolved one\'s', /is faction pf-jerall-road-traders-2,/.test(r) && globalThis.__dboGuildExists('pf-jerall-road-traders-2'), r);
 check('...with an empty treasury, while the dissolved one\'s 750 gold stays under its own key', bank().factions['pf-jerall-road-traders-2'] === 0 && globalThis.__dboTreasury.balance('pf-jerall-road-traders-2') === 0 && bank().factions['pf-jerall-road-traders'] === 750, bank().factions);
-check('every step left a CHARTER audit line', out.audits.filter((t) => /^CHARTER /.test(t)).length >= 40, out.audits.filter((t) => /^CHARTER /.test(t)).length);
+// ---- cults (Jake, 06:33Z: players may found cults) ----
+check('a cult is founded with /charter cult', /Charter #\d+ for Moonshadow Coven \(a cult\) is drafted/.test(ch(A.CO1, 'cult Moonshadow Coven')) && byName('Moonshadow Coven').kind === 'cult');
+check('...its founder may switch it to a company and back', /founded as a company/.test(ch(A.CO1, 'kind company')) && /founded as a cult/.test(ch(A.CO1, 'kind cult')) && /one of: company, cult/.test(ch(A.CO1, 'kind pack')));
+ch(A.CO1, 'withdraw');
+r = ch(A.CO1, "cult Namira's Hungry Coven");
+const namira = byName("Namira's Hungry Coven");
+check('...a cult may name a Daedric Prince, flagged for a lore check', /\(a cult\) is drafted/.test(r) && namira && namira.flags.includes('a cult of Namira: a lore check'), [r, namira && namira.flags]);
+check('...but switched to a company that name is refused again', /only a cult may name a Daedric Prince/.test(ch(A.CO1, 'kind company')) && namira.kind === 'cult');
+ch(A.CO1, 'pitch The hungry ones of the Jerall.'); ch(A.CO1, 'invite Corvus Ash officer'); ch(A.CO2, `confirm ${namira.n}`); ch(A.CO1, 'invite Pell Poor sergeant'); ch(A.POOR, `confirm ${namira.n}`);
+ch(A.CO1, 'invite Tove Ling blacksmith'); ch(A.U4, `confirm ${namira.n}`); ch(A.CO1, 'submit');
+r = ch(A.GM, `approve ${namira.n}`);
+const cultDef = pfile().find((f) => f.name === "Namira's Hungry Coven");
+check('...approved, it is a faction of kind cult, of Namira (the F3 panel reads "Cult of Namira")', /Approved/.test(r) && cultDef && cultDef.kind === 'cult' && cultDef.prince === 'Namira' && g(A.CO1, cultDef.id).kind === 'cult', [r, cultDef]);
+check('...and a co-founder named Blacksmith holds that rank', g(A.U4, cultDef.id) && g(A.U4, cultDef.id).title === 'Blacksmith', g(A.U4, cultDef.id));
+
+// ---- disbanding (Jake, 06:33Z: a GM approves it, and the treasury goes to the Founder) ----
+const fid2 = 'pf-jerall-road-traders-2';
+globalThis.__dboTreasury.deposit(fid2, 300, 'harness');
+check('only the leader may ask: the Officer is refused', /Only the leader of a faction founded by charter/.test(ch(A.U3, 'disband We are done.')));
+check('...and the leader must say why', /Say why/.test(ch(A.U2, 'disband')));
+r = ch(A.U2, 'disband We are done trading.');
+check('a leader\'s request alone disbands nothing: it waits for a GM, the faction and its 300 gold stand', /is with the GMs\. Nothing changes until one decides/.test(r) && globalThis.__dboGuildExists(fid2) && bank().factions[fid2] === 300 && goldOf(A.U2) === 5000, r);
+check('...the request goes to #staff-commands in the leader\'s name, and the GMs see it in /charter list', out.staff.some(([w, d, a]) => w === 'disband requested' && a === A.U2 && /asks to disband Jerall Road Traders \(pf-jerall-road-traders-2\): We are done trading\. Its treasury would go to its Founder, Rolf Gant/.test(d)) && /disband pf-jerall-road-traders-2 \(Jerall Road Traders\), asked by Rolf Gant: We are done trading\./.test(ch(A.GM, 'list')));
+check('...one request at a time', /already have/.test(ch(A.U2, 'disband Again.')));
+check('a player cannot decide it', /for the GMs/.test(ch(A.U2, `approve-disband ${fid2}`)) && globalThis.__dboGuildExists(fid2));
+check('a denial needs a reason', /Give the reason/.test(ch(A.GM, `deny-disband ${fid2}`)));
+r = ch(A.GM, `deny-disband ${fid2} Your members are still active.`);
+check('a GM denies it: the faction stands, and its treasury with it', /Denied; Jerall Road Traders stands/.test(r) && globalThis.__dboGuildExists(fid2) && bank().factions[fid2] === 300 && /will not disband Jerall Road Traders: Your members are still active/.test(said(A.U2)), r);
+check('...audited and sent to staff in the GM\'s name', out.audits.some((t) => /CHARTER disband of pf-jerall-road-traders-2 \(Jerall Road Traders\) denied by P1a: Your members are still active\./.test(t)) && out.staff.some(([w, d, a]) => w === 'disband denied' && a === A.GM));
+ch(A.U2, 'disband Truly done this time.');
+online = online.filter((a) => a !== A.U2);
+r = ch(A.GM, `approve-disband ${fid2}`);
+check('a GM approves it: the faction is gone, its treasury key closed', /Jerall Road Traders is disbanded; 300 gold goes to its Founder Rolf Gant/.test(r) && !globalThis.__dboGuildExists(fid2) && !(fid2 in bank().factions) && !pfile().some((f) => f.id === fid2), r);
+check('...the Founder was away: the 300 is owed', goldOf(A.U2) === 5000 && store().owed[String(A.U2)] === 300);
+check('...audited (the bank\'s close and the charter\'s) and sent to staff in the GM\'s name', out.audits.some((t) => /BANK treasury of pf-jerall-road-traders-2 closed: 300 gold paid out/.test(t)) && out.audits.some((t) => /CHARTER disband of pf-jerall-road-traders-2 \(Jerall Road Traders\) approved by P1a: 300 gold to its Founder Rolf Gant/.test(t)) && out.staff.some(([w, d, a]) => w === 'disband approved' && a === A.GM && /its treasury, 300 gold, goes to its Founder Rolf Gant/.test(d)));
+online.push(A.U2); timers.charters();
+check('...paid when the Founder is back in the world, saying what it is', goldOf(A.U2) === 5300 && !store().owed[String(A.U2)] && out.said.some((x) => x[0] === A.U2 && /300 gold is paid to you: the treasury of Jerall Road Traders, disbanded, to its Founder/.test(x[1])));
+const sparrowGold = goldOf(A.U1);
+ch(A.U1, 'disband The road is closed.');
+r = ch(A.GM, 'approve-disband pf-silver-sparrow-company');
+check('a Founder in the world is paid at once (the 1000 the fee seeded)', /1000 gold goes to its Founder Ulla Fenn/.test(r) && goldOf(A.U1) === sparrowGold + 1000 && !('pf-silver-sparrow-company' in bank().factions), r);
+globalThis.__dboTreasury.deposit(cultDef.id, 200, 'harness');
+ch(A.CO1, 'disband The coven scattered.');
+destroyed.add(A.CO1);
+r = ch(A.GM, `approve-disband ${cultDef.id}`);
+check('a Founder whose character no longer exists: the faction goes, its 200 gold stays under its key, flagged for staff', /Founder's character no longer exists: 200 gold stays under faction:pf-namira-s-hungry-coven, flagged for staff/.test(r) && !globalThis.__dboGuildExists(cultDef.id) && bank().factions[cultDef.id] === 200 && out.staff.some(([w, d]) => w === 'disband approved' && /no longer exists, so its 200 gold stays under faction:pf-namira-s-hungry-coven for staff to settle/.test(d)), r);
+destroyed.delete(A.CO1);
+
+check('every step left a CHARTER audit line', out.audits.filter((t) => /^CHARTER /.test(t)).length >= 50, out.audits.filter((t) => /^CHARTER /.test(t)).length);
 
 console.log(failures ? `${failures} of ${checks} FAILED` : `all ${checks} checks passed`);
 process.exit(failures ? 1 : 0);

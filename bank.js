@@ -193,6 +193,19 @@ module.exports = (api) => {
       audit(`BANK treasury of ${fid} opened with ${n} gold (${why || 'unspecified'})`);
       return true;
     },
+    // A landless faction's treasury closed (charters.js, a disbanding a GM approved): the key goes, and the gold it held is
+    // returned for the caller to pay out. -1 when it cannot be (not a landless faction, or bank.json would not write)
+    close: (fid, why) => {
+      const key = treasuryKeyOf(fid);
+      if (!key || !key.startsWith('faction:')) return -1;
+      const id = key.slice(8);
+      const had = Object.prototype.hasOwnProperty.call(data().factions, id);
+      const n = Math.max(0, Math.floor(Number(data().factions[id]) || 0));
+      delete data().factions[id];
+      try { save(); } catch (e) { if (had) data().factions[id] = n; log('bank: bank.json write failed', e.message); return -1; }
+      audit(`BANK treasury of ${fid} closed: ${n} gold paid out (${why || 'unspecified'})`);
+      return n;
+    },
   };
 
   // ---- being at a bank -----------------------------------------------------------------------------------------------
