@@ -1048,6 +1048,27 @@ void WorldState::HoldBackFormIdx(uint32_t idx)
   heldFormIdx.push_back({ idx, std::chrono::steady_clock::now() });
 }
 
+void WorldState::NoteDestroyedFormIdx(uint32_t formId, uint32_t idx)
+{
+  constexpr size_t kDestroyedFormIdxMax = 8192;
+  if (destroyedFormIdx.insert_or_assign(formId, idx).second) {
+    destroyedFormOrder.push_back(formId);
+  }
+  while (destroyedFormOrder.size() > kDestroyedFormIdxMax) {
+    destroyedFormIdx.erase(destroyedFormOrder.front());
+    destroyedFormOrder.pop_front();
+  }
+}
+
+std::optional<uint32_t> WorldState::DestroyedFormIdx(uint32_t formId) const
+{
+  auto it = destroyedFormIdx.find(formId);
+  if (it == destroyedFormIdx.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
 void WorldState::ReleaseHeldFormIdx(bool all)
 {
   constexpr auto kHoldFor = std::chrono::seconds(10);

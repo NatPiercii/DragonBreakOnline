@@ -26,6 +26,7 @@
 #include <unordered_set>
 
 #include "CustomPacketMessage.h"
+#include "DestroyActorMessage.h"
 #include "HostStartMessage.h"
 #include "HostStopMessage.h"
 #include "SpSnippet.h"
@@ -1301,6 +1302,18 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
   const auto& remoteForm = partOne.worldState.LookupFormById(remoteId);
   MpObjectReference* remotePtr =
     remoteForm ? remoteForm->AsObjectReference() : nullptr;
+  if (!remoteForm) {
+    // That client missed the DestroyActor and kept asking (the 1 Oct ghost NPCs): it is told again, by the index it knows
+    if (const auto idx = partOne.worldState.DestroyedFormIdx(remoteId)) {
+      DestroyActorMessage drop;
+      drop.idx = *idx;
+      partOne.GetSendTarget().Send(rawMsgData.userId, drop, true);
+      spdlog::info("ActionListener::OnHostAttempt - {:#x} is gone; user {} "
+                   "is told to drop its copy (idx {})",
+                   remoteId, rawMsgData.userId, *idx);
+    }
+    return;
+  }
   if (!remotePtr) {
     return;
   }

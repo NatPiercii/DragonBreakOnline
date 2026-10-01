@@ -127,6 +127,9 @@ public:
   // No loading version of LookupFormById
   const std::shared_ptr<MpForm>& LookupFormByIdNoLoad(uint32_t formId);
 
+  // The index a destroyed form had, for a client that missed its DestroyActor and still holds a copy
+  std::optional<uint32_t> DestroyedFormIdx(uint32_t formId) const;
+
   void SendPapyrusEvent(MpForm* form, const char* eventName,
                         const VarValue* arguments, size_t argumentsCount);
 
@@ -220,6 +223,7 @@ public:
         refrByIdxUnreliable[formIndex->idx] = nullptr;
       }
       HoldBackFormIdx(formIndex->idx);
+      NoteDestroyedFormIdx(formId, formIndex->idx);
     }
 
     forms.erase(it);
@@ -324,6 +328,7 @@ private:
   [[nodiscard]] bool IsRelootForbidden(std::string type) const noexcept;
   void HoldBackFormIdx(uint32_t idx);
   void ReleaseHeldFormIdx(bool all);
+  void NoteDestroyedFormIdx(uint32_t formId, uint32_t idx);
 
 private:
   struct GridInfo
@@ -343,6 +348,9 @@ private:
   // Freed form indices, oldest first, with when they were freed
   std::deque<std::pair<uint32_t, std::chrono::steady_clock::time_point>>
     heldFormIdx;
+  // Destroyed form id -> its index, the newest kDestroyedFormIdxMax, oldest first in destroyedFormOrder
+  std::unordered_map<uint32_t, uint32_t> destroyedFormIdx;
+  std::deque<uint32_t> destroyedFormOrder;
   espm::Loader* espm = nullptr;
   FormCallbacksFactory formCallbacksFactory;
   std::unique_ptr<espm::CompressedFieldsCache> espmCache;
