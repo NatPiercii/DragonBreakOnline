@@ -37,14 +37,14 @@ fs.writeFileSync('playtester-boost.json', JSON.stringify({ profiles: {
   3: { start: now - H, until: now + 5 * H, mult: 2, claimed: false, staff: true },
 } }));
 for (const [a, until] of [[A, now + 12 * H], [B, now + 22 * H], [A2, now + 12 * H], [C, now + 5 * H]]) props.set(`${a}|${PROP}`, { mult: 2, until });
-const timers = {};
+const timers = {}, cmds = {};
 const load = (enabled) => {
   delete require.cache[MODULE];
   require(MODULE)({
     mp: { get: (a, k) => props.get(`${a}|${k}`), set: (a, k, v) => props.set(`${a}|${k}`, v) },
-    log: () => {}, personal: (a, t) => said.push([a, t]), system: (a, t) => said.push([a, t]), registerChatCommand: () => {},
+    log: () => {}, personal: (a, t) => said.push([a, t]), system: (a, t) => said.push([a, t]), registerChatCommand: (n, f) => { cmds[n] = f; },
     audit: (t) => audits.push(t), who: (a) => `#${a}`, display: String, profileOf: (a) => (profiles[a] === undefined ? -1 : profiles[a]),
-    rolesOf: () => [], isAdmin: () => false, isLeadStaff: () => false, findByName: () => 0, onlineActors: () => online,
+    rolesOf: () => [], isAdmin: () => true, isLeadStaff: () => true, findByName: (n) => ({ A, B, A2, C })[n] || 0, onlineActors: () => online,
     every: (n, ms, fn) => { timers[n] = fn; }, cfg: { playtesterBoost: Object.assign({}, CONFIG.playtesterBoost, { enabled }) },
   });
 };
@@ -82,6 +82,21 @@ globalThis.__dboBoostLogin(A2);
 ok('another character of an account already told: it stops counting, nothing is said', !live(A2) && !linesTo(A2).length);
 timers.playtesterBoost();
 ok('after it all only the staff window counts', !live(A) && !live(B) && !live(A2) && live(C));
+
+// A staff grant to a former playtester after the end survives later reloads, with nothing said
+ok('the end is marked once in the store', typeof JSON.parse(fs.readFileSync('playtester-boost.json', 'utf8')).endedEarlyAt === 'number');
+online = [A, B, A2, C]; said.length = 0;
+const auditsBefore = audits.length;
+cmds.boost(C, 'grant A 4');
+ok('staff grant a boost to a former playtester', live(A) && JSON.parse(fs.readFileSync('playtester-boost.json', 'utf8')).profiles[1].until === now + 4 * H, JSON.parse(fs.readFileSync('playtester-boost.json', 'utf8')).profiles[1]);
+const auditsAfterGrant = audits.length;
+now += 60000; load(false);
+now += 60000; load(false);
+timers.playtesterBoost();
+ok('...it survives two hot reloads', live(A) && JSON.parse(fs.readFileSync('playtester-boost.json', 'utf8')).profiles[1].until === now - 120000 + 4 * H);
+ok('...with no "ended early" line and no new end audit', !linesTo(A).some((t) => EARLY.test(t)) && audits.length === auditsAfterGrant && auditsAfterGrant >= auditsBefore);
+load(true);
+ok('switching the boost back on clears the mark', JSON.parse(fs.readFileSync('playtester-boost.json', 'utf8')).endedEarlyAt === undefined);
 
 // The region lock speaks of the alpha
 const lock = fs.readFileSync(path.join(SERVER, 'playtest.js'), 'utf8');

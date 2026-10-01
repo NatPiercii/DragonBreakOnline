@@ -82,8 +82,10 @@ module.exports = (api) => {
 
   // Off: the playtester windows still running end now. A staff window of its own (never claimed) runs on.
   const EARLY = 'The playtester double progress has ended early while we rebalance how fast skills grow. Thank you for testing!';
+  // Once: store.endedEarlyAt marks it done, so a later staff grant to a former playtester survives every reload
   const endEarly = () => {
-    if (C.enabled) return 0;
+    if (C.enabled) { if (store.endedEarlyAt) { delete store.endedEarlyAt; save(); } return 0; }
+    if (store.endedEarlyAt) return 0;
     const now = Date.now();
     let n = 0;
     for (const [pid, rec] of Object.entries(store.profiles)) {
@@ -93,7 +95,8 @@ module.exports = (api) => {
       audit(`BOOST profile ${pid} playtester boost ended early (x${rec.mult}, ${left(leftMs)} left)`);
       n++;
     }
-    if (n) save();
+    store.endedEarlyAt = now;
+    save();
     return n;
   };
   // Says it once to whoever is on a character of an account whose window ended early, and refreshes that character
@@ -166,7 +169,8 @@ module.exports = (api) => {
     if (!(Number.isFinite(pid) && pid >= 0)) return personal(a, `${display(t)} has no account to hold a boost.`);
     const now = Date.now(), rec = recOf(t), add = hours * HOUR_MS;
     const until = verb === 'extend' ? (active(rec, now) ? rec.until : now) + add : Math.max(now + add, active(rec, now) ? rec.until : 0);
-    const next = { start: active(rec, now) ? rec.start : now, until, mult: active(rec, now) ? rec.mult : C.mult, claimed: !!(rec && rec.claimed), staff: true };
+    const next = { start: active(rec, now) ? rec.start : now, until, mult: active(rec, now) ? rec.mult : C.mult, claimed: !!(rec && rec.claimed), staff: true,
+      ...(rec && rec.endedEarly ? { endedEarly: rec.endedEarly, told: !!rec.told } : {}) };
     store.profiles[String(pid)] = next;
     save();
     mirror(t, next);
