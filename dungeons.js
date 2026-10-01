@@ -16,7 +16,8 @@
 //
 // gamemode-config.json "dungeons": { enabled, leaseMinutes, cooldownMinutes, warnMinutes,
 //   graceMinutes, partyMax, lockedShare: {story, normal, hard, nightmare},
-//   crashLoop: {enabled, withinMinutes, lateSeconds, keepClaimMinutes} }
+//   crashLoop: {enabled, withinMinutes, lateSeconds, keepClaimMinutes},
+//   entryStagger: {enabled, seconds, ids} }
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -635,6 +636,45 @@ module.exports = (api) => {
     return `${d.name} is yours for ${C.leaseMinutes} minutes (${diff.label}). ${goal}${leave}${locked}`;
   };
 
+  // ---- one at a time into the crashing ruins (crash-wave-1001 §7.2; Jake, 2026-10-01, until client 0.3.75) ----------
+  // Party members loading into Niryastare, Bawn or Rielle together crashed; alone, 0 of 44 solo claims did. Each entry
+  // there, the claim's own move and a member's later walk-in alike, waits until entryStagger.seconds after the last one.
+  const STAGGER = Object.assign({ enabled: true, seconds: 30, ids: ['CYRNiryastareLocation', 'CYRBawnLocation', 'CYRRielleLocation'] }, C.entryStagger || {});
+  const staggered = (d) => STAGGER.enabled === true && Number(STAGGER.seconds) > 0 && Array.isArray(STAGGER.ids) && STAGGER.ids.includes(d.id);
+  const entryGap = () => Number(STAGGER.seconds) * 1000;
+  // Milliseconds this member must still wait before entering, 0 when they may go now
+  const entryWait = (lease, d, pid) => {
+    if (!staggered(d)) return 0;
+    const queued = lease.entryAt instanceof Map ? lease.entryAt.get(pid) : undefined;
+    return Math.max(0, (queued !== undefined ? queued : Number(lease.nextEntryAt) || 0) - Date.now());
+  };
+  const noteEntry = (lease, d) => { if (staggered(d)) lease.nextEntryAt = Math.max(Number(lease.nextEntryAt) || 0, Date.now() + entryGap()); };
+  const goIn = (a, lease, d, diff, entrance) => {
+    if (!teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) return false;
+    noteEntry(lease, d);
+    system(a, arrivalLine(d, lease, diff));
+    glowLease(a, lease, d);
+    return true;
+  };
+  // A queued member goes in at their turn, unless the claim ended, they logged out, left the party or the entrance
+  const enterLater = (lease, d, diff, entrance, pid, at) => {
+    if (!(lease.entryAt instanceof Map) || lease.entryAt.get(pid) !== at) return;
+    lease.entryAt.delete(pid);
+    if (ST.leases.get(d.id) !== lease) return;
+    const a = actorByProfile(pid);
+    if (!a || !partyMembers(lease.leader).includes(pid)) return;
+    if (!atEntrance(a, entrance)) { system(a, `Your turn to enter ${d.name} has come: use the entrance to join your party.`); return; }
+    if (goIn(a, lease, d, diff, entrance)) log(`dungeon ${d.id}: ${display(a)} went in at their turn`);
+  };
+  const queueEntry = (a, lease, d, diff, entrance, pid) => {
+    const at = Math.max(Number(lease.nextEntryAt) || 0, Date.now());
+    lease.nextEntryAt = at + entryGap();
+    if (!(lease.entryAt instanceof Map)) lease.entryAt = new Map();
+    lease.entryAt.set(pid, at);
+    system(a, `Your party is entering ${d.name} one at a time: you go in ${Math.ceil((at - Date.now()) / 1000)} s.`);
+    setTimeout(() => enterLater(lease, d, diff, entrance, pid, at), at - Date.now());
+  };
+
   const startLease = (leaderActor, d, entrance, diff) => {
     const leaderPid = profileOf(leaderActor);
     const members = new Set(partyMembers(leaderPid));
@@ -660,10 +700,12 @@ module.exports = (api) => {
     const moveIn = (placed) => {
       if (ST.leases.get(d.id) !== lease) return;
       let moved = 0;
-      for (const pid of members) {
+      // The claimer first; in a staggered ruin each other member is queued behind them
+      for (const pid of [...members].sort((x, y) => (x === leaderPid ? -1 : y === leaderPid ? 1 : 0))) {
         const a = actorByProfile(pid); if (!a) continue;
         if (a !== leaderActor && !atEntrance(a, entrance)) { system(a, `${display(leaderActor)} has claimed ${d.name}. Use the entrance to join them.`); continue; }
-        if (teleport(a, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0])) { moved++; system(a, arrivalLine(d, lease, diff)); glowLease(a, lease, d); }
+        if (entryWait(lease, d, pid) > 0) { queueEntry(a, lease, d, diff, entrance, pid); continue; }
+        if (goIn(a, lease, d, diff, entrance)) moved++;
       }
       audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled, ${lease.locked.size} locked`);
       log(`dungeon ${d.id} claimed by ${display(leaderActor)}: ${diff.id}, party level ${lease.partyLevel} x${lease.partySize}, ${moved} moved in, ${zones.length} enemies, ${placed} prespawned, ${filled} containers`);
@@ -1308,6 +1350,9 @@ module.exports = (api) => {
       const lease = ST.leases.get(d.id);
       if (lease) {
         if (lease.members.has(pid)) {
+          const wait = entryWait(lease, d, pid);
+          if (wait > 0) return deny(casterId, `Your party is entering ${d.name} one at a time: you go in ${Math.ceil(wait / 1000)} s.`, `${d.id} entries are spaced, ${Math.ceil(wait / 1000)} s to wait`);
+          noteEntry(lease, d);
           glowLease(casterId, lease, d);
           if (!entrance.expedition) return true;
           teleport(casterId, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0]);
