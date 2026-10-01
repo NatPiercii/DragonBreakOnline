@@ -24,7 +24,7 @@ check('the notice is for off and failed only, not while the loop connects', G.va
 const FORK = process.env.FORK, FORK_SERVER = process.env.FORK_SERVER;
 const src = FORK && path.join(FORK, 'skymp5-front/src/utils/VoiceManager.js');
 const esbuild = FORK_SERVER && path.join(FORK_SERVER, 'skymp5-server/node_modules/.bin/esbuild');
-const PARTS_2_3 = 33; // checks in parts 2 and 3
+const PARTS_2_3 = 41; // checks in parts 2 and 3
 const why = !src ? 'FORK is not set' : !fs.existsSync(path.join(FORK, 'skymp5-front/src/utils/voiceEchoGate.js')) ? `${FORK} has no voiceEchoGate.js`
   : !esbuild || !fs.existsSync(esbuild) ? 'no esbuild in FORK_SERVER' : '';
 let skipped = 0;
@@ -96,7 +96,7 @@ if (why) {
     enumerateDevices: () => Promise.resolve([]),
   } } });
   const node = () => ({ connect() {}, disconnect() {}, gain: { value: 1 }, fftSize: 0 });
-  globalThis.window.AudioContext = class { createMediaStreamSource() { return node(); } createGain() { return node(); } createAnalyser() { return node(); }
+  globalThis.window.AudioContext = class { constructor() { this.state = 'running'; } createMediaStreamSource() { return node(); } createGain() { return node(); } createAnalyser() { return node(); }
     createMediaStreamDestination() { return { connect() {}, stream: { getAudioTracks: () => [{ id: 'dest' }] } }; } close() {} };
   const fakePub = () => ({ mute: () => Promise.resolve(), unmute: () => { muted.push('unmute'); return Promise.resolve(); } });
   vm.room = { localParticipant: {
@@ -105,7 +105,8 @@ if (why) {
     setMicrophoneEnabled: (on) => { enabled.push(on); if (on && !audioPubs.has('lk')) audioPubs.set('lk', {}); return Promise.resolve(); },
     publishData: () => Promise.resolve(),
   } };
-  const micStream = { getAudioTracks: () => [{ getSettings: () => ({ echoCancellation: true }) }], getTracks: () => [] };
+  const micTrack = { readyState: 'live', muted: false, getSettings: () => ({ echoCancellation: true }) };
+  const micStream = { getAudioTracks: () => [micTrack], getTracks: () => [] };
   vm.mic = null; vm.ptt = false; vm.setPrefs({ activation: 'ptt' });
   const opening = vm.openMic();
   const press = vm.setPtt(true);
@@ -118,7 +119,27 @@ if (why) {
   check('...and the held key transmits on that one track', vm.transmitting === true && muted[muted.length - 1] === 'unmute');
   check('the start is forgotten once done', vm.micStarting === null);
   vm.reportEcho();
-  check('the echo line carries the mic count and the capture\'s echo cancellation', echoLines().pop()[4] === 'mics 1, aec on', echoLines().slice(-1));
+  const LIVE = 'mics 1, aec on, cap live, ctx running, mix none, loop none';
+  check('the echo line carries the mic count, the capture\'s echo cancellation and the audio states', echoLines().pop()[4] === LIVE, echoLines().slice(-1));
+  // Either side of a loading screen (the browser is hidden in between): reported once as a baseline, then only on a change
+  const loadingLines = () => sent.filter((a) => a[0] === 'voice::loading');
+  const realSetTimeout = global.setTimeout;
+  const later = [];
+  global.setTimeout = (f, ms) => { later.push([f, ms]); return 0; };
+  const loading = () => { vm.markLoading(true); vm.markLoading(false); later.splice(0).forEach(([f]) => f()); };
+  loading();
+  check('the first loading screen of a session is reported as a baseline', JSON.stringify(loadingLines()) === JSON.stringify([['voice::loading', LIVE, LIVE]]), loadingLines());
+  loading();
+  check('...an unchanged one after that is not', loadingLines().length === 1);
+  vm.markLoading(true); micTrack.muted = true; vm.markLoading(false);
+  check('...the state is read again only after the screen has settled', later.length === 1 && later[0][1] >= 1000 && loadingLines().length === 1);
+  later.splice(0).forEach(([f]) => f());
+  check('...and a change across it is reported, before and after', JSON.stringify(loadingLines().pop()) === JSON.stringify(['voice::loading', LIVE, LIVE.replace('cap live', 'cap muted')]), loadingLines());
+  micTrack.muted = false;
+  vm.markLoading(false); later.splice(0).forEach(([f]) => f());
+  check('a close with no open before it reports nothing', loadingLines().length === 2);
+  global.setTimeout = realSetTimeout;
+  check('the DevTools echo probe needs a mic', (await (Object.assign(Object.create(Object.getPrototypeOf(vm)), { mic: null }).aecProbe())) === null);
   vm.ptt = false; vm.updateTransmit();
   vm.mic = null; audioPubs.clear(); pubs.length = 0;
   const failing = vm.openMic().catch(() => 'denied');
@@ -128,9 +149,9 @@ if (why) {
   check('a mic that cannot open: the start fails', (await failing) === 'denied');
   await press2;
   check('...and only then does the press fall back to LiveKit\'s own mic, once', pubs.length === 0 && JSON.stringify(enabled) === '[true]', enabled);
-  check('...where the line shows that one mic and an unknown capture', vm.micSummary() === 'mics 1, aec ?', vm.micSummary());
+  check('...where the line shows that one mic and an unknown capture', vm.micSummary() === 'mics 1, aec ?, cap none, ctx none, mix none, loop none', vm.micSummary());
   vm.ptt = false; vm.room = null;
-  check('no room: the line counts no mics', vm.micSummary() === 'mics 0, aec ?');
+  check('no room: the line counts no mics', /^mics 0, aec \?/.test(vm.micSummary()));
   check('the notice tells a player on speakers to use headphones', /use headphones/.test(G.BLOCKED_NOTICE) && /push-to-talk only for now/.test(G.BLOCKED_NOTICE));
   const vmSrc = fs.readFileSync(src, 'utf8');
   const codeLines = vmSrc.split('\n').filter((l) => !/^\s*\/\//.test(l));
@@ -138,6 +159,7 @@ if (why) {
   check('every loop outcome goes through setEcho (none left calling sendToGame for it directly)', (vmSrc.match(/sendToGame\('voice::echoLoop'/g) || []).length === 1 && /this\.setEcho\('on'/.test(vmSrc) && /this\.setEcho\('off'/.test(vmSrc) && /this\.setEcho\('failed'/.test(vmSrc) && /this\.setEcho\('elements'/.test(vmSrc) && /this\.setEcho\('pending'/.test(vmSrc));
 
   // ---- 3. the client relay ----
+  const LIVE_SHAPE = 'mics 1, aec on, cap live, ctx running, mix none, loop none';
   const vs = fs.readFileSync(path.join(FORK, 'skymp5-client/src/services/services/voiceService.ts'), 'utf8');
   const block = vs.slice(vs.indexOf('kind === "voice::echoLoop"'), vs.indexOf('kind === "voice::error"'));
   const shape = block.match(/const raw = [^\n]*\n\s*const echo = [^\n]*/);
@@ -145,10 +167,14 @@ if (why) {
   const relayed = (text) => (cut ? cut({ arguments: ['voice::echoLoop', text] }) : null);
   check('the relay passes the page\'s own shapes', relayed('on (42 packets)') === 'on (42 packets)' && relayed('off (state new/new, 0 packets)') === 'off (state new/new, 0 packets)' && relayed('failed (NotFoundError)') === 'failed (NotFoundError)', !!cut);
   check('...and cuts anything else to the state word: no device label reaches the server', relayed('failed (NotFoundError: "Jane\'s AirPods" not found)') === 'failed', relayed('failed (NotFoundError: "Jane\'s AirPods" not found)'));
-  const micCut = block.match(/\/\^mics [^\n]*?\$\/\.test\(mic\)/);
-  const micOk = micCut ? new Function('mic', `return ${micCut[0]};`) : () => null;
-  check('the relay passes the mic summary in its one shape', micOk('mics 1, aec on') === true && micOk('mics 2, aec off') === true && micOk('mics 0, aec ?') === true, !!micCut);
-  check('...and drops anything else', micOk('mics 1, aec on; Jane\'s AirPods') === false && micOk('') === false);
+  const shapeSrc = vs.match(/const MIC_SHAPE = (\/[^\n]*\/);/);
+  const MIC_SHAPE = shapeSrc ? new Function(`return ${shapeSrc[1]};`)() : null;
+  const micOk = (t) => (MIC_SHAPE ? MIC_SHAPE.test(t) : null);
+  check('the relay passes the mic summary in its one shape', micOk(LIVE_SHAPE) === true && micOk('mics 2, aec off, cap ended, ctx suspended, mix interrupted, loop disconnected') === true && micOk('mics 0, aec ?') === true && /MIC_SHAPE\.test\(mic\)/.test(block), !!MIC_SHAPE);
+  check('...and drops anything else', micOk('mics 1, aec on; Jane\'s AirPods') === false && micOk('mics 1, aec on, cap Jane') === false && micOk('') === false);
+  const loadBlock = vs.slice(vs.indexOf('kind === "voice::loading"'), vs.indexOf('kind === "voice::error"'));
+  check('the loading line passes only two mic summaries, and files a dboDiag "voice" line', /if \(!MIC_SHAPE\.test\(before\) \|\| !MIC_SHAPE\.test\(after\)\) return;/.test(loadBlock) && /note\("voice", line\)/.test(loadBlock), loadBlock.slice(0, 200));
+  check('the client tells the page as a loading screen opens and closes', /on\("menuOpen", \(e\) => \{ if \(e\.name === Menu\.Loading\) this\.markLoading\(true\); \}\)/.test(vs) && /on\("menuClose", \(e\) => \{ if \(e\.name === Menu\.Loading\) this\.markLoading\(false\); \}\)/.test(vs));
   check('voiceService files a dboDiag "voice" line with the loop, the chosen and the used activation', /note\("voice", line\)/.test(block) && /activation \$\{chosen \|\| "\?"\}\$\{used && used !== chosen \? ` \(using \$\{used\}\)` : ""\}/.test(block), block.slice(0, 300));
 })().then(finish, (e) => { console.log(`FAIL  parts 2-3 threw: ${e && e.stack}`); failures++; finish(); });
 if (why) finish();
