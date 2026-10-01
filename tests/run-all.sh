@@ -55,6 +55,7 @@ declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
   [chat-bubble-plan]=client:skymp5-client/src/services/services/chatBubblePlan.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
+  [voice-echo-gate]=client:skymp5-front/src/utils/voiceEchoGate.js
   [client-calendar]=client:skymp5-client/src/services/services/calendar.ts
   [input-diag-request]=client:skymp5-client/src/services/services/inputDiagRequest.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
