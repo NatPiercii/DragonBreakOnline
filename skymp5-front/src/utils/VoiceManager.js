@@ -223,11 +223,23 @@ class VoiceManager {
   // To the game: the loop's result and the activation chosen and in force (a dboDiag line), and once a notice when
   // voice activation has to wait for push-to-talk
   reportEcho() {
-    sendToGame('voice::echoLoop', this.echo + (this.echoDetail ? ` (${this.echoDetail})` : ''), this.prefs.activation, this.activation());
+    sendToGame('voice::echoLoop', this.echo + (this.echoDetail ? ` (${this.echoDetail})` : ''), this.prefs.activation, this.activation(), this.micSummary());
     if (vadBlocked(this.prefs.activation, this.echo) && !this.vadNoticeShown) {
       this.vadNoticeShown = true;
       sendToGame('voice::peer', BLOCKED_NOTICE);
     }
+  }
+
+  // How many mic tracks this client publishes (two would double the voice) and whether the capture is echo-cancelled
+  micSummary() {
+    let mics = 0;
+    try { this.room.localParticipant.audioTrackPublications.forEach(() => { mics++; }); } catch (e) { /* no room */ }
+    let aec = '?';
+    try {
+      const s = this.mic.stream.getAudioTracks()[0].getSettings();
+      if (typeof s.echoCancellation === 'boolean') aec = s.echoCancellation ? 'on' : 'off';
+    } catch (e) { /* LiveKit's own mic, or none */ }
+    return `mics ${mics}, aec ${aec}`;
   }
 
   stopLoopback(mix) {
@@ -461,6 +473,7 @@ class VoiceManager {
       }
       this.transmitting = false;
       this.updateTransmit();
+      this.reportEcho();
       sendToGame('voice::ready');
     } catch (e) {
       this.room = null;
