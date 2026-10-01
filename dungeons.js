@@ -1118,9 +1118,53 @@ module.exports = (api) => {
       }
     }
   };
+  // The aggro window (Nate, 1 Oct: enemies charged from too far): a lease's spawns carry ff_aggroWindow, the range in units
+  // inside which a player wakes them; the 0.3.75 client holds a copy passive until then (formView, aggroWindow.ts). Once
+  // a spawn is woken (hit, or a hosting client reports a player near) it gets 0, for every client and every later host.
+  // Config dungeons.aggroWindow { enabled, units }, read at each pass, so a hot reload retunes the spawns already out.
+  const AGGRO = () => Object.assign({ enabled: true, units: 1200 }, (cfg.dungeons || {}).aggroWindow || {});
+  const aggroPass = (lease) => {
+    if (!lease.aggroSent) { lease.aggroSent = new Map(); lease.aggroOpened = new Set(); }
+    const cfgNow = AGGRO();
+    const units = cfgNow.enabled === false ? 0 : Math.max(0, Math.round(Number(cfgNow.units) || 0));
+    for (const id of lease.armed || []) {
+      const want = lease.aggroOpened.has(id) ? 0 : units;
+      if (lease.aggroSent.get(id) === want) continue;
+      try { mp.set(id, 'ff_aggroWindow', want); lease.aggroSent.set(id, want); } catch (e) { /* gone */ }
+    }
+  };
+  const leaseOfSpawn = (id) => { for (const lease of ST.leases.values()) if (lease.armed && lease.armed.has(id >>> 0)) return lease; return null; };
+  const openAggro = (id, why) => {
+    const lease = leaseOfSpawn(id);
+    if (!lease) return false;
+    if (!lease.aggroSent) aggroPass(lease);
+    if (lease.aggroOpened.has(id >>> 0)) return false;
+    lease.aggroOpened.add(id >>> 0);
+    try { mp.set(id >>> 0, 'ff_aggroWindow', 0); lease.aggroSent.set(id >>> 0, 0); } catch (e) { /* gone */ }
+    if (lease.aggroOpened.size <= 3) log(`dungeon ${lease.id} aggro: ${(id >>> 0).toString(16)} woken (${why}), ${lease.aggroOpened.size} so far`);
+    return true;
+  };
+  // gamemode.js hitDamageHook: any landed damage on a held spawn wakes it, whoever dealt it
+  globalThis.__dboAggroHit = (aggressorId, targetId) => { openAggro(Number(targetId) >>> 0, 'hit'); };
+  // The hosting client saw a player within the window: only a player in the spawn's cell, near enough, is believed
+  onUi('aggroOpen', (a, args) => {
+    const id = parseInt(String(args[0] || ''), 16) >>> 0;
+    if (!id) return;
+    try {
+      if (String(mp.get(a, 'worldOrCellDesc')) !== String(mp.get(id, 'worldOrCellDesc'))) return;
+      const p = mp.get(a, 'pos'), q = mp.get(id, 'pos');
+      const lease = leaseOfSpawn(id);
+      const units = Number(lease && lease.aggroSent && lease.aggroSent.get(id)) || AGGRO().units;
+      if (!p || !q || Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) > units * 2 + 500) return;
+    } catch (e) { return; }
+    openAggro(id, 'player near');
+  });
   every('dungeons.arm', 2000, () => {
     const snap = ST.leases.size ? spawnSnapshot() : null;
-    for (const lease of ST.leases.values()) { try { armLease(lease, snap); factionCheck(lease); } catch (e) { log('arm tick failed', e.message); } }
+    for (const lease of ST.leases.values()) {
+      try { armLease(lease, snap); factionCheck(lease); } catch (e) { log('arm tick failed', e.message); }
+      try { aggroPass(lease); } catch (e) { log('aggro pass failed', e.message); }
+    }
   });
 
   // ---- doors and chests -------------------------------------------------------------------------

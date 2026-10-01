@@ -141,6 +141,7 @@ makeProp('ff_hostile', true);    // npcSpawnSystem's "attacks on sight" flag, re
 makeProp('ff_companionOf', true);// companion owner id, tells clients actor is friendly companion
 makeProp('ff_factions', true);   // dungeons.js: the placement template's factions, applied by the client to the spawned actor
 makeProp('ff_outfit', true);     // dungeons.js: armour a spawned actor should wear, equipped by the client
+makeProp('ff_aggroWindow', true); // dungeons.js: the range a player wakes a dungeon spawn at (0 woken), held passive by the client
 
 let nonce = Date.now();
 const deliver = (actorId, line) => { try { mp.set(actorId, CHAT_PROP, `${++nonce}${US}${line}`); } catch (e) { log('deliver failed', actorId, e.message); } };
@@ -3225,7 +3226,7 @@ try {
   const DUNGEONS_JS = path.resolve('dungeons.js'); // gamemode.js is evaluated outside the bundle's module tree, so resolve by cwd
   delete require.cache[DUNGEONS_JS];
   require(DUNGEONS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg, every });
-} catch (e) { log('dungeons.js failed to load:', e.stack || e.message); globalThis.__dboDungeonActivate = null; }
+} catch (e) { log('dungeons.js failed to load:', e.stack || e.message); globalThis.__dboDungeonActivate = null; globalThis.__dboAggroHit = null; }
 
 // ---- coin purses: Harvesting nodes that pay gold ------------------------------------------------
 // Vanilla coin purses are flora whose produce is a leveled gold list; the engine cannot hand that
@@ -4075,6 +4076,7 @@ const hitDamageHook = (aggressorId, targetId, sourceId, damage, ...rest) => {
   try { if (globalThis.__dboChampionHit) globalThis.__dboChampionHit(agg, tgt, dealt); } catch (e) { log('champion hit failed', e.message); }
   try { dealt += superBonusDamage(agg, tgt, Number(sourceId) >>> 0, dealt); } catch (e) { log('supernatural damage failed', e.message); }
   try { if (globalThis.__dboSuperHit && dealt > 0) globalThis.__dboSuperHit(agg, tgt); } catch (e) { log('supernatural hit failed', e.message); }
+  try { if (globalThis.__dboAggroHit && dealt > 0) globalThis.__dboAggroHit(agg, tgt); } catch (e) { log('aggro hit failed', e.message); }
   const prev = globalThis.__dboPrevHitDamage;
   if (prev) { try { return prev(aggressorId, targetId, sourceId, dealt, ...rest); } catch (e) { log('hit damage chain failed', e.message); } }
   return undefined;
