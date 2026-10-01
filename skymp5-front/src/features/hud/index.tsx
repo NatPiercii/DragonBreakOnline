@@ -100,7 +100,9 @@ const Voice = ({ mode, talking }: { mode: string; talking: boolean }) => {
 const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 'playerMenu', 'spellbook', 'expeditionBoard', 'namePrompt', 'shrinePanel', 'schools',
   // Not a panel: the client plays the server's interaction idles (EmoteService dboIdle), so the server may hold a chest
   // for the crouch before it opens (gamemode.js chestHold)
-  'dboIdle'];
+  'dboIdle',
+  // Not panels: the lockpick and rite widgets can play a round and judge it on their own clock (judge 'client')
+  'lockpickLocal', 'riteJudge'];
 const useUiCaps = (): void => {
   useEffect(() => {
     const tell = () => {
