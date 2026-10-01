@@ -1,7 +1,7 @@
 'use strict'
 // Strips from a launcher or client log anything that must not reach a Discord channel: the player's
-// Windows account name, their live play-session token, Nexus one-time download keys, bearer headers and IP addresses.
-// Applied on the server so a launcher that forgets to redact cannot leak; the launcher redacts too.
+// Windows account name, their live play-session token, Nexus one-time download keys, bearer headers, JSON Web Tokens
+// and IP addresses. Applied on the server so a launcher that forgets to redact cannot leak; the launcher redacts too.
 
 const OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
 // Words that put a dotted number in a version, as in "SkyrimSE.exe = 1.5.97.0" or "version 2.2.6.0"
@@ -30,7 +30,12 @@ function ipv6(found) {
 
 // S3-S10 of the auto report rule file: account names in paths, download keys, credentials, bot tokens, long hex runs
 const LOG_RULES = ['S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10']
+// A JSON Web Token: dot-separated base64url parts, the header starting eyJ ('{"'). A LiveKit voice token is one and opens
+// its room for an hour; one cut to two parts still carries its claims, and a JWE has five. It runs first, so S8 or S9
+// cannot take only part of one, and S9 still catches a Discord bot token, whose first part is never eyJ.
+const JWT = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}(?:\.[A-Za-z0-9_-]*){0,3}/g
 const RULES = [
+  [JWT, '<jwt-redacted>'],
   ...require('./scrub-rules.json')
     .filter(rule => LOG_RULES.includes(rule.id))
     .map(rule => [new RegExp(rule.pattern, rule.flags), rule.replacement]),

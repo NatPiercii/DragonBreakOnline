@@ -6,6 +6,7 @@ const crypto  = require('crypto')
 const express = require('express')
 const config  = require('../config')
 const { scrub, dropUiLines, keepEnds } = require('./scrubLog')
+const { filterCrashLog, filterNames } = require('./crashLogFilter')
 const { postReport } = require('./discord/errorReport')
 const audit = require('./discord/audit')
 
@@ -16,6 +17,9 @@ const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log']
 // A Crash Logger log names the crash at its head (the exception, the call stack); launcher 2.1.34 sends it condensed
 // to 48 KB, so it passes whole, and anything longer keeps its head
 const BOTH_ENDS = { csLog: [32 * 1024, 32 * 1024], crashLog: [56 * 1024, 8 * 1024] }
+// Run before the scrub and the cut. A crash log keeps only what staff need (crashLogFilter.js): REGISTERS as register
+// and type, no STACK, and no name or string Crash Logger read from memory. CommunityShaders.log loses Name values.
+const FILTERS = { crashLog: filterCrashLog, csLog: filterNames }
 // Only these context fields are ever repeated back into Discord, and each is scrubbed like a log
 // ramGb, ramFreeGb, cpu and gpu are the machine a crash happened on: through launcher 2.1.34 no report carried any
 // hardware, so a crash class could not be read against the PC and "minimum specs we can publish" had nothing behind
@@ -98,9 +102,10 @@ async function submit(reporter, body) {
     const raw = text(body[field])
     if (!raw) continue
     const ends = BOTH_ENDS[field]
+    const filtered = FILTERS[field] ? FILTERS[field](raw) : { text: raw, redactions: 0 }
     // Scrubbed whole before the cut, so the cap measures what is posted
-    const cleaned = ends ? scrub(dropUiLines(raw), Infinity) : scrub(dropUiLines(raw))
-    redactions += cleaned.redactions
+    const cleaned = ends ? scrub(dropUiLines(filtered.text), Infinity) : scrub(dropUiLines(filtered.text))
+    redactions += filtered.redactions + cleaned.redactions
     files.push({ name: filename, text: ends ? keepEnds(cleaned.text, ...ends) : cleaned.text })
   }
   if (shot.data) files.push({ name: 'screenshot.jpg', data: shot.data, type: 'image/jpeg' })

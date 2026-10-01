@@ -223,3 +223,78 @@ test('a 64 KB crash log keeps its head and tail, and both ends are scrubbed', as
   const counted = Number(posted.summary.match(/_2 log file\(s\), (\d+) redaction\(s\)/)[1])
   assert.ok(counted >= 9, `${counted} redactions`)
 })
+
+// Launcher 2.1.36 condenses a crash log by line counts only, so REGISTERS and STACK arrive with the names and strings
+// Crash Logger read from memory (privacy review, 30 Sep). The server keeps what staff need and none of that
+// (crashLogFilter.js, docs/auto-report-v1.md §2.4 and §2.10).
+test('a crash log reaches staff without the names and strings Crash Logger read from memory', async () => {
+  const { crashLog, SECRETS, jwt } = require('./helpers/crashLogFixture')
+  const body = {
+    reportId: 'test-crash-log-memory', launcherLog: 'launcher starting', crashLog: crashLog(),
+    error: `voice failed with ${jwt}`, note: `crashed in Whiterun, my voice token was ${jwt}`,
+  }
+  const result = await submit({ name: 'Tester', verified: true, profileId: 30 }, body)
+  assert.strictEqual(result.status, 200)
+  const crash = posted.files.find(f => f.name === 'crash.log')
+  assert.ok(crash, 'attached as crash.log')
+  for (const [label, value] of Object.entries(SECRETS)) {
+    assert.ok(!crash.text.includes(value), `${label} left in crash.log`)
+    assert.ok(!posted.summary.includes(value), `${label} left in the summary`)
+  }
+  assert.doesNotMatch(crash.text, /\(char\*\) "[^"]|\[RSP\+|\r/)
+  // What staff need is all there
+  assert.match(crash.text, /^\[crash-2026-10-01-14-22-07\.log, 214 KB, written 2 min before this report, from Documents\]\n/)
+  assert.match(crash.text, /\nUnhandled exception "EXCEPTION_ACCESS_VIOLATION" at 0x7FF6D2A1B2C3 SkyrimSE\.exe\+06B2C3\t/)
+  assert.match(crash.text, /\nPROBABLE CALL STACK:\n\t\[ 0\] 0x7FF6D2A1B2C3 +SkyrimSE\.exe\+06B2C3 -> 19354\+0x23\t/)
+  assert.match(crash.text, /\t\[ 2\] 0x7FFA1B2C3D4E SkyrimPlatformImpl\.dll\+0123D4E\n/)
+  assert.match(crash.text, /\nMODULES:\n\tSkyrimSE\.exe +0x7FF6D2A00000\n/)
+  assert.match(crash.text, /\tMpClientPlugin\.dll +0x7FFA1C000000 C:\\Users\\<user>\\AppData\\/)
+  assert.match(crash.text, /\nSKSE PLUGINS:\n\tCommunityShaders\.dll v1\.9\.1\n\tCrashLoggerSSE\.dll v1\.20\.0\n\tSkyrimPlatform\.dll v2\.9\.0\n/)
+  assert.match(crash.text, /\nPLUGINS:\n\tLight: 1\tRegular: 3\tTotal: 4\n\t\[00\]     Skyrim\.esm\n[\s\S]*\t\[FE:000\] ccBGSSSE001-Fish\.esm$/)
+  assert.match(crash.text, /\nSYSTEM SPECS:\n\tOS: Microsoft Windows 11 Pro v10\.0\.26200\n/)
+  // Registers as register and type, STACK as one line, objects without names or strings
+  assert.match(crash.text, /\nREGISTERS:\n\tRAX \(size_t\)\n\tRCX \(PlayerCharacter\*\)\n\tRDX \(char\*\)\n/)
+  assert.match(crash.text, /\n\nSTACK: \[11 line\(s\) left out by the server, values read from memory\]\n\nMODULES:\n/)
+  assert.match(crash.text, /\tRBX: \(PlayerCharacter\*\) "" \[0x00000014\] \(Skyrim\.esm\)\n/)
+  assert.match(crash.text, /\t\tName: <name>\n\t\tFull Name: <name>\n\t\tFormID: 0xFF000D2F\n\t\tFile: "DragonBreak\.esp"\n/)
+  // The JWT rule covers the context fields and the description as well
+  assert.match(posted.summary, /\nerror: voice failed with <jwt-redacted>\n/)
+  assert.match(posted.summary, /my voice token was <jwt-redacted>/)
+  const counted = Number(posted.summary.match(/_2 log file\(s\), (\d+) redaction\(s\)/)[1])
+  assert.ok(counted >= 25, `${counted} redactions`)
+})
+
+test('a filtered crash log over 64 KB keeps its head and tail, inside the cap, with nothing read from memory', async () => {
+  const { crashLog, SECRETS } = require('./helpers/crashLogFixture')
+  const { MAX_BYTES } = require('../sources/scrubLog')
+  const CUT = '[middle lines cut to fit the upload limit]'
+  const sent = crashLog({ moduleLines: 2400 })
+  assert.ok(Buffer.byteLength(sent) > 100 * 1024, `${Buffer.byteLength(sent)} bytes`)
+  const result = await submit({ name: 'Tester', verified: true, profileId: 30 }, { reportId: 'test-crash-log-memory-cap', crashLog: sent })
+  assert.strictEqual(result.status, 200)
+  const out = posted.files.find(f => f.name === 'crash.log').text
+  assert.ok(Buffer.byteLength(out) <= 64 * 1024 + CUT.length + 1, `${Buffer.byteLength(out)} bytes`)
+  assert.ok(Buffer.byteLength(out) <= MAX_BYTES)
+  assert.strictEqual(out.split('\n').filter(l => l === CUT).length, 1, 'one cut marker')
+  for (const [label, value] of Object.entries(SECRETS)) assert.ok(!out.includes(value), `${label} left in crash.log`)
+  // The head (exception, call stack, registers) and the tail (plugins) both made it
+  assert.match(out, /^\[crash-2026-10-01-14-22-07\.log, /)
+  assert.match(out, /\nUnhandled exception "EXCEPTION_ACCESS_VIOLATION" at /)
+  assert.match(out, /\nREGISTERS:\n\tRAX \(size_t\)\n/)
+  assert.match(out, /\nSTACK: \[11 line\(s\) left out by the server, values read from memory\]\n/)
+  assert.match(out, /\nSKSE PLUGINS:\n\tCommunityShaders\.dll v1\.9\.1\n[\s\S]*\t\[FE:000\] ccBGSSSE001-Fish\.esm$/)
+})
+
+test('CommunityShaders.log loses Name values and keeps its quoted paths', async () => {
+  const stamp = '[2026-09-28 21:15:00.000] [debug] [4120]'
+  const csLog = [
+    `${stamp} [InverseSquareLighting.cpp:45] [InverseSquareLighting] FormID: 0x00012345 | Name: Brelyna Otherplayer - light uninitialised`,
+    `${stamp} [State.cpp:390] Loading "Data\\SKSE\\Plugins\\CommunityShaders\\Features\\GrassLighting.ini"`,
+  ].join('\n')
+  const result = await submit({ name: 'Tester', verified: true, profileId: 5 }, { reportId: 'test-community-shaders-names', csLog })
+  assert.strictEqual(result.status, 200)
+  const cs = posted.files.find(f => f.name === 'CommunityShaders.log').text
+  assert.doesNotMatch(cs, /Brelyna|Otherplayer/)
+  assert.match(cs, /\| Name: <name>\n/)
+  assert.match(cs, /Loading "Data\\SKSE\\Plugins\\CommunityShaders\\Features\\GrassLighting\.ini"$/)
+})

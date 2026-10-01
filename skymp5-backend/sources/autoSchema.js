@@ -523,4 +523,6 @@ function ignoreReason(report) {
 module.exports = {
   validate, ignoreReason, probeOffset, checkBuild, CONTRACT_VERSIONS, KINDS, CAPS, SECTION_CAPS, PATTERNS,
   trailGrammar: { client: CLIENT_TRAIL, server: SERVER_TRAIL },
+  // The §2.4 filters, also run on the crash log of a manual problem report (crashLogFilter.js)
+  SECTION_FILTERS, NAME_VALUE, QUOTED,
 }

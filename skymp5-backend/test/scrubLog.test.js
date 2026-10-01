@@ -115,3 +115,28 @@ test('keepEnds keeps whole lines from both ends and marks the cut', () => {
   assert.ok(Buffer.byteLength(out) <= 2048 + 64)
   assert.strictEqual(keepEnds('short\nlog', 1024, 1024), 'short\nlog')
 })
+
+// A LiveKit voice token is a JWT and opens its room for an hour; Crash Logger can read one from memory into a crash log
+test('a JSON Web Token is redacted whole, in three parts or cut to two, and S9 still takes a bot token', () => {
+  const { jwt, botToken } = require('./helpers/crashLogFixture')
+  const [header, claims, signature] = jwt.split('.')
+  const log = [
+    `voice wss://voice.example/rtc?access_token=${jwt}&auto=1`,
+    `(char*) "${jwt}"`,
+    `cut short ${header}.${claims}`,
+    `token: ${jwt}`,
+    `Bot ${botToken}`,
+  ].join('\n')
+  const { text, redactions } = scrub(log)
+  assert.strictEqual(text, [
+    'voice wss://voice.example/rtc?access_token=<jwt-redacted>&auto=1',
+    '(char*) "<jwt-redacted>"',
+    'cut short <jwt-redacted>',
+    'token: <jwt-redacted>',
+    'Bot <token-redacted>',
+  ].join('\n'))
+  assert.strictEqual(redactions, 5)
+  for (const part of [header, claims, signature, ...botToken.split('.')]) assert.ok(!text.includes(part), part)
+  // A dotted name that merely starts eyJ, and a base64 run with no dot, are not tokens
+  assert.strictEqual(scrub(`eyJx.y ${header}`).text, `eyJx.y ${header}`)
+})
