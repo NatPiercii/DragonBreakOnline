@@ -33,13 +33,20 @@ const run = ({ pelts, dead = true, skinned = false, worth = 5, cap = 12, pending
     tierCap: () => cap,
     rankForValue: () => 2,
     RANK_NAMES: ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'],
-    skinRound: () => ({ nonce: 'n' }),
+    skinRound: () => ({ nonce: 'n', seed: 1, name: 'deer', cuts: 3, minMs: 900 }),
     skinSessions: new Map(),
     openWidget: (a, w) => opened.push(w),
     skinPacket: (r) => ({ type: 'skinning', r }),
     creatureName: () => 'deer',
     peltPending: new Map(pendingSince === undefined ? [] : [[0xff000100, pendingSince]]),
     PELT_PENDING_MS: 2000,
+    // client-judged skinning (minigames.js): the attempt records where it began; nothing here has a position
+    MG: require(path.resolve(__dirname, '..', 'minigames.js')),
+    SKIN: {},
+    log: () => {},
+    display: String,
+    skinKeepClosing: () => {},
+    performance: { now: () => 0 },
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(code, sandbox);

@@ -1912,7 +1912,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
-  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave', '__dboLabourLeave', '__dboPrayerLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
+  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave', '__dboLabourLeave', '__dboPrayerLeave', '__dboSkinLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
@@ -3609,10 +3609,31 @@ const SKIN = Object.assign({
   // Both clocks are monotonic, so only crystal drift between the machines and the widget's 1 ms
   // quantisation can make that difference negative.
   clockSlackMs: 50,
+  // Client-judged (Jake, 2026-09-30; minigames.js): the widget's verdict stands and nothing on the server's clock refuses
+  // an attempt; lagGraceMs and clockSlackMs then only flag. Kept: the nonce, one report, the cut list's shape and replay,
+  // the body still there and not skinned, the tier cap, pelts and mastery. false: today's judging exactly.
+  clientJudged: true,
+  // An attempt nobody reports is cleaned up this long after its length: minutes, never a latency budget
+  roundTimeoutMs: 120000,
+  // Humanly possible, on the widget's own clock: no first cut sooner than this, no two cuts closer (none of the 189 real
+  // wins in the logs to 1 Oct came closer)
+  firstCutMs: 150, cutGapMs: 80,
+  // Distance at the report, in units: near the body (400, about 5.7 m), OR moved less than movedUnits since the attempt
+  // began and within issueUnits of the body when it began. The server's corpse position can be stale (9 earned wins were
+  // lost to the plain 400 check), so standing still is what counts; walking away is still caught.
+  nearUnits: 400, movedUnits: 200, issueUnits: 1500,
+  // Logged, never refused: a report this far behind the server's clock
+  slowFlagMs: 5000,
+  // A claimed win the widget's own cuts do not bear out: 'log' lets it stand with a SKINNING-MISMATCH audit line,
+  // 'refuse' refuses it (DESIGN.md section 12, item 1)
+  replayCheck: 'log',
 }, cfg.skinning || {});
 // Rounds and judged nonces outlive a reload, or every save would strand an attempt in flight
 const skinSessions = globalThis.__dboSkinRounds || (globalThis.__dboSkinRounds = new Map()); // actorId -> round
 const skinSpent = globalThis.__dboSkinSpent || (globalThis.__dboSkinSpent = new Map()); // nonce -> when judged
+// Client-judged: an attempt stopped, superseded or hidden is kept by nonce until its timeout, because client packets are
+// reliable but not ordered and a report sent before the Stop can land after it (DESIGN.md section 13). nonce -> { a, round, how }
+const skinClosing = globalThis.__dboSkinClosing instanceof Map ? globalThis.__dboSkinClosing : (globalThis.__dboSkinClosing = new Map());
 const skinDeny = new Map();
 const skinSay = (a, text) => { if (Date.now() - (skinDeny.get(a) || 0) > 1500) { skinDeny.set(a, Date.now()); personal(a, text); } return false; };
 // Anyone may skin a simple animal (Nat's call, 2026-09-20). Holding the trade is no longer the price
@@ -3647,6 +3668,19 @@ const bladeAt = (ms, sweepMs) => { const phase = (ms % (sweepMs * 2)) / sweepMs;
 // The round the server issues: the seams come from the seed, and the seam width and the blade's
 // period from the Skinner's tier on the same curves as before, clamped here so the values judged
 // with are the values drawn with.
+// The earliest an attempt can be won on the widget's clock with a human hand: the first cut no sooner than firstCutMs,
+// each next one at least cutGapMs after it, each the first millisecond the blade sits in its seam. Logged as min= and
+// the floor a win is held to, on the widget's clock and on the server's counted from when it sent the attempt.
+const skinMinMs = (round) => {
+  let t = Math.max(0, Number(SKIN.firstCutMs) || 0);
+  const gap = Math.max(1, Number(SKIN.cutGapMs) || 1);
+  for (let i = 0; i < round.cuts; i++) {
+    if (i) t += gap;
+    while (t <= round.totalMs && Math.abs(bladeAt(t, round.sweepMs) - round.seams[i]) > round.width / 2) t++;
+    if (t > round.totalMs) return round.totalMs + 1;
+  }
+  return t;
+};
 const skinRound = (casterId, tier, corpse, name) => {
   const seed = Math.floor(Math.random() * 0x100000000) >>> 0;
   const rand = skinRng(seed);
@@ -3656,15 +3690,19 @@ const skinRound = (casterId, tier, corpse, name) => {
   const allowed = Math.max(0, Math.round(Number(SKIN.misses) || 2));
   const seams = [];
   for (let i = 0; i < cuts; i++) seams.push(Math.round((width / 2 + rand() * (1 - width)) * 10000) / 10000);
-  return {
+  const round = {
     nonce: `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     corpse, tier, seed, name, cuts, allowed, width, seams, sweepMs,
     totalMs: Math.max(1000, Math.round((Number(SKIN.seconds) || 15) * 1000)), startedAt: performance.now(),
   };
+  round.minMs = skinMinMs(round);
+  return round;
 };
 // Everything the widget needs to draw the round, and nothing it could use to judge it
 const skinPacket = (round, result, resultKind) => {
   const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, totalMs: round.totalMs };
+  // The widget shows its own verdict at once when it is the judge; an older one ignores the field
+  if (MG.clientJudged(SKIN)) w.judge = 'client';
   if (result) { w.result = result; w.resultKind = resultKind; }
   return w;
 };
@@ -3768,6 +3806,19 @@ globalThis.__dboSkin = (targetId, casterId) => {
     return null;
   }
   const round = skinRound(casterId, tier, targetId, creatureName(targetId));
+  if (MG.clientJudged(SKIN)) {
+    // Where the skinner stood when the attempt began, for the distance rule at the report (skinNear). A body further
+    // than issueUnits by the server's own positions is refused here, while nothing is at stake yet.
+    let p = null, q = null; try { p = mp.get(casterId, 'pos'); q = mp.get(targetId, 'pos'); } catch (e) { /* unknown */ }
+    if (Array.isArray(p) && Array.isArray(q)) {
+      round.issuePos = [Number(p[0]), Number(p[1]), Number(p[2])];
+      round.issueDist = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+      if (round.issueDist > Number(SKIN.issueUnits)) { skinSay(casterId, 'You are too far from the body.'); return false; }
+    }
+    const old = skinSessions.get(casterId);
+    if (old) { skinKeepClosing(casterId, old, 'superseded'); log(`skinning superseded ${display(casterId)} ${old.name} after ${Math.round(performance.now() - old.startedAt)} ms by a new attempt`); }
+    log(`skinning issue ${display(casterId)} ${round.name} t${tier + 1} cuts=${round.cuts} min=${round.minMs} judge=client seed=${round.seed.toString(16)}`);
+  }
   skinSessions.set(casterId, round);
   openWidget(casterId, skinPacket(round), true);
   return false;
@@ -3775,7 +3826,7 @@ globalThis.__dboSkin = (targetId, casterId) => {
 // Replay the attempt against the report. The widget sends the millisecond of every cut it took; the
 // clean ones are counted here, from the blade and the seam list the server issued.
 const judgeSkin = (round, raw, at, elapsed) => {
-  const r = { cuts: 0, slips: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '' };
+  const r = { cuts: 0, slips: 0, count: 0, last: 0, at, lag: Math.round(elapsed - at), err: 0, bad: '', first: -1, minGap: Infinity, sus: [] };
   let list = null;
   if (Array.isArray(raw)) list = raw;
   else if (typeof raw === 'string' && raw.length <= 1024) { try { list = JSON.parse(raw); } catch (e) { list = null; } }
@@ -3791,22 +3842,65 @@ const judgeSkin = (round, raw, at, elapsed) => {
     const d = Math.abs(bladeAt(t, round.sweepMs) - round.seams[r.cuts]);
     const clean = d <= round.width / 2;
     if (clean) { r.err += d / (round.width / 2); r.cuts++; } else r.slips++;
+    if (r.first < 0) r.first = t; else r.minGap = Math.min(r.minGap, t - r.last);
     r.last = t;
   }
   if (r.cuts) r.err /= r.cuts;
   if (r.bad) return r;
-  if (r.last > at) r.bad = 'submit';                    // a cut after the report went out
-  else if (r.lag < -SKIN.clockSlackMs) r.bad = 'future'; // more time on its clock than the server watched pass
+  if (r.last > at) { r.bad = 'submit'; return r; }        // a cut after the report went out
+  if (MG.clientJudged(SKIN)) {
+    // The widget judges: nothing on the server's clock refuses an attempt; the two bounds below become review flags.
+    // A hand no human has, on the widget's own clock, is still refused.
+    r.sus.push(...MG.lagFlags(r.lag, SKIN.clockSlackMs, SKIN.slowFlagMs));
+    if (r.count && (r.first < (Number(SKIN.firstCutMs) || 0) || r.minGap < (Number(SKIN.cutGapMs) || 0))) r.bad = 'fast';
+    return r;
+  }
+  if (r.lag < -SKIN.clockSlackMs) r.bad = 'future';      // more time on its clock than the server watched pass
   else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';      // drawn out in real time, or a report from minutes ago
   return r;
 };
-onUi('skinning', (a, args) => {
-  const ses = skinSessions.get(a);
-  if (!ses || String(args[0]) !== ses.nonce) {
-    if (skinSpent.has(String(args[0]))) log(`skinning replay ${display(a)}: ${String(args[0]).slice(0, 40)} was already judged`);
-    return;
+// Where the skinner is against the body when the report lands: { near, d, moved } in units. Rollback: under 400 units
+// by the server's positions, as before. Client-judged: that, or still standing where the attempt began (moved under
+// movedUnits) with the body within issueUnits then: the server's corpse position can be stale, the skinner's own is not.
+const skinNear = (a, round) => {
+  let p = null, q = null; try { p = mp.get(a, 'pos'); q = mp.get(round.corpse, 'pos'); } catch (e) { /* gone */ }
+  const d = Array.isArray(p) && Array.isArray(q) ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : Infinity;
+  const moved = Array.isArray(p) && Array.isArray(round.issuePos) ? Math.hypot(p[0] - round.issuePos[0], p[1] - round.issuePos[1], p[2] - round.issuePos[2]) : Infinity;
+  if (!MG.clientJudged(SKIN)) return { near: d < 400, d, moved };
+  const still = moved < Number(SKIN.movedUnits) && Number(round.issueDist) <= Number(SKIN.issueUnits);
+  return { near: d < Number(SKIN.nearUnits) || still, d, moved };
+};
+// How long an attempt lives on the server's clock: its length plus minutes when the widget judges (cleanup only)
+const skinLimit = (round) => round.totalMs + Math.max(60000, Number(SKIN.roundTimeoutMs) || 120000);
+const skinKeepClosing = (a, round, how) => {
+  if (!MG.clientJudged(SKIN)) return;
+  for (const [n, c] of skinClosing) if (performance.now() - c.round.startedAt > skinLimit(c.round)) skinClosing.delete(n);
+  skinClosing.set(round.nonce, { a, round, how });
+  while (skinClosing.size > 500) skinClosing.delete(skinClosing.keys().next().value);
+};
+const skinIgnored = MG.limiter(5000);
+// The new widget's verdict, args[3]: '{"v":2,"win":bool,"hits":n,"slips":n,"frames":n,"maxFrameMs":n}' (minigames.js).
+// Anything unreadable is an old widget, judged from its cut times.
+const skinClaimOf = (raw) => {
+  const c = MG.verdictOf(raw);
+  if (!c || typeof c.win !== 'boolean') return null;
+  return { win: c.win, hits: Math.max(0, Math.floor(Number(c.hits) || 0)), slips: Math.max(0, Math.floor(Number(c.slips) || 0)), frames: MG.ms(c.frames), maxFrameMs: MG.ms(c.maxFrameMs) };
+};
+const skinReport = (a, args) => {
+  const nonce = String(args[0]);
+  let ses = skinSessions.get(a);
+  let closed = '';
+  if (!ses || nonce !== ses.nonce) {
+    const c = skinClosing.get(nonce);
+    if (c && c.a === a && performance.now() - c.round.startedAt <= skinLimit(c.round)) { ses = c.round; closed = c.how; }
+    else {
+      if (skinSpent.has(nonce)) log(`skinning replay ${display(a)}: ${nonce.slice(0, 40)} was already judged`);
+      else if (MG.clientJudged(SKIN) && skinIgnored(a, performance.now())) log(`skinning ignored ${display(a)}: ${ses ? 'another attempt is live' : 'no attempt'} for ${nonce.slice(0, 40)}`);
+      return;
+    }
   }
-  skinSessions.delete(a);
+  skinClosing.delete(nonce);
+  if (skinSessions.get(a) === ses) skinSessions.delete(a);
   skinSpent.set(ses.nonce, Date.now());
   while (skinSpent.size > 200) skinSpent.delete(skinSpent.keys().next().value);
   const elapsed = performance.now() - ses.startedAt;
@@ -3815,11 +3909,33 @@ onUi('skinning', (a, args) => {
     log(`skinning stale-ui ${display(a)} ${ses.name}: a cut count, no cut times`);
     return openWidget(a, skinPacket(ses, 'Your interface is out of date. Rejoin the server to pick up the new one.', 'lose'), true);
   }
-  const v = judgeSkin(ses, args[1], Math.max(0, Math.floor(Number(args[2]) || 0)), elapsed);
+  const cj = MG.clientJudged(SKIN);
+  const at = Math.max(0, Math.floor(Number(args[2]) || 0));
+  const v = judgeSkin(ses, args[1], at, elapsed);
+  const claim = cj ? skinClaimOf(args[3]) : null;
   let pelts = []; try { pelts = mp.get(ses.corpse, 'private.dboPelts') || []; } catch (e) { /* corpse gone */ }
   let skinned = true; try { skinned = mp.get(ses.corpse, 'private.dboSkinned') === true; } catch (e) { /* corpse gone */ }
-  let near = false; try { const p = mp.get(a, 'pos'), q = mp.get(ses.corpse, 'pos'); near = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 400; } catch (e) { /* gone */ }
-  const win = !v.bad && v.cuts >= ses.cuts && !skinned && near && pelts.length > 0;
+  const where = skinNear(a, ses);
+  const near = where.near;
+  // Cleanup bound only, minutes past the attempt
+  if (!v.bad && cj && elapsed > skinLimit(ses)) v.bad = 'expired';
+  const replayWin = !v.bad && v.cuts >= ses.cuts;
+  let cutsWin = replayWin;
+  if (!v.bad && claim) {
+    if (claim.win !== replayWin || claim.hits !== v.cuts || claim.slips !== v.slips) v.sus.push('mismatch');
+    if (!claim.win) cutsWin = false;                         // the widget's own loss stands
+    else if (!replayWin) {
+      // A claimed win its own cuts do not bear out: a forged report, or the widget and this file out of step
+      audit(`SKINNING-MISMATCH ${who(a)} ${ses.name} widget=win/${claim.hits}/${claim.slips} replay=${v.cuts}/${v.slips} seed=${ses.seed.toString(16)}`);
+      if (MG.replayRefuses(SKIN)) v.bad = 'mismatch';
+      else if (at < ses.minMs) v.bad = 'fast';
+      else cutsWin = true;
+    }
+  }
+  // Humanly possible on the server's clock too: no win reaching it sooner after it SENT the attempt than the attempt's
+  // fastest (lag only lengthens that)
+  if (!v.bad && cj && cutsWin && MG.serverTooSoon(elapsed, ses.minMs, SKIN.clockSlackMs)) v.bad = 'fast';
+  const win = !v.bad && cutsWin && !skinned && near && pelts.length > 0;
   let text = skinned ? 'Someone has already skinned it.' : !near ? 'You moved away from the body.' : 'The knife slips and the hide tears. Try again.';
   const got = [];
   if (win) {
@@ -3836,11 +3952,38 @@ onUi('skinning', (a, args) => {
   }
   // One line per verdict: clean cuts of those needed, slips, how many cuts were taken, the last cut
   // and the report's own clock, the lag between that clock and the server's, and how far off centre
-  // the clean cuts were (0 dead centre, 1 at the seam's edge).
-  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`);
-  openWidget(a, skinPacket(ses, text, win ? 'win' : 'lose'), true);
+  // the clean cuts were (0 dead centre, 1 at the seam's edge); then who judged, the fastest the attempt could be won,
+  // the widget's claim, review flags, and the distance figures (d: to the body now, moved: since the attempt began).
+  const n0 = (x) => (Number.isFinite(x) ? Math.round(x) : '-');
+  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`
+    + (cj ? MG.tail({ judge: claim ? 'client' : 'legacy', min: ses.minMs, claim: claim ? `${claim.win ? 'win' : 'lose'}/${claim.hits}/${claim.slips}` : null, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
+      + ` d=${n0(where.d)} moved=${n0(where.moved)}${claim ? ` fr=${n0(claim.frames)} maxFrame=${n0(claim.maxFrameMs)}` : ''}` : ''));
+  // A verdict for an attempt whose window is gone (stopped, hidden or replaced) is told in chat
+  if (closed) personal(a, text);
+  else openWidget(a, skinPacket(ses, text, win ? 'win' : 'lose'), true);
+};
+onUi('skinning', skinReport);
+// Stop / Escape / Close. The nonce is checked: a Stop from an attempt already replaced must not end the new one.
+const skinCancel = (a, args) => {
+  const ses = skinSessions.get(a);
+  const nonce = String((args || [])[0]);
+  if (ses && MG.clientJudged(SKIN) && (args || [])[0] !== undefined && nonce !== ses.nonce) {
+    if (skinIgnored(a, performance.now())) log(`skinning ignored ${display(a)}: a Stop for ${nonce.slice(0, 40)}, not the live attempt`);
+    return;
+  }
+  if (ses) { skinKeepClosing(a, ses, 'cancel'); if (MG.clientJudged(SKIN)) log(`skinning abandon(cancel) ${display(a)} ${ses.name} after ${Math.round(performance.now() - ses.startedAt)} ms`); }
+  skinSessions.delete(a);
+  closeWidget(a, SKIN_WIDGET_ID);
+};
+onUi('skinningCancel', skinCancel);
+// Client-judged: attempts nobody reports are swept and logged, so a lost one can be counted; a logout drops the attempt
+every('skinSweep', 30000, () => {
+  if (!MG.clientJudged(SKIN)) return;
+  const now = performance.now();
+  for (const [a, ses] of [...skinSessions]) if (now - ses.startedAt > skinLimit(ses)) { skinSessions.delete(a); log(`skinning expired ${display(a)} ${ses.name} after ${Math.round(now - ses.startedAt)} ms, no report`); }
+  for (const [n, c] of skinClosing) if (now - c.round.startedAt > skinLimit(c.round)) skinClosing.delete(n);
 });
-onUi('skinningCancel', (a) => { skinSessions.delete(a); closeWidget(a, SKIN_WIDGET_ID); });
+globalThis.__dboSkinLeave = (a) => { const ses = skinSessions.get(a); if (!ses) return; skinSessions.delete(a); log(`skinning abandon(logout) ${display(a)} ${ses.name}`); };
 
 // ---- a dead player's body: two things and a cut of the coin, once ------------------------------
 // Nat's rule (2026-09-22): a corpse is not a free kit. The first searcher takes two random stacks

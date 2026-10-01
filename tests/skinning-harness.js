@@ -66,14 +66,17 @@ const seededMath = Object.create(Math);
 seededMath.random = random;
 
 let virtual = 1000;
+// The cases up to "client-judged" are today's server-judged rules: they run with the rollback switch (clientJudged
+// false), which so proves it behaves exactly as before. The client-judged cases are at the end.
+const MG = require(path.resolve(__dirname, '..', 'minigames.js'));
 const sandbox = {
   SKIN_WIDGET_ID: 33,
-  SKIN: { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50 },
+  SKIN: { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50, clientJudged: false },
   performance: { now: () => virtual },
-  Math: seededMath, JSON, Number, Array, String, Object, Date,
+  Math: seededMath, JSON, Number, Array, String, Object, Date, MG,
   out: {},
 };
-const names = ['skinRng', 'bladeAt', 'skinRound', 'skinPacket', 'judgeSkin'];
+const names = ['skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin'];
 vm.runInNewContext(names.map(declOf).join('\n') + `\nout = { ${names.join(', ')} };`, sandbox);
 const { skinRng, bladeAt, skinRound, skinPacket, judgeSkin } = sandbox.out;
 
@@ -230,6 +233,181 @@ reseed(8);
 const seen = new Set();
 for (let i = 0; i < 20; i++) seen.add(JSON.stringify(skinRound(0x14, 2, 1, 'x').seams));
 check('every attempt gets its own seam sequence', seen.size === 20, `${seen.size} distinct of 20`);
+
+// ---- client-judged (skinning.clientJudged true; Jake, 2026-09-30): the widget's verdict stands, latency refuses nothing
+console.log('');
+console.log('client-judged:');
+const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
+const A = 0x14, B = 0x15, CORPSE = 0xff001234, PELT = 0x3ad6f;
+const props = new Map();
+const cj = { logs: [], audits: [], said: [], widgets: [], closed: 0, given: [], events: [] };
+const SK = { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50, bonusByTier: [0, 0, 0, 0, 0],
+  clientJudged: true, roundTimeoutMs: 120000, firstCutMs: 150, cutGapMs: 80, nearUnits: 400, movedUnits: 200, issueUnits: 1500, slowFlagMs: 5000, replayCheck: 'log' };
+const sb = {
+  SKIN_WIDGET_ID: 33, SKIN: SK, MG,
+  performance: { now: () => virtual },
+  Math: seededMath, JSON, Number, Array, String, Object, Date, Map, Set, Infinity, isFinite,
+  skinSessions: new Map(), skinSpent: new Map(), skinClosing: new Map(),
+  log: (...x) => cj.logs.push(x.join(' ')), display: () => 'Skinner #ABCD', who: () => 'Skinner #ABCD (profile 1)',
+  audit: (t) => cj.audits.push(t), personal: (a, t) => cj.said.push(t),
+  openWidget: (a, w) => { cj.widgets.push(w); return true; }, closeWidget: () => { cj.closed++; return true; },
+  mp: { get: (id, k) => props.get(id + '|' + k), set: (id, k, v) => props.set(id + '|' + k, v) },
+  giveItem: (a, id, n) => { cj.given.push([id, n]); return true; },
+  recordOf: () => ({ record: { editorId: 'WolfPelt' } }), edidWords: (e, f) => e || f, peltsWorth: () => 5,
+  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k) },
+  out: {},
+};
+const cjNames = ['skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
+vm.runInNewContext(cjNames.map(declOf).join('\n') + `\nout = { ${cjNames.join(', ')} };`, sb);
+const S = sb.out;
+const pos = (id, p) => props.set(id + '|pos', p);
+// An attempt as __dboSkin issues it: the skinner beside the body, the body with one pelt, not yet skinned
+const issue = (o) => {
+  const opt = Object.assign({ tier: 2, me: [0, 0, 0], body: [100, 0, 0], who: A }, o || {});
+  virtual += 1000000;
+  pos(opt.who, opt.me); pos(CORPSE, opt.body);
+  props.set(CORPSE + '|private.dboPelts', [{ baseId: PELT, count: 1 }]); props.set(CORPSE + '|private.dboSkinned', false);
+  const r = S.skinRound(opt.who, opt.tier, CORPSE, 'wolf');
+  r.issuePos = opt.me.slice(); r.issueDist = Math.hypot(opt.me[0] - opt.body[0], opt.me[1] - opt.body[1], opt.me[2] - opt.body[2]);
+  sb.skinSessions.set(opt.who, r);
+  return r;
+};
+// A human hand: no cut in the first 200 ms, a moment between cuts (the widget itself has no stagger)
+const playHuman = (w, o) => {
+  const opt = Object.assign({ aim: 0.6, react: 200, restMs: 260, sloppy: 0 }, o || {});
+  const times = []; let cuts = 0, slips = 0, ready = opt.react, at = w.totalMs;
+  for (let el = 0; el <= w.totalMs; el += 16) {
+    if (cuts >= w.cuts || slips > w.allowed) { at = el; break; }
+    if (el < ready) continue;
+    const inSeam = Math.abs(bladeAt(el, w.sweepMs) - w.seams[cuts]) <= w.width / 2;
+    const press = opt.sloppy ? random() < opt.sloppy : Math.abs(bladeAt(el, w.sweepMs) - w.seams[cuts]) <= (w.width / 2) * opt.aim;
+    if (!press) continue;
+    times.push(el); ready = el + opt.restMs; at = el;
+    if (inSeam) cuts++; else slips++;
+  }
+  return { times, cuts, slips, at, win: cuts >= w.cuts };
+};
+const claimS = (p) => JSON.stringify({ v: 2, win: p.win, hits: p.cuts, slips: p.slips, frames: 600, maxFrameMs: 34 });
+const reportS = (r, times, at, lag, claim, who) => {
+  virtual = r.startedAt + at + lag;
+  cj.logs.length = 0; cj.given.length = 0; cj.widgets.length = 0; cj.said.length = 0; cj.events.length = 0; cj.audits.length = 0;
+  const args = [r.nonce, typeof times === 'string' ? times : JSON.stringify(times), at];
+  if (claim !== undefined) args.push(claim);
+  S.skinReport(who || A, args);
+  return { log: cj.logs.join(' | '), given: cj.given.slice(), result: cj.widgets[0], said: cj.said.slice(), audits: cj.audits.slice() };
+};
+const vOf = (line) => (/skinning (win|lose|refused\([a-z-]+\)|stale-ui|replay|ignored)/.exec(line) || [])[1] || '?';
+const jOf = (line) => (/ judge=(\w+)/.exec(line) || [])[1] || '?';
+const sOf = (line) => (/ sus=([\w,-]+)/.exec(line) || [])[1] || '';
+
+reseed(20);
+let cr = issue(), cp = playHuman(cr);
+check('the attempt tells the widget it is the judge', S.skinPacket(cr).judge === 'client');
+check('the fastest a hand can win it is computed at issue (min=)', cr.minMs >= 150 && cr.minMs <= cr.totalMs, String(cr.minMs));
+let rs;
+for (const rtt of NET.REQUIRED) {
+  cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+  rs = reportS(cr, cp.times, cp.at, rtt, claimS(cp));
+  check(`the new widget's win is accepted at ${rtt} ms`, vOf(rs.log) === (cp.win ? 'win' : 'lose') && cp.win && jOf(rs.log) === 'client' && rs.given.length === 1, rs.log);
+  cr = issue(); cp = playHuman(cr, { sloppy: 0.2 });
+  const lostP = Object.assign({}, cp, { win: false });
+  rs = reportS(cr, cp.times, cp.at, rtt, claimS(lostP));
+  check(`...and its loss stands at ${rtt} ms`, vOf(rs.log) === 'lose' && rs.given.length === 0, rs.log);
+}
+{
+  const rand = NET.rngOf(21); let changed = 0, n = 0; const seen = [];
+  for (const c of NET.matrix()) {
+    for (let i = 0; i < 6; i++) {
+      cr = issue({ tier: i % 5 }); cp = playHuman(cr, i % 2 ? { sloppy: 0.04 } : { aim: 0.4 + (i % 3) * 0.2 });
+      const lag = NET.arrival(cr.startedAt, cp.at, c, rand) - cr.startedAt - cp.at;
+      rs = reportS(cr, cp.times, cp.at, lag, claimS(cp));
+      n++;
+      if (vOf(rs.log) !== (cp.win ? 'win' : 'lose')) { changed++; if (seen.length < 3) seen.push(`${c.name}: ${rs.log}`); }
+    }
+  }
+  check(`no honest verdict changes under ${NET.matrix().length} network conditions`, changed === 0, `${n} attempts${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+for (const lag of [2500, 3247, 9000, 60000]) {
+  cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+  rs = reportS(cr, cp.times, cp.at, lag);
+  check(`an old widget's cut report ${lag / 1000} s late is judged from its cuts and wins`, vOf(rs.log) === 'win' && jOf(rs.log) === 'legacy' && rs.given.length === 1, rs.log);
+}
+// Duplicate and foreign nonces
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 400, claimS(cp));
+const dupS = reportS(cr, cp.times, cp.at, 900, claimS(cp));
+check('a second report for the same attempt pays nothing (replay)', vOf(rs.log) === 'win' && vOf(dupS.log) === 'replay' && dupS.given.length === 0, dupS.log);
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(Object.assign({}, cr, { nonce: '14-forged' }), cp.times, cp.at, 400, claimS(cp));
+check('a report on a nonce this skinner was never issued pays nothing', rs.given.length === 0 && /skinning ignored .*another attempt is live/.test(rs.log), rs.log);
+rs = reportS(cr, cp.times, cp.at, 400, claimS(cp), B);
+check("another player's report on this skinner's nonce pays nothing", rs.given.length === 0 && /skinning ignored .*no attempt/.test(rs.log), rs.log);
+rs = reportS(cr, cp.times, cp.at, 400, claimS(cp));
+check('...and the attempt is still there for its own skinner', vOf(rs.log) === 'win' && rs.given.length === 1, rs.log);
+// Impossible durations
+cr = issue();
+{ const quick = [10, 20, 30]; rs = reportS(cr, quick, 30, 120, JSON.stringify({ v: 2, win: true, hits: 3, slips: 0 })); }
+check('cuts no hand could make (the first at 10 ms) are refused(fast)', vOf(rs.log) === 'refused(fast)' && rs.given.length === 0, rs.log);
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, -cp.at + 50, claimS(cp));
+check('a win reaching the server 50 ms after it sent the attempt is refused(fast)', vOf(rs.log) === 'refused(fast)' && rs.given.length === 0, rs.log);
+// Caps unchanged: one skinning per body, the pelts it holds, the Skinner credited once
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 2500, claimS(cp));
+check('a client-judged win takes the pelt and marks the body skinned', vOf(rs.log) === 'win' && rs.given.length === 1 && rs.given[0][0] === PELT && props.get(CORPSE + '|private.dboSkinned') === true && cj.events.join() === 'skin', rs.log);
+{
+  const r2 = S.skinRound(A, 2, CORPSE, 'wolf'); r2.issuePos = [0, 0, 0]; r2.issueDist = 100; sb.skinSessions.set(A, r2); r2.startedAt = virtual;
+  const p2 = playHuman(r2, { aim: 0.5 });
+  rs = reportS(r2, p2.times, p2.at, 400, claimS(p2));
+  check('...so a second attempt on the same body wins nothing', vOf(rs.log) === 'lose' && /already-skinned/.test(rs.log) && rs.given.length === 0, rs.log);
+}
+// Distance: the stale corpse position that cost 9 earned wins, and walking away
+cr = issue({ body: [900, 0, 0] }); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 400, claimS(cp));
+check('a skinner who stood still wins though the server puts the body 900 units off (stale position)', vOf(rs.log) === 'win' && rs.given.length === 1, rs.log);
+cr = issue(); cp = playHuman(cr, { aim: 0.5 }); pos(A, [3000, 0, 0]);
+rs = reportS(cr, cp.times, cp.at, 400, claimS(cp));
+check('a skinner who walked 3000 units away loses (too far)', vOf(rs.log) === 'lose' && /too-far/.test(rs.log) && rs.given.length === 0, rs.log);
+// Cleanup, not a deadline
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 100000, claimS(cp));
+check('a report 100 s late is still judged', vOf(rs.log) === 'win', rs.log);
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 200000, claimS(cp));
+check('a report past the 2 min cleanup is refused(expired)', vOf(rs.log) === 'refused(expired)' && rs.given.length === 0, rs.log);
+// Stop overtaking the report, and a Stop from an attempt already replaced
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+virtual = cr.startedAt + cp.at + 20; S.skinCancel(A, [cr.nonce]);
+rs = reportS(cr, cp.times, cp.at, 300, claimS(cp));
+check('a report that lands after Stop is still judged and paid, its verdict told in chat', vOf(rs.log) === 'win' && /after-cancel/.test(sOf(rs.log)) && rs.given.length === 1 && !rs.result && rs.said.length === 1, rs.log);
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+S.skinCancel(A, ['14-an-older-attempt']);
+check('a Stop for an older attempt does not end the live one', sb.skinSessions.get(A) === cr);
+rs = reportS(cr, cp.times, cp.at, 300, claimS(cp));
+check('...which still wins', vOf(rs.log) === 'win', rs.log);
+// Mismatches
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+{ const forged = [1000, 2000, 3000]; rs = reportS(cr, forged, cr.totalMs - 10, 120, JSON.stringify({ v: 2, win: true, hits: 3, slips: 0 })); }
+const realCuts = bladeCount(cr, [1000, 2000, 3000]);
+check("replayCheck 'log' (default): a claimed win its cuts do not bear out stands, flagged and audited", realCuts.cuts >= cr.cuts || (vOf(rs.log) === 'win' && /mismatch/.test(sOf(rs.log)) && rs.audits.some((t) => /^SKINNING-MISMATCH /.test(t))), rs.log);
+SK.replayCheck = 'refuse';
+cr = issue();
+{ const forged = [1000, 2000, 3000]; rs = reportS(cr, forged, cr.totalMs - 10, 120, JSON.stringify({ v: 2, win: true, hits: 3, slips: 0 })); }
+check("replayCheck 'refuse': it is refused", bladeCount(cr, [1000, 2000, 3000]).cuts >= cr.cuts || vOf(rs.log) === 'refused(mismatch)', rs.log);
+SK.replayCheck = 'log';
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 120, claimS(Object.assign({}, cp, { win: false })));
+check("the widget's own loss stands even when its cuts replay to a win", vOf(rs.log) === 'lose' && /mismatch/.test(sOf(rs.log)) && rs.given.length === 0, rs.log);
+// Rollback: clientJudged false refuses on lag exactly as before, and the plain 400-unit rule is back
+SK.clientJudged = false;
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 4000, claimS(cp));
+check('rollback (clientJudged false): the same 4 s late report is refused(late) again', vOf(rs.log) === 'refused(late)' && rs.given.length === 0 && !/ judge=/.test(rs.log), rs.log);
+cr = issue({ body: [900, 0, 0] }); cp = playHuman(cr, { aim: 0.5 });
+rs = reportS(cr, cp.times, cp.at, 400, claimS(cp));
+check('...and the stale body position loses again (too far)', vOf(rs.log) === 'lose' && /too-far/.test(rs.log), rs.log);
+check('...and the widget is not told it judges', S.skinPacket(cr).judge === undefined);
+SK.clientJudged = true;
 
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
