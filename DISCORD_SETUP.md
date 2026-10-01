@@ -58,3 +58,20 @@ with the login log.
 
 The game server reads a player's roles at login only. A role change in Discord
 takes effect on the next login. The backend bot logs the change immediately.
+
+## Voice reports: a doubled or echoing voice
+
+The usual cause is not the speaker but someone near them: a player on speakers with voice activation whose echo
+cancellation is not working sends the voices they hear back through their open mic, so everyone near them hears the
+speaker twice (Double Voice, #bugs 1555114080350507049, 1 Oct). Relogging the listeners does not help; the speaker
+walking away does.
+
+1. On the dev server: `sudo python3 tools/voice-room.py --watch 8` (read-only; prints identities, never keys). The
+   identities are the characters' actor ids in hex, the same ids the server log uses.
+   - `in the room twice` or `more than one audio track` names a stuck connection: the player relogs.
+   - `mic open in samples: ff00xxxx 7/8` is a mic that stays open: that player is on voice activation. Ask them first.
+2. From client 0.3.75 the server log says which players have no echo cancellation:
+   `grep -a "voice echo loop" /var/log/skymp-server.log | tail`, e.g. `voice echo loop off (...); activation vad (using
+   ptt)`. Those clients already fall back to push-to-talk and told the player once.
+3. What to tell players, short and friendly: use headphones, or switch the launcher's Voice setting to push-to-talk
+   (the default). Going through a door and back clears it for the moment.
