@@ -94,6 +94,7 @@
     box-shadow: 0 0 8px rgba(215, 227, 227, 0.8);
 
     &--struck { background: $dbo-gold; }
+    &--miss { background: #b8322a; }
   }
 
   &__hint {
