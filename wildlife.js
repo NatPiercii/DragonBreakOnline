@@ -101,7 +101,13 @@ module.exports = (api) => {
   const campChests = new Map(); // refId -> { camp, chest }
   for (const camp of (DATA.giantCamps || []).concat(OWNED.camps || [])) for (const ch of camp.chests || []) { const id = idOf(ch.ref); if (id) campChests.set(id, { camp, chest: ch }); }
   const lootsOf = (a) => { try { const r = mp.get(a, 'private.campLoot'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
-  const pool = (name) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')));
+  // No Ebony, Daedric or Dragon gear either, nor the ebony ingot (dungeons.js BANNED_LOOT, shared through
+  // globalThis.__dboBannedLoot); without that pattern the chest gives no weapon and no material at all
+  const pool = (name) => {
+    const banned = globalThis.__dboBannedLoot instanceof RegExp ? globalThis.__dboBannedLoot : null;
+    if (!banned && (name === 'weapons' || name === 'materials')) return [];
+    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || ''))));
+  };
   const campLoot = () => {
     const out = [];
     const add = (item, count) => { if (!item) return; const id = idOf(item.id); if (id) out.push({ id, count, name: item.name }); };
