@@ -665,6 +665,33 @@ for (const rtt of NET.REQUIRED) {
   }
   check(`no honest verdict changes under ${NET.matrix().length} network conditions (0 to 2.5 s, jitter, resends, spikes, a stall, clock rate +-0.5%)`, changed === 0, `${n} prayers${seen.length ? ' | ' + seen.join(' | ') : ''}`);
 }
+// Review LAT-1 (2026-10-01): a worshipper who rises as soon as the widget shows the hold. The server checks the distance
+// when the report lands, so a delayed or resent report finds them further off; the radius grows with that report's lag.
+{
+  const rand = NET.rngOf(6); let changed = 0, n = 0, beyond = 0; const seen = [];
+  for (const c of NET.leaveMatrix()) {
+    for (const who of NET.LEAVERS) {
+      f = freshC();
+      const tStart = NET.trip(c, rand), tRep = NET.trip(c, rand);
+      const wait = 400 + Math.floor(rand() * 3000);
+      nearM = 2.5 + NET.leftMeters(c, tRep, who);
+      if (nearM > 12) beyond++;
+      res = playC(f, { startArrive: f.start + tStart.down + Math.round(wait * c.rate) + tStart.up - c.spike, reportArrive: f.start + tStart.down + Math.round((wait + f.w.totalMs) * c.rate) + tRep.up + c.stall, claim: claimC({ waitMs: wait }) });
+      n++;
+      if (verdictOf(res.log) !== 'held') { changed++; if (seen.length < 3) seen.push(`${c.name}, ${who.name}: ${res.log}`); }
+    }
+  }
+  nearM = 2;
+  check(`a worshipper who rises right after the verdict keeps the hold under ${NET.leaveMatrix().length} network conditions (${beyond} of ${n} past the 12 m radius when the report landed)`, changed === 0 && beyond > 0, `${n} prayers${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+// The live refusals this change is for: holds whose report sat 3.4 to 12.4 s on the way, the worshipper running off
+for (const late of [3400, 12400]) {
+  f = freshC();
+  nearM = 2.5 + (late - 1150) * 6.4 / 1000;
+  res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + late });
+  check(`a hold whose report sat ${late / 1000} s on the way is held though the worshipper sprinted ${Math.round(nearM)} m off meanwhile`, verdictOf(res.log) === 'held', res.log);
+}
+nearM = 2;
 // The old widget (0.3.71: spans and its clock, no verdict) at high latency
 for (const lag of [2500, 4500, 12400, 60000]) {
   f = freshC();

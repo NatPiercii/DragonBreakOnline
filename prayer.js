@@ -499,6 +499,9 @@ module.exports = (api) => {
   const keepClosing = (a, round, how) => {
     if (!clientJudged()) return;
     for (const [n, c] of closing) if (nowMs() > limitOf(c.round)) closing.delete(n);
+    // Where the worshipper was when the close arrived: they rise after the verdict, so this is never further than when
+    // the report was sent, and it still counts if a load door has since taken them to another cell (review LAT-1)
+    try { if (round.refId !== ANYWHERE_REF && typeof distanceMeters === 'function') round.closeNear = distanceMeters(a, round.refId); } catch (e) { /* unknown */ }
     closing.set(round.nonce, { a, round, how });
     while (closing.size > 500) closing.delete(closing.keys().next().value);
   };
@@ -785,12 +788,18 @@ module.exports = (api) => {
     if (cj) {
       // Cleanup bound only: minutes past the verses
       if (now > limitOf(round)) { v.bad = 'expired'; win = false; }
-      // Still at the shrine (not for a faith prayed anywhere): the worshipper kneels while praying, so the server's
-      // position lagging behind theirs cannot fail it
+      // Still at the shrine (not for a faith prayed anywhere): within nearMeters, plus what the report's own lag lets a
+      // worshipper who rose after the verdict cover (MG.lagReach; the lag is the server's time since it sent the round
+      // less the widget's wait and hold, or for an old widget the server's time since the first press less its clock),
+      // or where they were when their close arrived (review LAT-1)
       if (!v.bad || ORDINARY.has(v.bad)) {
         if (round.refId !== ANYWHERE_REF && Number(CFG.nearMeters) > 0 && typeof distanceMeters === 'function') {
           near = distanceMeters(a, round.refId);
-          if (!(near <= Number(CFG.nearMeters))) { v.bad = 'away'; win = false; }
+          if (closed && Number(round.closeNear) < near) near = Number(round.closeNear);
+          const wait = claim && Number.isFinite(claim.waitMs) ? claim.waitMs : round.waitMs;
+          const held = claim && Number.isFinite(claim.durMs) ? claim.durMs : at;
+          const reportLag = Number.isFinite(wait) ? sinceSent - wait - held : elapsed - at;
+          if (!(near <= Number(CFG.nearMeters) + MG.lagReach(reportLag))) { v.bad = 'away'; win = false; }
         }
       }
       if (claim && (!v.bad || ORDINARY.has(v.bad))) {

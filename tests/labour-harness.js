@@ -588,6 +588,37 @@ load();
   }
   check(`no honest verdict changes under ${NET.matrix().length} network conditions (0 to 2.5 s, jitter, resends, 5 and 10 s spikes, an 8.8 s stall, clock rate +-0.5%)`, changed === 0, `${rounds} rounds, ${wins} wins${seen.length ? ' | ' + seen.join(' | ') : ''}`);
 }
+// Review LAT-1 (2026-10-01): a worker who leaves as soon as the widget shows the win. The server checks the distance when
+// the report lands, so a delayed or resent report finds them further off; the radius grows with that report's own lag.
+{
+  const rand = NET.rngOf(12);
+  let changed = 0, n = 0, beyond = 0; const seen = [];
+  for (const c of NET.leaveMatrix()) {
+    for (const who of NET.LEAVERS) {
+      w = fresh('mining', 3); p = play(w, { aim: 0.5 });
+      const t = NET.trip(c, rand);
+      const lag = NET.arrivalOf(T, p.at, c, t) - T - p.at;
+      nearM = 3 + NET.leftMeters(c, t, who);
+      if (nearM > 15) beyond++;
+      res = reportC(w, p.strikes, p.at, lag, T, claimOf(p.hits >= w.strikes, p.hits));
+      n++;
+      if (verdictOf(res.log) !== (p.hits >= w.strikes ? 'win' : 'lose')) { changed++; if (seen.length < 3) seen.push(`${c.name}, ${who.name}: ${res.log}`); }
+    }
+  }
+  check(`a worker who leaves right after the verdict keeps it under ${NET.leaveMatrix().length} network conditions (${beyond} of ${n} past the 15 m radius when the report landed)`, changed === 0 && beyond > 0, `${n} rounds${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+w = fresh(); p = play(w, { aim: 0.5 }); nearM = 17;
+res = reportC(w, p.strikes, p.at, 120, T, claimOf(true, p.hits));
+check('the radius grows only with the report\'s own lag: 17 m off at 120 ms (15 m + 1.2 m) is refused(far)', verdictOf(res.log) === 'refused(far)', res.log);
+w = fresh(); p = play(w, { aim: 0.5 }); nearM = 17;
+res = reportC(w, p.strikes, p.at, 1000, T, claimOf(true, p.hits));
+check('...and 17 m off when the report took 1 s (15 m + 10 m) is a win', verdictOf(res.log) === 'win', res.log);
+w = fresh(); p = play(w, { aim: 0.5 });
+virtual = T + p.at + 300; fire('labourCancel', [w.nonce]);
+nearM = Infinity;
+res = reportC(w, p.strikes, p.at, 2000, T, claimOf(true, p.hits));
+check('a report that lands after a load door took the worker to another cell counts where they were when the close arrived', verdictOf(res.log) === 'win' && res.items.length === 1, res.log);
+nearM = 2;
 for (const rtt of NET.REQUIRED) {
   w = fresh(); p = play(w, { aim: 0.5 });
   res = reportC(w, p.strikes, p.at, rtt, T, claimOf(true, p.hits));

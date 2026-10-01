@@ -110,10 +110,11 @@ module.exports = (api) => {
       return true;
     } catch (e) { log('lockpick: taking a pick failed', e.message); return false; }
   };
-  const near = (a, target) => {
+  // extra: units beyond the reach, for a client lock's result (MG.lagReachUnits of the report's own lag, review LAT-1)
+  const near = (a, target, extra) => {
     try {
       const p = mp.get(a, 'pos'), t = mp.get(target, 'pos');
-      return Math.hypot(p[0] - t[0], p[1] - t[1], p[2] - t[2]) <= C.reach;
+      return Math.hypot(p[0] - t[0], p[1] - t[1], p[2] - t[2]) <= C.reach + (Number(extra) || 0);
     } catch (e) { return true; }
   };
 
@@ -189,6 +190,9 @@ module.exports = (api) => {
   };
   const keepClosing = (L) => {
     for (const [n, c] of closing) if (Date.now() - (Number(c.at) || 0) > timeoutMs()) closing.delete(n);
+    // Whether the picker was in reach when the cancel or close arrived: they leave after the verdict, so this is never
+    // further than when the result was sent, and it still counts after a load door (review LAT-1)
+    if (L.target) L.closeNear = near(L.a, L.target, 0);
     closing.set(L.nonce, L);
     while (closing.size > 500) closing.delete(closing.keys().next().value);
   };
@@ -375,7 +379,9 @@ module.exports = (api) => {
       else if (outcome !== r.outcome) bad = 'inconsistent';
       else if (outcome === 'win' && (r.tooFast || !(own >= minMs) || MG.serverTooSoon(sinceSent, minMs, 50))) bad = 'fast';
       else if (outcome === 'win' && superseded(L)) bad = 'superseded';
-      else if (outcome === 'win' && L.target && !near(a, L.target)) bad = 'far';
+      // Still at the lock: its reach plus what the result's own lag lets a picker who left after the verdict cover, or in
+      // reach when the cancel or close arrived. Lag cannot fail it; walking off before the result is still refused.
+      else if (outcome === 'win' && L.target && !near(a, L.target, MG.lagReachUnits(sinceSent - own)) && !(closed && L.closeNear === true)) bad = 'far';
     }
     if (r.mismatch) audit(`LOCKPICK-MISMATCH ${who(a)} ${LEVELS[L.level]} ${String(L.label).toLowerCase()} ${r.mismatch} tr${r.mismatch === 1 ? 'y' : 'ies'} the hang times do not bear out`);
     // A win needs a pick still in hand once the snapped ones are gone

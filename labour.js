@@ -389,6 +389,9 @@ module.exports = (api) => {
   const keepClosing = (a, round) => {
     if (!clientJudged()) return;
     for (const [n, c] of closing) if (nowMs() - c.round.startedAt > limitMs(c.round)) closing.delete(n);
+    // Where the worker was when the close arrived: they leave after the verdict, so this is never further than when the
+    // report was sent, and it still counts if a load door has since taken them to another cell (review LAT-1)
+    try { if (typeof distanceMeters === 'function') round.closeNear = distanceMeters(a, round.refId); } catch (e) { /* unknown */ }
     closing.set(round.nonce, { a, round });
     while (closing.size > 500) closing.delete(closing.keys().next().value);
   };
@@ -497,10 +500,12 @@ module.exports = (api) => {
     const replayWin = !v.bad && v.hits >= round.strikes;
     // Only a cleanup bound, minutes past the round: a report this late belongs to a round already given up on
     if (!v.bad && cj && elapsed > limitMs(round)) v.bad = 'expired';
-    // Still at the node: the server's last streamed position, against a radius twice the activation reach. The worker
-    // stands still while playing, so the server's position lagging behind theirs cannot fail it.
-    const near = cj && Number(CFG.nearMeters) > 0 && typeof distanceMeters === 'function' ? distanceMeters(a, round.refId) : undefined;
-    if (!v.bad && near !== undefined && !(near <= Number(CFG.nearMeters))) v.bad = 'far';
+    // Still at the node: the server's last streamed position, against a radius twice the activation reach, plus what the
+    // report's own lag lets a worker who left after the verdict cover (MG.lagReach), or where they were when their
+    // close arrived. Neither depends on the connection: walking off before the verdict is still refused.
+    let near = cj && Number(CFG.nearMeters) > 0 && typeof distanceMeters === 'function' ? distanceMeters(a, round.refId) : undefined;
+    if (near !== undefined && closed && Number(round.closeNear) < near) near = Number(round.closeNear);
+    if (!v.bad && near !== undefined && !(near <= Number(CFG.nearMeters) + MG.lagReach(elapsed - at))) v.bad = 'far';
     let win = !v.bad && replayWin;
     if (!v.bad && claim) {
       if (claim.win !== replayWin || claim.hits !== v.hits) v.sus.push('mismatch');

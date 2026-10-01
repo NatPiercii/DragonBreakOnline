@@ -50,10 +50,38 @@ const trip = (c, rand) => {
   return { down: Math.max(0, Math.round(j())) + resend(), up: Math.max(0, Math.round(j())) + resend() + c.spike };
 };
 
-// When the report reaches the server, on the server's clock, for a widget that played `own` ms on its own clock
-const arrival = (issueAt, own, c, rand) => {
-  const t = trip(c, rand || rngOf(1));
-  return issueAt + t.down + Math.round(own * c.rate) + t.up + c.stall;
-};
+// When the report reaches the server, on the server's clock, for a widget that played `own` ms on its own clock: for a
+// trip already drawn (arrivalOf), or drawing one (arrival)
+const arrivalOf = (issueAt, own, c, t) => issueAt + t.down + Math.round(own * c.rate) + t.up + c.stall;
+const arrival = (issueAt, own, c, rand) => arrivalOf(issueAt, own, c, trip(c, rand || rngOf(1)));
 
-module.exports = { LEVELS, REQUIRED, rngOf, condition, matrix, trip, arrival };
+// Players who leave as soon as the widget shows its verdict (review LAT-1, 2026-10-01). The new widgets judge at once
+// and Escape closes the panel on the player's machine (dboRelayService), so nothing holds them at the node, shrine,
+// body or lock. Their position reaches the server in movement packets that are UNRELIABLE, sent every 130 ms
+// (sendInputsService), while the report is reliable and may be resent or delayed, so it can land after positions they
+// sent later. The two speeds are the ones the review measured: a run (about 300 units/s) and a sprint (about 450).
+const UNITS_PER_METER = 70;
+const LEAVERS = [
+  { name: 'leaves 1.0 s after the verdict, running', closeMs: 1000, turnMs: 150, unitsPerSec: 300 },
+  { name: 'leaves 0.3 s after the verdict, sprinting', closeMs: 300, turnMs: 150, unitsPerSec: 450 },
+];
+// How far (in units) from where the player stood the server has them when the report lands, for a trip t drawn under
+// condition c: the report reached it t.up + c.stall after the verdict, and the newest position it held then was sent
+// one plain one-way trip earlier (no spike and no resend: a lost movement packet is never sent again), at the least the
+// jitter allows. The worst case for the player: they ran for all of the rest.
+const leftUnits = (c, t, who) => {
+  const move = (c.rtt / 2) * (1 - c.jitter);
+  const ran = t.up + c.stall - move - who.closeMs - who.turnMs;
+  return (Math.max(0, ran) * who.unitsPerSec) / 1000;
+};
+const leftMeters = (c, t, who) => leftUnits(c, t, who) / UNITS_PER_METER;
+// The conditions a leaver is run under: the whole matrix, plus a report lost once and resent (RakNet resends after
+// 2 x RTT + 30 ms, at most 2 s) at 150 ms, 1 s and 2.5 s of round trip. A spike on the report alone is the same as a
+// freeze of the whole link here: either way the report lands late and the positions sent meanwhile do not.
+const leaveMatrix = () => matrix().concat([
+  condition('150 ms, the report lost once (resent after 330 ms)', { rtt: 150, spike: 330 }),
+  condition('1000 ms, the report lost once (resent after 2 s)', { rtt: 1000, spike: 2000 }),
+  condition('2500 ms, the report lost once (resent after 2 s)', { rtt: 2500, spike: 2000 }),
+]);
+
+module.exports = { LEVELS, REQUIRED, rngOf, condition, matrix, trip, arrival, arrivalOf, LEAVERS, leftUnits, leftMeters, leaveMatrix, UNITS_PER_METER };

@@ -227,6 +227,42 @@ for (const rtt of NET.REQUIRED) {
   }
   check(`no honest verdict changes under ${NET.matrix().length} network conditions`, changed === 0, `${n} locks${seen.length ? ' | ' + seen.join(' | ') : ''}`);
 }
+// Review LAT-1 (2026-10-01): a picker who leaves as soon as the widget shows the lock giving way. The server checks the
+// distance when the result lands; the reach grows with that result's own lag.
+{
+  const rand = NET.rngOf(32); let changed = 0, n = 0, beyond = 0; const seen = [];
+  for (const c of NET.leaveMatrix()) {
+    for (const who of NET.LEAVERS) {
+      lw = beginC(1);
+      const r = playLock(lw, ['miss', 'hit', 'hit']);
+      const t = NET.trip(c, rand);
+      const left = NET.leftUnits(c, t, who);
+      if (100 + left > 400) beyond++;
+      set(A, 'pos', [-left, 0, 0]);
+      const line = send(lw, r, NET.arrivalOf(0, 0, c, t));
+      set(A, 'pos', [0, 0, 0]);
+      n++; if (!/^lockpick win /.test(line)) { changed++; if (seen.length < 3) seen.push(`${c.name}, ${who.name}: ${line}`); }
+    }
+  }
+  check(`a picker who leaves right after the verdict keeps the lock under ${NET.leaveMatrix().length} network conditions (${beyond} of ${n} past the 400-unit reach when the result landed)`, changed === 0 && beyond > 0, `${n} locks${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+lw = beginC(1);
+{
+  const r = playLock(lw, ['hit', 'hit']);
+  set(A, 'pos', [-600, 0, 0]);
+  const line = send(lw, r, 300);
+  set(A, 'pos', [0, 0, 0]);
+  check("the reach grows only with the result's own lag: 700 units off at 300 ms (400 + 210) is refused(far)", /^lockpick refused\(far\)/.test(line) && opened === 0, line);
+}
+lw = beginC(1);
+{
+  const r = playLock(lw, ['hit', 'hit']);
+  ui.lockpickCancel(A, [lw.nonce]);
+  set(A, 'pos', [-9000, 0, 0]);
+  const line = send(lw, r, 2000);
+  set(A, 'pos', [0, 0, 0]);
+  check('a result that lands after the picker went through a load door counts where they were when the cancel arrived', /^lockpick win /.test(line) && opened === 1, line);
+}
 // The snaps the server rolled decide the picks, on a cancel too
 roll = 0.1; // every miss snaps
 lw = beginC(2, 3);

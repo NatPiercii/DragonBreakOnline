@@ -327,6 +327,33 @@ for (const rtt of NET.REQUIRED) {
   }
   check(`no honest verdict changes under ${NET.matrix().length} network conditions`, changed === 0, `${n} attempts${seen.length ? ' | ' + seen.join(' | ') : ''}`);
 }
+// Review LAT-1 (2026-10-01): a skinner who leaves as soon as the widget shows the win, straight away from the body. The
+// server checks the distance when the report lands; both thresholds grow with that report's own lag.
+{
+  const rand = NET.rngOf(22); let changed = 0, n = 0, beyond = 0; const seen = [];
+  for (const c of NET.leaveMatrix()) {
+    for (const who of NET.LEAVERS) {
+      cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+      const t = NET.trip(c, rand);
+      const lag = NET.arrivalOf(cr.startedAt, cp.at, c, t) - cr.startedAt - cp.at;
+      const left = NET.leftUnits(c, t, who);
+      if (left >= SK.movedUnits) beyond++;
+      pos(A, [-left, 0, 0]);
+      rs = reportS(cr, cp.times, cp.at, lag, claimS(cp));
+      n++;
+      if (vOf(rs.log) !== (cp.win ? 'win' : 'lose')) { changed++; if (seen.length < 3) seen.push(`${c.name}, ${who.name}: ${rs.log}`); }
+    }
+  }
+  check(`a skinner who leaves right after the verdict keeps it under ${NET.leaveMatrix().length} network conditions (${beyond} of ${n} past the 200-unit moved rule when the report landed)`, changed === 0 && beyond > 0, `${n} attempts${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+cr = issue(); cp = playHuman(cr, { aim: 0.5 }); pos(A, [-700, 0, 0]);
+rs = reportS(cr, cp.times, cp.at, 300, claimS(cp));
+check('the thresholds grow only with the report\'s own lag: 700 units off at 300 ms loses (too far)', vOf(rs.log) === 'lose' && /too-far/.test(rs.log), rs.log);
+cr = issue(); cp = playHuman(cr, { aim: 0.5 });
+virtual = cr.startedAt + cp.at + 400; S.skinCancel(A, [cr.nonce]);
+pos(A, [-5000, 0, 0]);
+rs = reportS(cr, cp.times, cp.at, 2000, claimS(cp));
+check('a report that lands after the skinner went through a load door counts where they were when the Stop arrived', vOf(rs.log) === 'win' && rs.given.length === 1, rs.log);
 for (const lag of [2500, 3247, 9000, 60000]) {
   cr = issue(); cp = playHuman(cr, { aim: 0.5 });
   rs = reportS(cr, cp.times, cp.at, lag);

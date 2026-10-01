@@ -182,7 +182,8 @@ it, so a refused packet no longer reaches other clients; hosted actors keep the 
   server's (seed, bands, deadlines, a nonce), but the widget plays it on its own clock, decides the result and sends it
   as one trailing argument, a JSON verdict of at most 256 characters (`{"v":1,"win":true,...}`), beside the timings it
   always sent. The server accepts that verdict and keeps ONLY checks latency cannot fail: the round was issued to this
-  player, one report per round, the player still near the node/body/shrine/lock where that matters, no faster than the
+  player, one report per round, the player still near the node/body/shrine/lock where that matters (the radius grows by
+  10 m for each second of the report's own lag, at most 120 m, so leaving after the verdict is never lost to lag), no faster than the
   round's exact minimum (on the widget's clock, and on the server's clock only as a LOWER bound counted from when it
   sent the round), cooldowns, caps, tier gates and reward tables. It never uses an upper bound in seconds on its own
   clock: `late`, `future` and the rite's arrival timer are gone, a round unreported for minutes is cleaned up, and

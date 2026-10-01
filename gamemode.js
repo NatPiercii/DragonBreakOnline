@@ -3862,19 +3862,25 @@ const judgeSkin = (round, raw, at, elapsed) => {
 // Where the skinner is against the body when the report lands: { near, d, moved } in units. Rollback: under 400 units
 // by the server's positions, as before. Client-judged: that, or still standing where the attempt began (moved under
 // movedUnits) with the body within issueUnits then: the server's corpse position can be stale, the skinner's own is not.
-const skinNear = (a, round) => {
+// Both thresholds grow by what the report's own lag (lagMs) lets a skinner who left after the verdict cover
+// (MG.lagReachUnits, review LAT-1); with no lag they are as before.
+const skinNear = (a, round, lagMs) => {
   let p = null, q = null; try { p = mp.get(a, 'pos'); q = mp.get(round.corpse, 'pos'); } catch (e) { /* gone */ }
   const d = Array.isArray(p) && Array.isArray(q) ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : Infinity;
   const moved = Array.isArray(p) && Array.isArray(round.issuePos) ? Math.hypot(p[0] - round.issuePos[0], p[1] - round.issuePos[1], p[2] - round.issuePos[2]) : Infinity;
   if (!MG.clientJudged(SKIN)) return { near: d < 400, d, moved };
-  const still = moved < Number(SKIN.movedUnits) && Number(round.issueDist) <= Number(SKIN.issueUnits);
-  return { near: d < Number(SKIN.nearUnits) || still, d, moved };
+  const extra = MG.lagReachUnits(lagMs);
+  const still = moved < Number(SKIN.movedUnits) + extra && Number(round.issueDist) <= Number(SKIN.issueUnits);
+  return { near: d < Number(SKIN.nearUnits) + extra || still, d, moved };
 };
 // How long an attempt lives on the server's clock: its length plus minutes when the widget judges (cleanup only)
 const skinLimit = (round) => round.totalMs + Math.max(60000, Number(SKIN.roundTimeoutMs) || 120000);
 const skinKeepClosing = (a, round, how) => {
   if (!MG.clientJudged(SKIN)) return;
   for (const [n, c] of skinClosing) if (performance.now() - c.round.startedAt > skinLimit(c.round)) skinClosing.delete(n);
+  // Whether the skinner was in reach when the Stop arrived: they leave after the verdict, so this is never further than
+  // when the report was sent, and it still counts if a load door has since taken them to another cell (review LAT-1)
+  round.closeNear = skinNear(a, round, 0).near;
   skinClosing.set(round.nonce, { a, round, how });
   while (skinClosing.size > 500) skinClosing.delete(skinClosing.keys().next().value);
 };
@@ -3915,8 +3921,8 @@ const skinReport = (a, args) => {
   const claim = cj ? skinClaimOf(args[3]) : null;
   let pelts = []; try { pelts = mp.get(ses.corpse, 'private.dboPelts') || []; } catch (e) { /* corpse gone */ }
   let skinned = true; try { skinned = mp.get(ses.corpse, 'private.dboSkinned') === true; } catch (e) { /* corpse gone */ }
-  const where = skinNear(a, ses);
-  const near = where.near;
+  const where = skinNear(a, ses, elapsed - at);
+  const near = where.near || (!!closed && ses.closeNear === true);
   // Cleanup bound only, minutes past the attempt
   if (!v.bad && cj && elapsed > skinLimit(ses)) v.bad = 'expired';
   const replayWin = !v.bad && v.cuts >= ses.cuts;

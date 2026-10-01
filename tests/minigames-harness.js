@@ -69,6 +69,26 @@ let lo = Infinity, hi = -Infinity;
 for (let i = 0; i < 1000; i++) { const t = NET.trip(j, r); lo = Math.min(lo, t.down); hi = Math.max(hi, t.down); }
 check('jitter stays within +-50% of each half', lo >= 250 && hi <= 750 && hi - lo > 400, `${lo}..${hi}`);
 
+// The radius grown by a report's own lag (review LAT-1)
+check('no lag, no extra reach', MG.lagReach(0) === 0 && MG.lagReachUnits(0) === 0);
+check('10 m a second of lag (700 units)', MG.lagReach(1000) === 10 && MG.lagReachUnits(1000) === 700, `${MG.lagReach(1000)} ${MG.lagReachUnits(1000)}`);
+check('capped at 120 m', MG.lagReach(60000) === 120 && MG.lagReach(1e9) === 120);
+check('a negative or unreadable lag adds nothing', MG.lagReach(-5000) === 0 && MG.lagReach(NaN) === 0 && MG.lagReach(undefined) === 0 && MG.lagReach('x') === 0);
+{
+  // Nobody the netsim sends off after the verdict outruns it: under every leave condition and trip drawn, the distance
+  // they cover by the time the report lands is less than the extra reach that report's own lag gives
+  const rand = NET.rngOf(9); let worst = -Infinity, n = 0;
+  for (const c of NET.leaveMatrix()) for (const who of NET.LEAVERS) for (let i = 0; i < 50; i++) {
+    const t = NET.trip(c, rand);
+    const own = 2000 + Math.floor(rand() * 20000);
+    const lag = NET.arrivalOf(0, own, c, t) - own;
+    const left = NET.leftUnits(c, t, who);
+    if (left > 0) { worst = Math.max(worst, left - MG.lagReachUnits(lag)); n++; }
+  }
+  check(`a player leaving after the verdict never outruns the extra reach (${n} trips where the server saw them move; the closest came within ${Math.round(-worst)} units)`, n > 0 && worst < 0, String(worst));
+}
+check('the leave conditions are the matrix plus three lost-and-resent reports', NET.leaveMatrix().length === NET.matrix().length + 3);
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);

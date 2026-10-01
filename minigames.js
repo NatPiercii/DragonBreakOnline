@@ -44,6 +44,20 @@ MG.floorAllowance = (minMs, slackMs) => Math.max(Number(slackMs) || 50, Math.cei
 // server sees, so no connection can fail this; only a report sent before the round could have been played.
 MG.serverTooSoon = (sinceSentMs, minMs, slackMs) => Number(sinceSentMs) < Number(minMs) - MG.floorAllowance(minMs, slackMs);
 
+// How much further than a game's own radius the player may be from the node, shrine, body or lock when a report lands
+// (review LAT-1, 2026-10-01). The radius is checked against the server's latest position when the report ARRIVES, but
+// the new widgets show their verdict at once and Escape closes the panel on the player's machine, so a player may walk
+// off straight away; movement packets are unreliable (every 130 ms), and a report that is resent or meets a delay spike
+// lands after positions sent later. So the radius grows with the lag that report itself measured (server ms since the
+// round was SENT less the widget's own ms) at 10 m/s, faster than anyone runs (a sprint is about 6.4 m/s), capped at
+// 120 m. A player in reach when the verdict showed is never failed by lag; with no lag the radius is unchanged, and a
+// worker who walks 40 m off before reporting at 120 ms of lag (+1.2 m) is still refused.
+MG.UNITS_PER_METER = 70;
+MG.LAG_REACH_MPS = 10;
+MG.LAG_REACH_MAX_M = 120;
+MG.lagReach = (lagMs) => Math.min(MG.LAG_REACH_MAX_M, (MG.LAG_REACH_MPS * Math.max(0, Number(lagMs) || 0)) / 1000);
+MG.lagReachUnits = (lagMs) => MG.UNITS_PER_METER * MG.lagReach(lagMs);
+
 // Review flags from the server's clock: logged with the verdict, never a refusal
 MG.SLOW_FLAG_MS = 5000;
 MG.lagFlags = (lagMs, slackMs, slowMs) => {
