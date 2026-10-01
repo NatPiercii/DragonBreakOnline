@@ -57,6 +57,33 @@
     ]
   },
   {
+    "title": "Found Your Own Faction",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "A charter of your own",
+        "items": [
+          "You can now found a faction of your own, a company or a cult. Type /charter found and a name to start its charter, or /charter cult and a name for a cult.",
+          "A charter needs three players on three different accounts: you as its Founder, who will lead it, an Officer and a Sergeant. Invite them with /charter invite and their name; they agree with /charter confirm and the charter's number.",
+          "Up to two more founding members can join it in any other role: Officer, Sergeant, Mage, Blacksmith, Tailor or Member.",
+          "Give it a purpose with /charter pitch. If you like, give it a seat: stand at a house you or another founding member owns and type /charter seat here.",
+          "Then /charter submit sends it to the GMs. Once they approve it, your faction is on the Faction page of your journal (F3), with the seven ranks from Leader to Member and a treasury of its own. There is no fee."
+        ]
+      },
+      {
+        "heading": "The rules",
+        "items": [
+          "A faction's name must fit the world: not an existing faction, hold or region, and not one of the Elder Scrolls' own factions that are not in the game yet. Only a cult may be named for a Daedric Prince.",
+          "You have 48 hours to gather your founders and submit, and an account can be on one charter at a time. If the GMs decline a charter, its founder can file a new one after a week.",
+          "A faction's leader can ask the GMs to disband it with /charter disband and a reason. If they agree, its treasury goes to the player who founded it.",
+          "/charter on its own shows your charter and what to do next."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Iron Falchion out of loot for now",
     "date": "2026-10-01",
     "version": "Server update",
