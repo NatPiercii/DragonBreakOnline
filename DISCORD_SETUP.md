@@ -73,8 +73,10 @@ walking away does.
    - `mic open in samples: ff00xxxx 7/8` is a mic that stays open: that player is on voice activation. Ask them first.
 2. From client 0.3.75 the server log says which players have no echo cancellation:
    `grep -a "voice echo loop" /var/log/skymp-server.log | tail`, e.g. `voice echo loop off (...); activation vad (using
-   ptt)`. Those clients already fall back to push-to-talk and told the player once.
-3. What to tell players, short and friendly: use headphones, or switch the launcher's Voice setting to push-to-talk
-   (the default). Moving away helps only for the moment: a door resets nothing (the room is server-wide and the voice
+   ptt); mics 1, aec on`. Those clients already fall back to push-to-talk and told the player once. `mics 2` or more is
+   one client publishing its mic twice (a doubled voice for everyone near it): the player relogs; `aec off` is a capture
+   without echo cancellation. Each connect logs one such line.
+3. What to tell players, short and friendly: use headphones. Push-to-talk (the launcher's default) helps but does not
+   cure it on speakers: the mic still hears the speakers while the player talks. Moving away helps only for the moment: a door resets nothing (the room is server-wide and the voice
    session restarts only with a new game connection), but indoors the speaker is in another cell, so the echoing player
    no longer plays them and nothing is sent back. Near that player again, it returns.
