@@ -202,7 +202,7 @@
  },
  "npcDamage": {
   "_comment": "byKind scales every hit one kind of creature or NPC lands on a player (gamemode.js npcKindDamageMult), on top of npcPowerHits; the kind is the middle of the attacker's wild:<kind>:... spawn tag (wildlife.js, owned-spawns.json). Players' own hits, PvP and hits on NPCs are never touched. Empty until Nate sets a value: the proposal for Bruma's boars (BSKEncBoar01, level 7, unarmed 25) is boar 0.4, a 20-point bite on a new character (150 health) instead of 50, so they survive 7 bites and go down on the 8th (Worker F, 1 Oct). Hot reload.",
-  "byKind": {}
+  "byKind": { "boar": 0.4 }
  },
  "pvp": {
   "_comment": "damageMult scales every player-on-player hit after skills and armor (1 = unchanged). 1.25 from 2026-09-25 (Nat: PvP damage buffed a bit).",
