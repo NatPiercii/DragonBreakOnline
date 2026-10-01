@@ -36,6 +36,9 @@ const KEPT = new Set([
 const OBJECTS = 'POSSIBLE RELEVANT OBJECTS'
 const REGISTERS = 'REGISTERS'
 const STACK = 'STACK'
+// Crash Logger's print order from REGISTERS on (CrashHandler.cpp): after condenseCrashLog's cut a memory string's line can
+// look like a header, so inside REGISTERS or STACK one counts only for a later section and as its last line in the log
+const MEMORY_ORDER = [REGISTERS, STACK, 'MODULES', 'SKSE PLUGINS', 'PLUGINS']
 const shown = section => !section || KEPT.has(section) || section === OBJECTS || section === REGISTERS
 // The quoted exception name of 'Unhandled exception "EXCEPTION_ACCESS_VIOLATION" at ...' is Crash Logger's own text
 const EXCEPTION_NAME = /^"(?:EXCEPTION_[A-Z_]{3,40}|C\+\+ Exception)"$/
@@ -101,7 +104,14 @@ function filterCrashLog(input) {
     cppMessage = false
   }
 
-  for (let line of clean(input).split('\n')) {
+  const lines = clean(input).split('\n')
+  const lastHeader = new Map()
+  lines.forEach((line, i) => { const found = SECTION.exec(line); if (found) lastHeader.set(found[1], i) })
+  const startsSection = (name, i) => (section !== REGISTERS && section !== STACK)
+    || (MEMORY_ORDER.indexOf(name) > MEMORY_ORDER.indexOf(section) && lastHeader.get(name) === i)
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i]
     let resumed = false
     if (open >= 0) {
       const close = line.indexOf('"')
@@ -120,7 +130,7 @@ function filterCrashLog(input) {
       }
     }
     const header = !resumed && SECTION.exec(line)
-    if (header) {
+    if (header && startsSection(header[1], i)) {
       endSection()
       section = header[1]
       if (shown(section)) out.push(line)

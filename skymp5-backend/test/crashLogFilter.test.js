@@ -269,3 +269,44 @@ test('a crash log loses emails, mentions, player tags and OneDrive organisations
   assert.strictEqual(cs.redactions, 1)
   assert.match(cs.text, /\\OneDrive - <org>\\Documents\\x\.ini"$/)
 })
+
+test("inside REGISTERS or STACK a header-like line counts only for a later section and as that header's last line", () => {
+  // condenseCrashLog keeps 30 STACK lines, then a memory string's own 'MODULES:' line looks like a header to it
+  const log = [
+    'REGISTERS:',
+    '\tRAX 0x0                (size_t) [0]',
+    '\t[20 more line(s) cut]',
+    'STACK:',
+    `\t${SECRETS.letterLine}`,
+    'SYSTEM SPECS:',
+    `\t${SECRETS.pm}`,
+    '',
+    'STACK:',
+    '\t[RSP+0  ] 0x0                (size_t) [0]',
+    '\t[370 more line(s) cut]',
+    'MODULES:',
+    `${SECRETS.fakeSection}`,
+    '\t[RSP+1A8] 0x1D3A5B0CB00      (TESNPC*)',
+    `\t\tSelf: [Actor <${SECRETS.unquotedName} (FF000123)>]`,
+    '',
+    'MODULES:',
+    '\tSkyrimSE.exe                  0x7FF6D2A00000',
+    '',
+    'SKSE PLUGINS:',
+    '\tCrashLoggerSSE.dll v1.20.0',
+  ].join('\n')
+  const { text } = filterCrashLog(log)
+  for (const value of [SECRETS.letterLine, SECRETS.pm, SECRETS.fakeSection, SECRETS.unquotedName]) assert.ok(!text.includes(value), text)
+  assert.strictEqual(text, [
+    'REGISTERS:',
+    '\tRAX (size_t)',
+    '',
+    'STACK: [6 line(s) left out by the server, values read from memory]',
+    '',
+    'MODULES:',
+    '\tSkyrimSE.exe                  0x7FF6D2A00000',
+    '',
+    'SKSE PLUGINS:',
+    '\tCrashLoggerSSE.dll v1.20.0',
+  ].join('\n'))
+})
