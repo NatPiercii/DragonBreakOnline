@@ -8,6 +8,7 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 import { logTrace } from "../../logging";
+import { MIN_IDLE_SECONDS, MAX_IDLE_SECONDS, idleRequest, stopsIdle } from "./idleControl";
 
 // for the browser-side widget setter (executed inside the CEF browser)
 declare const window: any;
@@ -134,9 +135,6 @@ const ACTION_IDLES: EmoteDef[] = [
 const SEATED_IDLES = new Set<string>(['ChairEatingStart', 'ChairDrinkingStart', 'ChairEatingSoupStart']);
 // Actor.GetSitState: 3 = sitting
 const SITTING = 3;
-// A server-played idle is held between these
-const MIN_IDLE_SECONDS = 1;
-const MAX_IDLE_SECONDS = 10;
 
 const events = {
   play: 'emote:play',
@@ -250,6 +248,8 @@ export class EmoteService extends ClientListener {
     }
     if (key === events.play) {
       const anim = typeof e.arguments[1] === "string" ? (e.arguments[1] as string) : "";
+      // The player's own choice is never the server's idle, even when it is the same clip
+      this.serverIdle = "";
       this.closeMenu();
       if (!this.allowedAnims.has(anim)) {
         logTrace(this, `Emote not in the catalog`, anim);
@@ -298,27 +298,45 @@ export class EmoteService extends ClientListener {
    */
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
-    if (!content || content["customPacketType"] !== "dboIdle") return;
+    if (!content) return;
+    // Server -> client: { customPacketType: "dboIdleStop", anim?: string }, the end of an idle it began (the journal closed)
+    if (content["customPacketType"] === "dboIdleStop") {
+      if (stopsIdle(this.activeEmote, this.serverIdle, content["anim"])) {
+        this.serverIdle = "";
+        this.stopActiveEmote(true);
+      }
+      return;
+    }
+    if (content["customPacketType"] !== "dboIdle") return;
     const anim = typeof content["anim"] === "string" ? (content["anim"] as string) : "";
     if (!this.allowedAnims.has(anim)) {
       logTrace(this, `dboIdle not allowed`, anim);
       return;
     }
-    this.playActionIdle(anim, Number(content["seconds"]) || 3, content["endsItself"] === true);
+    // hold: played until its dboIdleStop (the journal's page-turn while it is open), not for the usual few seconds. A held
+    // idle never replaces the player's own emote (a seat, a lute): it only decorates, and closing would leave them standing
+    const req = idleRequest(content);
+    if (req.hold && this.activeEmote && this.activeEmote !== this.serverIdle) {
+      logTrace(this, `Held idle skipped over the player's own emote`, anim);
+      return;
+    }
+    this.playActionIdle(anim, req.seconds, content["endsItself"] === true, req.hold, true);
   }
 
   /**
    * An interaction idle (dboIdle, or a client event such as a finished trade): on the next frame, through playIdle,
    * and not while a game menu is open. Seconds are held between MIN_IDLE_SECONDS and MAX_IDLE_SECONDS.
    */
-  public playActionIdle(anim: string, seconds: number, endsItself: boolean): void {
-    const held = Math.min(MAX_IDLE_SECONDS, Math.max(MIN_IDLE_SECONDS, seconds));
+  public playActionIdle(anim: string, seconds: number, endsItself: boolean, hold = false, fromServer = false): void {
+    const held = hold ? seconds : Math.min(MAX_IDLE_SECONDS, Math.max(MIN_IDLE_SECONDS, seconds));
     this.controller.once("update", () => {
       if (this.gameMenuOpen()) {
         logTrace(this, `Interaction idle skipped under a game menu`, anim);
         return;
       }
       this.playIdle(anim, held, endsItself);
+      // The server's idle only once it really began (a refused one leaves nothing for a stop to end)
+      if (fromServer && this.activeEmote === anim) this.serverIdle = anim;
     });
   }
 
@@ -514,6 +532,8 @@ export class EmoteService extends ClientListener {
 
   private menuKey: DxScanCode = DxScanCode.B;
   private menuOpen = false;
+  // The idle a dboIdle began, the only one a dboIdleStop may end
+  private serverIdle = "";
   private activeEmote = "";
   private allowedAnims: Set<string>;
   private propAnims: Set<string>;
