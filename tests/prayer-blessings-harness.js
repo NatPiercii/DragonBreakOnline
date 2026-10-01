@@ -2,7 +2,9 @@
 // learned list, so every Divine and Prince blessing (a Spell cast Fire-and-Forget on Self) was taught as a castable
 // "Blessing of X" and never ran. Now such a blessing is cast on the worshipper by their own client (dboCastSelf), again at
 // every login while it runs and again when the spell's own duration ends first; an Ability is still learned, and so is a
-// Power. Also: closing a prayer round before its first press (to make an offering) rests no shrine. Loads the real
+// Power. Also: closing a prayer round before its first press (to make an offering) rests no shrine. Since the follow-up
+// (fix/prayer-blessings-2): a cast blessing that ends (its end, a turn, a new blessing, a staff reset) is ended on the
+// client too (dboDispelSelf). Loads the real
 // module with a mock gamemode api and spell records shaped like the real ones. Run it from this folder's parent with
 //
 //   node tests/prayer-blessings-harness.js
@@ -21,6 +23,7 @@ Date.now = () => wallClock;
 const H = 3600000;
 
 const ACTOR = 0x14;
+const STAFF = 0x15;
 const idOf = (d) => parseInt(String(d).split(':')[0], 16) >>> 0;
 const choiceOf = (id) => SKILLS.deities.choices.find((c) => c.id === id);
 const spellOf = (id) => idOf(choiceOf(id).blessing);
@@ -99,6 +102,8 @@ const api = {
   takeGold: () => true,
   treasuryHere: (a, n) => n,
   sendPacket: (a, p) => out.packets.push({ a, p }),
+  isLeadStaff: (a) => a === STAFF,
+  findAnyByName: (q) => (/^tester$/i.test(String(q).trim()) ? ACTOR : 0),
 };
 
 let failures = 0;
@@ -108,6 +113,8 @@ const fire = (ev, args) => (handlers.get(ev) || []).forEach((f) => f(ACTOR, args
 const load = () => { delete require.cache[require.resolve(PRAYER)]; handlers.clear(); commands.clear(); timers.clear(); require(PRAYER)(api); };
 const sweep = () => { clear(); timers.get('prayerBlessings')(); };
 const casts = () => out.packets.filter((x) => x.a === ACTOR && x.p.customPacketType === 'dboCastSelf');
+const dispels = () => out.packets.filter((x) => x.a === ACTOR && x.p.customPacketType === 'dboDispelSelf');
+const sent = () => out.packets.filter((x) => x.a === ACTOR).map((x) => `${x.p.customPacketType}:${(x.p.spell >>> 0).toString(16)}`);
 const calls = (fn) => out.papyrus.filter((c) => c.fn === fn);
 const blessing = () => props.get(ACTOR + '|private.dboBlessing') || null;
 const worship = (id, tier) => {
@@ -186,6 +193,8 @@ wallClock = T0 + 4 * H; sweep();
 check('4 h in, with the spell still running, nothing is sent', casts().length === 0);
 wallClock = T0 + 8 * H - 30000; sweep();
 check('a sweep before the 8 h spell runs out, with the blessing running on, it is cast again', casts().length === 1 && casts()[0].p.spell === spellOf('akatosh'), JSON.stringify(out.packets));
+check('ending the old effect first (dboDispelSelf, then dboCastSelf), so a client that has it restarts the spell cleanly',
+  sent().join(' ') === `dboDispelSelf:${spellOf('akatosh').toString(16)} dboCastSelf:${spellOf('akatosh').toString(16)}`, sent().join(' '));
 wallClock += 60000; sweep();
 check('once, not every sweep', casts().length === 0);
 wallClock = T0 + 15 * H; sweep();
@@ -199,6 +208,8 @@ check('a login while the blessing runs casts it again (the client lost it with t
 wallClock = T0 + 16 * H + 1; sweep();
 check('at its end the blessing fades and nothing is taken back, there being nothing to take',
   !blessing() && calls('RemoveSpell').length === 0 && casts().length === 0 && out.personals.some((p) => /blessing of Akatosh fades/.test(p)), out.personals.join(' | '));
+check('and its effect is ended on the client: { customPacketType: dboDispelSelf, spell }',
+  dispels().length === 1 && dispels()[0].p.spell === spellOf('akatosh') && Object.keys(dispels()[0].p).length === 2, JSON.stringify(out.packets));
 globalThis.__dboDeityForget(ACTOR);
 clear(); globalThis.__dboPrayerLogin(ACTOR);
 check('a login after it ended sends nothing', casts().length === 0 && out.papyrus.length === 0);
@@ -245,7 +256,7 @@ globalThis.__dboDeityForget(ACTOR); clear();
 globalThis.__dboPrayerLogin(ACTOR);
 check('an old blessing that ended offline is not cast at login', casts().length === 0);
 sweep();
-check('and the sweep takes its taught spell back as it always did', !blessing() && !learned.has(spellOf('stendarr')) && calls('RemoveSpell').length === 1);
+check('and the sweep takes its taught spell back as it always did, with nothing to end on the client', !blessing() && !learned.has(spellOf('stendarr')) && calls('RemoveSpell').length === 1 && dispels().length === 0);
 // one running while its worshipper was online when this loaded: the second sweep
 learned.add(spellOf('mara'));
 props.set(ACTOR + '|private.dboBlessing', { deity: 'mara', spell: spellOf('mara'), until: wallClock + 3 * H });
@@ -267,7 +278,7 @@ check('Trinimac\'s Ability is learned for the faiths\' half-length blessing (4 h
 globalThis.__dboDeityForget(ACTOR); clear(); globalThis.__dboPrayerLogin(ACTOR);
 check('a login sends no cast for an Ability (the learned list comes back by itself)', casts().length === 0 && out.papyrus.length === 0);
 wallClock = T2 + 4 * H + 1; sweep();
-check('and at its end the Ability is taken back', !learned.has(spellOf('trinimac')) && calls('RemoveSpell').length === 1 && !blessing());
+check('and at its end the Ability is taken back (no dboDispelSelf: RemoveSpell ends it)', !learned.has(spellOf('trinimac')) && calls('RemoveSpell').length === 1 && !blessing() && dispels().length === 0);
 
 // ---- 8. a blessing shorter than its spell (the Dragon Cult, 4 h, over the 8 h AltarTalosSpell) --------------------
 worship('dragoncult');
@@ -275,8 +286,8 @@ prayAndWin('dragoncult');
 const T3 = wallClock;
 check('the Dragon Cult\'s blessing is cast, and lasts 4 h', casts().length === 1 && blessing().until === T3 + 4 * H);
 wallClock = T3 + 4 * H + 1; sweep();
-check('it fades on the server at 4 h with nothing to take back (the client\'s 8 h effect cannot be cut short: NOTES.md)',
-  !blessing() && calls('RemoveSpell').length === 0 && casts().length === 0);
+check('it fades at 4 h, and its 8 h effect is ended on the client then, not 4 h later',
+  !blessing() && calls('RemoveSpell').length === 0 && casts().length === 0 && dispels().length === 1 && dispels()[0].p.spell === spellOf('dragoncult'), JSON.stringify(out.packets));
 
 // ---- 9. turning, the staff reset, Sheogorath -------------------------------------------------------------------
 worship('kynareth');
@@ -289,6 +300,7 @@ const pick = out.widgets[out.widgets.length - 1];
 clear(); fire('deityChoose', [pick.nonce, 'mara']);
 check('turning to another god ends a cast blessing with no RemoveSpell', (props.get(ACTOR + '|private.dboDeity') || {}).id === 'mara'
   && !blessing() && calls('RemoveSpell').length === 0, JSON.stringify(out.papyrus));
+check('and ends its effect on the client', dispels().length === 1 && dispels()[0].p.spell === spellOf('kynareth'), JSON.stringify(out.packets));
 
 worship('sheogorath');
 const roll = Math.random;
@@ -332,6 +344,26 @@ virtual += 3000; clear(); fire('prayerCancel', [t.w.nonce]);
 check('a round begun (the first press) and abandoned still rests the shrine', Number(rests()[SHRINE.toString(16)]) === wallClock + 5 * 60000, JSON.stringify(rests()));
 t = touch();
 check('so the next touch is refused for those minutes', !t.w && /prayed here recently/.test(t.said), t.said);
+
+// ---- 12. the end of a cast blessing, the rest of it: a new blessing over it, a staff reset -------------------------
+worship('arkay');
+prayAndWin('arkay');
+props.delete(ACTOR + '|private.prayedShrines');
+prayAndWin('arkay');
+check('a new blessing over a running one: the old effect is ended, then the new one cast, in that order',
+  sent().join(' ') === `dboDispelSelf:${spellOf('arkay').toString(16)} dboCastSelf:${spellOf('arkay').toString(16)}` && blessing().via === 'cast', sent().join(' '));
+clear(); commands.get('deity')(STAFF, 'reset tester');
+check('a staff reset of a worshipper who is online ends the effect on their client', !blessing() && dispels().length === 1 && dispels()[0].p.spell === spellOf('arkay') && calls('RemoveSpell').length === 0, JSON.stringify(out.packets));
+worship('arkay');
+prayAndWin('arkay');
+online = false; clear();
+commands.get('deity')(STAFF, 'reset tester');
+check('and of one who is offline sends nothing (their effect went with the session)', !blessing() && out.packets.length === 0, JSON.stringify(out.packets));
+online = true;
+worship('trinimac');
+prayAndWin('trinimac');
+clear(); commands.get('deity')(STAFF, 'reset tester');
+check('an Ability is taken back by RemoveSpell, with nothing to end on the client', !blessing() && calls('RemoveSpell').length === 1 && dispels().length === 0);
 
 console.log('');
 console.log('deity        cast  learned  via');
