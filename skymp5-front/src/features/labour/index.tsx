@@ -15,7 +15,10 @@ import './styles.scss';
 // The same widget runs the bound-hands struggle (server\struggle.js, kind "struggle"): it sends a
 // sweep per strike, ends the round on the first miss and reports on its own event.
 //
-//   Browser -> client -> server: sendMessage('dbo:<event>', nonce, JSON.stringify(strikeMs), atMs)
+// With judge 'client' (labour.clientJudged) the widget's own verdict stands and shows the moment the round ends; the
+// server pays from it after checking the strike times. A server without it reads the first three arguments only.
+//
+//   Browser -> client -> server: sendMessage('dbo:<event>', nonce, JSON.stringify(strikeMs), atMs, JSON.stringify({ v: 1, win, hits }))
 //   Escape / Walk away:          sendMessage('dbo:<event>Cancel', nonce)
 export interface LabourData {
   id: number;
@@ -38,6 +41,7 @@ export interface LabourData {
   missMs: number;       // stagger after a missed one
   result?: string;      // set by the server when the round is judged
   resultKind?: 'win' | 'lose';
+  judge?: 'client' | 'server'; // 'client': this widget's verdict stands and is shown at once
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -98,6 +102,7 @@ const Labour = ({ data }: { data: LabourData }) => {
   const [flash, setFlash] = useState<'hit' | 'miss' | null>(null);
   const [left, setLeft] = useState(total);
   const [sent, setSent] = useState(false);
+  const [own, setOwn] = useState<'win' | 'lose' | null>(null);
   // performance.now() so the round's clock cannot be stepped by the machine's time service
   const startedAt = useRef(performance.now());
   const sampleRef = useRef(0);   // ms into the round of the frame currently on screen
@@ -116,6 +121,7 @@ const Labour = ({ data }: { data: LabourData }) => {
     setLeft(total);
     setFlash(null);
     setMarker(0);
+    setOwn(null);
     hitsRef.current = 0;
     sentRef.current = false;
     strikesRef.current = [];
@@ -129,7 +135,9 @@ const Labour = ({ data }: { data: LabourData }) => {
     if (sentRef.current) return;
     sentRef.current = true;
     setSent(true);
-    send('dbo:' + event, data.nonce, JSON.stringify(strikesRef.current), at);
+    const win = hitsRef.current >= need;
+    send('dbo:' + event, data.nonce, JSON.stringify(strikesRef.current), at, JSON.stringify({ v: 1, win, hits: hitsRef.current }));
+    if (data.judge === 'client') setOwn(win ? 'win' : 'lose');
   };
 
   // The marker sweeps back and forth; the round ends when the time runs out.
@@ -177,7 +185,7 @@ const Labour = ({ data }: { data: LabourData }) => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
-        send('dbo:' + event + 'Cancel', data.nonce);
+        leave();
         return;
       }
       if (e.key !== ' ' && e.key !== 'Enter') return;
@@ -195,14 +203,22 @@ const Labour = ({ data }: { data: LabourData }) => {
   const hint = data.hint || (kind === 'chopping'
     ? 'Swing while the axe is over the grain. Space or click.'
     : 'Strike while the pick is on the seam. Space or click.');
-  const leave = () => send('dbo:' + event + 'Cancel', data.nonce);
+  // Walked away: the clock running out behind the close must not report the round as well
+  const leave = () => { sentRef.current = true; send('dbo:' + event + 'Cancel', data.nonce); };
+  // A clean struggle still waits on the server's roll, so only its loss is certain here
+  const ownText = own === 'win'
+    ? (kind === 'chopping' ? 'Split clean.' : kind === 'struggle' ? 'Every pull lands. Now the knots decide.' : 'The seam gives way.')
+    : own === 'lose'
+      ? (kind === 'chopping' ? 'The log rolls off the block, still whole.' : kind === 'struggle' ? 'Your grip slips. The rope holds.' : 'The seam holds. Your arms give out before the rock does.')
+      : '';
+  const doneKind = data.resultKind || (kind === 'struggle' && own === 'win' ? null : own);
 
   return (
     <div className="labour">
       <div className="labour__fade" />
       <div className={'labour__bench labour__bench--' + kind}>
         <h1 className="labour__title">{data.title || (kind === 'mining' ? 'A seam' : 'A block')}</h1>
-        <p className="labour__hint">{data.result ? data.result : hint}</p>
+        <p className="labour__hint">{data.result ? data.result : ownText || hint}</p>
 
         <div className="labour__tally">
           {Array.from({ length: need }).map((_, i) => (
@@ -211,7 +227,7 @@ const Labour = ({ data }: { data: LabourData }) => {
         </div>
 
         <div
-          className={'labour__bar' + (flash ? ' labour__bar--' + flash : '') + (data.resultKind ? ' labour__bar--' + data.resultKind : '')}
+          className={'labour__bar' + (flash ? ' labour__bar--' + flash : '') + (doneKind ? ' labour__bar--' + doneKind : '')}
           onClick={strike}
         >
           <div className="labour__band" style={{ left: (centre - half) + '%', width: (half * 2) + '%' }} />
@@ -223,7 +239,7 @@ const Labour = ({ data }: { data: LabourData }) => {
         </div>
 
         <div className="labour__actions">
-          {data.result ? (
+          {data.result || own ? (
             <button className="labour__button labour__button--primary" onClick={leave}>{data.doneLabel || 'Stand up'}</button>
           ) : (
             <>
