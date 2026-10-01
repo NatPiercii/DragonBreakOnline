@@ -5284,7 +5284,7 @@ try {
 try {
   const LOCKPICK_JS = path.resolve('lockpick.js');
   delete require.cache[LOCKPICK_JS];
-  require(LOCKPICK_JS)({ mp, log, personal, audit, who, openWidget, closeWidget, onUi, cfg });
+  require(LOCKPICK_JS)({ mp, log, personal, audit, who, openWidget, closeWidget, onUi, cfg, hasUiCap, display });
 } catch (e) { log('lockpick.js failed to load:', e.stack || e.message); globalThis.__dboLockpick = null; }
 
 // ---- Discord roles from the game: skills and homes (server\discordroles.js, config "discordRoles") ------------------

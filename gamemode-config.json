@@ -742,7 +742,13 @@
    }
   }
  },
- "lockpick": { "enabled": true },
+ "lockpick": {
+  "enabled": true,
+  "_clientJudged": "Jake, 2026-09-30: a client whose UI names lockpickLocal (the next client cut) plays the whole lock on the player's machine with pick snaps rolled here, and reports once (dbo:lockpickResult); the server replays the tries for the audit, takes one pick per snapped pick (a cancel too) and opens the lock on a win, measuring nothing on its clock but a lower bound from when it sent the lock. roundTimeoutMinutes cleans up a client lock nobody reports. replayCheck: 'log' lets a try the hang times do not bear out stand with a LOCKPICK-MISMATCH audit line, 'refuse' refuses the report. Older widgets keep the per-try path, which already judges on the widget's clock. ROLLBACK: set clientJudged to false and reload the gamemode; every new lock is played try by try again (one already issued is still accepted until it times out).",
+  "clientJudged": true,
+  "replayCheck": "log",
+  "roundTimeoutMinutes": 10
+ },
  "npcGround": { "fix": false },
  "npcDirector": { "mode": "on" },
  "itemGuards": { "mode": "on" },
