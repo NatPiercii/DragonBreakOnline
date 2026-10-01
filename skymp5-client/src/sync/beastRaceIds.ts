@@ -8,6 +8,19 @@ export const BEAST_RACE_IDS = new Set([0x000cdd84, 0x0200283a]);
 
 export const isBeastRaceId = (raceId: number | undefined | null): boolean => BEAST_RACE_IDS.has(Number(raceId) >>> 0);
 
+// Every other race whose behaviour graph is not the humanoid master graph (sync/nonHumanoidRaceList.ts), resolved at
+// runtime by beastRaces.ts. An Ayleid Pelinaga's copy (draugr graph) crashed a watcher 2 s after its relayed stop (1 Oct).
+const nonHumanoidRaceIds = new Set<number>();
+
+export const setNonHumanoidRaceIds = (ids: number[]): void => {
+  nonHumanoidRaceIds.clear();
+  for (const id of ids) nonHumanoidRaceIds.add(Number(id) >>> 0);
+};
+
+// A copy of this race takes no caster or animation variables
+export const isGuardedRaceId = (raceId: number | undefined | null): boolean =>
+  isBeastRaceId(raceId) || nonHumanoidRaceIds.has(Number(raceId) >>> 0);
+
 export interface CasterVariables {
   booleans: Uint8Array;
   floats: Uint8Array;
@@ -20,7 +33,7 @@ export const emptyCasterVariables = (): CasterVariables => ({ booleans: new Uint
 
 // What a relayed cast or stop may write into the copy of a caster of this race
 export const casterVariablesFor = <T extends CasterVariables>(copyRaceId: number, vars: T): T | CasterVariables =>
-  isBeastRaceId(copyRaceId) ? emptyCasterVariables() : vars;
+  isGuardedRaceId(copyRaceId) ? emptyCasterVariables() : vars;
 
 // A Vampire Lord's copy refuses an update every 500 ms, and Report a Problem sends only the last 60 KB of the diag file
 export const SKIP_LINE_INTERVAL_MS = 5 * 60 * 1000;
