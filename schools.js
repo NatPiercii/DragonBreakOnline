@@ -27,16 +27,20 @@
 //     temples) plays the same reading idle under the same windows and limits, its own window, and pays Priest: no school
 //     meter, only the Wheel's cast credit with a Novice Restoration spell every `wheelEverySeconds`. It closes for good
 //     once a Restoration spell studied through Priest is in the spellbook, as Study Magic closes at the first school spell.
-//   Preach: a placeholder until sermons exist (Nate, 1 Oct). A Preach activator (base editor id `preach.edid`, DLE v9/v10's
-//     temple pulpits) answers "Sermons are coming soon." Nothing else happens; before the plugin loads no ref matches.
+//   Preach: sermons at a temple pulpit (Nate, 1 Oct), the Class Lectern's rules for Priest. A Preach activator (base editor
+//     id `preach.edid`, DLE v9/v10's temple pulpits) opens the same panel (widget 76, titled Sermon). A follower of a Divine
+//     at Priest rank `preach.teacherMinRank` picks a Restoration spell they know (it sets the rank; nobody learns it);
+//     listeners join at the pulpit, and when the preacher ends it those still in the temple are paid Priest by
+//     `preach.scale[listener rank][sermon rank]` through the Wheel's cast credit with that spell. Grace, sign-up window,
+//     the full nave and cooldowns as the classes, each with its own record (preachAt, sermonPaidAt).
 // Study and classes also feed Arcane Arts itself through masterySystem's own "cast" credit (__alduinakMasteryEvent with a
 // spell of the school), so the Wheel's hourly bucket and daily caps hold for them as for any cast.
 //
 // State, on the character: private.dboSchools
 //   { v, primary, secondary, levels: { <school>: { level, xp } }, grandfathered: [spell desc...], study: { log: [[from, to] ms...] },
 //     priestStudy: { log: [[from, to] ms...] }, cast: { day, units: {} },
-//     ring: [{ h, at }], classAt, paidAt, teacher: { by, at } }
-// Classes live on globalThis and end with the process (a restart cancels a class in progress).
+//     ring: [{ h, at }], classAt, paidAt, teacher: { by, at }, preachAt, sermonPaidAt, preacher: { by, at } }
+// Classes and sermons live on globalThis and end with the process (a restart cancels one in progress).
 'use strict';
 
 module.exports = (api) => {
@@ -64,7 +68,21 @@ module.exports = (api) => {
       enabled: true, edid: 'PriestStudy', refs: [], skill: 'priest', school: 'Restoration', tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20,
       windowHours: 4, moveLimitMeters: 1.5, anim: 'IdleBook_PageTurn', exitAnim: 'IdleForceDefaultState', wheelEverySeconds: 60, wheelValue: 0,
     },
-    preach: { enabled: true, edid: 'Preach', refs: [], text: 'Sermons are coming soon.' },
+    // Sermons at a temple pulpit: the Class Lectern's rules for Priest. A preacher follows a Divine (`teacherFaiths`, the
+    // deity kinds of skills.json; there is no temple guild) at Priest rank `teacherMinRank` or above; `requireList` would
+    // also need the staff's /preacher list
+    preach: {
+      enabled: true, edid: 'Preach', refs: [], school: 'Restoration', sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
+      teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: false, teacherFaiths: ['divine'],
+      wheelEvents: 8, wheelValue: 150, maxStudents: 12,
+      scale: [
+        [1, 0.7, 0, 0, 0],
+        [0.35, 1, 0.7, 0, 0],
+        [0, 0, 1, 0.7, 0],
+        [0, 0, 0, 1, 0.7],
+        [0, 0, 0, 0, 1],
+      ],
+    },
     classes: {
       enabled: true, edid: 'ClassLectern', lecterns: [], sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
       teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: true, teacherGuilds: ['synod', 'college-of-winterhold', 'college-of-whispers'],
@@ -103,6 +121,7 @@ module.exports = (api) => {
   const CLASS_PANEL_ID = 72;
   const STUDY_PANEL_ID = 73;
   const PRIEST_PANEL_ID = 75;
+  const PREACH_PANEL_ID = 76;
   const MIN = 60000, HOUR = 3600000;
 
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
@@ -405,7 +424,6 @@ module.exports = (api) => {
   const isPriestStudy = (ref) => C.priestStudy.enabled && (PRIEST_REFS.has(ref) || (!!C.priestStudy.edid && baseEdidOf(ref) === String(C.priestStudy.edid).toLowerCase()));
   const PREACH_REFS = refSet(C.preach.refs);
   const isPreach = (ref) => C.preach.enabled && (PREACH_REFS.has(ref) || (!!C.preach.edid && baseEdidOf(ref) === String(C.preach.edid).toLowerCase()));
-  const preachSaidAt = new Map();
   const isLectern = (ref) => C.classes.enabled && (LECTERN_REFS.has(ref) || (!!C.classes.edid && baseEdidOf(ref) === String(C.classes.edid).toLowerCase()));
 
   // ---- Study Magic ---------------------------------------------------------------------------------------------------
@@ -542,7 +560,8 @@ module.exports = (api) => {
   onUi('close', (a, args, widgetId) => {
     if (widgetId === STUDY_PANEL_ID) { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); }
     if (widgetId === PRIEST_PANEL_ID) { stopPriest(a, 'closed'); priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); }
-    if (widgetId === CLASS_PANEL_ID) lecternOpen.delete(a >>> 0);
+    if (widgetId === CLASS_PANEL_ID) CLASSES.forget(a);
+    if (widgetId === PREACH_PANEL_ID) SERMONS.forget(a);
   });
   const openOrStartStudy = (ref, a) => {
     const s = stateOf(a);
@@ -671,235 +690,351 @@ module.exports = (api) => {
     log(`schools: Priest Studies found its first ${PS.edid} activator (${descOf(ref)})`);
   };
 
-  // ---- classes --------------------------------------------------------------------------------------------------------
-  const lecternOpen = S.lecternOpen instanceof Map ? S.lecternOpen : (S.lecternOpen = new Map()); // actor -> { ref, nonce }
+  // ---- lecterns: the Class Lectern and the Preach pulpit share one engine ----------------------------------------------
   const guildsOf = (a) => { const g = get(a, 'private.dboGuilds', []); return Array.isArray(g) ? g.map((m) => String(m && m.id)) : []; };
   const knownSpells = (a) => { try { return typeof globalThis.__dboSpellsKnown === 'function' ? (globalThis.__dboSpellsKnown(a) || []) : []; } catch (e) { return []; } };
-  const listed = (a) => { const t = stateOf(a).teacher; return !!(t && t.at); };
-  // Why `a` may not teach at all, or ''
-  const teacherRefusal = (a) => {
-    if (!C.enabled || !C.classes.enabled) return 'Classes are not held just now.';
-    if (C.classes.requireList && !listed(a)) return 'Only teachers the Synod has named may hold a class. Ask the staff.';
-    const guilds = Array.isArray(C.classes.teacherGuilds) ? C.classes.teacherGuilds : [];
-    if (guilds.length && !guildsOf(a).some((g) => guilds.includes(g))) return 'A class is held by a member of the Synod or a College.';
-    const s = stateOf(a);
-    if (!SCHOOLS.some((n) => schoolRank(s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes ${RANKS[C.classes.teacherMinRank]} study in one of your schools.`;
-    const next = (Number(s.classAt) || 0) + C.classes.teacherCooldownMinutes * MIN;
-    if (next > Date.now()) return `You taught a class not long ago. You may hold the next in ${inWords(next - Date.now())}.`;
-    return '';
-  };
-  // Spells `a` may set a class by: known, of a school where they are qualified, no higher than their study of it
-  const classSpells = (a) => {
-    const s = stateOf(a);
-    const seen = new Set();
-    return knownSpells(a).filter((sp) => {
-      if (!sp || !SCHOOLS.includes(sp.school) || seen.has(sp.id)) return false;
-      seen.add(sp.id);
-      const r = schoolRank(s, sp.school);
-      return r >= C.classes.teacherMinRank && Number(sp.rank) <= r;
-    }).sort((x, y) => SCHOOLS.indexOf(x.school) - SCHOOLS.indexOf(y.school) || x.rank - y.rank || String(x.name).localeCompare(String(y.name)));
-  };
-  const scaleFor = (studentRank, classRank) => {
-    const row = (C.classes.scale || [])[studentRank];
-    const v = Array.isArray(row) ? Number(row[classRank]) : 0;
-    return Number.isFinite(v) && v > 0 ? v : 0;
-  };
-  const gainWords = (f) => (f >= 1 ? 'the full lesson' : f > 0 ? `${Math.round(f * 100)}% of the lesson` : 'nothing at your level');
-  // Where the class is held: the lectern's interior cell, or `radiusMeters` around it outdoors
-  const inRoom = (k, a) => {
-    if (!online(a)) return false;
-    const cell = String(get(a, 'worldOrCellDesc', ''));
-    if (norm(cell) !== norm(k.cell)) return false;
-    let world = false; try { world = typeof isWorldspace === 'function' ? isWorldspace(k.cell) : false; } catch (e) { world = false; }
-    return !world || distanceMeters(a, k.ref) <= C.classes.radiusMeters;
-  };
-  // Nate's lecterns carry two activator boxes each (DLE v7: 15e4bb/15e4bc at the Synod, 16 units apart). Boxes within
-  // sameLecternUnits of each other in one cell are one lectern: one class, and the status on every box's crosshair.
-  const nearRef = (x, y) => {
-    if (x === y) return true;
-    if (norm(get(x, 'worldOrCellDesc', '')) !== norm(get(y, 'worldOrCellDesc', ''))) return false;
-    const p = get(x, 'pos', null), q = get(y, 'pos', null);
-    return !!(p && q) && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= C.classes.sameLecternUnits;
-  };
-  const siblingsOf = (ref) => [ref >>> 0].concat([...LECTERN_REFS].filter((r) => r !== (ref >>> 0) && nearRef(ref >>> 0, r)));
-  const classOf = (ref) => {
-    ref >>>= 0;
-    const exact = S.classes.get(ref);
-    if (exact) return exact;
-    for (const k of S.classes.values()) {
-      if ((k.refs || []).includes(ref)) return k;
-      if (nearRef(ref, k.ref)) { k.refs = (k.refs || [k.ref]).concat([ref]); return k; }
-    }
-    return null;
-  };
-  const studentRefusal = (k, a) => {
-    if (a === k.teacher) return 'You are teaching this class.';
-    if (k.students.has(a)) return '';
-    if (Date.now() - k.startedAt > C.classes.joinMinutes * MIN) return `Sign-ups closed ${C.classes.joinMinutes} minutes into the class.`;
-    if (k.students.size >= C.classes.maxStudents) return 'The class is full.';
-    const s = stateOf(a);
-    if (!active(s, k.spell.school)) return `${k.spell.school} is not one of your schools of magic.`;
-    const f = scaleFor(schoolRank(s, k.spell.school), k.spell.rank);
-    if (f <= 0) return `At your study of ${k.spell.school} this class would teach you nothing.`;
-    const next = (Number(s.paidAt) || 0) + C.classes.studentCooldownHours * HOUR;
-    if (next > Date.now()) return `You sat a class not long ago. You may learn in another in ${inWords(next - Date.now())}.`;
-    return '';
-  };
-  const lecternName = (k) => (k ? (Date.now() >= k.endsAt ? 'Class Lectern: the class may be ended' : `Class Lectern: Class in Progress, ${inWords(k.endsAt - Date.now())} left`) : null);
-  // The class's status on the crosshair of every box of its lectern, for everyone in its cell; null hands the name back
-  const decorate = (k, over) => {
-    const name = over ? null : lecternName(k);
-    const refs = (k.refs || [k.ref]).map((r) => ({ refId: r >>> 0, name, locked: false }));
-    for (const a of onlineActors()) {
-      if (norm(get(a, 'worldOrCellDesc', '')) !== norm(k.cell)) continue;
-      try { sendPacket(a, { customPacketType: 'refDecor', refs }); } catch (e) { /* offline */ }
-    }
-  };
-  const openLectern = (a, ref, result, resultKind, focus = true) => {
-    const was = lecternOpen.get(a >>> 0);
-    const nonce = (!focus && was && was.ref === ref && was.nonce) || mkNonce('l', a);
-    lecternOpen.set(a >>> 0, { ref, nonce });
-    const k = classOf(ref);
-    const base = { type: 'classLectern', id: CLASS_PANEL_ID, nonce, title: 'Class Lectern', result: result || '', resultKind: resultKind || '',
-      events: { start: 'dbo:lecternStart', join: 'dbo:lecternJoin', leave: 'dbo:lecternLeave', end: 'dbo:lecternEnd', cancel: 'dbo:lecternCancel', close: 'dbo:lecternClose' } };
-    if (!k) {
-      const why = teacherRefusal(a);
-      const spells = why ? [] : classSpells(a);
-      return openWidget(a, Object.assign(base, {
-        mode: 'idle',
-        status: 'No class is being held here.',
-        canTeach: !why && spells.length > 0,
-        whyNot: why || (spells.length ? '' : 'You know no spell of your schools to set a class by.'),
-        minutes: C.classes.minutes,
-        spells: spells.map((sp) => ({ id: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: sp.rank, rankName: RANKS[sp.rank] })),
+  const faithOf = (a) => { const f = get(a, 'private.dboDeity', null); return f && typeof f === 'object' && f.id ? f : null; };
+  const priestRank = (a) => { const p = priestOf(a); return p.held && p.level >= 1 ? p.rank : -1; };
+  // K: one kind of lectern. conf, refs, the state maps' keys, the record keys for its cooldowns and named list, the
+  // teacher's own rule, the spells it is set by, the listener's rank, the pay, and its words (W)
+  const makeLectern = (K) => {
+    const conf = K.conf, W = K.words;
+    const runs = S[K.runsKey] instanceof Map ? S[K.runsKey] : (S[K.runsKey] = new Map()); // pulpit/lectern ref -> session
+    const open = S[K.openKey] instanceof Map ? S[K.openKey] : (S[K.openKey] = new Map()); // actor -> { ref, nonce }
+    const listed = (a) => { const t = stateOf(a)[K.listKey]; return !!(t && t.at); };
+    const teacherRefusal = (a) => {
+      if (!C.enabled || !conf.enabled) return W.closed;
+      if (conf.requireList && !listed(a)) return W.notListed;
+      const qual = K.qualified(a);
+      if (qual) return qual;
+      const next = (Number(stateOf(a)[K.teacherAtKey]) || 0) + conf.teacherCooldownMinutes * MIN;
+      if (next > Date.now()) return W.teacherCooldown(inWords(next - Date.now()));
+      return '';
+    };
+    const scaleFor = (studentRank, classRank) => {
+      const row = (conf.scale || [])[studentRank];
+      const v = Array.isArray(row) ? Number(row[classRank]) : 0;
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    };
+    // Where it is held: the lectern's interior cell, or `radiusMeters` around it outdoors
+    const inRoom = (k, a) => {
+      if (!online(a)) return false;
+      const cell = String(get(a, 'worldOrCellDesc', ''));
+      if (norm(cell) !== norm(k.cell)) return false;
+      let world = false; try { world = typeof isWorldspace === 'function' ? isWorldspace(k.cell) : false; } catch (e) { world = false; }
+      return !world || distanceMeters(a, k.ref) <= conf.radiusMeters;
+    };
+    // Nate's lecterns carry two activator boxes each (DLE v7: 15e4bb/15e4bc at the Synod, 16 units apart). Boxes within
+    // sameLecternUnits of each other in one cell are one lectern: one session, and the status on every box's crosshair.
+    const nearRef = (x, y) => {
+      if (x === y) return true;
+      if (norm(get(x, 'worldOrCellDesc', '')) !== norm(get(y, 'worldOrCellDesc', ''))) return false;
+      const p = get(x, 'pos', null), q = get(y, 'pos', null);
+      return !!(p && q) && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= conf.sameLecternUnits;
+    };
+    const siblingsOf = (ref) => [ref >>> 0].concat([...K.refs].filter((r) => r !== (ref >>> 0) && nearRef(ref >>> 0, r)));
+    const runOf = (ref) => {
+      ref >>>= 0;
+      const exact = runs.get(ref);
+      if (exact) return exact;
+      for (const k of runs.values()) {
+        if ((k.refs || []).includes(ref)) return k;
+        if (nearRef(ref, k.ref)) { k.refs = (k.refs || [k.ref]).concat([ref]); return k; }
+      }
+      return null;
+    };
+    const studentRefusal = (k, a) => {
+      if (a === k.teacher) return W.youTeach;
+      if (k.students.has(a)) return '';
+      if (Date.now() - k.startedAt > conf.joinMinutes * MIN) return W.joinClosed(conf.joinMinutes);
+      if (k.students.size >= conf.maxStudents) return W.full;
+      const not = K.cannotLearn(a, k);
+      if (not) return not;
+      const f = scaleFor(K.studentRank(a, k), k.spell.rank);
+      if (f <= 0) return W.nothing(k);
+      const next = (Number(stateOf(a)[K.paidAtKey]) || 0) + conf.studentCooldownHours * HOUR;
+      if (next > Date.now()) return W.studentCooldown(inWords(next - Date.now()));
+      return '';
+    };
+    const nameOf = (k) => (k ? (Date.now() >= k.endsAt ? W.decorEnded : W.decorRunning(inWords(k.endsAt - Date.now()))) : null);
+    // The session's status on the crosshair of every box of its lectern, for everyone in its cell; null hands the name back
+    const decorate = (k, over) => {
+      const name = over ? null : nameOf(k);
+      const refs = (k.refs || [k.ref]).map((r) => ({ refId: r >>> 0, name, locked: false }));
+      for (const a of onlineActors()) {
+        if (norm(get(a, 'worldOrCellDesc', '')) !== norm(k.cell)) continue;
+        try { sendPacket(a, { customPacketType: 'refDecor', refs }); } catch (e) { /* offline */ }
+      }
+    };
+    const openPanel = (a, ref, result, resultKind, focus = true) => {
+      const was = open.get(a >>> 0);
+      const nonce = (!focus && was && was.ref === ref && was.nonce) || mkNonce(K.nonceKind, a);
+      open.set(a >>> 0, { ref, nonce });
+      const k = runOf(ref);
+      const ev = K.events;
+      const base = Object.assign({ type: 'classLectern', id: K.panelId, nonce, title: W.title, result: result || '', resultKind: resultKind || '',
+        events: { start: `dbo:${ev}Start`, join: `dbo:${ev}Join`, leave: `dbo:${ev}Leave`, end: `dbo:${ev}End`, cancel: `dbo:${ev}Cancel`, close: `dbo:${ev}Close` } }, W.panel ? { words: W.panel } : {});
+      if (!k) {
+        const why = teacherRefusal(a);
+        const spells = why ? [] : K.spellsOf(a);
+        return openWidget(a, Object.assign(base, {
+          mode: 'idle',
+          status: W.idleStatus,
+          canTeach: !why && spells.length > 0,
+          whyNot: why || (spells.length ? '' : W.noSpells),
+          minutes: conf.minutes,
+          spells: spells.map((sp) => ({ id: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: sp.rank, rankName: RANKS[sp.rank] })),
+        }), focus);
+      }
+      const mine = a === k.teacher;
+      const signed = k.students.has(a);
+      const f = mine ? 0 : scaleFor(K.studentRank(a, k), k.spell.rank);
+      const why = mine || signed ? '' : studentRefusal(k, a);
+      openWidget(a, Object.assign(base, {
+        mode: 'running',
+        status: Date.now() >= k.endsAt ? W.runCourse : W.inProgress,
+        teacher: k.teacherName, spell: k.spell.name, school: k.spell.school, rankName: RANKS[k.spell.rank],
+        endsInMs: Math.max(0, k.endsAt - Date.now()), minutes: conf.minutes,
+        teacherAway: k.teacherAwaySince ? Math.max(0, k.teacherAwaySince + conf.graceMinutes * MIN - Date.now()) : 0,
+        students: [...k.students.keys()].map((st) => ({ name: display(st), away: !!k.students.get(st).awaySince })),
+        role: mine ? 'teacher' : signed ? 'student' : 'visitor',
+        gain: mine ? '' : W.gain(k, W.gainWords(f)),
+        canJoin: !mine && !signed && !why, whyNot: why,
+        canEnd: mine && Date.now() >= k.endsAt,
       }), focus);
-    }
-    const s = stateOf(a);
-    const mine = a === k.teacher;
-    const signed = k.students.has(a);
-    const f = mine ? 0 : scaleFor(schoolRank(s, k.spell.school), k.spell.rank);
-    const why = mine || signed ? '' : studentRefusal(k, a);
-    openWidget(a, Object.assign(base, {
-      mode: 'running',
-      status: Date.now() >= k.endsAt ? 'The class has run its course.' : 'Class in Progress',
-      teacher: k.teacherName, spell: k.spell.name, school: k.spell.school, rankName: RANKS[k.spell.rank],
-      endsInMs: Math.max(0, k.endsAt - Date.now()), minutes: C.classes.minutes,
-      teacherAway: k.teacherAwaySince ? Math.max(0, k.teacherAwaySince + C.classes.graceMinutes * MIN - Date.now()) : 0,
-      students: [...k.students.keys()].map((st) => ({ name: display(st), away: !!k.students.get(st).awaySince })),
-      role: mine ? 'teacher' : signed ? 'student' : 'visitor',
-      gain: mine ? '' : `At your study of ${k.spell.school} you would take ${gainWords(f)}.`,
-      canJoin: !mine && !signed && !why, whyNot: why,
-      canEnd: mine && Date.now() >= k.endsAt,
-    }), focus);
+    };
+    // Everyone else looking at this lectern; `except` is the player whose click just redrew their own panel
+    const refresh = (k, except) => { for (const [a, o] of open) if (a !== except && (k.refs || [k.ref]).includes(o.ref) && online(a)) openPanel(a, o.ref, '', '', false); };
+    const end = (k, paid) => {
+      runs.delete(k.ref);
+      decorate(k, true);
+      const t = stateOf(k.teacher);
+      if (paid) { t[K.teacherAtKey] = Date.now(); save(k.teacher, t); }
+      const got = [];
+      for (const [st, e] of k.students) {
+        if (!paid) { if (online(st)) personal(st, W.cancelledToStudent(k)); continue; }
+        if (e.awaySince || !inRoom(k, st)) { if (online(st)) personal(st, W.notThere); continue; }
+        const s = stateOf(st);
+        const f = scaleFor(K.studentRank(st, k), k.spell.rank);
+        if (f <= 0 || K.cannotLearn(st, k)) continue;
+        // Checked again at payout: sign-ups for two at once would otherwise both pay
+        if ((Number(s[K.paidAtKey]) || 0) + conf.studentCooldownHours * HOUR > Date.now()) { if (online(st)) personal(st, W.paidTooRecently); continue; }
+        got.push(K.pay(st, s, k, f));
+      }
+      audit(`SCHOOLS ${W.auditNoun} by ${who(k.teacher)} on ${k.spell.name} (${k.spell.school} ${RANKS[k.spell.rank]}) at ${descOf(k.ref)} ${paid ? `ended: ${got.join(', ') || 'nobody paid'}` : 'cancelled'}`);
+      for (const [a, o] of [...open]) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openPanel(a, o.ref, paid ? W.over : W.cancelled, paid ? 'ok' : 'refused', false);
+    };
+    const start = (a, ref, spellDesc) => {
+      if (runOf(ref)) return { ok: false, text: W.alreadyHere };
+      for (const k of runs.values()) if (k.teacher === a) return { ok: false, text: W.alreadyTeaching };
+      const why = teacherRefusal(a);
+      if (why) return { ok: false, text: why };
+      const sp = K.spellsOf(a).find((x) => norm(x.desc || descOf(x.id)) === norm(spellDesc));
+      if (!sp) return { ok: false, text: W.badSpell };
+      const now = Date.now();
+      const k = { ref: ref >>> 0, refs: siblingsOf(ref), teacher: a >>> 0, teacherName: display(a), spell: { id: sp.id >>> 0, desc: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: Number(sp.rank) || 0 },
+        cell: String(get(ref, 'worldOrCellDesc', '') || get(a, 'worldOrCellDesc', '')), startedAt: now, endsAt: now + conf.minutes * MIN, students: new Map(), teacherAwaySince: 0 };
+      runs.set(k.ref, k);
+      decorate(k);
+      audit(`SCHOOLS ${who(a)} ${W.auditOpened} on ${sp.name} (${sp.school} ${RANKS[k.spell.rank]}) at ${descOf(ref)}`);
+      return { ok: true, text: W.begun(sp.name, conf.joinMinutes, conf.minutes) };
+    };
+    const tick = () => {
+      const now = Date.now();
+      for (const k of [...runs.values()]) {
+        if (inRoom(k, k.teacher)) k.teacherAwaySince = 0;
+        else if (!k.teacherAwaySince) {
+          k.teacherAwaySince = now;
+          for (const st of k.students.keys()) if (online(st)) personal(st, W.teacherLeftToStudents(k.teacherName, conf.graceMinutes));
+          if (online(k.teacher)) personal(k.teacher, W.teacherLeft(conf.graceMinutes));
+        } else if (now - k.teacherAwaySince >= conf.graceMinutes * MIN) { end(k, false); continue; }
+        for (const [st, e] of [...k.students]) {
+          if (inRoom(k, st)) { e.awaySince = 0; continue; }
+          if (!e.awaySince) { e.awaySince = now; if (online(st)) personal(st, W.studentLeft(conf.graceMinutes)); }
+          else if (now - e.awaySince >= conf.graceMinutes * MIN) { k.students.delete(st); if (online(st)) personal(st, W.droppedOut); }
+        }
+        if (!k.readyTold && now >= k.endsAt) { k.readyTold = true; if (online(k.teacher)) personal(k.teacher, W.runItsCourse); }
+        decorate(k);
+        refresh(k);
+      }
+    };
+    const refOf = (a, args) => { const o = open.get(a >>> 0); return o && o.nonce === String(args[0] || '') ? o.ref : 0; };
+    const ev = K.events;
+    onUi(`${ev}Start`, (a, args) => { const ref = refOf(a, args); if (!ref) return; const r = start(a, ref, String(args[1] || '')); openPanel(a, ref, r.text, r.ok ? 'ok' : 'refused'); });
+    onUi(`${ev}Join`, (a, args) => {
+      const ref = refOf(a, args); if (!ref) return;
+      const k = runOf(ref);
+      if (!k) return openPanel(a, ref, W.over, 'refused');
+      const why = studentRefusal(k, a);
+      if (why) return openPanel(a, ref, why, 'refused');
+      if (!inRoom(k, a)) return openPanel(a, ref, W.stepIn, 'refused');
+      k.students.set(a >>> 0, { joinedAt: Date.now(), awaySince: 0 });
+      audit(`SCHOOLS ${who(a)} ${W.auditJoined} ${who(k.teacher)}'s ${W.auditNoun} on ${k.spell.name}`);
+      if (online(k.teacher)) personal(k.teacher, W.joinedToTeacher(display(a)));
+      openPanel(a, ref, W.joined(k.teacherName), 'ok');
+      refresh(k, a >>> 0);
+    });
+    onUi(`${ev}Leave`, (a, args) => {
+      const ref = refOf(a, args); if (!ref) return;
+      const k = runOf(ref);
+      if (k && k.students.delete(a >>> 0)) { audit(`SCHOOLS ${who(a)} left ${who(k.teacher)}'s ${W.auditNoun}`); openPanel(a, ref, W.left, 'ok'); refresh(k, a >>> 0); }
+    });
+    onUi(`${ev}End`, (a, args) => {
+      const ref = refOf(a, args); if (!ref) return;
+      const k = runOf(ref);
+      if (!k || k.teacher !== (a >>> 0)) return openPanel(a, ref);
+      if (Date.now() < k.endsAt) return openPanel(a, ref, W.runsAnother(inWords(k.endsAt - Date.now())), 'refused');
+      end(k, true);
+    });
+    onUi(`${ev}Cancel`, (a, args) => {
+      const ref = refOf(a, args); if (!ref) return;
+      const k = runOf(ref);
+      if (!k || k.teacher !== (a >>> 0)) return openPanel(a, ref);
+      end(k, false);
+    });
+    onUi(`${ev}Close`, (a) => { open.delete(a >>> 0); closeWidget(a, K.panelId); });
+    return { open: openPanel, tick, listed, forget: (a) => open.delete(a >>> 0), runs };
   };
-  // Everyone else looking at this lectern; `except` is the player whose click just redrew their own panel
-  const refreshLectern = (k, except) => { for (const [a, o] of lecternOpen) if (a !== except && (k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref, '', '', false); };
-  const endClass = (k, paid) => {
-    S.classes.delete(k.ref);
-    decorate(k, true);
-    const t = stateOf(k.teacher);
-    if (paid) { t.classAt = Date.now(); save(k.teacher, t); }
-    const got = [];
-    for (const [st, e] of k.students) {
-      if (!paid) { if (online(st)) personal(st, `The ${k.spell.school} class was cancelled. Nobody is paid for it.`); continue; }
-      if (e.awaySince || !inRoom(k, st)) { if (online(st)) personal(st, 'You were not in the classroom when the class ended.'); continue; }
-      const s = stateOf(st);
-      const f = scaleFor(schoolRank(s, k.spell.school), k.spell.rank);
-      if (f <= 0 || !active(s, k.spell.school)) continue;
-      // Checked again at payout: sign-ups for two classes at once would otherwise both pay
-      if ((Number(s.paidAt) || 0) + C.classes.studentCooldownHours * HOUR > Date.now()) { if (online(st)) personal(st, 'You were paid for another class too recently to be paid for this one.'); continue; }
+
+  const classWords = {
+    title: 'Class Lectern', closed: 'Classes are not held just now.', notListed: 'Only teachers the Synod has named may hold a class. Ask the staff.',
+    teacherCooldown: (w) => `You taught a class not long ago. You may hold the next in ${w}.`,
+    idleStatus: 'No class is being held here.', noSpells: 'You know no spell of your schools to set a class by.',
+    inProgress: 'Class in Progress', runCourse: 'The class has run its course.',
+    gainWords: (f) => (f >= 1 ? 'the full lesson' : f > 0 ? `${Math.round(f * 100)}% of the lesson` : 'nothing at your level'),
+    gain: (k, g) => `At your study of ${k.spell.school} you would take ${g}.`,
+    youTeach: 'You are teaching this class.', joinClosed: (m) => `Sign-ups closed ${m} minutes into the class.`, full: 'The class is full.',
+    nothing: (k) => `At your study of ${k.spell.school} this class would teach you nothing.`,
+    studentCooldown: (w) => `You sat a class not long ago. You may learn in another in ${w}.`,
+    decorEnded: 'Class Lectern: the class may be ended', decorRunning: (w) => `Class Lectern: Class in Progress, ${w} left`,
+    cancelledToStudent: (k) => `The ${k.spell.school} class was cancelled. Nobody is paid for it.`,
+    notThere: 'You were not in the classroom when the class ended.', paidTooRecently: 'You were paid for another class too recently to be paid for this one.',
+    auditNoun: 'class', auditOpened: 'opened a class', auditJoined: 'signed up for', over: 'The class is over.', cancelled: 'The class was cancelled.',
+    alreadyHere: 'A class is already held at this lectern.', alreadyTeaching: 'You are already teaching a class.', badSpell: 'You cannot set a class by that spell.',
+    begun: (name, join, minutes) => `Your class on ${name} has begun. Students sign up at this lectern for the first ${join} minutes; after ${minutes} minutes, end it here.`,
+    teacherLeftToStudents: (t, g) => `${t} has left the classroom. If they are not back within ${g} minutes, the class is cancelled.`,
+    teacherLeft: (g) => `You have left your classroom. Come back within ${g} minutes or the class is cancelled.`,
+    studentLeft: (g) => `You have left the classroom. Come back within ${g} minutes to stay in the class.`,
+    droppedOut: 'You were away too long and have dropped out of the class.',
+    runItsCourse: 'Your class has run its course. End it at the lectern to mark the lesson.',
+    stepIn: 'Step into the classroom to sign up.', joinedToTeacher: (n) => `${n} has signed up for your class.`,
+    joined: (t) => `You have signed up. Stay in the classroom until ${t} ends the class.`, left: 'You have left the class.',
+    runsAnother: (w) => `The class runs another ${w}.`,
+  };
+  const CLASSES = makeLectern({
+    conf: C.classes, refs: LECTERN_REFS, runsKey: 'classes', openKey: 'lecternOpen', listKey: 'teacher', teacherAtKey: 'classAt', paidAtKey: 'paidAt',
+    panelId: CLASS_PANEL_ID, events: 'lectern', nonceKind: 'l', words: classWords,
+    qualified: (a) => {
+      const guilds = Array.isArray(C.classes.teacherGuilds) ? C.classes.teacherGuilds : [];
+      if (guilds.length && !guildsOf(a).some((g) => guilds.includes(g))) return 'A class is held by a member of the Synod or a College.';
+      const s = stateOf(a);
+      if (!SCHOOLS.some((n) => schoolRank(s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes ${RANKS[C.classes.teacherMinRank]} study in one of your schools.`;
+      return '';
+    },
+    // Spells `a` may set a class by: known, of a school where they are qualified, no higher than their study of it
+    spellsOf: (a) => {
+      const s = stateOf(a);
+      const seen = new Set();
+      return knownSpells(a).filter((sp) => {
+        if (!sp || !SCHOOLS.includes(sp.school) || seen.has(sp.id)) return false;
+        seen.add(sp.id);
+        const r = schoolRank(s, sp.school);
+        return r >= C.classes.teacherMinRank && Number(sp.rank) <= r;
+      }).sort((x, y) => SCHOOLS.indexOf(x.school) - SCHOOLS.indexOf(y.school) || x.rank - y.rank || String(x.name).localeCompare(String(y.name)));
+    },
+    studentRank: (a, k) => schoolRank(stateOf(a), k.spell.school),
+    cannotLearn: (a, k) => (active(stateOf(a), k.spell.school) ? '' : `${k.spell.school} is not one of your schools of magic.`),
+    pay: (st, s, k, f) => {
       const before = levelOf(s, k.spell.school);
       credit(s, k.spell.school, C.classes.units * f);
       s.paidAt = Date.now();
       save(st, s);
       const w = wheel(st, idOf(k.spell.desc), C.classes.wheelValue, Math.max(1, Math.round(C.classes.wheelEvents * f)));
-      got.push(`${who(st)} x${f} (${before}->${levelOf(s, k.spell.school)}, wheel ${w})`);
-      personal(st, `${display(k.teacher)}'s class on ${k.spell.name} is over. You took ${gainWords(f)}: your study of ${k.spell.school} stands at ${levelOf(s, k.spell.school)}.`);
+      personal(st, `${display(k.teacher)}'s class on ${k.spell.name} is over. You took ${classWords.gainWords(f)}: your study of ${k.spell.school} stands at ${levelOf(s, k.spell.school)}.`);
       tellGain(st, k.spell.school, before, s);
-    }
-    audit(`SCHOOLS class by ${who(k.teacher)} on ${k.spell.name} (${k.spell.school} ${RANKS[k.spell.rank]}) at ${descOf(k.ref)} ${paid ? `ended: ${got.join(', ') || 'nobody paid'}` : 'cancelled'}`);
-    for (const [a, o] of [...lecternOpen]) if ((k.refs || [k.ref]).includes(o.ref) && online(a)) openLectern(a, o.ref, paid ? 'The class is over.' : 'The class was cancelled.', paid ? 'ok' : 'refused', false);
+      return `${who(st)} x${f} (${before}->${levelOf(s, k.spell.school)}, wheel ${w})`;
+    },
+  });
+  const listed = CLASSES.listed;
+
+  // ---- Preach: sermons at a temple pulpit, the Class Lectern's rules for Priest (Nate, 1 Oct) --------------------------
+  // A follower of a Divine at Priest rank teacherMinRank or above gives a sermon on a Restoration spell they know (it sets
+  // the rank; nobody learns it). Listeners join at the same pulpit and are paid Priest by scale[listener rank][sermon rank]
+  // through the Wheel's cast credit with the sermon's spell, the route Priest Studies takes. Someone who has not taken
+  // Priest up listens at Novice, and the credit banks toward the offer.
+  const P = C.preach;
+  const sermonWords = {
+    title: 'Sermon', closed: 'No sermons are given just now.', notListed: 'Only priests the temple has named may preach. Ask the staff.',
+    teacherCooldown: (w) => `You preached not long ago. You may give the next sermon in ${w}.`,
+    idleStatus: 'No sermon is being given here.', noSpells: 'You know no Restoration spell to preach on.',
+    inProgress: 'Sermon in Progress', runCourse: 'The sermon has run its course.',
+    gainWords: (f) => (f >= 1 ? 'the full sermon' : f > 0 ? `${Math.round(f * 100)}% of the sermon` : 'nothing at your level'),
+    gain: (k, g) => `At your rank in Priest you would take ${g}.`,
+    youTeach: 'You are giving this sermon.', joinClosed: (m) => `Listeners could join for the first ${m} minutes of the sermon.`, full: 'The nave is full.',
+    nothing: () => 'At your rank in Priest this sermon would teach you nothing.',
+    studentCooldown: (w) => `You heard a sermon not long ago. You may learn from another in ${w}.`,
+    decorEnded: 'Pulpit: the sermon may be ended', decorRunning: (w) => `Pulpit: Sermon in Progress, ${w} left`,
+    cancelledToStudent: (k) => `The sermon on ${k.spell.name} was cancelled. Nobody is paid for it.`,
+    notThere: 'You were not in the temple when the sermon ended.', paidTooRecently: 'You were paid for another sermon too recently to be paid for this one.',
+    auditNoun: 'sermon', auditOpened: 'began a sermon', auditJoined: 'joined', over: 'The sermon is over.', cancelled: 'The sermon was cancelled.',
+    alreadyHere: 'A sermon is already being given at this pulpit.', alreadyTeaching: 'You are already preaching.', badSpell: 'You cannot preach on that spell.',
+    begun: (name, join, minutes) => `Your sermon on ${name} has begun. Listeners join at this pulpit for the first ${join} minutes; after ${minutes} minutes, end it here.`,
+    teacherLeftToStudents: (t, g) => `${t} has left the temple. If they are not back within ${g} minutes, the sermon is cancelled.`,
+    teacherLeft: (g) => `You have left your temple. Come back within ${g} minutes or the sermon is cancelled.`,
+    studentLeft: (g) => `You have left the temple. Come back within ${g} minutes to stay for the sermon.`,
+    droppedOut: 'You were away too long and have left the sermon.',
+    runItsCourse: 'Your sermon has run its course. End it at the pulpit to close it.',
+    stepIn: 'Step into the temple to join.', joinedToTeacher: (n) => `${n} has joined your sermon.`,
+    joined: (t) => `You have joined. Stay in the temple until ${t} ends the sermon.`, left: 'You have left the sermon.',
+    runsAnother: (w) => `The sermon runs another ${w}.`,
+    // The panel's own lines; a client from before them keeps the Class Lectern's
+    panel: {
+      lead: `Choose the Restoration spell your sermon is on. It decides the rank; your listeners do not learn it. The sermon runs ${P.minutes} minutes.`,
+      teacher: 'Priest', lesson: 'Sermon', students: 'Listeners', none: 'None yet',
+      teacherAway: 'The priest has left the temple. The sermon is cancelled in {clock} unless they return.',
+      begin: 'Begin the sermon', join: 'Join', leave: 'Leave the sermon', end: 'End Sermon', cancel: 'Cancel the sermon',
+      cancelTitle: 'Cancel the sermon?', cancelText: 'Nobody is paid for a cancelled sermon.', cancelYes: 'Cancel it', cancelNo: 'Keep preaching',
+    },
   };
-  const startClass = (a, ref, spellDesc) => {
-    if (classOf(ref)) return { ok: false, text: 'A class is already held at this lectern.' };
-    for (const k of S.classes.values()) if (k.teacher === a) return { ok: false, text: 'You are already teaching a class.' };
-    const why = teacherRefusal(a);
-    if (why) return { ok: false, text: why };
-    const sp = classSpells(a).find((x) => norm(x.desc || descOf(x.id)) === norm(spellDesc));
-    if (!sp) return { ok: false, text: 'You cannot set a class by that spell.' };
-    const now = Date.now();
-    const k = { ref: ref >>> 0, refs: siblingsOf(ref), teacher: a >>> 0, teacherName: display(a), spell: { id: sp.id >>> 0, desc: sp.desc || descOf(sp.id), name: sp.name, school: sp.school, rank: Number(sp.rank) || 0 },
-      cell: String(get(ref, 'worldOrCellDesc', '') || get(a, 'worldOrCellDesc', '')), startedAt: now, endsAt: now + C.classes.minutes * MIN, students: new Map(), teacherAwaySince: 0 };
-    S.classes.set(k.ref, k);
-    decorate(k);
-    audit(`SCHOOLS ${who(a)} opened a class on ${sp.name} (${sp.school} ${RANKS[k.spell.rank]}) at ${descOf(ref)}`);
-    return { ok: true, text: `Your class on ${sp.name} has begun. Students sign up at this lectern for the first ${C.classes.joinMinutes} minutes; after ${C.classes.minutes} minutes, end it here.` };
-  };
-  const classTick = () => {
-    const now = Date.now();
-    for (const k of [...S.classes.values()]) {
-      if (inRoom(k, k.teacher)) k.teacherAwaySince = 0;
-      else if (!k.teacherAwaySince) {
-        k.teacherAwaySince = now;
-        for (const st of k.students.keys()) if (online(st)) personal(st, `${k.teacherName} has left the classroom. If they are not back within ${C.classes.graceMinutes} minutes, the class is cancelled.`);
-        if (online(k.teacher)) personal(k.teacher, `You have left your classroom. Come back within ${C.classes.graceMinutes} minutes or the class is cancelled.`);
-      } else if (now - k.teacherAwaySince >= C.classes.graceMinutes * MIN) { endClass(k, false); continue; }
-      for (const [st, e] of [...k.students]) {
-        if (inRoom(k, st)) { e.awaySince = 0; continue; }
-        if (!e.awaySince) { e.awaySince = now; if (online(st)) personal(st, `You have left the classroom. Come back within ${C.classes.graceMinutes} minutes to stay in the class.`); }
-        else if (now - e.awaySince >= C.classes.graceMinutes * MIN) { k.students.delete(st); if (online(st)) personal(st, 'You were away too long and have dropped out of the class.'); }
-      }
-      if (!k.readyTold && now >= k.endsAt) { k.readyTold = true; if (online(k.teacher)) personal(k.teacher, 'Your class has run its course. End it at the lectern to mark the lesson.'); }
-      decorate(k);
-      refreshLectern(k);
-    }
-  };
-  const lecternRef = (a, args) => { const o = lecternOpen.get(a >>> 0); return o && o.nonce === String(args[0] || '') ? o.ref : 0; };
-  onUi('lecternStart', (a, args) => { const ref = lecternRef(a, args); if (!ref) return; const r = startClass(a, ref, String(args[1] || '')); openLectern(a, ref, r.text, r.ok ? 'ok' : 'refused'); });
-  onUi('lecternJoin', (a, args) => {
-    const ref = lecternRef(a, args); if (!ref) return;
-    const k = classOf(ref);
-    if (!k) return openLectern(a, ref, 'The class is over.', 'refused');
-    const why = studentRefusal(k, a);
-    if (why) return openLectern(a, ref, why, 'refused');
-    if (!inRoom(k, a)) return openLectern(a, ref, 'Step into the classroom to sign up.', 'refused');
-    k.students.set(a >>> 0, { joinedAt: Date.now(), awaySince: 0 });
-    audit(`SCHOOLS ${who(a)} signed up for ${who(k.teacher)}'s class on ${k.spell.name}`);
-    if (online(k.teacher)) personal(k.teacher, `${display(a)} has signed up for your class.`);
-    openLectern(a, ref, `You have signed up. Stay in the classroom until ${k.teacherName} ends the class.`, 'ok');
-    refreshLectern(k, a >>> 0);
+  const SERMONS = makeLectern({
+    conf: P, refs: PREACH_REFS, runsKey: 'sermons', openKey: 'preachOpen', listKey: 'preacher', teacherAtKey: 'preachAt', paidAtKey: 'sermonPaidAt',
+    panelId: PREACH_PANEL_ID, events: 'preach', nonceKind: 'r', words: sermonWords,
+    qualified: (a) => {
+      const kinds = Array.isArray(P.teacherFaiths) ? P.teacherFaiths : [];
+      const faith = faithOf(a);
+      if (kinds.length && !(faith && kinds.includes(String(faith.kind)))) return 'A sermon is given by a follower of the Divines.';
+      if (priestRank(a) < P.teacherMinRank) return `Preaching takes ${RANKS[P.teacherMinRank]} rank in Priest.`;
+      return '';
+    },
+    // Restoration spells `a` knows, no higher than their Priest rank
+    spellsOf: (a) => {
+      const r = priestRank(a);
+      if (r < P.teacherMinRank) return [];
+      const seen = new Set();
+      return knownSpells(a).filter((sp) => {
+        if (!sp || sp.school !== P.school || seen.has(sp.id)) return false;
+        seen.add(sp.id);
+        return Number(sp.rank) <= r;
+      }).sort((x, y) => x.rank - y.rank || String(x.name).localeCompare(String(y.name)));
+    },
+    studentRank: (a) => Math.max(0, priestRank(a)),
+    cannotLearn: () => '',
+    pay: (st, s, k, f) => {
+      s.sermonPaidAt = Date.now();
+      save(st, s);
+      const w = wheel(st, idOf(k.spell.desc), P.wheelValue, Math.max(1, Math.round(P.wheelEvents * f)));
+      personal(st, `${display(k.teacher)}'s sermon on ${k.spell.name} is over. You took ${sermonWords.gainWords(f)}; it counts toward Priest.`);
+      return `${who(st)} x${f} (wheel ${w})`;
+    },
   });
-  onUi('lecternLeave', (a, args) => {
-    const ref = lecternRef(a, args); if (!ref) return;
-    const k = classOf(ref);
-    if (k && k.students.delete(a >>> 0)) { audit(`SCHOOLS ${who(a)} left ${who(k.teacher)}'s class`); openLectern(a, ref, 'You have left the class.', 'ok'); refreshLectern(k, a >>> 0); }
-  });
-  onUi('lecternEnd', (a, args) => {
-    const ref = lecternRef(a, args); if (!ref) return;
-    const k = classOf(ref);
-    if (!k || k.teacher !== (a >>> 0)) return openLectern(a, ref);
-    if (Date.now() < k.endsAt) return openLectern(a, ref, `The class runs another ${inWords(k.endsAt - Date.now())}.`, 'refused');
-    endClass(k, true);
-  });
-  onUi('lecternCancel', (a, args) => {
-    const ref = lecternRef(a, args); if (!ref) return;
-    const k = classOf(ref);
-    if (!k || k.teacher !== (a >>> 0)) return openLectern(a, ref);
-    endClass(k, false);
-  });
-  onUi('lecternClose', (a) => { lecternOpen.delete(a >>> 0); closeWidget(a, CLASS_PANEL_ID); });
 
   // gamemode.js onActivate: true when the ref is a study activator or a Class Lectern (the use is handled here)
   globalThis.__dboSchoolsActivate = (targetId, casterId) => {
     if (!ready(casterId) || !isPlayer(casterId)) return false;
-    if (isLectern(targetId)) { openLectern(casterId, targetId >>> 0); return true; }
+    if (isLectern(targetId)) { CLASSES.open(casterId, targetId >>> 0); return true; }
     if (isStudy(targetId)) { useStudy(targetId >>> 0, casterId >>> 0); return true; }
     if (isPriestStudy(targetId)) { notePriestStudy(targetId >>> 0); usePriest(targetId >>> 0, casterId >>> 0); return true; }
-    if (isPreach(targetId)) {
-      const now = Date.now();
-      if (now - (preachSaidAt.get(casterId >>> 0) || 0) > 1500) { preachSaidAt.set(casterId >>> 0, now); personal(casterId, String(C.preach.text || 'Sermons are coming soon.')); }
-      return true;
-    }
+    if (isPreach(targetId)) { SERMONS.open(casterId, targetId >>> 0); return true; }
     return false;
   };
   // A player who logs out or changes cell mid-study stops; one who disconnects mid-class is caught by the class tick
@@ -908,7 +1043,8 @@ module.exports = (api) => {
     try { priestTick(); } catch (e) { log('schools: Priest Studies tick failed', e.stack || e.message); }
   });
   every('schools.classes', 10000, () => {
-    try { classTick(); } catch (e) { log('schools: class tick failed', e.stack || e.message); }
+    try { CLASSES.tick(); } catch (e) { log('schools: class tick failed', e.stack || e.message); }
+    try { SERMONS.tick(); } catch (e) { log('schools: sermon tick failed', e.stack || e.message); }
   });
 
   // ---- staff ---------------------------------------------------------------------------------------------------------
@@ -929,6 +1065,23 @@ module.exports = (api) => {
     personal(a, `${display(t)} ${s.teacher ? 'may now hold classes at a Class Lectern' : 'may no longer hold classes'}.`);
     if (t !== a) personal(t, s.teacher ? 'You have been named a teacher: you may hold classes at a Class Lectern.' : 'You may no longer hold classes.');
   }, { admin: true, help: 'name or remove a class teacher (Class Lectern)' });
+  // Named preachers matter only with preach.requireList (off by default: a follower of a Divine at Priest rank may preach)
+  registerChatCommand('preacher', (a, args) => {
+    const [verb, ...rest] = argList(args);
+    if (!verb || !['add', 'remove', 'list'].includes(verb.toLowerCase())) return personal(a, 'Usage: /preacher add|remove <player>, or /preacher list (players online).');
+    if (verb.toLowerCase() === 'list') {
+      const names = onlineActors().filter(SERMONS.listed).map(display);
+      return personal(a, names.length ? `Named preachers online: ${names.join(', ')}.` : 'No named preacher is online.');
+    }
+    const t = findByName(rest.join(' '));
+    if (!t) return personal(a, `Nobody online answers to "${rest.join(' ')}".`);
+    const s = stateOf(t);
+    s.preacher = verb.toLowerCase() === 'add' ? { by: who(a), at: Date.now() } : null;
+    save(t, s);
+    audit(`SCHOOLS ${who(a)} ${s.preacher ? 'named' : 'removed'} ${who(t)} as a preacher`);
+    personal(a, `${display(t)} ${s.preacher ? 'may now preach at a pulpit' : 'may no longer preach'}.`);
+    if (t !== a) personal(t, s.preacher ? 'You have been named a preacher: you may give sermons at a temple pulpit.' : 'You may no longer give sermons.');
+  }, { admin: true, help: 'name or remove a preacher (Preach pulpit; only with preach.requireList)' });
   registerChatCommand('schools', (a, args) => {
     const words = argList(args);
     const isReset = !!words[0] && words[0].toLowerCase() === 'reset';
@@ -944,6 +1097,7 @@ module.exports = (api) => {
     personal(a, `${display(t)}: ${SCHOOLS.map((n) => `${n} ${roleOf(s, n)}${active(s, n) ? ` ${levelOf(s, n)}` : ''}`).join(', ')}; Arcane Arts ${arcaneOf(t).level}${s.teacher ? '; a named teacher' : ''}.`);
   }, { admin: true, help: 'a player\'s schools of magic (or reset them)' });
 
-  log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${S.classes.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}; Alteration ${ALTERATION}`);
+  log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${CLASSES.runs.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}; Alteration ${ALTERATION}`);
+  log(`schools: sermons ${P.enabled && C.enabled ? `${P.minutes} min at ${P.edid}${PREACH_REFS.size ? ` + ${PREACH_REFS.size} refs` : ''}, by a follower of ${(P.teacherFaiths || []).join('/') || 'any faith'} at Priest ${RANKS[P.teacherMinRank]}${P.requireList ? ', named preachers only' : ''}, ${SERMONS.runs.size} running` : 'off'}`);
   log(`schools: Priest Studies ${PS.enabled && C.enabled ? `${PS.minutesPerWindow} min per ${PS.windowHours} h at ${PS.edid}${PRIEST_REFS.size ? ` + ${PRIEST_REFS.size} refs` : ''}, paying ${PS.skill} with ${PRIEST_SPELL || 'no Restoration spell'}${S.priestStudySeen ? '' : `; inert until a ${PS.edid} activator is used (DLE v10)`}` : 'off'}`);
 };

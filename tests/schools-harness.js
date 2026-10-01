@@ -130,12 +130,13 @@ const mkApi = (cfg) => ({
   takeGold: () => false, giveItem: () => true, depositToTreasury: (z, n) => n,
 });
 const schoolsCfg = Object.assign({}, CONFIG.schools, { enabled: true });
-const load = (overrides) => {
+const load = (overrides, schoolsFile) => {
   handlers.clear(); commands.clear();
   // The Conclave's table is given here even while the tracked config leaves it open (Nate, 30 Sep), so the gate is still tested
   const cfg = { spells: Object.assign({}, CONFIG.spells, { guildWorkshops: ['651cb:BSHeartland.esm'] }), schools: Object.assign({}, schoolsCfg, overrides || {}) };
   delete require.cache[SPELLS]; require(SPELLS)(mkApi(cfg));
-  delete require.cache[SCHOOLS]; require(SCHOOLS)(mkApi(cfg));
+  const file = schoolsFile || SCHOOLS;
+  delete require.cache[file]; require(file)(mkApi(cfg));
 };
 load();
 
@@ -634,25 +635,155 @@ check('scale: Adept none below, full, 70% at Expert, none at Master', S[2].join(
 check('scale: Expert none below, full, some at Master', S[3].slice(0, 4).join() === '0,0,0,1' && S[3][4] > 0);
 check('scale: Master full, none below', S[4].join() === '0,0,0,0,1');
 
-// ---- Preach (DLE v9/v10 temple pulpits, editor id Preach): a placeholder until sermons exist (Nate, 1 Oct) ----
+// ---- Preach: sermons at a temple pulpit, the Class Lectern's rules for Priest (Nate, 1 Oct) ----
 {
-  const PREACH_BASE = '1688e2:DragonBreak Online Edits.esp', PREACH = idOf('1688e3:DragonBreak Online Edits.esp');
-  put(PREACH, 'baseDesc', PREACH_BASE); at(PREACH, SYNOD, [0, 0, 0]);
+  const CATHEDRAL = '12cb:BSHeartland.esm';
+  const PREACH_BASE = '1688e2:DragonBreak Online Edits.esp', PULPIT = idOf('1688e3:DragonBreak Online Edits.esp'), PULPIT2 = idOf('1688e4:DragonBreak Online Edits.esp');
+  put(PULPIT, 'baseDesc', PREACH_BASE); at(PULPIT, CATHEDRAL, [0, 0, 0]);
+  put(PULPIT2, 'baseDesc', PREACH_BASE); at(PULPIT2, CATHEDRAL, [16, 0, 0]);
+  const R = { healing: '12fcc:Skyrim.esm', fastHealing: '2f3b8:Skyrim.esm', grandHealing: 'b62ee:Skyrim.esm', guardianCircle: 'e0ccf:Skyrim.esm' };
+  const PREACHER = 0x50, LISTENER = 0x51, NEWCOMER = 0x52, APPRENTICE = 0x53, DAEDRIC = 0x54, PREACHER2 = 0x55, AWAY = 0x56;
+  Object.assign(NAMES, { [PREACHER]: 'Preacher', [LISTENER]: 'Listener', [NEWCOMER]: 'Newcomer', [APPRENTICE]: 'Apprentice', [DAEDRIC]: 'Daedric', [PREACHER2]: 'Preacher2', [AWAY]: 'Away' });
+  const priestAt = (a, level, rank) => { const r = props.get(a + '|private.mastery') || { v: 2, skills: {}, order: [] }; r.skills.priest = { level, xp: 0, rank }; if (!r.order.includes('priest')) r.order.push('priest'); put(a, 'private.mastery', r); };
+  const faith = (a, kind, id) => put(a, 'private.dboDeity', { id, name: id, kind, at: 1 });
+  for (const a of [PREACHER, LISTENER, NEWCOMER, APPRENTICE, DAEDRIC, PREACHER2, AWAY]) { at(a, CATHEDRAL, [0, 0, 0]); put(a, 'profileId', a); online.push(a); ui('uiCaps', a, ['bank', 'spellbook', 'schools']); }
+  priestAt(PREACHER, 80, 3); faith(PREACHER, 'divine', 'mara');
+  for (const d of Object.values(R)) known(PREACHER).add(idOf(d));
+  known(PREACHER).add(idOf(T.flames[1]));
+  priestAt(LISTENER, 78, 3); priestAt(APPRENTICE, 30, 1);
+  priestAt(DAEDRIC, 80, 3); faith(DAEDRIC, 'daedra', 'boethiah'); known(DAEDRIC).add(idOf(R.grandHealing));
+  priestAt(PREACHER2, 76, 3); faith(PREACHER2, 'divine', 'arkay'); known(PREACHER2).add(idOf(R.healing));
+  priestAt(AWAY, 77, 3);
+  const pw = (a) => lastWidget(a, 'classLectern');
+  const sermon = () => globalThis.__dboSchoolsState.sermons.get(PULPIT);
+  const wheelOf = (a) => wheelEvents.filter((e) => e.a === a);
+
   load();
-  out.said.length = 0; out.widgets.length = 0;
-  check('Preach: before the plugin, the ref is nothing to schools.js', globalThis.__dboSchoolsActivate(PREACH, MAGE) === false && !out.said.length);
+  check('Preach: before the plugin, a pulpit ref is nothing to schools.js', activate(PULPIT, PREACHER) === false);
   RECORDS[idOf(PREACH_BASE)] = { type: 'ACTI', editorId: 'Preach', fields: [] };
   load();
-  const wheel0 = wheelEvents.length;
-  check('Preach: with the plugin it answers "Sermons are coming soon."', globalThis.__dboSchoolsActivate(PREACH, MAGE) === true && out.said.some(([x, s]) => x === MAGE && s === 'Sermons are coming soon.'), out.said);
-  out.said.length = 0;
-  globalThis.__dboSchoolsActivate(PREACH, MAGE);
-  check('Preach: a double press says it once', !out.said.length, out.said);
-  check('Preach: nothing else happens (no panel, no Wheel credit)', !out.widgets.length && wheelEvents.length === wheel0, { widgets: out.widgets.length, wheel: wheelEvents.length - wheel0 });
-  check('Preach: an NPC activating it gets nothing', globalThis.__dboSchoolsActivate(PREACH, NPC) === false);
+  check('Preach: the boot line names the sermons', out.logs.some((l) => /schools: sermons 30 min at Preach, by a follower of divine at Priest Expert, 0 running/.test(l)), out.logs.filter((l) => /sermons/.test(l)));
+  check('Preach: the placeholder is gone; the pulpit opens the Sermon panel (widget 76, the Class Lectern\'s, with its own events)', activate(PULPIT, MAGE) === true && pw(MAGE).id === 76 && pw(MAGE).title === 'Sermon' && pw(MAGE).events.start === 'dbo:preachStart' && pw(MAGE).events.close === 'dbo:preachClose' && !out.said.some(([x, t]) => x === MAGE && /coming soon/.test(t)), pw(MAGE));
+  check('...with the sermon\'s own words for a client that draws them', pw(MAGE).words && pw(MAGE).words.begin === 'Begin the sermon' && pw(MAGE).words.lesson === 'Sermon' && pw(MAGE).words.students === 'Listeners');
+  check('...and the Class Lectern\'s panel carries no words of its own (unchanged)', (() => { activate(LECTERN, MAGE); return !('words' in lastWidget(MAGE, 'classLectern')); })());
+  activate(PULPIT, MAGE);
+  check('no faith: "A sermon is given by a follower of the Divines."', pw(MAGE).mode === 'idle' && pw(MAGE).canTeach === false && pw(MAGE).whyNot === 'A sermon is given by a follower of the Divines.' && pw(MAGE).status === 'No sermon is being given here.', pw(MAGE));
+  activate(PULPIT, DAEDRIC);
+  check('a follower of a Daedric Prince may not preach at a temple of the Divines', pw(DAEDRIC).whyNot === 'A sermon is given by a follower of the Divines.');
+  faith(APPRENTICE, 'divine', 'mara');
+  activate(PULPIT, APPRENTICE);
+  check('a follower of a Divine below Priest Expert: "Preaching takes Expert rank in Priest."', pw(APPRENTICE).whyNot === 'Preaching takes Expert rank in Priest.', pw(APPRENTICE));
+  activate(PULPIT, PREACHER);
+  let w = pw(PREACHER);
+  check('a follower of Mara at Priest Expert: the Restoration spells they know up to Expert (not Guardian Circle, not Flames)', w.canTeach === true && w.spells.map((x) => x.name).join() === 'Healing,Fast Healing,Grand Healing' && w.spells[2].rankName === 'Expert', w.spells);
+  ui('preachStart', PREACHER, ['stale', R.grandHealing]);
+  check('a stale nonce starts nothing', !sermon());
+  ui('preachStart', PREACHER, [w.nonce, R.guardianCircle]);
+  check('a spell above their rank is refused', !sermon() && pw(PREACHER).result === 'You cannot preach on that spell.');
+  ui('preachStart', PREACHER, [pw(PREACHER).nonce, R.grandHealing]);
+  w = pw(PREACHER);
+  check('a sermon on Grand Healing begins: Sermon in Progress, 30 minutes, the preacher\'s role', w.mode === 'running' && w.status === 'Sermon in Progress' && w.spell === 'Grand Healing' && w.rankName === 'Expert' && w.endsInMs === 30 * MIN && w.role === 'teacher' && w.canEnd === false && /Your sermon on Grand Healing has begun\. Listeners join at this pulpit for the first 10 minutes; after 30 minutes, end it here\./.test(w.result), w);
+  const decor = lastPacket(LISTENER, 'refDecor');
+  check('...everyone in the Cathedral sees it on the pulpit\'s crosshair name', decor && decor.refs[0].refId === PULPIT && decor.refs[0].name === 'Pulpit: Sermon in Progress, 30 minutes left', decor);
+  check('...audited', out.audits.some((l) => /SCHOOLS P50 began a sermon on Grand Healing \(Restoration Expert\)/.test(l)));
+  activate(PULPIT2, LISTENER);
+  w = pw(LISTENER);
+  check('the pulpit\'s other box shows the same sermon; an Expert listener would take the full sermon', w.mode === 'running' && w.spell === 'Grand Healing' && w.role === 'visitor' && w.canJoin === true && w.gain === 'At your rank in Priest you would take the full sermon.', w);
+  ui('preachJoin', LISTENER, [w.nonce]);
+  check('joining: listed, the preacher told', pw(LISTENER).role === 'student' && saidAny(PREACHER, /Listener #TAG1 has joined your sermon\./) && /You have joined\. Stay in the temple until Preacher #TAG0 ends the sermon\./.test(pw(LISTENER).result), pw(LISTENER));
+  activate(PULPIT, APPRENTICE);
+  check('an Apprentice listener at an Expert sermon would take nothing, so may not join', pw(APPRENTICE).canJoin === false && pw(APPRENTICE).whyNot === 'At your rank in Priest this sermon would teach you nothing.', pw(APPRENTICE));
+  activate(PULPIT, AWAY); ui('preachJoin', AWAY, [pw(AWAY).nonce]);
+  check('a second listener joins', sermon().students.has(AWAY));
+  ui('preachEnd', PREACHER, [pw(PREACHER).nonce]);
+  check('the preacher cannot end it before its time', /The sermon runs another 30 minutes\./.test(pw(PREACHER).result) && !!sermon(), pw(PREACHER).result);
+  // A hot reload in the middle keeps the sermon
+  load();
+  check('a hot reload keeps the sermon and its tick', !!sermon() && timers.has('schools.classes'));
+  at(AWAY, SYNOD, [0, 0, 0]);
+  advance(20000); tick('schools.classes');
+  check('a listener who walks out is told to come back within 5 minutes', saidAny(AWAY, /You have left the temple\. Come back within 5 minutes to stay for the sermon\./));
+  advance(6 * MIN); tick('schools.classes');
+  check('...and after 5 minutes away drops out', !sermon().students.has(AWAY) && saidAny(AWAY, /You were away too long and have left the sermon\./));
+  advance(25 * MIN); tick('schools.classes');
+  check('after 30 minutes the preacher is told to end it at the pulpit', saidAny(PREACHER, /Your sermon has run its course\. End it at the pulpit to close it\./));
+  const w0 = wheelOf(LISTENER).length;
+  ui('preachEnd', PREACHER, [pw(PREACHER).nonce]);
+  const got = wheelOf(LISTENER).slice(w0);
+  check('ending it pays the Expert listener 8 Wheel credits as casts of Grand Healing (Restoration: Priest)', !sermon() && got.length === 8 && got.every((e) => e.kind === 'cast' && e.detail.spellId === idOf(R.grandHealing) && e.detail.value === 150), got);
+  check('...told what they took', saidAny(LISTENER, /Preacher #TAG0's sermon on Grand Healing is over\. You took the full sermon; it counts toward Priest\./));
+  check('...no school meter for anyone (Restoration stays Priest\'s)', !rec(LISTENER).levels.Restoration);
+  check('...the cooldowns are on their own records (sermonPaidAt, preachAt), not the classes\'', rec(LISTENER).sermonPaidAt > 0 && !rec(LISTENER).paidAt && rec(PREACHER).preachAt > 0 && !rec(PREACHER).classAt);
+  check('...the crosshair name is handed back', lastPacket(LISTENER, 'refDecor').refs.every((r) => r.name === null));
+  check('...audited with who was paid', out.audits.some((l) => /SCHOOLS sermon by P50 on Grand Healing \(Restoration Expert\) at 1688e3:DragonBreak Online Edits\.esp ended: P51 x1 \(wheel 8\)/.test(l)), out.audits.filter((l) => /sermon by/.test(l)));
+  activate(PULPIT, PREACHER);
+  check('the preacher\'s cooldown: an hour before the next sermon', /You preached not long ago\. You may give the next sermon in \d+ minutes\./.test(pw(PREACHER).whyNot), pw(PREACHER));
+  // A second preacher, a Novice sermon: a newcomer who never took Priest up listens at Novice; the preacher leaves, it is cancelled
+  activate(PULPIT, PREACHER2);
+  ui('preachStart', PREACHER2, [pw(PREACHER2).nonce, R.healing]);
+  activate(PULPIT, NEWCOMER);
+  check('someone who never took Priest up listens at Novice: a Novice sermon is the full sermon to them', pw(NEWCOMER).canJoin === true && pw(NEWCOMER).gain === 'At your rank in Priest you would take the full sermon.', pw(NEWCOMER));
+  ui('preachJoin', NEWCOMER, [pw(NEWCOMER).nonce]);
+  activate(PULPIT, APPRENTICE);
+  check('an Apprentice would take 35% of a Novice sermon', pw(APPRENTICE).canJoin === true && pw(APPRENTICE).gain === 'At your rank in Priest you would take 35% of the sermon.', pw(APPRENTICE));
+  put(APPRENTICE, 'private.dboSchools', Object.assign(rec(APPRENTICE), { sermonPaidAt: Date.now() - HOUR }));
+  activate(PULPIT, APPRENTICE);
+  check('a listener paid for a sermon an hour ago waits 12 hours for the next', pw(APPRENTICE).canJoin === false && /You heard a sermon not long ago\. You may learn from another in 11 hours\./.test(pw(APPRENTICE).whyNot), pw(APPRENTICE));
+  at(PREACHER2, SYNOD, [0, 0, 0]);
+  advance(20000); tick('schools.classes');
+  check('the preacher leaves: listeners hear the 5-minute warning', saidAny(NEWCOMER, /Preacher2 #TAG5 has left the temple\. If they are not back within 5 minutes, the sermon is cancelled\./));
+  const n0 = wheelOf(NEWCOMER).length;
+  advance(6 * MIN); tick('schools.classes');
+  check('...and after 5 minutes it is cancelled, nobody paid', !sermon() && saidAny(NEWCOMER, /The sermon on Healing was cancelled\. Nobody is paid for it\./) && wheelOf(NEWCOMER).length === n0 && !rec(PREACHER2).preachAt);
+  // The class engine is shared: one class and one sermon at once, each its own
+  check('classes and sermons keep their own sessions', globalThis.__dboSchoolsState.classes instanceof Map && globalThis.__dboSchoolsState.sermons instanceof Map && globalThis.__dboSchoolsState.classes !== globalThis.__dboSchoolsState.sermons);
+  // requireList, /preacher
+  load({ preach: { requireList: true } });
+  at(PREACHER2, CATHEDRAL, [0, 0, 0]);
+  activate(PULPIT, PREACHER2);
+  check('with requireList, only priests the staff named may preach', pw(PREACHER2).whyNot === 'Only priests the temple has named may preach. Ask the staff.');
+  cmd('preacher', TEACHER, 'add Preacher2');
+  activate(PULPIT, PREACHER2);
+  check('/preacher add names them', pw(PREACHER2).canTeach === true && commands.get('preacher').opts.admin === true && rec(PREACHER2).preacher && rec(PREACHER2).preacher.by === 'P15');
   load({ preach: { enabled: false } });
-  out.said.length = 0;
-  check('Preach: schools.preach.enabled false turns it off', globalThis.__dboSchoolsActivate(PREACH, MAGE) === false && !out.said.length);
+  check('schools.preach.enabled false: the pulpit is not handled', activate(PULPIT, PREACHER) === false);
+  load();
+  check('an NPC activating it gets nothing', activate(PULPIT, NPC) === false);
+  for (const a of [PREACHER, LISTENER, NEWCOMER, APPRENTICE, DAEDRIC, PREACHER2, AWAY]) ui('preachClose', a);
+
+  // ---- live then new: a hot reload from the live schools.js (the placeholder) to this one, a class running ----
+  let liveSrc = '';
+  try { liveSrc = require('child_process').execFileSync('git', ['-C', SERVER, 'show', '9ec5e741:schools.js'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { liveSrc = ''; }
+  if (!liveSrc || !/Sermons are coming soon/.test(liveSrc)) console.log('skip live then new: no git or no 9ec5e741 here');
+  else {
+    const LIVE = path.join(dir, 'schools-live.js');
+    fs.writeFileSync(LIVE, liveSrc);
+    // The live module's `require`s resolve from the temp folder; it needs none beyond fs and path
+    load(undefined, LIVE);
+    out.said.length = 0;
+    check('live: the pulpit answers "Sermons are coming soon."', activate(PULPIT, PREACHER) === true && saidAny(PREACHER, /Sermons are coming soon\./));
+    delete globalThis.__dboSchoolsState.classes; delete globalThis.__dboSchoolsState.lecternOpen;
+    load(undefined, LIVE);
+    advance(2 * HOUR);
+    put(TEACHER, 'private.dboSchools', Object.assign(rec(TEACHER), { classAt: 0 }));
+    at(TEACHER, SYNOD, [0, 0, 0]); at(ADEPT, SYNOD, [0, 0, 0]);
+    activate(LECTERN, TEACHER);
+    ui('lecternStart', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce, T.incinerate[1]]);
+    const liveClass = globalThis.__dboSchoolsState.classes.get(LECTERN);
+    check('live: a class runs at the Synod', !!liveClass && liveClass.spell.name === 'Incinerate');
+    put(ADEPT, 'private.dboSchools', Object.assign(rec(ADEPT), { paidAt: 0 }));
+    activate(LECTERN, ADEPT); ui('lecternJoin', ADEPT, [lastWidget(ADEPT, 'classLectern').nonce]);
+    load();
+    check('new: the hot reload keeps the live class, its students and its lectern panels', globalThis.__dboSchoolsState.classes.get(LECTERN) === liveClass && liveClass.students.has(ADEPT));
+    advance(31 * MIN); tick('schools.classes');
+    const before = level(ADEPT, 'Destruction');
+    ui('lecternEnd', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
+    check('new: the live class ends and pays under the new engine', !globalThis.__dboSchoolsState.classes.has(LECTERN) && level(ADEPT, 'Destruction') > before && saidAny(ADEPT, /class on Incinerate is over/), [before, level(ADEPT, 'Destruction')]);
+    activate(PULPIT, PREACHER2);
+    check('new: the same pulpit now opens the Sermon panel', pw(PREACHER2).title === 'Sermon');
+    ui('preachClose', PREACHER2);
+  }
+  online = online.filter((a) => ![PREACHER, LISTENER, NEWCOMER, APPRENTICE, DAEDRIC, PREACHER2, AWAY].includes(a));
 }
 
 console.log(`\n${checks - failures}/${checks} passed`);
