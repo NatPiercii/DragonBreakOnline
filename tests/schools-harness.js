@@ -101,7 +101,7 @@ globalThis.__alduinakMasteryFirstTouch = (a, skill) => { touches.push([a, skill]
 globalThis.__alduinakMasteryEvent = (kind, a, detail) => wheelEvents.push({ kind, a, detail });
 
 let online = [MAGE, TEACHER, ADEPT, NOVICE, ILLUSIONIST, OLDMAGE, PRIESTLY, ALTMAGE, OLDPRIEST];
-const out = { widgets: [], closed: [], said: [], audits: [], logs: [], packets: [] };
+const out = { widgets: [], closed: [], said: [], audits: [], logs: [], packets: [], seq: [] };
 const handlers = new Map(), commands = new Map(), timers = new Map();
 const mkApi = (cfg) => ({
   mp, cfg,
@@ -111,8 +111,8 @@ const mkApi = (cfg) => ({
   audit: (t) => out.audits.push(t),
   display: (a) => `${NAMES[a] || 'P'} #TAG${(a & 0xf).toString(16)}`,
   who: (a) => `P${a.toString(16)}`,
-  openWidget: (a, w, focus) => { out.widgets.push({ a, w, focus }); return true; },
-  closeWidget: (a, id) => { out.closed.push([a, id]); return true; },
+  openWidget: (a, w, focus) => { out.widgets.push({ a, w, focus }); out.seq.push(['open', a, w.id, !!focus]); return true; },
+  closeWidget: (a, id) => { out.closed.push([a, id]); out.seq.push(['close', a, id]); return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
   registerChatCommand: (name, fn, opts) => commands.set(name, { fn, opts }),
   onlineActors: () => online.slice(),
@@ -552,6 +552,70 @@ check('/schools reset clears them to choose again', !rec(ILLUSIONIST).primary &&
   put(DEVOUT, 'private.dboStudied', { priest: [HEALING] });
   activate(PSTUDY, DEVOUT);
   check('once a Restoration spell studied through Priest is in the spellbook, Priest Studies is closed for good', !sitting(DEVOUT) && /You have learned Healing; the shelves have nothing more to teach you\. Priest grows now by casting and in prayer\./.test(ps(DEVOUT).whyNot), ps(DEVOUT));
+  // G's review P1: two sittings at once through the panels' Study buttons, both ways
+  {
+    const studying = (a) => globalThis.__dboSchoolsState.studying.has(a);
+    const P = DEVOUT;
+    put(P, 'private.dboStudied', null); put(P, 'private.dboSchools', null);
+    at(P, SYNOD, [0, 0, 0]);
+    activate(BOOKCASE, P);
+    ui('schoolChoose', P, [lastWidget(P, 'studyMagic').nonce, 'Illusion', 'primary']);
+    const n73 = out.widgets.filter((x) => x.a === P && x.w.id === 73).pop().w.nonce;
+    ui('studyStop', P, [n73]);
+    at(P, CATHEDRAL, [0, 0, 0]);
+    activate(PSTUDY, P);
+    ui('studyStart', P, [n73]);
+    check('P1: an idle Study Magic panel, then a PriestStudy, then 73\'s Study: one sitting only (73 was closed, its nonce cleared)', sitting(P) && !studying(P) && out.closed.some(([a, id]) => a === P && id === 73), { priest: sitting(P), study: studying(P) });
+    // A modified client that kept 73's nonce: its Start handler refuses while the Priest sitting runs
+    globalThis.__dboSchoolsState.studyNonces.set(P, 'kept'); globalThis.__dboSchoolsState.studyAt.set(P, BOOKCASE);
+    ui('studyStart', P, ['kept']);
+    check('...and 73\'s Start refuses while a Priest sitting runs', sitting(P) && !studying(P) && /already at the books of Restoration/.test(lastWidget(P, 'studyMagic').result), lastWidget(P, 'studyMagic'));
+    globalThis.__dboSchoolsState.studyNonces.delete(P); globalThis.__dboSchoolsState.studyAt.delete(P);
+    const n75 = ps(P).nonce;
+    ui('priestStudyStop', P, [n75]);
+    at(P, SYNOD, [0, 0, 0]);
+    activate(BOOKCASE, P);
+    at(P, CATHEDRAL, [0, 0, 0]); at(P, SYNOD, [0, 0, 0]);
+    ui('priestStudyStart', P, [n75]);
+    check('P1: an idle Priest panel, then a bookcase, then 75\'s Study: one sitting only (75 was closed, its nonce cleared)', studying(P) && !sitting(P) && out.closed.some(([a, id]) => a === P && id === 75), { priest: sitting(P), study: studying(P) });
+    globalThis.__dboSchoolsState.priestNonces.set(P, 'kept'); globalThis.__dboSchoolsState.priestAt.set(P, PSTUDY);
+    ui('priestStudyStart', P, ['kept']);
+    check('...and 75\'s Start refuses while a Study Magic sitting runs', studying(P) && !sitting(P) && /already at the books of magic/.test(ps(P).result), ps(P));
+    globalThis.__dboSchoolsState.priestNonces.delete(P); globalThis.__dboSchoolsState.priestAt.delete(P);
+    // P2: the handoff opens the new focused panel before it closes the old one
+    at(P, CATHEDRAL, [0, 0, 0]);
+    let mark = out.seq.length;
+    activate(PSTUDY, P);
+    let s2 = out.seq.slice(mark).filter((e) => e[1] === P);
+    let open75 = s2.findIndex((e) => e[0] === 'open' && e[2] === 75 && e[3]), close73 = s2.findIndex((e) => e[0] === 'close' && e[2] === 73);
+    check('P2: Study Magic to Priest Studies opens 75 (focused) before it closes 73', open75 >= 0 && close73 > open75, s2);
+    at(P, SYNOD, [0, 0, 0]);
+    mark = out.seq.length;
+    activate(BOOKCASE, P);
+    s2 = out.seq.slice(mark).filter((e) => e[1] === P);
+    const open73 = s2.findIndex((e) => e[0] === 'open' && e[2] === 73 && e[3]), close75 = s2.findIndex((e) => e[0] === 'close' && e[2] === 75);
+    check('P2: Priest Studies to Study Magic opens 73 (focused) before it closes 75', open73 >= 0 && close75 > open73 && studying(P) && !sitting(P), s2);
+    // P4: a panel's Study button starts a sitting only at the books
+    ui('studyStop', P, [lastWidget(P, 'studyMagic').nonce]);
+    at(P, SYNOD, [1400, 0, 0]);
+    ui('studyStart', P, [lastWidget(P, 'studyMagic').nonce]);
+    check('P4: Study Magic\'s Study button 20 m from the bookcase is refused', !studying(P) && /Stand at the books to study\./.test(lastWidget(P, 'studyMagic').result), lastWidget(P, 'studyMagic'));
+    at(P, SYNOD, [0, 0, 0]);
+    ui('studyStart', P, [lastWidget(P, 'studyMagic').nonce]);
+    check('...and at the bookcase it starts', studying(P));
+    ui('studyClose', P);
+    at(P, CATHEDRAL, [0, 0, 0]);
+    activate(PSTUDY, P);
+    ui('priestStudyStop', P, [ps(P).nonce]);
+    at(P, BRUMA, [0, 0, 0]);
+    ui('priestStudyStart', P, [ps(P).nonce]);
+    check('P4: Priest Studies\' Study button from another cell is refused', !sitting(P) && /Stand at the books to study\./.test(ps(P).result), ps(P));
+    at(P, CATHEDRAL, [0, 0, 0]);
+    ui('priestStudyStart', P, [ps(P).nonce]);
+    check('...and at the study point it starts', sitting(P));
+    ui('priestStudyClose', P);
+    put(P, 'private.dboSchools', null);
+  }
   priestOf(ACOLYTE, 30);
   activate(PSTUDY, ACOLYTE);
   check('a priest who holds Priest sees their rank and level', ps(ACOLYTE).rank === 'Apprentice' && ps(ACOLYTE).level === 30 && Math.abs(ps(ACOLYTE).fill - 0.3) < 1e-9, ps(ACOLYTE));

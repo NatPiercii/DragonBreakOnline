@@ -467,6 +467,8 @@ module.exports = (api) => {
     }, focus);
   };
   const posOf = (a) => { try { return mp.get(a, 'pos'); } catch (e) { return null; } };
+  // A panel's Study button starts a sitting only within activation reach of its books (6.5 m, as gamemode.js allows)
+  const atBooks = (a, ref) => { try { return distanceMeters(a, ref) <= 6.5; } catch (e) { return false; } };
   const startStudy = (a, ref) => {
     const s = stateOf(a);
     const why = studyRefusal(a, s);
@@ -518,7 +520,14 @@ module.exports = (api) => {
       if (studyAt.get(a) === ses.ref) openStudy(a, ses.ref, '', '', false);
     }
   };
-  onUi('studyStart', (a, args) => { if (studyNonces.get(a >>> 0) !== String(args[0] || '')) return; const ref = studyAt.get(a >>> 0); if (ref && !S.studying.has(a >>> 0)) startStudy(a, ref); });
+  onUi('studyStart', (a, args) => {
+    if (studyNonces.get(a >>> 0) !== String(args[0] || '')) return;
+    const ref = studyAt.get(a >>> 0);
+    if (!ref || S.studying.has(a >>> 0)) return;
+    if (S.priestStudying.has(a >>> 0)) return openStudy(a, ref, 'You are already at the books of Restoration.', 'refused');
+    if (!atBooks(a, ref)) return openStudy(a, ref, 'Stand at the books to study.', 'refused');
+    startStudy(a, ref);
+  });
   onUi('studyStop', (a, args) => { if (studyNonces.get(a >>> 0) !== String(args[0] || '')) return; stopStudy(a, 'stopped'); const ref = studyAt.get(a >>> 0); if (ref) openStudy(a, ref); });
   onUi('studyClose', (a) => { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); closeWidget(a, STUDY_PANEL_ID); });
   onUi('close', (a, args, widgetId) => {
@@ -526,12 +535,18 @@ module.exports = (api) => {
     if (widgetId === PRIEST_PANEL_ID) { stopPriest(a, 'closed'); priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); }
     if (widgetId === CLASS_PANEL_ID) lecternOpen.delete(a >>> 0);
   });
-  const useStudy = (ref, a) => {
-    if (S.priestStudying.has(a >>> 0)) { stopPriest(a, 'closed'); closeWidget(a, PRIEST_PANEL_ID); }
+  const openOrStartStudy = (ref, a) => {
     const s = stateOf(a);
     if (!s.primary) return openStudy(a, ref);
     if (S.studying.has(a >>> 0)) return openStudy(a, ref);
     startStudy(a, ref);
+  };
+  // One set of books at a time; the new panel opens before the other closes, so the cursor stays (panel handoff)
+  const useStudy = (ref, a) => {
+    const priestOpen = priestAt.has(a >>> 0);
+    stopPriest(a, 'closed');
+    openOrStartStudy(ref, a);
+    if (priestOpen) { priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); closeWidget(a, PRIEST_PANEL_ID); }
   };
 
   // ---- Priest Studies ------------------------------------------------------------------------------------------------
@@ -623,14 +638,22 @@ module.exports = (api) => {
     }
   };
   const priestNonce = (a, args) => priestNonces.get(a >>> 0) === String(args[0] || '');
-  onUi('priestStudyStart', (a, args) => { if (!priestNonce(a, args)) return; const ref = priestAt.get(a >>> 0); if (ref && !S.priestStudying.has(a >>> 0)) startPriest(a, ref); });
+  onUi('priestStudyStart', (a, args) => {
+    if (!priestNonce(a, args)) return;
+    const ref = priestAt.get(a >>> 0);
+    if (!ref || S.priestStudying.has(a >>> 0)) return;
+    if (S.studying.has(a >>> 0)) return openPriest(a, ref, 'You are already at the books of magic.', 'refused');
+    if (!atBooks(a, ref)) return openPriest(a, ref, 'Stand at the books to study.', 'refused');
+    startPriest(a, ref);
+  });
   onUi('priestStudyStop', (a, args) => { if (!priestNonce(a, args)) return; stopPriest(a, 'stopped'); const ref = priestAt.get(a >>> 0); if (ref) openPriest(a, ref); });
   onUi('priestStudyClose', (a) => { stopPriest(a, 'closed'); priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); closeWidget(a, PRIEST_PANEL_ID); });
-  // One set of books at a time: opening one study ends a sitting at the other
   const usePriest = (ref, a) => {
-    if (S.studying.has(a >>> 0)) { stopStudy(a, 'closed'); closeWidget(a, STUDY_PANEL_ID); }
-    if (S.priestStudying.has(a >>> 0)) return openPriest(a, ref);
-    startPriest(a, ref);
+    const studyOpen = studyAt.has(a >>> 0);
+    stopStudy(a, 'closed');
+    if (S.priestStudying.has(a >>> 0)) openPriest(a, ref);
+    else startPriest(a, ref);
+    if (studyOpen) { studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); closeWidget(a, STUDY_PANEL_ID); }
   };
   // DLE v10 brings the activator; until a ref of it is used, this is never reached. Said once per process when it is.
   const notePriestStudy = (ref) => {
