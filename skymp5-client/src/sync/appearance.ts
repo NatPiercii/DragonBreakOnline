@@ -12,6 +12,7 @@ import {
   Utility,
   ObjectReference,
 } from "skyrimPlatform";
+import { queuePlayerNiNodeUpdate } from "../view/niNodeQueue";
 
 export interface Tint {
   texturePath: string;
@@ -183,7 +184,7 @@ export const applyAppearanceToPlayer = (appearance: Appearance): void => {
     ActorBase.from((Game.getPlayer() as Actor).getBaseObject()) as ActorBase,
   );
   applyTints(null, appearance);
-  (Game.getPlayer() as Actor).queueNiNodeUpdate();
+  queuePlayerNiNodeUpdate();
   Utility.wait(0.0625).then(() => {
     once("update", () => {
       Game.getPlayer()?.startDeferredKill();
