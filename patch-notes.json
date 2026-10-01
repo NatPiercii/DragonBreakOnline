@@ -71,6 +71,20 @@
     ]
   },
   {
+    "title": "Vampire Lords can turn back",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Vampire Lords",
+        "items": [
+          "Revert Form on the Shout key now turns a Vampire Lord back into their own shape. You can also type /beast to turn back at any time."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Mini-games and a slow connection",
     "date": "2026-10-01",
     "version": "Server update",

@@ -288,6 +288,8 @@ module.exports = (api) => {
   ]);
   globalThis.__dboBeastPower = (a, spellId) => {
     a = Number(a) >>> 0; spellId = Number(spellId) >>> 0;
+    // Revert Form chosen on the Shout key arrives here like any power; it ends the form (Exsenus, 2026-10-01: stuck)
+    if (spellId === REVERT_POWER) { if (stateOf(a)) revert(a, 'revert power'); return; }
     const pw = POWERS.get(spellId), s = stateOf(a);
     if (!pw || !s || s.form !== pw.form) return;
     const key = `${a}:${spellId}`, now = Date.now(), ready = ST.cooldown.get(key) || 0;
