@@ -5,8 +5,9 @@
 # on speakers with no echo cancellation they send nearby voices back.
 #   sudo python3 tools/voice-room.py            one listing
 #   sudo python3 tools/voice-room.py --watch 8  eight samples, 10 s apart
-# It reads server-settings.json's voiceChat (root only), signs a 60-second roomList token in memory, never prints a key
-# or token, and calls only ListRooms and ListParticipants.
+# It reads server-settings.json's voiceChat (root only), signs a 60-second token per call in memory, never prints a key
+# or token, and calls only ListRooms and ListParticipants. ListRooms gets roomList alone; ListParticipants needs roomAdmin
+# for the room (LiveKit answered 401 "permissions denied" to roomList alone, 1 Oct), and no admin call is ever made.
 import base64, hashlib, hmac, json, sys, time, urllib.request
 from collections import Counter
 
@@ -24,11 +25,13 @@ def main():
         sys.exit('voiceChat has no url/apiKey/apiSecret: voice is off here')
     base = url.replace('wss://', 'https://').replace('ws://', 'http://').rstrip('/')
 
+    grants = {'ListRooms': {'roomList': True}, 'ListParticipants': {'roomAdmin': True, 'room': room}}
+
     def call(method, body):
         now = int(time.time())
         head = b64(json.dumps({'alg': 'HS256', 'typ': 'JWT'}).encode())
         claims = b64(json.dumps({'iss': key, 'sub': 'staff-voice-room', 'nbf': now - 10, 'exp': now + 60,
-                                 'video': {'roomList': True, 'roomAdmin': True, 'room': room}}).encode())
+                                 'video': grants[method]}).encode())
         sig = b64(hmac.new(secret.encode(), f'{head}.{claims}'.encode(), hashlib.sha256).digest())
         req = urllib.request.Request(f'{base}/twirp/livekit.RoomService/{method}', data=json.dumps(body).encode(),
                                      headers={'Authorization': f'Bearer {head}.{claims}.{sig}', 'Content-Type': 'application/json'})
