@@ -12,6 +12,7 @@ import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
+import { queueCopyNiNodeUpdate } from "./niNodeQueue";
 import { lastTryHost, tryHost } from "./hostAttempts";
 import { GHOST_ALPHA, GHOST_SHADER_ID } from "../lib/ghostLook";
 import { ModelApplyUtils } from "./modelApplyUtils";
@@ -693,7 +694,7 @@ export class FormView {
           // Never on a beast copy: the queued 3D reset holds a raw actor pointer and the beast graph is the one that crashed
           if (isOnScreen && !this.isBeastCopy(model) && Date.now() - this.lastNiNodeUpdateMs >= FormView.niNodeUpdateMinIntervalMs) {
             this.lastNiNodeUpdateMs = Date.now();
-            actor.queueNiNodeUpdate();
+            queueCopyNiNodeUpdate(actor.getFormID());
             // The rebuilt 3D drops effect shaders
             if (this.adminShaderOn) {
               this.adminShaderReplayAt = this.lastNiNodeUpdateMs + FormView.adminShaderReplayDelayMs;

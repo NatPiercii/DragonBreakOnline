@@ -26,6 +26,7 @@ import {
 import { baseIsPlayers } from "./appearance";
 // @ts-expect-error (TODO: Remove in 2.10.0)
 import { createEnchantment } from "skyrimPlatform";
+import { queueCopyNiNodeUpdate, queuePlayerNiNodeUpdate } from "../view/niNodeQueue";
 
 // Vanilla boundArrow, added by bound bow effects
 const BOUND_ARROW_ID = 0x10b0a7;
@@ -637,7 +638,8 @@ const applyInventoryInner = (
     if (queueNiNodeUpdateNeeded) {
       const ac = Actor.from(refr);
       if (ac) {
-        ac.queueNiNodeUpdate();
+        if (ac.getFormID() === 0x14) queuePlayerNiNodeUpdate();
+        else queueCopyNiNodeUpdate(ac.getFormID());
       }
     }
   });
