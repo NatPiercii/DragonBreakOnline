@@ -115,7 +115,7 @@
       {
         "heading": "Falling in battle",
         "items": [
-          "A crash no longer costs you Death's Chill: if your game crashed before you fell, you wake where you fell, at full health, instead of at the temple. Quitting the game still counts as a fall."
+          "A crash no longer costs you a fall: once the launcher reports the crash, your body cannot be harmed for up to ten minutes, and a fall that came after the crash wakes you where you fell, at full health, without Death's Chill. Quitting the game still counts as a fall."
         ]
       }
     ]
