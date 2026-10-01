@@ -47,8 +47,14 @@ check('...it is cleared when the player\'s goes', p.playerWaiting === false);
 const FORK = process.env.FORK, FORK_SERVER = process.env.FORK_SERVER;
 const src = FORK && path.join(FORK, 'skymp5-client/src/view/niNodeQueue.ts');
 const esbuild = FORK_SERVER && path.join(FORK_SERVER, 'skymp5-server/node_modules/.bin/esbuild');
-if (!src || !fs.existsSync(src) || !esbuild || !fs.existsSync(esbuild)) console.log('skip  parts 2-3: no FORK with niNodeQueue.ts or no esbuild in FORK_SERVER');
-else {
+const PARTS_2_3 = 20; // checks in parts 2 and 3
+const why = !src ? 'FORK is not set' : !fs.existsSync(src) ? `${FORK} has no niNodeQueue.ts` : !esbuild || !fs.existsSync(esbuild) ? 'no esbuild in FORK_SERVER' : '';
+let skipped = 0;
+if (why) {
+  require('./expect')('ni-node-queue', `parts 2-3 cannot run: ${why}`);
+  skipped = PARTS_2_3;
+  console.log(`SKIP  ${PARTS_2_3} of the harness's checks (niNodeQueue.ts against expiring natives, and the call sites): ${why}`);
+} else {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-ninode-')), 'q.js');
   execFileSync(esbuild, [src, '--bundle', '--platform=node', '--format=cjs', '--external:skyrimPlatform', `--outfile=${out}`, '--log-level=error']);
   let frame = 0;
@@ -137,5 +143,5 @@ else {
   check('appearance: the player\'s new look through queuePlayerNiNodeUpdate', /applyTints\(null, appearance\);\s*queuePlayerNiNodeUpdate\(\);/.test(read('sync/appearance.ts')));
 }
 
-console.log(failures ? `${failures} FAILED` : 'all checks passed');
+console.log(failures ? `${failures} FAILED` : skipped ? `all checks run passed, ${skipped} SKIPPED (see above)` : 'all checks passed');
 process.exit(failures ? 1 : 0);
