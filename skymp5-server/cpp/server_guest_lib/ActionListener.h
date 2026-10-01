@@ -96,6 +96,12 @@ public:
     return craftService;
   }
 
+  // A staff's pace (TakeStaffHit)
+  static constexpr std::chrono::milliseconds kStaffTickInterval{ 250 };
+  static constexpr std::chrono::milliseconds kStaffVolleyInterval{ 750 };
+  static constexpr std::chrono::milliseconds kStaffVolleySpread{ 150 };
+  static constexpr size_t kStaffTargetsPerVolley = 12;
+
 private:
   struct RestorationChannel
   {
@@ -196,6 +202,17 @@ private:
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
   bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
                             uint32_t targetId);
+  // Staff hits (TakeStaffHit): concentration ticks per (caster << 32 | target), volleys per (caster << 32 | enchantment)
+  struct StaffVolley
+  {
+    std::chrono::steady_clock::time_point firstAt{};
+    std::vector<uint32_t> targets;
+  };
+  std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
+    staffTicks;
+  std::unordered_map<uint64_t, StaffVolley> staffVolleys;
+  bool TakeStaffHit(uint32_t casterId, uint32_t enchantmentId,
+                    uint32_t targetId);
   // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
   static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
   std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
