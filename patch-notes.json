@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "Three spell tomes in their proper schools",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Spectral Arrow, Command Daedra and Paralyze are now ranked in their proper schools: Conjuration Apprentice, Conjuration Expert and Alteration Expert."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Found Your Own Faction",
     "date": "2026-10-01",
     "version": "Server update",
