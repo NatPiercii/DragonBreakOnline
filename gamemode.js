@@ -2787,12 +2787,22 @@ registerChatCommand('officials', (a, args) => {
 // higher tiers a scroll or a spell tome from readables.json). Work is credited to the skill on a win.
 // The candle is baseSeconds plus secondsPerWord for each word, and the sentence grows with the
 // Scholar's tier (wordsByTier). A wrong reading is not the end: it burns wrongPenaltySeconds off the
-// candle, and the words already right from the start lock in. The server holds the deadline; the
-// candle on screen is only a picture of it. A Cyrodiil book (a Beyond Skyrim plugin) reads a Cyrodiil line, a Skyrim
+// candle, and the words already right from the start lock in. The widget keeps the candle on the reader's own clock
+// (clientJudged) and the server checks the words, never when a packet arrived. A Cyrodiil book (a Beyond Skyrim plugin) reads a Cyrodiil line, a Skyrim
 // book a Skyrim one, and either may read a line of Tamriel at large.
 const READ = Object.assign({
   enabled: true, baseSeconds: 30, secondsPerWord: 6, wrongPenaltySeconds: 8, graceMs: 2500,
   cooldownMinutes: 30, loseCooldownMinutes: 2,
+  // The widget's candle decides in time or guttered, on the reader's clock (Jake, 2026-09-30: latency failed rounds); the
+  // words are still checked here, so the answer never reaches the reader's machine (DESIGN.md section 12, item 3).
+  // false: the server's deadline does, exactly as before.
+  clientJudged: true,
+  // A widget that reports no timings (0.3.71/0.3.72) stops itself when its candle gutters, so the server's deadline only bounds it this loosely
+  legacyGraceMs: 30000,
+  // Checks no lag can fail: the fastest a sentence can be put in order, and how far the widget's own sums may be out
+  minMsPerWord: 150, clockSlackMs: 250,
+  // A round nobody answered is cleared, with the lost round's cooldown, this long after its candle
+  roundTimeoutMinutes: 5,
   wordsByTier: [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
   // A scroll pressed between the pages of a book read through, by Scholar tier (Nate, 2026-09-25: scrolls let a new
   // mage cast, and so train Arcane Arts or Priest, before owning a spell). The tier also caps the scroll's value.
@@ -3023,7 +3033,14 @@ const readLine = (tier, cyrodiil) => {
 const readWidget = (ses, extra) => Object.assign({
   type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]),
   seconds: Math.round(ses.candleMs / 1000), endsInMs: Math.max(0, ses.deadline - Date.now()), locked: ses.locked, attempt: ses.attempts,
+  judge: MG.clientJudged(READ) ? 'client' : undefined, candleMs: ses.candleMs, penaltyMs: Number(READ.wrongPenaltySeconds) * 1000,
 }, extra || {});
+// How far past the server's deadline a reading from a widget without timings (0.3.71) still counts: the old widget stops
+// itself when its own candle gutters, so this bounds only a modified one. Rollback: graceMs, as before.
+const readLateMs = () => (MG.clientJudged(READ) ? Math.max(Number(READ.graceMs), Number(READ.legacyGraceMs)) : Number(READ.graceMs));
+// Cleanup only, client-judged: a round nobody answered is dead this long after its candle
+const readExpired = (ses, now) => MG.clientJudged(READ) && now > ses.startedAt + ses.candleMs + Number(READ.roundTimeoutMinutes) * 60000;
+const readIgnored = MG.limiter(5000);
 globalThis.__dboReadBook = (targetId, casterId) => {
   if (!READ.enabled || targetId >= 0xff000000) return false;
   let rec = null; try { rec = mp.lookupEspmRecordById(mp.getIdFromDesc(String(mp.get(targetId, 'baseDesc')))); } catch (e) { return false; }
@@ -3040,7 +3057,13 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   // A round nobody answered (the reader disconnected, or the client never sent the guttered candle) expires
   // rather than blocking every book until a restart.
   const open = readSessions.get(casterId);
-  if (open && Date.now() < open.deadline + READ.graceMs + 10000) return true;
+  if (open && Date.now() < open.deadline + readLateMs() + 10000) {
+    // Client-judged: the window was lost (a reload, F2, a crash), so the round in hand is drawn again instead of the
+    // book doing nothing (DESIGN.md section 13). Same nonce: a window still showing it keeps its state.
+    if (MG.clientJudged(READ)) openWidget(casterId, readWidget(open, { endsInMs: Math.max(1000, open.deadline - Date.now()) }), true);
+    return true;
+  }
+  if (open && MG.clientJudged(READ)) log(`reading expired ${display(casterId)} after ${Math.round((Date.now() - open.startedAt) / 1000)} s, no reading: a new round opens`);
   readSessions.delete(casterId);
   const key = targetId.toString(16); const reads = readsOf(casterId);
   const until = Number(reads[key]) || 0;
@@ -3068,11 +3091,18 @@ const abandonRead = (a) => {
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
 };
 const endRead = (a) => { abandonRead(a); closeWidget(a, READ_WIDGET_ID); };
+// Client-judged: a round nobody answered is swept, logged, with the lost round's cooldown on its book
+if (typeof every === 'function') every('readingSweep', 60000, () => { const now = Date.now(); for (const [a, ses] of [...readSessions]) if (readExpired(ses, now)) { log(`reading expired ${display(a)} after ${Math.round((now - ses.startedAt) / 1000)} s, no reading`); abandonRead(a); } });
 onUi('readingCancel', (a) => endRead(a));
 // F2 hides the interface by closing the focused widget (args ['hidden']): the round ends without the lost round's cooldown
 onUi('close', (a, args, widgetId) => { if (widgetId !== READ_WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') readSessions.delete(a); else abandonRead(a); });
 onUi('reading', (a, args) => {
-  const ses = readSessions.get(a); if (!ses || String(args[0]) !== ses.nonce) return;
+  const ses = readSessions.get(a);
+  if (!ses || String(args[0]) !== ses.nonce) {
+    // Another round's nonce, another player's, or a round already over: nothing is judged; at most one line in 5 s
+    if (MG.clientJudged(READ) && readIgnored(a, Date.now())) log(`reading ignored ${display(a)}: ${ses ? 'another round is live' : 'no round'} for ${String(args[0]).slice(0, 40)}`);
+    return;
+  }
   let order = []; try { order = JSON.parse(String(args[1] || '[]')); } catch (e) { order = []; }
   if (!Array.isArray(order)) order = [];
   const n = ses.original.length;
@@ -3080,19 +3110,52 @@ onUi('reading', (a, args) => {
     && ses.locked.every((v, k) => order[k] === v);
   // Judged by the words, not by which card carried them: two cards reading "the" are interchangeable.
   const words = valid ? order.map((i) => ses.original[ses.shuffled[i]]) : [];
-  const inTime = Date.now() <= ses.deadline + READ.graceMs;
   const right = valid && order.length === n && words.every((w, k) => w === ses.original[k]);
+  // The widget's own clock (args[2], clientJudged widgets; minigames.js): candle time used, time waiting on a verdict,
+  // what is left, guttered. Anything unreadable is an old widget, judged by the server's deadline relaxed to readLateMs.
+  const cj = MG.clientJudged(READ);
+  const t = cj ? MG.verdictOf(args[2]) : null;
+  const own = !!t && Number(t.v) === 2;
+  // A second send of a reading already judged (the widget's double Enter) is dropped, not held against the reader
+  if (own && Math.floor(Number(t.attempts) || 0) < ses.attempts) { log(`reading dup ${display(a)} att=${ses.attempts}`); return; }
+  const now = Date.now(), penalty = Number(READ.wrongPenaltySeconds) * 1000, srv = now - ses.startedAt;
+  const el = own ? Math.max(0, Math.floor(Number(t.elapsedMs) || 0)) : -1;
+  const paused = own ? Math.max(0, Math.floor(Number(t.pausedMs) || 0)) : 0;
+  const left = own ? Math.floor(Number(t.leftMs) || 0) : ses.deadline - now;
+  const minMs = Number(READ.minMsPerWord) * n;
+  let bad = '';
+  if (cj) {
+    // Only checks latency cannot fail: a cleanup bound in minutes; a right reading no faster than 150 ms a word by the
+    // widget's own figure or by the server's time since it SENT the round (lag only lengthens that); the widget's sums
+    if (readExpired(ses, now)) bad = 'expired';
+    else if (right && (MG.serverTooSoon(srv, minMs, 50) || (own && el < minMs))) bad = 'fast';
+    else if (own && Math.floor(Number(t.attempts) || 0) > ses.attempts) bad = 'attempts';
+    else if (own && el + ses.attempts * penalty > ses.candleMs + Number(READ.clockSlackMs)) bad = 'clock';
+  }
+  // In time: the widget's own candle (client), the server's deadline relaxed to readLateMs (an old widget), or the
+  // deadline plus graceMs (rollback, as before)
+  const out = own ? (!!t.guttered || left <= 0) : now > ses.deadline + readLateMs();
+  const inTime = !bad && !out;
+  const lag = own ? srv - el - paused : NaN;
+  // One line for every verdict, wins, losses and refusals alike (reading logged only its wins before)
+  const say = (kind) => log(`reading ${kind} ${display(a)} t${ses.tier + 1} n=${n} att=${ses.attempts} v=${own ? 2 : 1} el=${el} left=${left} paused=${paused} srv=${srv} lag=${own ? lag : '-'} late=${now - ses.deadline}`
+    + MG.tail({ judge: !cj ? 'server' : own ? 'client' : 'legacy', min: cj ? minMs : undefined, sus: own ? MG.lagFlags(lag, READ.clockSlackMs, MG.SLOW_FLAG_MS) : [] }));
   if (inTime && valid && !right && order.length) {
     // A wrong reading costs candle, not the round. What is right from the start stays put.
     let k = 0; while (k < words.length && words[k] === ses.original[k]) k++;
     ses.locked = order.slice(0, k);
     ses.attempts++;
-    ses.deadline -= Number(READ.wrongPenaltySeconds) * 1000;
-    if (Date.now() < ses.deadline) {
+    ses.deadline -= penalty;
+    // The widget's own candle says whether the penalty leaves any; for a widget without timings the lag is forgiven (graceMs)
+    const goesOn = own ? left - penalty > 0 && ses.attempts <= Math.ceil(ses.candleMs / penalty)
+      : cj ? now < ses.deadline + Number(READ.graceMs) && ses.attempts <= Math.ceil(ses.candleMs / penalty)
+      : now < ses.deadline;
+    if (goesOn) {
+      say('wrong');
       const feedback = k
         ? `Not quite. The first ${k === 1 ? 'word is' : `${k} words are`} right. The candle burns lower.`
         : 'Not quite. Even the first word is wrong. The candle burns lower.';
-      openWidget(a, readWidget(ses, { feedback }), true);
+      openWidget(a, readWidget(ses, { feedback, endsInMs: Math.max(cj ? 1000 : 0, ses.deadline - now) }), true);
       return;
     }
   }
@@ -3138,8 +3201,10 @@ onUi('reading', (a, args) => {
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
+    say('win');
     audit(`READ ${who(a)} read ${ses.title} (tier ${tier + 1}) ${results.length ? '-> ' + results.join('; ') : '-> nothing but the knowledge'}`);
   } else {
+    say(bad ? `refused(${bad})` : 'lose');
     reads[ses.refId.toString(16)] = Date.now() + READ.loseCooldownMinutes * 60000;
   }
   // Keep the cooldown table small: drop entries already expired.
