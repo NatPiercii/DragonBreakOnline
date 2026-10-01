@@ -31,8 +31,9 @@ const FORK_PATHS = deepFreeze([
   { paths: ['**'], area: 'Game server', flags: ['build', 'gameRestart'] },
 ])
 
-// dev-server.sh deploy-gameplay copies the tracked top-level .js and .json files except these
-const RUNTIME_STATE = Object.freeze(['package.json', 'companions.json', 'housing.json', 'jails.json', 'starter-grants.json', 'NPC-Spawns.json'])
+// dev-server.sh deploy-gameplay copies the tracked top-level .js and .json files except these (npc-fallen-spots.json: the
+// floorless spots the server learns while it runs, rewritten live; 1 Oct)
+const RUNTIME_STATE = Object.freeze(['package.json', 'companions.json', 'housing.json', 'jails.json', 'starter-grants.json', 'NPC-Spawns.json', 'npc-fallen-spots.json'])
 const NOT_DEPLOYED = Object.freeze([...RUNTIME_STATE, 'patch-notes.json'])
 
 // Gameplay (origin/server) paths; specific rows come before the deployable catch-all

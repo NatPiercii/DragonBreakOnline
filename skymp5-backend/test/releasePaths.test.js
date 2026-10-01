@@ -98,6 +98,7 @@ test('server: every row of the table', () => {
     ['housing.json', { area: 'Gameplay', flags: [], warning: 'not deployed (runtime state)' }],
     ['jails.json', { area: 'Gameplay', flags: [], warning: 'not deployed (runtime state)' }],
     ['starter-grants.json', { area: 'Gameplay', flags: [], warning: 'not deployed (runtime state)' }],
+    ['npc-fallen-spots.json', { area: 'Gameplay', flags: [], warning: 'not deployed (runtime state)' }],
     ['NPC-Spawns.json', { area: 'Gameplay', flags: [], warning: 'not deployed (runtime state)' }],
     ['patch-notes.json', { area: 'Patch notes', flags: ['news'] }],
     ['tooling/dbo-monitor/monitor.py', { area: 'Tools', flags: ['manual'] }],
