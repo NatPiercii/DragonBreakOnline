@@ -57,6 +57,33 @@
     ]
   },
   {
+    "title": "Priest Studies at the Temples",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Temples",
+        "items": [
+          "Priests can now study Restoration at the temples' study points, the way mages use Study Magic. In Bruma, that is the Cathedral of St Martin.",
+          "The new lecterns in the temples have a Preach prompt. Sermons are coming soon, and for now that is what it tells you."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Walking into a cave mouth that you cannot enter yet (it rests for you, or another party holds it) no longer freezes you in front of it. You are set down just outside instead."
+        ]
+      },
+      {
+        "heading": "Update",
+        "items": [
+          "Update through the launcher: there's a new plugin."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Bank of Bruma Belongs to Bruma",
     "date": "2026-10-01",
     "version": "Server update",
@@ -66,10 +93,10 @@
         "heading": "Around Bruma and the land",
         "items": [
           "The Bank of Bruma now counts as part of Bruma inside as well as out, and its doors are named: Bank of Bruma on the way in, Bruma on the way out.",
-    "Door names across the land now read properly, for example the Cathedral of St Martin in Bruma.",
-    "Camp chests are for players: their guards no longer pocket the loot.",
-    "Fort Caractacus is no longer a dungeon to claim and clear. It is the Legion's fort, and its doors open like any other.",
-    "Ebony, Daedric, Dragon, Stalhrim and Orcish gear no longer turns up in dungeon or camp loot."
+          "Door names across the land now read properly, for example the Cathedral of St Martin in Bruma.",
+          "Camp chests are for players: their guards no longer pocket the loot.",
+          "Fort Caractacus is no longer a dungeon to claim and clear. It is the Legion's fort, and its doors open like any other.",
+          "Ebony, Daedric, Dragon, Stalhrim and Orcish gear no longer turns up in dungeon or camp loot."
         ]
       }
     ]
