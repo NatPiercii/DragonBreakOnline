@@ -50,6 +50,46 @@ def swap_border_points(e, fh):
     fh.write(body[at + 8:at + 16] + body[at:at + 8])
 
 
+def navi_entry(e, want_island=False):
+    """(file offset of the record data, offset of an NVMI's data inside it, its parsed fields and form-id offsets)"""
+    import navi_info
+    t, fl, off, sz = e.rec[G.NAVI]
+    body = e.raw(G.NAVI)
+    i = 0
+    while i < len(body):
+        sig, n = body[i:i + 4], struct.unpack_from('<H', body, i + 4)[0]
+        if sig == b'NVMI':
+            f, ids = navi_info.parse_nvmi(body[i + 6:i + 6 + n])
+            if f['island'] or not want_island:
+                return off, i + 6, f, ids, body[i + 6:i + 6 + n]
+        i += 6 + n
+    raise AssertionError('no NVMI')
+
+
+def navi_drop_entry(e, fh):                      # the entry now names another navmesh: the live one is missing
+    off, at, f, ids, v = navi_entry(e)
+    fh.seek(off + at)
+    fh.write(struct.pack('<I', f['navmesh'] ^ 0x7FFF))
+
+
+def navi_relink(e, fh):                          # the entry's cell or worldspace points elsewhere
+    off, at, f, ids, v = navi_entry(e)
+    o = ids[-1]
+    fh.seek(off + at + o)
+    fh.write(struct.pack('<I', struct.unpack_from('<I', v, o)[0] ^ 0x1))
+
+
+def navi_island_geometry(e, fh):                 # a float of the island bounds nudged, as a CK re-save does
+    off, at, f, ids, v = navi_entry(e, want_island=True)
+    start = 4 + 4 + 12 + 4                       # navmesh, flags, x/y/z, merges flag
+    for key in ('merged', 'pref'):
+        start += 4 + 4 * len(f[key])
+    start += 4 + 8 * len(f['doors']) + 1         # doors, then the isIsland byte: the bounds start here
+    x = struct.unpack_from('<f', v, start)[0]
+    fh.seek(off + at + start)
+    fh.write(struct.pack('<f', x + 2.0))
+
+
 def unlink_border_cell(e, fh):
     for k in sorted(e.border_cells()):
         t, fl, off, sz = e.rec[k]
@@ -86,6 +126,8 @@ def main():
         ('the Aleswell map marker disabled', set_flags((me, 0x13F779), on=0x800), 'markers: 0 enabled map marker(s) for Aleswell'),
         ('two border points swapped', swap_border_points, 'border: REGN 0B0CBCDD is not the live border'),
         ('a border cell no longer on the border', unlink_border_cell, 'live border cell(s) missing'),
+        ('a navmesh-info entry gone (a CK re-save)', navi_drop_entry, 'navmesh info: 1 live entry missing'),
+        ('a navmesh-info entry relinked', navi_relink, 'navmesh info: 1 entry with other links'),
     ]
     d = tempfile.mkdtemp(prefix='claude-nate-gate-')
     try:
@@ -94,6 +136,15 @@ def main():
             mutate(a.v8, dst, fn)
             rc, f = gate(dst)
             ok(rc == 1 and any(expect in x for x in f), f'fails on {what}', f)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    # recomputed island geometry alone passes, with a note
+    d = tempfile.mkdtemp(prefix='claude-nate-gate-')
+    try:
+        dst = os.path.join(d, 'DragonBreak Online Edits.esp')
+        mutate(a.v8, dst, navi_island_geometry)
+        r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_ship_gate.py'), dst], capture_output=True, text=True)
+        ok(r.returncode == 0 and 'recomputed island geometry' in r.stdout, 'passes on recomputed island geometry, and says so', r.stdout[-400:])
     finally:
         shutil.rmtree(d, ignore_errors=True)
     # the polygon comparison on its own

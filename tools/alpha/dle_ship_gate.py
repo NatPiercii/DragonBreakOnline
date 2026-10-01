@@ -25,8 +25,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SERVER = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.environ.get('ESPLIB_DIR', os.path.expanduser('~nate/dragonbreak/ck-mcp')))
 import esplib  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import navi_info  # noqa: E402
 
 BORDER = ('bsheartland.esm', 0xCBCDD)
+NAVI = ('skyrim.esm', 0x012FB4)       # the navmesh info map
 BORDER_SIZE = 214
 DELETED, DISABLED = 0x20, 0x800
 CHEST = 0x154079
@@ -138,6 +141,7 @@ def main():
     ap.add_argument('esp')
     ap.add_argument('--live', default='/opt/skyrim-data/DragonBreak Online Edits.esp')
     ap.add_argument('--spawns', default=os.path.join(SERVER, 'owned-spawns.json'))
+    ap.add_argument('--allow-navi', action='store_true', help='this build edits navmeshes on purpose: report navmesh-info differences without failing')
     a = ap.parse_args()
     fails, oks = [], []
     try:
@@ -259,6 +263,44 @@ def main():
         fails.append('manuals: DATA flags must be 0 (0x04 TeachesSpell hands the marker over on a read): ' + ', '.join(bad))
     else:
         oks.append(f'manuals: {len(books)} DBO_BookManual book(s), DATA flags 0' if books else 'manuals: none in this file yet')
+
+    # ---- navmesh info map -------------------------------------------------------------------------------------------
+    # NAVI 00012FB4 lists every navmesh's links (merges, doors, its cell). A Creation Kit re-save with other plugins loaded
+    # drops entries for other mods' towns (DLE v9: 217 gone), which breaks NPC pathing between cells there. Entries are
+    # compared by navmesh, every form id resolved through each file's own master list.
+    n0 = len(fails)
+    try:
+        nl = live.rec.get(NAVI); nn = new.rec.get(NAVI)
+        if nl and not nn:
+            fails.append('navmesh info: live has NAVI 00012FB4 and this file has none')
+        elif nl and nn:
+            le, lp = navi_info.resolved(live.subs(NAVI), live.norm)
+            ne, np_ = navi_info.resolved(new.subs(NAVI), new.norm)
+            # The links (form ids: merges, doors, cell) must match; island geometry is recomputed by every CK save, and
+            # NVPP's order changes with it, so those are reported, not failed
+            links = lambda e: sorted(map(repr, e[0]))
+            missing = [k for k in le if k not in ne]
+            relinked = [k for k in le if k in ne and links(le[k]) != links(ne[k])]
+            regeom = [k for k in le if k in ne and k not in relinked and le[k] != ne[k]]
+            extra = [k for k in ne if k not in le]
+            show = lambda ks: ', '.join('%s %06X' % k for k in sorted(ks)[:8]) + (' ...' if len(ks) > 8 else '')
+            msgs = []
+            if missing:
+                msgs.append(f'{len(missing)} live entr{"y" if len(missing) == 1 else "ies"} missing: {show(missing)}')
+            if relinked:
+                msgs.append(f'{len(relinked)} entr{"y" if len(relinked) == 1 else "ies"} with other links: {show(relinked)}')
+            if lp and np_ and sorted(map(repr, lp[0])) != sorted(map(repr, np_[0])):
+                msgs.append('the preferred pathing (NVPP) names other navmeshes')
+            notes = ([f'{len(regeom)} with recomputed island geometry'] if regeom else []) + \
+                    (['NVPP in another order'] if lp != np_ and not any('NVPP' in m for m in msgs) else []) + \
+                    ([f'{len(extra)} new'] if extra else [])
+            if msgs and not a.allow_navi:
+                fails.append('navmesh info: ' + '; '.join(msgs) + ' (a Creation Kit re-save? rebuild with live\'s NAVI, or --allow-navi if this build edits navmeshes)')
+            else:
+                oks.append(f'navmesh info: {len(le)} live entries present with their links' + (' (' + ', '.join(notes) + ')' if notes else '')
+                           + (' (--allow-navi: ' + '; '.join(msgs) + ')' if msgs else ''))
+    except navi_info.Bad as e:
+        fails.append(f'navmesh info: NAVI 00012FB4 does not parse ({e})')
 
     for o in oks:
         print('ok  ', o)
