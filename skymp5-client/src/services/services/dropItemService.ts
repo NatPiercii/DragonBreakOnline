@@ -8,12 +8,16 @@ import { logTrace } from "../../logging";
 import { notifyNextUpdate } from "./customPacketUtil";
 import { PROPERTY_KEY_BASE_ID, getDiff, getInventory, hasItemExtras } from "../../sync/inventory";
 import { getPcInventory } from "./remoteServer";
+import { dropCandidates, inDropWindow } from "./dropReport";
 
 export class DropItemService extends ClientListener {
     constructor(private sp: Sp, private controller: CombinedController) {
         super();
         controller.on('containerChanged', (e) => this.onContainerChanged(e));
+        controller.on('menuClose', (e) => { if (e.name === "InventoryMenu") this.inventoryClosedAt = Date.now(); });
     }
+
+    private inventoryClosedAt = 0;
 
     private onContainerChanged(e: ContainerChangedEvent) {
         const sweetCantDropService = this.controller.lookupListener(SweetTaffySweetCantDropService);
@@ -26,7 +30,7 @@ export class DropItemService extends ClientListener {
         const isReference: boolean = e.reference !== null;
         if (e.newContainer && e.newContainer.getFormID() === pl.getFormID())
             return;
-        if (!this.sp.Ui.isMenuOpen("InventoryMenu"))
+        if (!inDropWindow(this.sp.Ui.isMenuOpen("InventoryMenu"), this.inventoryClosedAt, Date.now()))
             return;
         if (
             isPlayer &&
@@ -59,7 +63,7 @@ export class DropItemService extends ClientListener {
 
             const worldCleanerService = this.controller.lookupListener(WorldCleanerService);
 
-            set.forEach((refrId) => {
+            dropCandidates(set, e.reference?.getFormID()).forEach((refrId) => {
                 const ref = this.sp.ObjectReference.from(this.sp.Game.getFormEx(refrId));
                 if (ref !== null && ref.isDeleted() === false) {
                     const refrId = ref.getFormID();
