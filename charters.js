@@ -4,7 +4,8 @@
 //   - approved: the faction is live at once (player-factions.json, guilds.js, a treasury key in bank.json);
 //   - denied, with a reason: any fee comes back, less the filing fee;
 //   - edited first, if a GM wants.
-// Every step is audited and sent to the staff Discord log. Chat only for now; the panels come with a client release
+// Every step is audited and sent to the staff Discord log. A submitted charter and a request to disband each get a post in
+// #gm-approval-requests (approvalforum.js, Jake 14:39Z), and their later events replies there, the post closed once decided. Chat only for now; the panels come with a client release
 // (phase 2).
 //
 //   /charter                        your charter, and what to do next
@@ -41,6 +42,7 @@ module.exports = (api) => {
     profileOf, takeGold, giveItem, every } = api;
   const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
   const staffNote = typeof api.staffNote === 'function' ? api.staffNote : () => {};
+  const approvalForum = typeof api.approvalForum === 'function' ? api.approvalForum : () => {};
 
   const DEFAULTS = {
     enabled: false,
@@ -88,7 +90,7 @@ module.exports = (api) => {
     if (!S.store) {
       const s = readJson(STORE_PATH, {});
       S.store = { next: Number(s.next) > 0 ? Number(s.next) : 1, charters: s.charters || {}, owed: s.owed || {}, owedWhy: s.owedWhy || {}, notices: s.notices || {},
-        cooldowns: s.cooldowns || {}, disbands: Array.isArray(s.disbands) ? s.disbands : [] };
+        cooldowns: s.cooldowns || {}, disbands: Array.isArray(s.disbands) ? s.disbands : [], disbandNext: Number(s.disbandNext) || 0 };
     }
     return S.store;
   };
@@ -218,6 +220,29 @@ module.exports = (api) => {
       || Object.values(store().charters).some((c) => c.factionId === id);
     let id = base, i = 2; while (taken(id)) id = `${base}-${i++}`;
     return id;
+  };
+
+  // ---- #gm-approval-requests: one post per submitted charter or request to disband, its events as replies ----------------
+  const charterKey = (c) => `charter:${c.n}`;
+  // A request's own number, never its time: two requests in one millisecond would share a post
+  const disbandKey = (d) => `disband:${d.n || `${d.fid}:${d.at}`}`;
+  const forum = (op) => { try { approvalForum(op); } catch (e) { log('charters: approval forum failed', e.message); } };
+  const charterPost = (c) => [
+    `**Charter #${c.n}: ${c.name}** (${c.kind})`,
+    `Founding members: ${rolesLine(c)}`,
+    `Purpose: ${c.pitch}`,
+    `Seat: ${c.seat ? `${c.seat.name}, owned by ${c.seat.ownerName}` : 'none'}`,
+    `For the GMs: ${c.flags.length ? c.flags.join('; ') : 'nothing flagged'}`,
+    `Decide in game: /charter approve ${c.n}, or /charter deny ${c.n} <reason>. /charter show ${c.n} shows it all; /charter edit ${c.n} name|pitch|seat|kind <value> changes it first.`,
+  ].join('\n');
+  // approvalforum.js hands back a post's thread id, or null and the error when the post could not be made. The id is kept on
+  // the record, so a hot reload or a restart still replies in the right post; a failed post leaves #staff-commands as it
+  globalThis.__dboApprovalThread = (key, id, err) => {
+    const k = String(key);
+    const rec = k.startsWith('charter:') ? charter(k.slice(8)) : k.startsWith('disband:') ? store().disbands.find((d) => disbandKey(d) === k) : null;
+    if (!rec) return;
+    if (id) { rec.thread = String(id); delete rec.forumError; } else rec.forumError = String(err || 'the post failed');
+    save();
   };
 
   // ---- the player's side ------------------------------------------------------------------------------------------------
@@ -351,6 +376,7 @@ module.exports = (api) => {
     save();
     audit(`CHARTER #${c.n} submitted by ${who(a)}: ${c.name}, ${c.founders.length + 1} founders, fee ${fee} held`);
     staff(a, 'charter submitted', `submitted charter #${c.n} for review: ${c.name} (${c.kind}): ${rolesLine(c)}. Purpose: ${c.pitch}${c.seat ? ` Seat: ${c.seat.name}, owned by ${c.seat.ownerName}.` : ''}${c.flags.length ? ` Flags: ${c.flags.join('; ')}.` : ''} In game: /charter show ${c.n}`);
+    forum({ kind: 'open', key: charterKey(c), title: `Charter #${c.n}: ${c.name} (${c.kind})`, text: charterPost(c), by: a });
     tellAll(c, `Charter #${c.n} for ${c.name} is with the GMs. You will be told when they decide.`);
     return `Charter #${c.n} is submitted${fee > 0 ? `; ${fee} gold is held until the GMs decide` : ''}.`;
   };
@@ -360,7 +386,10 @@ module.exports = (api) => {
     c.status = 'withdrawn'; c.decidedAt = Date.now(); save();
     if (was === 'pending') owe(c.founder.actor, c.fee.held, `the fee for the charter of ${c.name}, withdrawn`);
     audit(`CHARTER #${c.n} withdrawn by ${who(a)} (${was}${was === 'pending' ? `, ${c.fee.held} gold refunded` : ''})`);
-    if (was === 'pending') staff(a, 'charter withdrawn', `withdrew charter #${c.n} (${c.name}).`);
+    if (was === 'pending') {
+      staff(a, 'charter withdrawn', `withdrew charter #${c.n} (${c.name}).`);
+      forum({ kind: 'close', key: charterKey(c), thread: c.thread || null, text: 'withdrew the charter. Nothing to decide.', by: a });
+    }
     for (const f of c.founders) tell(f.actor, `${c.name}'s charter was withdrawn.`);
     return `Charter #${c.n} is withdrawn${was === 'pending' ? `; your ${c.fee.held} gold is returned` : ''}.`;
   };
@@ -404,6 +433,7 @@ module.exports = (api) => {
     save();
     audit(`CHARTER #${c.n} approved by ${who(a)}: ${c.name} is faction ${id}; fee ${c.fee.held} ${C.feeOnApproval === 'treasury' ? 'seeds its treasury' : 'kept as a gold sink'}`);
     staff(a, 'charter approved', `approved charter #${c.n}: ${c.name} is now faction ${id}, led by ${c.founder.name}.`);
+    forum({ kind: 'close', key: charterKey(c), thread: c.thread || null, text: `approved it: ${c.name} is now faction ${id}, led by ${c.founder.name}.`, by: a });
     tellAll(c, `The GMs approved the charter. ${c.name} is founded: open your factions (F3).`);
     return `Approved: ${c.name} is faction ${id}, led by ${c.founder.name}.`;
   };
@@ -418,6 +448,7 @@ module.exports = (api) => {
     owe(c.founder.actor, refund, `the fee for the charter of ${c.name}, denied`);
     audit(`CHARTER #${c.n} denied by ${who(a)}: ${why} (${refund} of ${c.fee.held} gold refunded)`);
     staff(a, 'charter denied', `denied charter #${c.n} (${c.name}): ${why}`);
+    forum({ kind: 'close', key: charterKey(c), thread: c.thread || null, text: `denied it: ${sentence(why)}`, by: a });
     tellAll(c, `The GMs denied the charter for ${c.name}: ${why}${refund ? ` ${refund} gold of the fee is returned to ${c.founder.name}.` : ''}`);
     return `Denied; ${refund} gold refunded to ${c.founder.name}.`;
   };
@@ -447,6 +478,7 @@ module.exports = (api) => {
     save();
     audit(`CHARTER #${c.n} ${f} edited by ${who(a)}: "${from}" -> "${to}"`);
     staff(a, 'charter edited', `edited charter #${c.n}'s ${f}: "${from}" -> "${to}"`);
+    if (c.status === 'pending') forum({ kind: 'reply', key: charterKey(c), thread: c.thread || null, text: `edited its ${f}: "${from}" → "${to}"`, by: a });
     return `Charter #${c.n}'s ${f} is now "${to}".`;
   };
   // A chartered faction leaves the game: out of player-factions.json, its roster gone (guilds.js). An error string, or ''
@@ -480,8 +512,16 @@ module.exports = (api) => {
     if (pendingDisband(g.id)) return `The GMs already have ${g.name}'s request to disband.`;
     const def = playerFactions().find((f) => f.id === g.id);
     const c = def && charter(def.charter);
-    store().disbands.push({ fid: g.id, name: g.name, by: a >>> 0, byName: nameOf(a), reason: why, at: Date.now(), status: 'pending' });
+    const d = { n: (store().disbandNext = (Number(store().disbandNext) || 0) + 1), fid: g.id, name: g.name, by: a >>> 0, byName: nameOf(a), reason: why, at: Date.now(), status: 'pending' };
+    store().disbands.push(d);
     save();
+    const treasury = globalThis.__dboTreasury ? globalThis.__dboTreasury.balance(g.id) : 0;
+    forum({ kind: 'open', key: disbandKey(d), title: `Disband: ${g.name} (${g.id})`, by: a, text: [
+      `**A request to disband ${g.name}** (${g.id})`,
+      `Asked by its leader ${nameOf(a)}: ${sentence(why)}`,
+      `Its treasury, ${treasury} gold, would go to its Founder${c ? `, ${c.founder.name}` : ''}.`,
+      `Decide in game: /charter approve-disband ${g.id}, or /charter deny-disband ${g.id} <reason>.`,
+    ].join('\n') });
     audit(`CHARTER disband of ${g.id} (${g.name}) asked by ${who(a)}: ${why}`);
     staff(a, 'disband requested', `asks to disband ${g.name} (${g.id}): ${sentence(why)} Its treasury would go to its Founder${c ? `, ${c.founder.name}` : ''}. In game: /charter approve-disband ${g.id} or /charter deny-disband ${g.id} <reason>`);
     return `Your request to disband ${g.name} is with the GMs. Nothing changes until one decides.`;
@@ -509,6 +549,7 @@ module.exports = (api) => {
           staff(a, 'disband failed', `could not disband ${def.name} (${fid}), and its ${paid} gold could not be put back in its treasury: settle it by hand.`);
         }
       }
+      forum({ kind: 'reply', key: disbandKey(d), thread: d.thread || null, text: `tried to approve it, and it could not be done: ${sentence(err)} Nothing changed.`, by: a });
       return `Not disbanded: ${err}`;
     }
     d.status = 'approved'; d.decidedBy = who(a); d.decidedAt = Date.now(); d.paid = paid; d.kept = kept;
@@ -523,6 +564,9 @@ module.exports = (api) => {
       staff(a, 'disband approved', `approved disbanding ${def.name} (${fid}): its treasury, ${paid} gold, goes to its Founder ${founder.name}.`);
       tell(founder.actor, `${def.name} is disbanded. Its treasury, ${paid} gold, is yours as its Founder${isOnline(founder.actor) ? '' : '; it is paid when you are next in the world'}.`);
     }
+    forum({ kind: 'close', key: disbandKey(d), thread: d.thread || null, by: a, text: gone
+      ? `approved it. ${def.name} is disbanded; its Founder's character no longer exists, so its ${kept} gold stays under faction:${fid} for staff to settle.`
+      : `approved it. ${def.name} is disbanded; its treasury, ${paid} gold, goes to its Founder ${founder.name}.` });
     if (d.by !== (founder && founder.actor)) tell(d.by, `The GMs approved disbanding ${def.name}.`);
     return gone ? `${def.name} is disbanded. Its Founder's character no longer exists: ${kept} gold stays under faction:${fid}, flagged for staff.` : `${def.name} is disbanded; ${paid} gold goes to its Founder ${founder.name}.`;
   };
@@ -533,6 +577,7 @@ module.exports = (api) => {
     d.status = 'denied'; d.decidedBy = who(a); d.decidedAt = Date.now(); d.denyReason = why; save();
     audit(`CHARTER disband of ${fid} (${d.name}) denied by ${who(a)}: ${why}`);
     staff(a, 'disband denied', `denied disbanding ${d.name} (${fid}): ${why}`);
+    forum({ kind: 'close', key: disbandKey(d), thread: d.thread || null, text: `denied it: ${sentence(why)} ${d.name} stands.`, by: a });
     tell(d.by, `The GMs will not disband ${d.name}: ${why}`);
     return `Denied; ${d.name} stands, and its treasury with it.`;
   };

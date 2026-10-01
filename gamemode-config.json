@@ -111,6 +111,7 @@
  },
  "charters": {
   "_comment": "Faction charters (server\\charters.js, Jake's to-do \"Faction button\", 1 Oct): a player founds a faction (a company or a cult) by charter; a GM approves it. Founder, Officer and Sergeant on three accounts before it is submitted, up to maxFounders (5); the ranks are the seven roles of the faction guide; a seat only a property a founding member owns; no fee (fee 0); the lore's factions refused; disbanding by a GM's approval, its treasury to the Founder. Every other key (charters.js DEFAULTS) may be set here too. Off until switched on.",
+  "approvalForum": "1555227516891828344",
   "enabled": true
  },
  "schools": {

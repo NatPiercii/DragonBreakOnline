@@ -317,9 +317,11 @@ const discordTarget = (() => {
   if (!channel && Array.isArray(auth.guilds)) for (const g of auth.guilds) { channel = g.auditLogChannelId || g.eventLogChannelId; if (channel) break; }
   return token && channel ? { kind: 'bot', token, channel } : null;
 })();
-const postJson = (url, body, headers) => new Promise((resolve, reject) => {
+const postJson = (url, body, headers) => sendJson('POST', url, body, headers);
+// The same for any method (approvalforum.js closes a forum thread with a PATCH)
+const sendJson = (method, url, body, headers) => new Promise((resolve, reject) => {
   const u = new URL(url); const data = JSON.stringify(body);
-  const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
+  const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method,
     headers: Object.assign({ 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }, headers || {}) }, (r) => {
     let b = ''; r.on('data', (c) => b += c);
     r.on('end', () => r.statusCode < 300 ? resolve(b) : reject(Object.assign(new Error(`HTTP ${r.statusCode} ${b.slice(0, 160)}`), { status: r.statusCode, body: b })));
@@ -5363,6 +5365,13 @@ try {
   require(BANK_JS)({ mp, log, personal, audit, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, takeGold, giveItem,
     goldOf, depositToTreasury, zoneById, zoneList, zoneOfActor, ranksOf, profileOf, distanceMeters, every });
 } catch (e) { log('bank.js failed to load:', e.stack || e.message); globalThis.__dboBankActivate = null; }
+// ---- #gm-approval-requests: a forum post per request a GM decides, its events as replies (server\approvalforum.js) ----
+let approvalForum = () => {};
+try {
+  const APPROVAL_JS = path.resolve('approvalforum.js');
+  delete require.cache[APPROVAL_JS];
+  approvalForum = require(APPROVAL_JS)({ cfg, log, discordTarget, postJson, sendJson, staffWho, every });
+} catch (e) { log('approvalforum.js failed to load:', e.stack || e.message); }
 // ---- faction charters: players found a faction, GMs approve it (server\charters.js, after guilds.js and bank.js) ----
 try {
   const CHARTERS_JS = path.resolve('charters.js');
@@ -5370,7 +5379,7 @@ try {
   // #staff-commands names whoever acted: the founder for a submission or a withdrawal, the GM for a decision
   const staffNote = (a, what, detail) => staffLog(display(a), tierOf(a), what, `${staffWho(a)}: ${detail}`, isAdmin(a));
   require(CHARTERS_JS)({ mp, log, personal, audit, who, display, nameOf, cfg, registerChatCommand, onlineActors, isAdmin, isLeadStaff,
-    findByName, profileOf, takeGold, giveItem, every, staffNote });
+    findByName, profileOf, takeGold, giveItem, every, staffNote, approvalForum });
 } catch (e) { log('charters.js failed to load:', e.stack || e.message); }
 // ---- alchemy at the ordinary labs: the nearest vanilla potion for a client-side mix (server alchemy.js) ------------
 try {
