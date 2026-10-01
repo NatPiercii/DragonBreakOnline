@@ -710,7 +710,7 @@ const isolatedGroup    = document.getElementById('isolated-install-group')
 
 // locks the modlist repair until there's a game to manage
 function refreshDownloadModsState(st) {
-  if (mo2InstallRunning || repairRunning) return  // button is in Cancel mode or locked; don't fight it
+  if (mo2InstallRunning || repairRunning || installActive) return  // button is in Cancel mode or locked; don't fight it
   const ready = !fieldIsolated.checked || st.ready
   btnRepairModlist.disabled = !ready
   btnRepairModlist.title = ready
@@ -771,11 +771,19 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     isolatedGame: fieldIsolated.checked,
   }
 
-  await window.electronAPI.saveSettings(data)
+  const saved = await window.electronAPI.saveSettings(data)
   await saveGameSettingsTab()
   refreshMo2Status()
 
   const btn = document.getElementById('btn-save')
+  // The main process refuses the install's own settings while one runs. Say so instead of "Saved!", and put the fields
+  // back to what is actually stored, so the form never shows a value the launcher does not hold.
+  if (saved && saved.ok === false) {
+    await loadSettings()
+    btn.textContent = 'Not saved: an install is running'
+    setTimeout(() => { btn.textContent = 'Save Settings' }, 2600)
+    return
+  }
   btn.textContent = 'Saved!'
   setTimeout(() => { btn.textContent = 'Save Settings' }, 1400)
 })
@@ -788,7 +796,7 @@ document.getElementById('btn-browse').addEventListener('click', async () => {
 
 // Browse install location (dialog fallback for the Install Location field)
 document.getElementById('btn-browse-base').addEventListener('click', async () => {
-  const folder = await window.electronAPI.openFolder('Choose where to install DragonBreak (~16 GB: MO2 + game copy)')
+  const folder = await window.electronAPI.openFolder('Choose where to install DragonBreak (about 65 GB free: the game copy, MO2, the mods and their downloads)')
   if (folder) fieldBaseDir.value = folder
 })
 
@@ -910,12 +918,85 @@ document.getElementById('btn-launch-direct').addEventListener('click', async () 
 // Repair tab: shared install progress log
 // Every repair button streams its progress into the one <pre> below them.
 const installProgressEl = document.getElementById('install-progress')
+const installPanelLog   = document.getElementById('install-panel-log')
+const installPanel      = document.getElementById('install-panel')
+const installMini       = document.getElementById('install-mini')
+const IP = window.dboInstallProgress
+document.getElementById('install-banner').textContent = IP.BANNER
+
+// One install's progress, drawn into the main screen panel and the Repair tab's bar alike
+function drawInstallBar(root, d) {
+  const q = (sel) => root.querySelector(sel)
+  q('.install-title').textContent = d.title
+  q('.install-percent').textContent = d.percent
+  const overall = q('.install-bar--overall')
+  overall.classList.toggle('install-bar--busy', d.overall === null)
+  overall.firstElementChild.style.width = d.overall === null ? '' : `${(d.overall * 100).toFixed(1)}%`
+  const waiting = q('.install-waiting')
+  waiting.hidden = !d.waiting
+  waiting.textContent = d.waiting
+  q('.install-file').textContent = d.fileLine
+  const fileBar = q('.install-bar--file')
+  fileBar.hidden = d.fileFraction === null
+  if (d.fileFraction !== null) fileBar.firstElementChild.style.width = `${(d.fileFraction * 100).toFixed(1)}%`
+}
+
+// While any install runs nothing else may start one; the buttons say why on hover
+let installActive = false
+// The settings an install reads as it goes (main.js INSTALL_SETTINGS), their Browse buttons and Save. The main process
+// refuses to store these mid-install; locking them here is what stops the player editing a field, being told "Saved!"
+// and keeping a value that was never written (Worker F's delta check on 838fd321).
+const INSTALL_LOCKED = () => [
+  fieldSkyrimPath, fieldBaseDir, fieldArchiveDir, fieldMo2Enabled, fieldIsolated,
+  document.getElementById('btn-browse'), document.getElementById('btn-browse-base'), document.getElementById('btn-save'),
+].filter(Boolean)
+
+function setInstallLock(on) {
+  if (on === installActive) return
+  installActive = on
+  for (const el of INSTALL_LOCKED()) {
+    if (on) {
+      el.dataset.titleBeforeInstall = el.title
+      el.disabled = true
+      el.title = IP.BUSY_TITLE
+    } else {
+      el.disabled = false
+      if (el.title === IP.BUSY_TITLE) el.title = el.dataset.titleBeforeInstall || ''
+    }
+  }
+  for (const b of [btnConnect, ...REPAIR_BUTTONS]) {
+    if (b === btnRepairModlist && mo2InstallRunning) continue   // it is the Cancel button then
+    if (on) {
+      b.dataset.titleBeforeInstall = b.title
+      b.disabled = true
+      b.title = IP.BUSY_TITLE
+    } else if (b.title === IP.BUSY_TITLE) {
+      b.title = b.dataset.titleBeforeInstall || ''
+    }
+  }
+  if (!on) {
+    for (const b of REPAIR_BUTTONS) if (!(b === btnRepairModlist && mo2InstallRunning)) b.disabled = repairRunning
+    updatePlayButton()
+    refreshIsolatedStatus()
+  }
+}
+
+window.electronAPI.onInstallState((snap) => {
+  const d = IP.describe(snap)
+  setInstallLock(!!d)
+  installPanel.hidden = !d
+  installMini.hidden = !d
+  if (d) { drawInstallBar(installPanel, d); drawInstallBar(installMini, d) }
+})
 let installLogLines = []
 let installLiveLine = ''
 
 function renderInstallProgress() {
-  installProgressEl.textContent = installLogLines.concat(installLiveLine ? [installLiveLine] : []).join('\n')
-  installProgressEl.scrollTop = installProgressEl.scrollHeight
+  const text = installLogLines.concat(installLiveLine ? [installLiveLine] : []).join('\n')
+  for (const el of [installProgressEl, installPanelLog]) {
+    el.textContent = text
+    el.scrollTop = el.scrollHeight
+  }
 }
 // Transient line (per-file progress) - overwritten by the next update.
 function installLive(msg) { installLiveLine = msg; renderInstallProgress() }
@@ -1059,7 +1140,7 @@ async function withRepairLock(fn) {
     await fn()
   } finally {
     repairRunning = false
-    for (const b of REPAIR_BUTTONS) b.disabled = false
+    for (const b of REPAIR_BUTTONS) b.disabled = installActive
     refreshIsolatedStatus()
   }
 }
@@ -1165,6 +1246,12 @@ function updatePlayButton() {
     return
   }
   if (playBusy) return  // label managed by the play/update sequence
+  if (installActive) {
+    btnConnect.disabled    = true
+    btnConnect.textContent = '\u2699 INSTALLING\u2026'
+    btnConnect.title       = IP.BUSY_TITLE
+    return
+  }
 
   // The launcher updates itself first: a client update run by an outdated
   // launcher would be replaced by the restart anyway.
@@ -1268,9 +1355,8 @@ function runInstallForPlay() {
   if (installCompleteHandler) {
     return Promise.resolve({ success: false, error: 'An install is already running - wait for it to finish.' })
   }
-  installProgressMirror = ({ phase, file }) => {
+  installProgressMirror = ({ phase }) => {
     btnConnect.textContent = phase === 'download' ? '\u2913 DOWNLOADING\u2026' : '\u2699 INSTALLING\u2026'
-    showWarning(file)
   }
   return runInstall('auto')
 }
@@ -1329,7 +1415,7 @@ btnConnect.addEventListener('click', async () => {
     if (needsGameCopy) {
       btnConnect.textContent = '\u2699 INSTALLING\u2026'
       window.electronAPI.removeIsolatedListeners()
-      window.electronAPI.onIsolatedProgress(msg => showWarning(msg))
+      window.electronAPI.onIsolatedProgress(msg => installLive(msg))
       const created = await window.electronAPI.createIsolated()
       window.electronAPI.removeIsolatedListeners()
       if (!created.success) {
