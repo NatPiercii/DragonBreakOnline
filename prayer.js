@@ -199,6 +199,9 @@ module.exports = (api) => {
   // When each worshipper's client last cast their blessing this session (actorId -> ms). Kept across a reload, emptied by
   // a logout, since the client's effect goes with the session.
   const blessCasts = globalThis.__dboBlessingCasts || (globalThis.__dboBlessingCasts = new Map());
+  // What the regeneration tick (below) still owes each blessed worshipper, under one step, and when it last ran for them
+  // (actorId -> { at, health, magicka, stamina }). Kept across a reload like blessCasts.
+  const regenOwed = globalThis.__dboBlessingRegenOwed || (globalThis.__dboBlessingRegenOwed = new Map());
   const castOnSelf = (a, spellId) => {
     if (typeof sendPacket !== 'function') return false;
     try { sendPacket(a, { customPacketType: 'dboCastSelf', spell: spellId >>> 0 }); blessCasts.set(a, Date.now()); return true; }
@@ -242,6 +245,7 @@ module.exports = (api) => {
     if (b.spell && b.via !== 'cast') castSpell(a, Number(b.spell) >>> 0, false);
     if (b.spell && b.via === 'cast') dispelOnSelf(a, Number(b.spell) >>> 0, reason || 'ended');
     blessCasts.delete(a);
+    regenOwed.delete(a);
     try { mp.set(a, 'private.dboBlessing', null); } catch (e) { /* gone with the character */ }
     if (why) personal(a, why);
   };
@@ -316,7 +320,7 @@ module.exports = (api) => {
     return true;
   };
   // gamemode.js calls this with the other login hooks, 8 s into the login
-  globalThis.__dboPrayerLogin = (a) => { blessCasts.delete(a); recastBlessing(a, 'login'); };
+  globalThis.__dboPrayerLogin = (a) => { blessCasts.delete(a); regenOwed.delete(a); recastBlessing(a, 'login'); };
 
   // Sanguine's boon is not a spell and could not be one: the Prince of indulgence belongs on the
   // appetite meter, and appetite is the gamemode's (private.needs), not the engine's. The needs tick
@@ -391,6 +395,148 @@ module.exports = (api) => {
       recastBlessing(a, 'stood up after a death', true);
     }
     for (const a of [...fallen.keys()]) if (!here.has(a)) fallen.delete(a);
+  });
+
+  // ── the regeneration blessings, held by the server ─────────────────────────────────────────────────────────────────
+  // The server crops every vitals report to its own regeneration (CropRegeneration.cpp: per second, the race's rate x the
+  // server's regenerationMultiplier x the rate mult, all percent), and a blessing's rate effects never reach those numbers:
+  // a dboCastSelf cast is not relayed, so the self-cast rate path of 2026-09-29 (ActionListener GetRestorativeEffects
+  // withRegenRates, 6fa17721) does not run for it, and an Ability's constant effect is never applied server-side. So
+  // Akatosh, Hircine, Meridia and the Worm Cult sped up only the player's own bar, which the server pulled back.
+  //
+  // The extra is restored here instead, as the Ayleid well restores its own (gamemode.js ayleidWellRegen): every
+  // tickSeconds the worshipper's health, magicka or stamina percentage is raised by what the blessing adds in that time,
+  // and the crop then works from the raised value. The effects are read from the blessing's own record, with the filter
+  // 6fa17721 uses (non-hostile, non-detrimental Value or Peak Value modifiers of HealRate, MagickaRate, StaminaRate and
+  // their Mult values), and counted the way the game counts them, which is what the player's client shows:
+  //   a rate effect adds its magnitude to the rate:            Hircine's StaminaRate +10 is 10% of the bar a second more
+  //   a Mult effect adds its magnitude % of the race's rate:  Meridia's HealRateMult +25 is a quarter of 0.7% a second more
+  // both times the server's regenerationMultiplier. (6fa17721's own rate path sets a rate to the magnitude and a Mult to
+  // base x (1 + m%) x 4; that path never sees a blessing, and the game's own count is the one the bar shows.)
+  // A deity with no spell can name its regeneration in skills.json (blessingRegen: { HealRateMult: 50 }, same units).
+  // Nothing is added to the dead or the downed, to a bar already full, or past what Death's Chill allows (its rate factor
+  // for that bar, 0 at its cap: downed.js). Steps under minStep wait in regenOwed, so a slow boon is not a packet a second.
+  const REGEN = Object.assign({ enabled: true, tickSeconds: 1, minStep: 0.002 }, CFG.blessingRegen || {});
+  const REGEN_TICK_MS = Math.max(250, Math.round((Number(REGEN.tickSeconds) || 1) * 1000));
+  const REGEN_MIN_STEP = Math.max(0, Number(REGEN.minStep) || 0);
+  // libespm ActorValue.h: index -> [the bar, a rate or a Mult]
+  const REGEN_AV = { 27: ['health', 'rate'], 28: ['magicka', 'rate'], 29: ['stamina', 'rate'], 155: ['health', 'mult'], 156: ['magicka', 'mult'], 157: ['stamina', 'mult'] };
+  const REGEN_AV_BY_NAME = { HealRate: 27, MagickaRate: 28, StaminaRate: 29, HealRateMult: 155, MagickaRateMult: 156, StaminaRateMult: 157 };
+  const AV_NAME = Object.fromEntries(Object.entries(REGEN_AV_BY_NAME).map(([k, v]) => [v, k]));
+  const CHILL_AV = { health: 'HealRateMult', magicka: 'MagickaRateMult', stamina: 'StaminaRateMult' };
+  const ARCH_VALUE_MOD = 0, ARCH_PEAK_VALUE_MOD = 34, MGEF_HOSTILE = 0x1, MGEF_DETRIMENTAL = 0x4;
+  // The server's regeneration multiplier (server-settings regenerationMultiplier; 1 when unset, as WorldState.h has it)
+  const REGEN_MULT = (() => {
+    try { const v = Number((mp.getServerSettings() || {}).regenerationMultiplier); return Number.isFinite(v) && v >= 0 ? v : 1; } catch (e) { return 1; }
+  })();
+  const u32At = (f, at) => new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(at, true);
+  const regenCache = new Map();
+  // [{ av, stat, kind, mag }] for a spell's regeneration boosts, read from its EFID/EFIT pairs and each effect's MGEF DATA
+  // (flags u32 at 0, archetype u32 at 64, primary actor value i32 at 68; libespm MGEF.h)
+  const spellRegen = (spellId) => {
+    spellId >>>= 0;
+    if (regenCache.has(spellId)) return regenCache.get(spellId);
+    const out = [];
+    const r = spellId ? baseRecord(spellId) : null;
+    const fields = (r && r.record && String(r.record.type) === 'SPEL' && r.record.fields) || [];
+    let effect = 0;
+    for (const f of fields) {
+      if (!f || !(f.data instanceof Uint8Array)) continue;
+      if (f.type === 'EFID' && f.data.byteLength >= 4) {
+        const local = u32At(f, 0);
+        effect = typeof r.toGlobalRecordId === 'function' ? r.toGlobalRecordId(local) >>> 0 : local;
+      } else if (f.type === 'EFIT' && f.data.byteLength >= 4 && effect) {
+        const mag = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getFloat32(0, true);
+        const m = baseRecord(effect);
+        const data = m && m.record && String(m.record.type) === 'MGEF' && (m.record.fields || []).find((x) => x && x.type === 'DATA' && x.data instanceof Uint8Array && x.data.byteLength >= 72);
+        if (data) {
+          const flags = u32At(data, 0), arch = u32At(data, 64);
+          const av = new DataView(data.data.buffer, data.data.byteOffset, data.data.byteLength).getInt32(68, true);
+          const kind = REGEN_AV[av];
+          if (kind && (arch === ARCH_VALUE_MOD || arch === ARCH_PEAK_VALUE_MOD) && !(flags & (MGEF_HOSTILE | MGEF_DETRIMENTAL)) && mag > 0) {
+            out.push({ av: AV_NAME[av], stat: kind[0], kind: kind[1], mag });
+          }
+        }
+        effect = 0;
+      }
+    }
+    regenCache.set(spellId, out);
+    return out;
+  };
+  const deityRegen = (d) => Object.entries((d && d.blessingRegen) || {})
+    .filter(([k, v]) => REGEN_AV_BY_NAME[k] !== undefined && Number(v) > 0)
+    .map(([k, v]) => { const kind = REGEN_AV[REGEN_AV_BY_NAME[k]]; return { av: k, stat: kind[0], kind: kind[1], mag: Number(v) }; });
+  // What a running blessing adds: its spell's boosts (only the deity's blessing of today, so a record from before cannot
+  // run a power's effects), and the deity's own blessingRegen
+  const regenOfBlessing = (b) => {
+    const d = deityById(b && b.deity);
+    if (!d) return [];
+    const spell = Number(b.spell) >>> 0;
+    return (spell && spell === blessingIdOf(d) ? spellRegen(spell) : []).concat(deityRegen(d));
+  };
+  // The race's own rates (RACE DATA floats at 84, 88, 92: libespm RACE.cpp), which is what the crop starts from
+  const RACE_RATE_AT = { health: 84, magicka: 88, stamina: 92 };
+  const VANILLA_RATE = { health: 0.7, magicka: 3, stamina: 5 };
+  const raceRates = new Map();
+  const raceRateOf = (a, stat) => {
+    let race = 0;
+    try { const app = mp.get(a, 'appearance'); race = app && app.raceId ? Number(app.raceId) >>> 0 : 0; } catch (e) { race = 0; }
+    if (!raceRates.has(race)) {
+      let rates = null;
+      const r = race ? baseRecord(race) : null;
+      const data = r && r.record && String(r.record.type) === 'RACE' && (r.record.fields || []).find((x) => x && x.type === 'DATA' && x.data instanceof Uint8Array && x.data.byteLength >= 96);
+      if (data) {
+        const v = new DataView(data.data.buffer, data.data.byteOffset, data.data.byteLength);
+        rates = { health: v.getFloat32(84, true), magicka: v.getFloat32(88, true), stamina: v.getFloat32(92, true) };
+      }
+      raceRates.set(race, rates);
+    }
+    const x = Number((raceRates.get(race) || {})[stat]);
+    return Number.isFinite(x) && x >= 0 ? x : VANILLA_RATE[stat];
+  };
+  // The share of a bar a second that one boost adds, before Death's Chill
+  const regenPerSecond = (a, e) => (e.kind === 'rate' ? e.mag : raceRateOf(a, e.stat) * e.mag / 100) / 100 * REGEN_MULT;
+  globalThis.__dboBlessingRegen = (a) => { const b = blessingOf(a); return b && Number(b.until) > Date.now() ? regenOfBlessing(b).map((e) => Object.assign({ perSecond: regenPerSecond(a, e) }, e)) : []; };
+  const chillOf = (a, stat) => {
+    try { if (typeof globalThis.__dboChillRateMult === 'function') { const f = Number(globalThis.__dboChillRateMult(a, CHILL_AV[stat])); return f >= 0 ? Math.min(1, f) : 1; } } catch (e) { /* no downed system */ }
+    return 1;
+  };
+  // Registered whatever the config says and off inside, so a reload that turns it off replaces the running timer (every()
+  // replaces by name) rather than leaving the previous module's
+  every('prayerBlessingRegen', REGEN_TICK_MS, () => {
+    if (REGEN.enabled === false) { regenOwed.clear(); return; }
+    const now = Date.now();
+    const here = new Set();
+    for (const a of (api.onlineActors ? api.onlineActors() : [])) {
+      here.add(a);
+      const b = blessingOf(a);
+      const list = b && Number(b.until) > now ? regenOfBlessing(b) : [];
+      if (!list.length) { regenOwed.delete(a); continue; }
+      let owed = regenOwed.get(a);
+      if (!owed) { owed = { at: now - REGEN_TICK_MS, health: 0, magicka: 0, stamina: 0 }; regenOwed.set(a, owed); }
+      // The time since this worshipper's last tick, never more than three ticks (a stall or a reload does not pay out)
+      const secs = Math.min(Math.max(0, now - owed.at), 3 * REGEN_TICK_MS) / 1000;
+      owed.at = now;
+      let pc = null;
+      try { pc = mp.get(a, 'percentages'); } catch (e) { pc = null; }
+      let downed = false; try { downed = typeof globalThis.__dboIsDowned === 'function' && !!globalThis.__dboIsDowned(a); } catch (e) { downed = false; }
+      if (!pc || !(Number(pc.health) > 0) || downed || !(secs > 0)) { owed.health = owed.magicka = owed.stamina = 0; continue; }
+      const next = { health: Number(pc.health), magicka: Number(pc.magicka), stamina: Number(pc.stamina) };
+      let changed = false;
+      for (const stat of ['health', 'magicka', 'stamina']) {
+        let add = 0;
+        for (const e of list) if (e.stat === stat) add += regenPerSecond(a, e) * secs;
+        add *= chillOf(a, stat);
+        if (!(next[stat] < 1) || !(add > 0)) { owed[stat] = 0; continue; }
+        owed[stat] += add;
+        if (owed[stat] < REGEN_MIN_STEP) continue;
+        next[stat] = Math.min(1, next[stat] + owed[stat]);
+        owed[stat] = 0;
+        changed = true;
+      }
+      if (changed) { try { mp.set(a, 'percentages', next); } catch (e) { regenOwed.delete(a); } }
+    }
+    for (const a of [...regenOwed.keys()]) if (!here.has(a)) regenOwed.delete(a);
   });
 
   // ── the verses ──────────────────────────────────────────────────────────────────────────────
@@ -1026,7 +1172,7 @@ module.exports = (api) => {
   // Someone who logs out, mid-pick or before the offer reached them, is offered it again next time (gamemode.js calls this
   // on every logout)
   // The blessing's cast goes with the session too: the client does not keep it, and the next login casts it again.
-  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); blessCasts.delete(a); fallen.delete(a); };
+  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); blessCasts.delete(a); regenOwed.delete(a); fallen.delete(a); };
 
   // Taking or changing a god. `atShrine` is the older chat path's extra rule and is not applied to
   // the menu, because the brief moved conversion onto a menu key rather than a pilgrimage.
@@ -1112,6 +1258,7 @@ module.exports = (api) => {
         if (blessing.spell && blessing.via !== 'cast') castSpell(t, Number(blessing.spell) >>> 0, false);
         mp.set(t, 'private.dboBlessing', null);
         blessCasts.delete(t >>> 0);
+        regenOwed.delete(t >>> 0);
         // A cast blessing's effect ends on the client of a worshipper who is online; an offline one's went with the session
         if (blessing.spell && blessing.via === 'cast' && onlineNow(t)) dispelOnSelf(t >>> 0, Number(blessing.spell) >>> 0, 'reset');
         cleared.push(`the blessing of ${bd ? bd.name : blessing.deity}`);
@@ -1240,4 +1387,10 @@ module.exports = (api) => {
 
   const reachable = DEITIES.filter((d) => Number(d.inBruma) > 0 || d.prayAnywhere).length;
   log(`prayer ${CFG.enabled ? 'on' : 'off'}: ${DEITIES.length} deities, ${shrineIndex().size} shrine ids, ${reachable} reachable under the region lock; ${VERSES} verses of ${VERSE_MS} ms, ${SLACK_MS} ms slack, ${Math.round(SHRINE_COOLDOWN_MS / 60000)} min per shrine, conversion every ${CONVERSION_DAYS} day(s); blessings ${blessingCheck.ok} resolved (${blessingCheck.cast} cast on the worshipper, ${blessingCheck.learned} learned${blessingCheck.unread.length ? `, ${blessingCheck.unread.length} unreadable and learned: ${blessingCheck.unread.join(', ')}` : ''}), ${blessingCheck.server} server-side, ${blessingCheck.broken.length} broken`);
+  // Which blessings the regeneration tick holds, read as it reads them (the release check looks for this line)
+  const regenHeld = DEITIES.map((d) => {
+    const list = (blessingIdOf(d) ? spellRegen(blessingIdOf(d)) : []).concat(deityRegen(d));
+    return list.length ? `${d.id} ${list.map((e) => `${e.av} +${+e.mag.toFixed(2)}`).join(' ')}` : '';
+  }).filter(Boolean);
+  log(`prayer: regeneration held by the server ${REGEN.enabled !== false ? `every ${REGEN_TICK_MS / 1000} s` : '(off)'}, regenerationMultiplier ${REGEN_MULT}: ${regenHeld.join(', ') || 'none'}`);
 };
