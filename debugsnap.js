@@ -15,7 +15,7 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, every, personal, registerChatCommand, onlineActors, display, tagOf, profileOf, isAdmin, cfg } = api;
   const C = Object.assign({ dir: '/var/lib/dbo-monitor', snapMs: 5000, bugEveryMs: 60000, logFile: '/var/log/skymp-server.log',
-    logTailBytes: 400000, maxNpcs: 40 }, cfg.debugSnap || {});
+    logTailBytes: 400000, maxNpcs: 40, voiceRange: 4000 }, cfg.debugSnap || {});
   const S = globalThis.__dboDebugSnap || (globalThis.__dboDebugSnap = { bugAt: new Map(), writing: false });
   const hex = (id) => (Number(id) >>> 0).toString(16);
   const r = (v) => Math.round(Number(v));
@@ -87,6 +87,26 @@ module.exports = (api) => {
     } catch (e) { return [`(log unreadable: ${e.message})`]; }
   };
 
+  // The voice lines of the reporter and of every player who could be heard there: for a doubled or echoing voice the
+  // speaker's line says what their client sent, and the listener is usually the one who reports it
+  const voiceNear = (a, view) => {
+    const kept = globalThis.__dboVoiceLines;
+    if (!kept) return [];
+    const out = [];
+    for (const p of onlineActors()) {
+      try {
+        if (p !== a) {
+          const pos = mp.get(p, 'pos');
+          if (String(mp.get(p, 'worldOrCellDesc') || '') !== view.world) continue;
+          if (Math.hypot(pos[0] - view.pos[0], pos[1] - view.pos[1], pos[2] - view.pos[2]) > C.voiceRange) continue;
+        }
+        const lines = kept.get(hex(p));
+        if (lines && lines.length) out.push({ name: display(p), lines: lines.slice() });
+      } catch (e) { /* gone */ }
+    }
+    return out;
+  };
+
   registerChatCommand('bug', (a, args) => {
     // One line: a newline in the text would forge lines in the server log (review 2026-09-25)
     const text = String(args || '').replace(/\s+/g, ' ').trim();
@@ -98,7 +118,7 @@ module.exports = (api) => {
     const needles = [display(a).replace(/ #.*/, ''), hex(a)].concat(view.npcs.slice(0, 12).map((n) => n.id));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const file = path.join(C.dir, 'bugs', `${stamp}-${tagOf(a)}.json`);
-    const ok = write(file, { at: new Date().toISOString(), by: display(a), text: text.slice(0, 500), view, log: recentLog(needles) });
+    const ok = write(file, { at: new Date().toISOString(), by: display(a), text: text.slice(0, 500), view, log: recentLog(needles), voice: voiceNear(a, view) });
     // The whole text as saved (500): dbo-monitor copies this line into the #bug-tracker thread, which allows 1500
     log(`BUGREPORT ${display(a)} ${path.basename(file)}: ${text.slice(0, 500)}`);
     personal(a, ok ? 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.' : 'The report could not be saved; please tell staff.');
