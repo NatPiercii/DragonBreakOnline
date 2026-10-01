@@ -14,7 +14,7 @@ const finish = (skipped) => { console.log(failures ? `${failures} FAILED` : skip
 if (typeof R.setNonHumanoidRaceIds !== 'function') {
   require('./expect')('caster-guard', 'this beastRaceIds.ts has no non-humanoid guard yet (fork branch client-nonhumanoid-casters)');
   console.log('SKIP  every check: this beastRaceIds.ts has no non-humanoid guard yet');
-  finish(16);
+  finish(18);
 }
 
 // ---- the guard ----
@@ -38,8 +38,8 @@ const file = (rel) => FORK && path.join(FORK, rel);
 if (!FORK || !fs.existsSync(file('skymp5-client/src/sync/nonHumanoidRaceList.ts'))) {
   const why = !FORK ? 'FORK is not set' : `${FORK} has no nonHumanoidRaceList.ts`;
   require('./expect')('caster-guard', `the source checks cannot run: ${why}`);
-  console.log(`SKIP  8 source checks: ${why}`);
-  finish(8);
+  console.log(`SKIP  10 source checks: ${why}`);
+  finish(10);
 }
 const list = fs.readFileSync(file('skymp5-client/src/sync/nonHumanoidRaceList.ts'), 'utf8');
 const rows = [...list.matchAll(/^  \["([^"]+)", 0x([0-9a-f]{6}), "([^"]+)"\],$/gm)].map((m) => ({ plugin: m[1], id: parseInt(m[2], 16), edid: m[3] }));
@@ -52,6 +52,12 @@ const br = fs.readFileSync(file('skymp5-client/src/sync/beastRaces.ts'), 'utf8')
 check('the spell relay, the sweep and the anim-variables update all ask guardedRaceOf, none beastRaceOf', (rs.match(/guardedRaceOf\(ac\)/g) || []).length === 3 && !/beastRaceOf\(/.test(rs), (rs.match(/guardedRaceOf\(ac\)/g) || []).length);
 const stop = rs.slice(rs.indexOf('if (msg.data.interruptCast) {'), rs.indexOf('// Prefer the spell id in the message'));
 check('a stop for a copy whose 3D is not loaded is held for the sweep, not sent to the native', /if \(!ac\.is3DLoaded\(\)\) \{[^}]*this\.cloneCastWatch\.set\(key, \{[^}]*expiresAt: now/.test(stop) && stop.indexOf('is3DLoaded') < stop.indexOf('this.stopCloneCast('), stop.slice(0, 300));
+const relay = rs.slice(rs.indexOf('if (msg.data.interruptCast) {'), rs.indexOf('private stopCloneCast('));
+const memo = relay.indexOf('if (msg.data.keepAlive && now - (this.cloneCastStoppedAt.get(key) ?? 0) < this.cloneCastStopMemoryMs)');
+const refresh = relay.indexOf('watch.expiresAt = now + this.cloneCastTimeoutMs;');
+check('a keep-alive overtaking its stop is dropped before any watch is refreshed (B, 1 Oct)', memo > 0 && refresh > 0 && memo < relay.indexOf('const watch = this.cloneCastWatch.get(key);') && memo < refresh, { memo, refresh });
+const kaBlock = relay.slice(relay.indexOf('if (msg.data.keepAlive && watch) {'), refresh);
+check('...and a held stop is never pushed back by a keep-alive: the held entry is flagged and the refresh skips it', /held: true \}\);/.test(stop) && /if \(watch\.held\) \{\s*return;\s*\}/.test(kaBlock) && /held\?: boolean/.test(rs), kaBlock.slice(0, 200));
 const sweep = rs.slice(rs.indexOf('private sweepCloneCasts()'), rs.indexOf('private onUpdateAnimVariablesMessage'));
 check('the sweep stops a held copy only once its 3D is loaded, and drops it after cloneCastUnloadedMs', /if \(!ac\.is3DLoaded\(\) && now - watch\.expiresAt < this\.cloneCastUnloadedMs\) \{\s*continue;/.test(sweep) && /this\.cloneCastWatch\.delete\(key\);\s*if \(!ac\.is3DLoaded\(\)\) \{\s*continue;/.test(sweep) && /cloneCastUnloadedMs = \d+/.test(rs));
 check('the runtime ids come from Game.getFormFromFile over the generated list', /for \(const \[file, localId\] of NON_HUMANOID_RACES\)/.test(br) && /Game\.getFormFromFile\(localId, file\)/.test(br) && /setNonHumanoidRaceIds\(ids\)/.test(br));
