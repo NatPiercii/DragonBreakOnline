@@ -1,6 +1,7 @@
 import { Flora, Form, FormType, MotionType, ObjectReference } from "skyrimPlatform";
 import { NiPoint3 } from "../sync/movement";
 import { FormTypeEx } from "./formTypeEx";
+import { isServerHarvested } from "../sync/harvest";
 
 // BlackFallsBarrow02, door isn't opening via SetOpen so we're hacking it.
 // Not blocking activation & asking parent to activate until will be in the correct state
@@ -60,8 +61,8 @@ export class ObjectReferenceEx {
   // Engine activation stays off for everything the server processes; the SP activate event still fires
   static wantsActivationBlock(base: Form): boolean {
     const t = base.getType();
-    // You can also block for t === FormType.Flora || t === FormType.Tree, but I don't think it's necessary.
     return t === FormType.Furniture
+      || isServerHarvested(t)
       || t === FormType.Activator
       || t === FormType.Container
       || FormTypeEx.isItem(t)

@@ -1,5 +1,5 @@
 // @ts-expect-error (TODO: Remove in 2.10.0)
-import { Actor, Form, FormType, Menu, interruptCast, castSpellImmediate, printConsole, applyAnimationVariablesToActor, ActorAnimationVariables } from 'skyrimPlatform';
+import { Actor, Flora, Form, FormType, Menu, TreeObject, interruptCast, castSpellImmediate, printConsole, applyAnimationVariablesToActor, ActorAnimationVariables } from 'skyrimPlatform';
 import {
   Cell,
   Debug,
@@ -28,6 +28,7 @@ import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSi
 import { Movement } from '../../sync/movement';
 import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
+import { harvestNotice, isServerHarvested } from '../../sync/harvest';
 import { setRefrCollision } from '../../sync/animation';
 import { settleTranslation } from '../../sync/movementApply';
 import { guardedRaceOf, casterVariablesFor, noteBeastSkip } from '../../sync/beastRaces';
@@ -304,6 +305,17 @@ export class RemoteServer extends ClientListener {
     });
   }
 
+  private showHarvest(base: Form | null | undefined): void {
+    try {
+      const plant = Flora.from(base ?? null) ?? TreeObject.from(base ?? null);
+      if (!plant) return;
+      const notice = harvestNotice(plant.getIngredient()?.getName());
+      if (notice) Debug.notification(notice);
+    } catch (e) {
+      logError(this, "showHarvest failed", e);
+    }
+  }
+
   private onOpenContainerMessage(event: ConnectionMessage<OpenContainerMessage>): void {
     once('update', async () => {
       await Utility.wait(0.1); // Give a chance to update inventory
@@ -319,6 +331,12 @@ export class RemoteServer extends ClientListener {
 
       const baseObject = refr.getBaseObject();
       const baseType = baseObject?.getType();
+
+      // The server has put the produce in the pack and marks the plant harvested; a local activation would add it again
+      if (isServerHarvested(baseType)) {
+        this.showHarvest(baseObject);
+        return;
+      }
 
       // Furniture answers carry no caster, and an NPC's own sit is routed to its hoster
       if (baseType === FormType.Furniture && !wasSelfActivated(remoteId)) {
