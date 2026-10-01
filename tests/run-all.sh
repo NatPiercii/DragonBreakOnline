@@ -65,6 +65,7 @@ declare -A NEEDS=(
   [craft-weight]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
+  [staff-mastery]=server:skymp5-server/ts/systems/masterySystem.ts
   [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
   [mastery-boost]=server:skymp5-server/ts/systems/masterySystem.ts
   [summon-race]=server:skymp5-server/ts/systems/espmMagic.ts
