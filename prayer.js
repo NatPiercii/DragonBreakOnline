@@ -294,14 +294,17 @@ module.exports = (api) => {
   // Cast a running blessing again: at login, when the spell's own duration ends first, or for a worshipper blessed before
   // 2026-10-01 (taught, not cast), whose spell leaves the learned list here. Nothing for a blessing about to fade: a new
   // cast would outlast it by the spell's whole duration.
-  // `fresh` ends the running effect first (dboDispelSelf), for a cast that lands on one still running: the spell's last
-  // minute.
+  // Not on the dead: castSelfService casts nothing on a dead player, and the cast would be counted as made (Reviewer F,
+  // 2026-10-01). The stand-up after the death casts it (the respawn watch below). `fresh` ends the running effect first
+  // (dboDispelSelf), for a cast that may land on one still running: the spell's last minute, a death the effect survived.
+  const isDeadNow = (a) => { try { return mp.get(a, 'isDead') === true; } catch (e) { return false; } };
   const recastBlessing = (a, why, fresh) => {
     const b = blessingOf(a);
     if (!b || !b.spell || Number(b.until) - Date.now() <= SWEEP_MS) return false;
     const spell = Number(b.spell) >>> 0;
     const info = spellInfo(spell);
     if (!info || !info.cast) return false;            // an Ability or a Power stays in the learned list, which the client re-applies
+    if (isDeadNow(a)) return false;
     if (b.via !== 'cast') {
       castSpell(a, spell, false);
       try { mp.set(a, 'private.dboBlessing', Object.assign({}, b, { via: 'cast' })); } catch (e) { return false; }
@@ -362,6 +365,32 @@ module.exports = (api) => {
       if (at === undefined) { if (seen.has(a)) recastBlessing(a, 'not cast this session'); continue; }
       if (info.ms > 0 && Date.now() >= at + info.ms - SWEEP_MS && Number(b.until) - (at + info.ms) > SWEEP_MS) recastBlessing(a, 'the spell ran out before the blessing', true);
     }
+  });
+
+  // A death and a stand-up (the engine's respawn at the temple, /respawn and Give up, a revive where they fell: downed.js)
+  // can leave the client without the blessing's effect, and a cast sent while they were dead was skipped by the client
+  // though counted here. So a worshipper seen dead with a cast blessing running is cast again once they have stood for
+  // respawnCastSeconds (the client's own death state lags the server's, and a temple respawn loads a new cell). The cast
+  // ends any effect that survived the death first, so it never stacks or toggles.
+  const RESPAWN_CAST_MS = Math.max(0, Math.round((Number(CFG.respawnCastSeconds ?? 3)) * 1000));
+  const fallen = globalThis.__dboBlessingFallen || (globalThis.__dboBlessingFallen = new Map()); // actorId -> 0 while dead, then when seen standing
+  every('prayerBlessingRespawn', 1000, () => {
+    const now = Date.now();
+    const here = new Set();
+    for (const a of (api.onlineActors ? api.onlineActors() : [])) {
+      here.add(a);
+      const b = blessingOf(a);
+      const info = b && b.via === 'cast' && b.spell && Number(b.until) > now ? spellInfo(Number(b.spell) >>> 0) : null;
+      if (!info || !info.cast) { fallen.delete(a); continue; }
+      if (isDeadNow(a)) { fallen.set(a, 0); continue; }
+      if (!fallen.has(a)) continue;
+      const since = fallen.get(a);
+      if (!since) { fallen.set(a, now); continue; }
+      if (now - since < RESPAWN_CAST_MS) continue;
+      fallen.delete(a);
+      recastBlessing(a, 'stood up after a death', true);
+    }
+    for (const a of [...fallen.keys()]) if (!here.has(a)) fallen.delete(a);
   });
 
   // ── the verses ──────────────────────────────────────────────────────────────────────────────
@@ -997,7 +1026,7 @@ module.exports = (api) => {
   // Someone who logs out, mid-pick or before the offer reached them, is offered it again next time (gamemode.js calls this
   // on every logout)
   // The blessing's cast goes with the session too: the client does not keep it, and the next login casts it again.
-  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); blessCasts.delete(a); };
+  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); blessCasts.delete(a); fallen.delete(a); };
 
   // Taking or changing a god. `atShrine` is the older chat path's extra rule and is not applied to
   // the menu, because the brief moved conversion onto a menu key rather than a pilgrimage.
