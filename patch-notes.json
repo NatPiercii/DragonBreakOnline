@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "Iron Falchion out of loot for now",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "The Iron Falchion's model comes without its texture in Beyond Skyrim itself, so it no longer drops until we fix the model. If you already have one, it stays yours."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dungeon Loot by Difficulty",
     "date": "2026-10-01",
     "version": "Server update",
