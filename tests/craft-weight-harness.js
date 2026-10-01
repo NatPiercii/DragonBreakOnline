@@ -109,7 +109,10 @@ const was = [250, 750, 1750, 2950].map((u) => u / before);
 console.log(`\n  hours to Apprentice / Journeyman / Expert / Master at 40 dishes an hour, five recipes:`);
 console.log(`    before: ${was.map((h) => h.toFixed(1)).join(' / ')}  (every dish 0.5: ${before.toFixed(1)} units an hour)`);
 console.log(`    after:  ${after.map((h) => h.toFixed(1)).join(' / ')}  (tier-1 dishes ${rate(1).toFixed(1)} an hour, then the ${perHour}-unit bucket)`);
-eq('a new cook reaches Apprentice about twice as fast', was[0] / after[0] > 1.9, true);
+// The craft weight speeds a new cook up only while the plain product-value weight stays under the bucket. At 30 units an
+// hour it doubled the pace to Apprentice; at 15 (the 1 Oct halving) both fill the hour, so it makes no difference there.
+if (before < perHour * 0.95) eq('a new cook reaches Apprentice about twice as fast', was[0] / after[0] > 1.9, true);
+else eq('a new cook fills the hour either way: the bucket, not the craft weight, sets the pace to Apprentice', Math.abs(was[0] - after[0]) / was[0] < 0.1, true);
 eq('from Apprentice on, cooking fills the hour as any trade can', rate(1.5), perHour);
 
 console.log(fails ? `\n${fails} of ${checks} checks FAILED` : `\nall ${checks} checks passed`);

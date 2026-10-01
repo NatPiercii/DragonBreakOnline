@@ -26,14 +26,14 @@
   "expertCount": 3,
   "transferFloor": 25,
   "firstTouchCost": 1,
-  "bucketBurst": 20,
-  "bucketPerHour": 30,
+  "bucketBurst": 10,
+  "bucketPerHour": 15,
   "dailyCaps": {
-   "low": 360,
-   "expert": 180,
-   "master": 60
+   "low": 180,
+   "expert": 90,
+   "master": 30
   },
-  "characterDaily": 1080
+  "characterDaily": 540
  },
  "swapCooldownDays": 7,
  "categories": [
