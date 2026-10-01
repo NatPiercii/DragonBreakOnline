@@ -13,6 +13,7 @@ import {
 } from "skyrimPlatform";
 import { Movement } from "./movement";
 import { applyWeapDrawn } from "./movementApply";
+import { allowRelayedRagdoll } from "../view/npcLifetimeRuntime";
 
 export enum AnimationEventName {
   Ragdoll = "Ragdoll",
@@ -162,7 +163,7 @@ export const applyAnimation = (
   }
 
   if (anim.animEventName === "Ragdoll") {
-    if (ac) {
+    if (ac && allowRelayedRagdoll(ac)) {
       if (storage["animationFunc1Set"] === true) {
         // @ts-ignore
         storage["animationFunc1"](ac);

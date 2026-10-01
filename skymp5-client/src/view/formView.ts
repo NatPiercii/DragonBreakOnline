@@ -7,6 +7,7 @@ import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
 import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
+import { isSettling } from "./npcLifetime";
 import { safeDelete } from "./npcLifetimeRuntime";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
@@ -643,7 +644,7 @@ export class FormView {
       }
     }
 
-    if (refr.is3DLoaded() && !this.isSettlingBeast(model)) {
+    if (refr.is3DLoaded() && !this.isSettlingCopy(model)) {
       if (model.animation) {
         if (alreadyHosted) {
           // The server echoes our own AI's animations back; replaying them restarts swings and can turn collision off
@@ -718,7 +719,7 @@ export class FormView {
           Date.now() - this.eqState.lastEqMoment > 500 &&
           Date.now() - this.spawnMoment > -1 &&
           this.spawnMoment > 0 &&
-          !this.isSettlingBeast(model)
+          !this.isSettlingCopy(model)
         ) {
           //if (this.spawnMoment > 0 && Date.now() - this.spawnMoment > 5000) {
           if (applyEquipment(ac, model.equipment)) {
@@ -1017,6 +1018,11 @@ export class FormView {
 
   private isSettlingBeast(model: FormModel): boolean {
     return this.isBeastCopy(model) && (this.spawnMoment === 0 || Date.now() - this.spawnMoment < BEAST_SPAWN_SETTLE_MS);
+  }
+
+  // Every new NPC copy settles before relayed animations and equipment reach it, as a beast copy always has
+  private isSettlingCopy(model: FormModel): boolean {
+    return this.isSettlingBeast(model) || (!!model.baseId && isSettling(this.spawnMoment, Date.now()));
   }
 
   private getAppearanceBasedBase(): number {
