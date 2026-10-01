@@ -30,7 +30,7 @@ import { enforceSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { setRefrCollision } from '../../sync/animation';
 import { settleTranslation } from '../../sync/movementApply';
-import { beastRaceOf, casterVariablesFor, noteBeastSkip } from '../../sync/beastRaces';
+import { guardedRaceOf, casterVariablesFor, noteBeastSkip } from '../../sync/beastRaces';
 import { isOwnCompanion } from './companionService';
 import { ModelApplyUtils } from '../../view/modelApplyUtils';
 import { FormModel, WorldModel } from '../../view/model';
@@ -1245,22 +1245,27 @@ export class RemoteServer extends ClientListener {
       // A werewolf's or Vampire Lord's copy gets no caster variables: the native writes them at humanoid graph indexes
       // (sync/beastRaces.ts). A stop still stops the clone; a cast is then not replayed, since the native casts only
       // after applying them. Hits and effects are the server's either way.
-      const beastRace = beastRaceOf(ac);
-      const actorAnimationVariables: ActorAnimationVariables = casterVariablesFor(beastRace, {
+      const guardedRace = guardedRaceOf(ac);
+      const actorAnimationVariables: ActorAnimationVariables = casterVariablesFor(guardedRace, {
         booleans: new Uint8Array(msg.data.actorAnimationVariables.booleans),
         floats: new Uint8Array(msg.data.actorAnimationVariables.floats),
         integers: new Uint8Array(msg.data.actorAnimationVariables.integers)
       });
-      if (beastRace) {
-        noteBeastSkip(msg.data.caster, beastRace, msg.data.interruptCast ? "stop" : msg.data.keepAlive ? "keep-alive" : "cast", Number(msg.data.spell));
+      if (guardedRace) {
+        noteBeastSkip(msg.data.caster, guardedRace, msg.data.interruptCast ? "stop" : msg.data.keepAlive ? "keep-alive" : "cast", Number(msg.data.spell));
       }
 
       const key = `${msg.data.caster}:${msg.data.castingSource}`;
       const now = Date.now();
 
       if (msg.data.interruptCast) {
-        this.cloneCastWatch.delete(key);
         this.cloneCastStoppedAt.set(key, now);
+        // A copy whose 3D is still loading has no graph to stop yet: sweepCloneCasts stops it once loaded
+        if (!ac.is3DLoaded()) {
+          this.cloneCastWatch.set(key, { casterRemoteId: msg.data.caster, expiresAt: now, castingSource: msg.data.castingSource, animVars: actorAnimationVariables, wasDrawn: false });
+          return;
+        }
+        this.cloneCastWatch.delete(key);
         this.stopCloneCast(ac, msg.data.caster, msg.data.castingSource, actorAnimationVariables);
         return;
       }
@@ -1340,9 +1345,15 @@ export class RemoteServer extends ClientListener {
       if (now < watch.expiresAt && (drawn || !watch.wasDrawn)) {
         continue;
       }
+      if (!ac.is3DLoaded() && now - watch.expiresAt < this.cloneCastUnloadedMs) {
+        continue;
+      }
       this.cloneCastWatch.delete(key);
+      if (!ac.is3DLoaded()) {
+        continue;
+      }
       logTrace(this, `Clone cast swept for remote caster`, watch.casterRemoteId.toString(16));
-      this.stopCloneCast(ac, watch.casterRemoteId, watch.castingSource, casterVariablesFor(beastRaceOf(ac), watch.animVars));
+      this.stopCloneCast(ac, watch.casterRemoteId, watch.castingSource, casterVariablesFor(guardedRaceOf(ac), watch.animVars));
     }
   }
 
@@ -1355,10 +1366,10 @@ export class RemoteServer extends ClientListener {
         return;
       }
 
-      // Never a humanoid snapshot into a beast's graph (sync/beastRaces.ts)
-      const beastRace = beastRaceOf(ac);
-      if (beastRace) {
-        noteBeastSkip(msg.data.actorRemoteId, beastRace, "anim variables update");
+      // Never a humanoid snapshot into a non-humanoid graph (sync/beastRaces.ts)
+      const guardedRace = guardedRaceOf(ac);
+      if (guardedRace) {
+        noteBeastSkip(msg.data.actorRemoteId, guardedRace, "anim variables update");
         return;
       }
 
@@ -1380,6 +1391,8 @@ export class RemoteServer extends ClientListener {
   private cloneCastStoppedAt = new Map<string, number>();
   private readonly cloneCastTimeoutMs = 8000;
   private readonly cloneCastStopMemoryMs = 2000;
+  // How long a stop waits for an unloaded copy's 3D before it is dropped
+  private readonly cloneCastUnloadedMs = 60000;
   private lastCloneCastSweep = 0;
   private numSetInventory = 0;
   // Container and furniture answers: the live waiter per target remote id (onOpenContainerMessage)
