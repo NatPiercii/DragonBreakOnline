@@ -10,8 +10,18 @@
 // windows against those spans and decides for itself, so editing the widget changes what the
 // worshipper sees and not what the gods give.
 //
-//   Browser -> client -> server: sendMessage('dbo:prayer', nonce, JSON.stringify(spans), atMs)
+//   Browser -> client -> server: sendMessage('dbo:prayer', nonce, JSON.stringify(spans), atMs[, verdict])
+//   First press (startOnPress):  sendMessage('dbo:prayerStart', nonce[, waitMs])
 //   Escape / stand up:           sendMessage('dbo:prayerCancel', nonce)
+//
+// Client-judged (Jake, 2026-09-30: lag refused 7 of 31 perfect holds as "late"; minigames.js, DESIGN.md section 4.4):
+// the round tells a new widget `judge: 'client'`, the widget decides held or not on its own clock and adds its verdict,
+// '{"v":1,"win":true,"why":"","worst":0,"durMs":18000,"waitMs":900,"blurs":0}'. The server replays the spans for the
+// audit and never measures how late a packet came: no "future", no "late", no 60 s wait on its clock. It keeps the
+// nonce, one report, the shape of the spans, the worshipper still at the shrine (12 m), a round no shorter than its
+// verses (by the widget's clock, and by the server's counted from when it SENT the round), the rests and the gods' gifts.
+// An old widget (no verdict) is judged from its spans as before, without the two lag checks. prayer.clientJudged false
+// in gamemode-config.json puts back today's judging.
 //
 // Data: skills.json `deities` (the choices, their shrine BASE ids and blessing spells) and `praying`
 // (odds, durations, cooldown, the verse count). Shrine ids are base objects, never references: one
@@ -21,7 +31,12 @@
 
 module.exports = (api) => {
   const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, skills, every, takeGold, treasuryHere,
-    isLeadStaff, findAnyByName, sendPacket } = api;
+    isLeadStaff, findAnyByName, sendPacket, distanceMeters } = api;
+  // The shared rules for client-judged mini-games, beside this file (reloaded with it)
+  const path = require('path');
+  const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
+  delete require.cache[MINIGAMES_JS];
+  const MG = require(MINIGAMES_JS);
 
   const WIDGET_ID = 35;
   const CFG = Object.assign({
@@ -44,7 +59,20 @@ module.exports = (api) => {
     // sent, and its load time is on the clock: it gets this much lag instead of lagGraceMs.
     legacyLagGraceMs: 6000,
     failRestMinutes: 5,
+    // The widget judges the hold on its own clock and the server accepts its verdict (minigames.js). lagGraceMs,
+    // clockSlackMs, waitSeconds and legacyLagGraceMs then only flag or tell the widget; false: today's judging exactly.
+    clientJudged: true,
+    // A round nobody reports is cleaned up this long after its verses could have ended: minutes, never a latency budget
+    roundTimeoutMs: 180000,
+    // The worshipper must still be this close to the shrine when the report lands (not for a faith prayed anywhere)
+    nearMeters: 12,
+    // Logged, never refused: a report this far behind the server's clock
+    slowFlagMs: 5000,
+    // A claimed hold its own spans do not bear out: 'log' lets it stand with a PRAYER-MISMATCH audit line, 'refuse'
+    // refuses it (DESIGN.md section 12, item 1)
+    replayCheck: 'log',
   }, cfg.prayer || {});
+  const clientJudged = () => MG.clientJudged(CFG);
 
   const PRAY = Object.assign({}, skills.praying || {});
   const DEITIES = (skills.deities || {}).choices || [];
@@ -408,6 +436,8 @@ module.exports = (api) => {
       // This server times the round from the first press: the panel waits for it and says when (dbo:prayerStart)
       startOnPress: true,
     };
+    // A new widget judges the hold itself with these; an older one ignores them and reports its spans as before
+    if (clientJudged()) Object.assign(w, { judge: 'client', slackMs: round.slackMs, startGraceMs: round.startGraceMs, waitMs: Math.round(Number(CFG.waitSeconds) * 1000) });
     if (result) { w.result = result; w.resultKind = resultKind; }
     return w;
   };
@@ -415,29 +445,54 @@ module.exports = (api) => {
   const startRound = (a, round) => {
     sessions.set(a, round);
     round.openedAt = round.startedAt = nowMs();
+    // Every round issued is logged, so one that never comes back (cancelled, hidden, lost) can be counted
+    log(`prayer issue ${display(a)} ${round.deityName} total=${round.totalMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
     if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
     return true;
   };
 
+  // How long a round lives on the server's clock. Client-judged: the verses plus minutes, from the first press if it
+  // came (a late prayerStart only lengthens it) - cleanup, not a deadline. Rollback: the lag grace, as before.
+  const timeoutMs = () => Math.max(60000, Number(CFG.roundTimeoutMs) || 180000);
+  const limitOf = (r) => (clientJudged()
+    ? (r.begun ? r.startedAt : r.openedAt) + r.totalMs + timeoutMs()
+    : r.begun ? r.startedAt + r.totalMs + CFG.lagGraceMs : r.openedAt + CFG.waitSeconds * 1000 + r.totalMs + CFG.legacyLagGraceMs);
   const liveRound = (a) => {
     const r = sessions.get(a);
     if (!r) return null;
-    const limit = r.begun ? r.startedAt + r.totalMs + CFG.lagGraceMs : r.openedAt + CFG.waitSeconds * 1000 + r.totalMs + CFG.legacyLagGraceMs;
-    if (nowMs() <= limit) return r;
+    if (nowMs() <= limitOf(r)) return r;
     sessions.delete(a);
+    // No rest: an expired round costs no more than walking away (DESIGN.md section 2)
+    if (clientJudged()) log(`prayer expired ${display(a)} ${r.deityName} after ${Math.round(nowMs() - r.openedAt)} ms, no report`);
     return null;
   };
+  // Touching the shrine again while a round is live: the panel was lost (a reload, F2, a crash), so it is drawn again.
+  // Same nonce, so a panel still showing it keeps its state.
+  const reshow = (a, round) => { if (clientJudged()) openWidget(a, packetFor(round), true); return true; };
 
-  const finish = (a, round, win, text, kind, rest) => {
+  // show: 'widget' re-sends the panel with the verdict (the default), 'say' tells it in chat (the panel is gone), 'none'
+  // says nothing (a provisional end that a report still on its way replaces)
+  const finish = (a, round, win, text, kind, rest, show) => {
     if (rest !== false) {
       const rests = restsOf(a);
       rests[round.refId.toString(16)] = Date.now() + (win ? SHRINE_COOLDOWN_MS : CFG.failRestMinutes * 60000);
       saveRests(a, rests);
     }
-    openWidget(a, packetFor(round, text, kind), false);
-    sessions.delete(a);
+    if (show === 'say') personal(a, text);
+    else if (show !== 'none') openWidget(a, packetFor(round, text, kind), false);
+    if (sessions.get(a) === round) sessions.delete(a);
     spent.set(round.nonce, Date.now());
     for (const [n, t] of spent) if (Date.now() - t > 600000) spent.delete(n);
+  };
+  // Client -> server packets are reliable but not ordered, so a Stand up, an Escape or an F2 sent just after the report
+  // can overtake it. A round ended that way is kept by nonce until its timeout: a report that turns up after it is still
+  // judged, and a held prayer replaces the fail rest with the shrine's own. Client-judged only.
+  const closing = globalThis.__dboPrayerClosing instanceof Map ? globalThis.__dboPrayerClosing : (globalThis.__dboPrayerClosing = new Map()); // nonce -> { a, round, how }
+  const keepClosing = (a, round, how) => {
+    if (!clientJudged()) return;
+    for (const [n, c] of closing) if (nowMs() > limitOf(c.round)) closing.delete(n);
+    closing.set(round.nonce, { a, round, how });
+    while (closing.size > 500) closing.delete(closing.keys().next().value);
   };
 
   // ── the activate hook ───────────────────────────────────────────────────────────────────────
@@ -492,7 +547,7 @@ module.exports = (api) => {
     // From here on the target IS a shrine: the vanilla blessing must not fire whatever we answer.
     lastShrine.set(casterId, { deityId: d.id, at: Date.now() });
     log(`shrine touch ${display(casterId)} ${d.name}`);
-    if (liveRound(casterId)) return true;
+    { const live = liveRound(casterId); if (live) return reshow(casterId, live); }
     // Nate 2026-09-30: a shrine that keeps a rite (Molag Bal, Hircine, Arkay, Stendarr) opens a panel to pray or perform
     // it (supernatural.js). Every other shrine, or no panel to open, prays as a touch always has.
     if (typeof globalThis.__dboShrinePanel === 'function') {
@@ -512,7 +567,7 @@ module.exports = (api) => {
   globalThis.__dboPrayerStart = (casterId, targetId) => {
     const why = globalThis.__dboPrayerRefusal(casterId, targetId);
     if (why) return why;
-    if (liveRound(casterId)) return '';
+    { const live = liveRound(casterId); if (live) { reshow(casterId, live); return ''; } }
     const baseId = baseIdOf(targetId);
     prayAt(casterId, targetId, baseId, shrineAt(targetId, baseId));
     return '';
@@ -524,7 +579,7 @@ module.exports = (api) => {
   const ANYWHERE_REF = 1;
   registerChatCommand('pray', (a) => {
     if (!CFG.enabled) return personal(a, 'Prayer is closed on this server.');
-    if (liveRound(a)) return;
+    { const live = liveRound(a); if (live) { reshow(a, live); return; } }
     const faith = faithOf(a);
     const d = faith ? deityById(faith.id) : null;
     if (!d) return personal(a, 'You hold no god. Say /deity to choose one.');
@@ -568,7 +623,7 @@ module.exports = (api) => {
   // mounted. Everything the verdict needs is in those numbers and the round the server already
   // holds; nothing the widget says about its own success is read.
   const judge = (round, raw, at, elapsed) => {
-    const r = { spans: 0, held: 0, covered: 0, worst: 0, late: 0, at, lag: Math.round(elapsed - at), bad: '' };
+    const r = { spans: 0, held: 0, covered: 0, worst: 0, late: 0, at, lag: Math.round(elapsed - at), bad: '', sus: [] };
     let list = [];
     try { list = JSON.parse(String(raw)); } catch (e) { r.bad = 'parse'; return r; }
     if (!Array.isArray(list)) { r.bad = 'shape'; return r; }
@@ -585,11 +640,16 @@ module.exports = (api) => {
       r.spans++; r.held += up - down;
     }
     if (prevEnd > at) { r.bad = 'submit'; return r; }        // a key still down after the report went out
-    // The widget's clock may sit behind the server's by the transport, never ahead of it, and a
-    // round played out in slow motion and scaled back down is the one cheat the coverage check
-    // alone would not see. Same two bounds labour.js uses.
-    if (r.lag < -CFG.clockSlackMs) { r.bad = 'future'; return r; }
-    if (r.lag > (round.begun ? CFG.lagGraceMs : CFG.legacyLagGraceMs)) { r.bad = 'late'; return r; }
+    if (clientJudged()) {
+      // The widget judges: nothing on the server's clock refuses a prayer. Both bounds below become review flags.
+      r.sus.push(...MG.lagFlags(r.lag, CFG.clockSlackMs, CFG.slowFlagMs));
+    } else {
+      // The widget's clock may sit behind the server's by the transport, never ahead of it, and a
+      // round played out in slow motion and scaled back down is the one cheat the coverage check
+      // alone would not see. Same two bounds labour.js uses.
+      if (r.lag < -CFG.clockSlackMs) { r.bad = 'future'; return r; }
+      if (r.lag > (round.begun ? CFG.lagGraceMs : CFG.legacyLagGraceMs)) { r.bad = 'late'; return r; }
+    }
 
     const first = list.length ? Number(list[0][0]) : Infinity;
     if (first > round.startGraceMs) { r.late = first; r.bad = 'slow'; return r; }
@@ -618,37 +678,135 @@ module.exports = (api) => {
     // that is not resting starts a round, and /offer wants that touch, so closing the panel to make an offering rested
     // the shrine for failRestMinutes before the prayer the offering was for (2026-10-01).
     if (!round.begun) return finish(a, round, false, 'You rise without praying. Kneel again when you are ready.', 'lose', false);
+    // A new widget shows its own verdict the moment the verses end, so Rise can follow the report within milliseconds
+    // and, the channel being unordered, arrive first. Past the verses, Rise is not standing up early: the panel closes,
+    // the fail rest is written for now, and the report on its way is still judged, its verdict told in chat.
+    if (clientJudged() && round.begun && nowMs() - round.startedAt >= round.totalMs - MG.floorAllowance(round.totalMs, CFG.clockSlackMs)) {
+      log(`prayer abandon(rise) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, past the verses: waiting for the report`);
+      finish(a, round, false, '', 'lose', true, 'none');
+      closeWidget(a, WIDGET_ID);
+      keepClosing(a, round, 'close');
+      return;
+    }
+    log(`prayer abandon(cancel) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms`);
     finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose');
+    keepClosing(a, round, 'cancel');
+  });
+  // The relay's own close (Escape caught by the client, or F2 hiding the interface: args ['hidden']). It used to be
+  // ignored and the round hung until a later touch (DESIGN.md section 13). F2 is not standing up: no rest, as in labour.
+  onUi('close', (a, args, widgetId) => {
+    if (widgetId !== WIDGET_ID) return;
+    const round = sessions.get(a);
+    if (!round) return;
+    const hidden = Array.isArray(args) && args[0] === 'hidden';
+    log(`prayer abandon(${hidden ? 'hidden' : 'close'}) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms${hidden ? ', no rest' : ''}`);
+    if (hidden) sessions.delete(a);
+    else finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose', true, 'say');
+    keepClosing(a, round, hidden ? 'hidden' : 'close');
+  });
+  // A logout ends a prayer with no rest: a crash must not cost the shrine (gamemode.js disconnect list)
+  globalThis.__dboPrayerLeave = (a) => {
+    const round = sessions.get(a);
+    if (!round) return;
+    sessions.delete(a);
+    log(`prayer abandon(logout) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, no rest`);
+  };
+  // Rounds nobody reports are cleared on the minute scale, logged, so a lost round can be counted
+  every('prayerSweep', 30000, () => {
+    for (const a of [...sessions.keys()]) liveRound(a);
+    for (const [n, c] of closing) if (nowMs() > limitOf(c.round)) closing.delete(n);
   });
 
-  // The panel's first press: from here the round runs. Once only, and only while the panel may still wait for it.
+  // The panel's first press: from here the round runs. Once only. Rollback: only while the panel may still wait for it
+  // (waitSeconds on the server's clock). Client-judged: the widget keeps its own wait, and this only times the lag.
   onUi('prayerStart', (a, args) => {
     const round = sessions.get(a);
     if (!round || String(args[0]) !== round.nonce || round.begun) return;
-    if (nowMs() - round.openedAt > CFG.waitSeconds * 1000) return;
+    if (!clientJudged() && nowMs() - round.openedAt > CFG.waitSeconds * 1000) return;
     round.begun = true;
     round.startedAt = nowMs();
+    const wait = MG.ms(args[1]);
+    if (Number.isFinite(wait) && wait >= 0) round.waitMs = wait;
   });
 
+  // The new widget's verdict, args[3] (minigames.js): win, why, worst, durMs, waitMs, blurs. Anything unreadable is an
+  // old widget, judged from its spans.
+  const claimOf = (raw) => {
+    const c = MG.verdictOf(raw);
+    if (!c || typeof c.win !== 'boolean') return null;
+    return { win: c.win, why: String(c.why || '').replace(/[^a-z-]/gi, '').slice(0, 16), worst: MG.ms(c.worst), durMs: MG.ms(c.durMs), waitMs: MG.ms(c.waitMs), blurs: MG.ms(c.blurs) };
+  };
+  const ignored = MG.limiter(5000);
+  // What the replay says when the spans are well formed: held, or the ordinary losses (slow to start, a lapse)
+  const ORDINARY = new Set(['slow', 'released']);
+
   onUi('prayer', (a, args) => {
-    const round = sessions.get(a);
-    if (!round || String(args[0]) !== round.nonce) {
-      if (spent.has(String(args[0]))) log(`prayer replay ${display(a)}: ${String(args[0]).slice(0, 40)} was already judged`);
-      return;
+    const nonce = String(args[0]);
+    let round = sessions.get(a);
+    let closed = '';
+    if (!round || nonce !== round.nonce) {
+      const c = closing.get(nonce);
+      if (c && c.a === a && nowMs() <= limitOf(c.round)) { round = c.round; closed = c.how; }
+      else {
+        if (spent.has(nonce)) log(`prayer replay ${display(a)}: ${nonce.slice(0, 40)} was already judged`);
+        else if (ignored(a, nowMs())) log(`prayer ignored ${display(a)}: ${round ? 'another round is live' : 'no round'} for ${nonce.slice(0, 40)}`);
+        return;
+      }
     }
-    const elapsed = nowMs() - round.startedAt;
-    const v = judge(round, args[1], Math.max(0, Math.floor(Number(args[2]) || 0)), elapsed);
-    const win = !v.bad;
+    closing.delete(nonce);
+    const now = nowMs();
+    const elapsed = now - round.startedAt;
+    const sinceSent = now - round.openedAt;
+    const cj = clientJudged();
+    const at = Math.max(0, Math.floor(Number(args[2]) || 0));
+    const v = judge(round, args[1], at, elapsed);
+    const claim = cj ? claimOf(args[3]) : null;
+    const replayHeld = !v.bad;
+    let win = !v.bad;
+    let near;
+    if (cj) {
+      // Cleanup bound only: minutes past the verses
+      if (now > limitOf(round)) { v.bad = 'expired'; win = false; }
+      // Still at the shrine (not for a faith prayed anywhere): the worshipper kneels while praying, so the server's
+      // position lagging behind theirs cannot fail it
+      if (!v.bad || ORDINARY.has(v.bad)) {
+        if (round.refId !== ANYWHERE_REF && Number(CFG.nearMeters) > 0 && typeof distanceMeters === 'function') {
+          near = distanceMeters(a, round.refId);
+          if (!(near <= Number(CFG.nearMeters))) { v.bad = 'away'; win = false; }
+        }
+      }
+      if (claim && (!v.bad || ORDINARY.has(v.bad))) {
+        if (claim.win !== replayHeld) v.sus.push('mismatch');
+        if (!claim.win) { win = false; if (!v.bad) v.bad = claim.why && ORDINARY.has(claim.why) ? claim.why : 'released'; }
+        else if (!replayHeld) {
+          // A claimed hold its own spans do not bear out: a forged report, or the widget and this file out of step
+          audit(`PRAYER-MISMATCH ${who(a)} ${round.deityName} widget=held replay=${v.bad} worst=${v.worst} seed=${round.seed.toString(16)}`);
+          if (MG.replayRefuses(CFG)) v.bad = 'mismatch';
+          else { v.bad = ''; win = true; }
+        }
+      }
+      // Humanly possible: a held prayer took the whole of its verses, on the widget's own clock and on the server's,
+      // counted from when it SENT the round (lag only lengthens that)
+      const own = claim && Number.isFinite(claim.durMs) ? claim.durMs : at;
+      if (win && (own < round.totalMs - MG.floorAllowance(round.totalMs, CFG.clockSlackMs) || MG.serverTooSoon(sinceSent, round.totalMs, CFG.clockSlackMs))) { v.bad = 'fast'; win = false; }
+    }
     // One line per prayer: the verdict, how long the key was actually down against the round, the
-    // worst uncovered verse (0 is a prayer never broken), the report's own clock and its lag.
-    log(`prayer ${v.bad ? 'refused(' + v.bad + ')' : 'held'} ${display(a)} ${round.deityName} spans=${v.spans} held=${v.held}/${round.totalMs} worst=${v.worst} at=${v.at} lag=${v.lag} ${round.begun ? `started=${round.startedAt - round.openedAt}` : 'legacy'} seed=${round.seed.toString(16)}`);
+    // worst uncovered verse (0 is a prayer never broken), the report's own clock and its lag; then who judged, the
+    // widget's claim and its own figures, the distance to the shrine and any review flags. lag= decides nothing when
+    // the widget judges.
+    const extra = cj ? ` sinceOpen=${Math.round(sinceSent)}${claim ? ` dur=${Number.isFinite(claim.durMs) ? claim.durMs : '-'} wait=${Number.isFinite(claim.waitMs) ? claim.waitMs : Number.isFinite(round.waitMs) ? round.waitMs : '-'} blurs=${Number.isFinite(claim.blurs) ? claim.blurs : '-'} agree=${claim.win === replayHeld ? 'yes' : 'no'}` : ''}` : '';
+    log(`prayer ${v.bad ? 'refused(' + v.bad + ')' : 'held'} ${display(a)} ${round.deityName} spans=${v.spans} held=${v.held}/${round.totalMs} worst=${v.worst} at=${v.at} lag=${v.lag} ${round.begun ? `started=${round.startedAt - round.openedAt}` : 'legacy'} seed=${round.seed.toString(16)}`
+      + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: cj ? round.totalMs : undefined, near: near !== undefined ? near : undefined, claim: cj ? (claim ? (claim.win ? 'held' : `lose${claim.why ? ':' + claim.why : ''}`) : null) : undefined, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
+      + extra);
+    // A verdict that lands after the panel was closed is told in chat; one after Stand up re-draws the open panel
+    const show = closed === 'close' || closed === 'hidden' ? 'say' : 'widget';
 
     if (!win) {
-      return finish(a, round, false, 'The verses slip away from you. The shrine gives nothing.', 'lose');
+      return finish(a, round, false, 'The verses slip away from you. The shrine gives nothing.', 'lose', true, show);
     }
 
     const d = deityById(round.deityId);
-    if (!d) return finish(a, round, false, 'The shrine is silent.', 'lose');
+    if (!d) return finish(a, round, false, 'The shrine is silent.', 'lose', true, show);
 
     // The Priest is credited by the mastery system, which already has `prayer` in its candidate map
     // bound to priest - so nothing server-side needed rebuilding for this.
@@ -682,7 +840,7 @@ module.exports = (api) => {
         text = `${d.name} answers, and the answer does not reach you.`;
       }
     }
-    finish(a, round, true, text, 'win');
+    finish(a, round, true, text, 'win', true, show);
     try { if (globalThis.__dboSuperPrayed) globalThis.__dboSuperPrayed(a, d.id); } catch (e) { /* no curses */ }
   });
 

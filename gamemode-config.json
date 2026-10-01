@@ -377,6 +377,14 @@
   "nearMeters": 15,
   "saltGlow": { "_comment": "Sea Salt Deposits glow while they hold salt for you and go dark while the seam rests (GroundedPasta, 30 Sep: very small, very hard to see). audience: miners (Miner taken up) or everyone. The list is salt-deposits.json (tools/labour/salt_deposits.py). Hot reload.", "enabled": true, "audience": "miners", "seconds": 30 }
  },
+ "prayer": {
+  "_comment": "Prayer at a shrine (server\\prayer.js; the verses, odds and rests are in skills.json praying). Only the client-judged settings are kept here; every other default in prayer.js stands.",
+  "_clientJudged": "Jake, 2026-09-30: lag refused 7 of 31 perfect holds as late since 30 Sep. The widget judges the hold on the player's machine and the server accepts its verdict, keeping only checks latency cannot fail (nonce, one report, the worshipper within nearMeters of the shrine, no shorter than the verses, rests and blessings). An old widget is judged from its spans without the late and future checks. roundTimeoutMs cleans up a prayer nobody reports. replayCheck: 'log' lets a claimed hold its own spans do not bear out stand with a PRAYER-MISMATCH audit line, 'refuse' refuses it. ROLLBACK: set clientJudged to false and reload the gamemode; today's judging (lagGraceMs, the 60 s wait) comes back for every client.",
+  "clientJudged": true,
+  "replayCheck": "log",
+  "roundTimeoutMs": 180000,
+  "nearMeters": 12
+ },
  "needs": {
   "_comment": "Hunger: 0 sated .. 100 starving, rises only while online. Stages apply regen penalties on the owner client (StaminaRateMult / HealRateMult, percent) and xpMult scales skill progress (0.25 = a quarter rate). Food kinds by ALCH food flag + editor-id words; potions/poisons give 0.",
   "enabled": true,

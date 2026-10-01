@@ -15,6 +15,7 @@ const PRAYER = path.join(SERVER, 'prayer.js');
 const SKILLS = require(path.join(SERVER, 'skills.json'));
 
 let virtual = 0;
+let nearM = 2;
 globalThis.performance = { now: () => virtual };
 let wallClock = 1780000000000;                    // Date.now() under the harness's control
 const realNow = Date.now;
@@ -62,7 +63,10 @@ const api = {
   audit: (t) => out.audits.push(t),
   display: () => 'Tester #ABCD',
   who: () => 'Tester #ABCD (profile 1)',
-  cfg: {},
+  // The cases up to "client-judged" are today's server-judged rules: they run with the rollback switch, which so proves
+  // prayer.clientJudged false behaves exactly as before. The client-judged cases are at the end.
+  cfg: { prayer: { clientJudged: false } },
+  distanceMeters: () => nearM,
   openWidget: (a, w) => { out.widgets.push(w); return true; },
   closeWidget: () => true,
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
@@ -598,6 +602,201 @@ wallClock += 3600001;
 check('the boon ends with the blessing', globalThis.__dboBlessedWith(ACTOR, 'scholarBoon') === false);
 props.set(ACTOR + '|private.dboBlessing', null);
 check('no blessing, no boon', globalThis.__dboBlessedWith(ACTOR, 'scholarBoon') === false);
+
+// ---- client-judged (prayer.clientJudged true; Jake, 2026-09-30): the widget's verdict stands, latency refuses nothing
+console.log('');
+console.log('client-judged:');
+const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
+api.cfg = { prayer: { clientJudged: true } };
+load();
+props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', at: wallClock - 30 * 86400000 });
+props.delete(ACTOR + '|private.prayedShrines');
+props.set(ACTOR + '|private.dboBlessing', null);
+const claimC = (o) => JSON.stringify(Object.assign({ v: 1, win: true, why: '', worst: 0, durMs: 18000, waitMs: 900, blurs: 0 }, o || {}));
+// The widget opens the round when the panel arrives, presses after waitMs of its own clock, and reports when the
+// verses end. startArrive / reportArrive are when the server sees each packet.
+const freshC = () => { wallClock += 61 * 60000; virtual += 1000000; nearM = 2; const start = virtual; return { start, w: activate(AKATOSH_SHRINE).w }; };
+const playC = (f, o) => {
+  const opt = Object.assign({ startArrive: f.start + 1000, reportArrive: f.start + 1000 + f.w.totalMs, spans: wholeHold(f.w), at: f.w.totalMs, claim: claimC(), noStart: false }, o || {});
+  if (!opt.noStart) { virtual = opt.startArrive; clear(); fire('prayerStart', [f.w.nonce, 900]); }
+  virtual = opt.reportArrive;
+  clear();
+  const args = [f.w.nonce, typeof opt.spans === 'string' ? opt.spans : JSON.stringify(opt.spans), opt.at];
+  if (opt.claim !== undefined) args.push(opt.claim);
+  fire('prayer', args);
+  return { log: out.logs.join(' | '), said: out.personals.join(' | '), audit: out.audits.slice(), events: out.events.slice(), result: out.widgets[0] };
+};
+const judgeOfP = (line) => (/ judge=(\w+)/.exec(line) || [])[1] || '?';
+const susOfP = (line) => (/ sus=([\w,-]+)/.exec(line) || [])[1] || '';
+const restOf = (ref) => Number((props.get(ACTOR + '|private.prayedShrines') || {})[ref.toString(16)]) || 0;
+
+f = freshC();
+check('the round tells the widget it is the judge, with what it needs to judge', f.w.judge === 'client' && f.w.slackMs === 500 && f.w.startGraceMs === 1500 && f.w.waitMs === 60000, JSON.stringify({ judge: f.w.judge, slackMs: f.w.slackMs, startGraceMs: f.w.startGraceMs, waitMs: f.w.waitMs }));
+check('every round issued is logged', /prayer issue .* judge=client/.test(out.logs.join(' | ')), out.logs.join(' | '));
+res = playC(f);
+check('a held prayer is accepted, judged by the widget', verdictOf(res.log) === 'held' && judgeOfP(res.log) === 'client' && res.events.length === 1, res.log);
+
+// The live refusals since 30 Sep: perfect holds whose report sat 3.4 to 12.4 s between widget and server
+for (const lag of [3400, 7000, 12400]) {
+  f = freshC();
+  res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + lag });
+  check(`a perfect hold whose report is ${lag / 1000} s late is held (refused(late) before)`, verdictOf(res.log) === 'held' && /slow/.test(susOfP(res.log)) === (lag > 5000), res.log);
+}
+for (const rtt of NET.REQUIRED) {
+  f = freshC();
+  res = playC(f, { startArrive: f.start + rtt + 900, reportArrive: f.start + rtt + 900 + f.w.totalMs });
+  check(`the new widget's hold is accepted at ${rtt} ms`, verdictOf(res.log) === 'held' && judgeOfP(res.log) === 'client', res.log);
+  f = freshC();
+  res = playC(f, { startArrive: f.start + rtt + 900, reportArrive: f.start + rtt + 900 + f.w.totalMs, spans: [[0, 7000], [8000, f.w.totalMs]], claim: claimC({ win: false, why: 'released', worst: 1000 }) });
+  check(`...and its own loss stands at ${rtt} ms`, verdictOf(res.log) === 'released' && res.events.length === 0, res.log);
+}
+{
+  const rand = NET.rngOf(5); let changed = 0, n = 0; const seen = [];
+  for (const c of NET.matrix()) {
+    for (const held of [true, false]) {
+      f = freshC();
+      const tStart = NET.trip(c, rand), tRep = NET.trip(c, rand);
+      const wait = 400 + Math.floor(rand() * 3000);
+      const spans = held ? wholeHold(f.w) : [[0, 9000], [10200, f.w.totalMs]];
+      res = playC(f, { startArrive: f.start + tStart.down + Math.round(wait * c.rate) + tStart.up - c.spike, reportArrive: f.start + tStart.down + Math.round((wait + f.w.totalMs) * c.rate) + tRep.up + c.stall, spans, claim: claimC(held ? {} : { win: false, why: 'released', worst: 1200 }) });
+      n++;
+      if (verdictOf(res.log) !== (held ? 'held' : 'released')) { changed++; if (seen.length < 3) seen.push(`${c.name}: ${res.log}`); }
+    }
+  }
+  check(`no honest verdict changes under ${NET.matrix().length} network conditions (0 to 2.5 s, jitter, resends, spikes, a stall, clock rate +-0.5%)`, changed === 0, `${n} prayers${seen.length ? ' | ' + seen.join(' | ') : ''}`);
+}
+// The old widget (0.3.71: spans and its clock, no verdict) at high latency
+for (const lag of [2500, 4500, 12400, 60000]) {
+  f = freshC();
+  res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + lag, claim: undefined });
+  check(`an old widget's report ${lag / 1000} s late is judged from its spans and held`, verdictOf(res.log) === 'held' && judgeOfP(res.log) === 'legacy', res.log);
+}
+f = freshC();
+res = playC(f, { claim: undefined, noStart: true, reportArrive: f.start + 4000 + f.w.totalMs + 9000 });
+check('...and one whose first-press packet never arrived', verdictOf(res.log) === 'held' && /legacy/.test(res.log), res.log);
+f = freshC();
+res = playC(f, { claim: undefined, spans: [[0, 7000], [8000, f.w.totalMs]] });
+check("...while an old widget's lapse is still a lapse", verdictOf(res.log) === 'released', res.log);
+// The first press may come long after the panel: no server-side wait any more
+f = freshC();
+res = playC(f, { startArrive: f.start + 90000, reportArrive: f.start + 90000 + f.w.totalMs });
+check('a first press 90 s after the panel still starts the round', verdictOf(res.log) === 'held' && /started=90000/.test(res.log), res.log);
+
+// Duplicate and foreign nonces
+f = freshC();
+res = playC(f);
+virtual += 500; clear(); fire('prayer', [f.w.nonce, JSON.stringify(wholeHold(f.w)), f.w.totalMs, claimC()]);
+check('a second report for the same round pays nothing (replay)', verdictOf(res.log) === 'held' && /prayer replay/.test(out.logs.join(' | ')) && out.events.length === 0, out.logs.join(' | '));
+f = freshC();
+virtual = f.start + 1000; clear(); fire('prayerStart', [f.w.nonce]);
+virtual = f.start + 1000 + f.w.totalMs; clear(); fire('prayer', ['14-forged', JSON.stringify(wholeHold(f.w)), f.w.totalMs, claimC()]);
+check('a report on a nonce this worshipper was never issued pays nothing', out.events.length === 0 && /prayer ignored .*another round is live/.test(out.logs.join(' | ')), out.logs.join(' | '));
+clear(); (handlers.get('prayer') || []).forEach((fn) => fn(0x99, [f.w.nonce, JSON.stringify(wholeHold(f.w)), f.w.totalMs, claimC()], 35));
+check("another player's report on this worshipper's nonce pays nothing", out.events.length === 0 && /prayer ignored .*no round/.test(out.logs.join(' | ')), out.logs.join(' | '));
+res = playC(f, { noStart: true });
+check('...and the round is still there for its own worshipper', verdictOf(res.log) === 'held', res.log);
+
+// Impossible durations
+f = freshC();
+res = playC(f, { spans: [[0, 9000]], at: 9000, claim: claimC({ durMs: 9000 }), reportArrive: f.start + 1000 + 9000 });
+check('a hold claimed in half the verses is refused(fast)', verdictOf(res.log) === 'fast' && res.events.length === 0, res.log);
+f = freshC();
+res = playC(f, { startArrive: f.start + 10, reportArrive: f.start + 9000 });
+check('a whole hold that reaches the server 9 s after the round was sent is refused(fast)', verdictOf(res.log) === 'fast' && res.events.length === 0, res.log);
+f = freshC();
+res = playC(f, { startArrive: f.start + 1, reportArrive: f.start + f.w.totalMs });
+check('one that took exactly the verses from when the round was sent is held', verdictOf(res.log) === 'held', res.log);
+
+// Mismatches between the widget's verdict and its own spans
+f = freshC();
+res = playC(f, { spans: [[0, 7000], [8000, f.w.totalMs]] });
+check("replayCheck 'log' (default): a claimed hold its spans do not bear out stands, flagged and audited", verdictOf(res.log) === 'held' && /mismatch/.test(susOfP(res.log)) && res.audit.some((t) => /^PRAYER-MISMATCH /.test(t)), res.log);
+f = freshC();
+res = playC(f, { claim: claimC({ win: false, why: 'released' }) });
+check("the widget's own loss stands even when its spans replay to a hold", verdictOf(res.log) === 'released' && /mismatch/.test(susOfP(res.log)) && res.events.length === 0, res.log);
+api.cfg = { prayer: { clientJudged: true, replayCheck: 'refuse' } };
+load();
+f = freshC();
+res = playC(f, { spans: [[0, 7000], [8000, f.w.totalMs]] });
+check("replayCheck 'refuse': the mismatched hold is refused", verdictOf(res.log) === 'mismatch' && res.events.length === 0, res.log);
+api.cfg = { prayer: { clientJudged: true } };
+load();
+
+// Still at the shrine
+f = freshC(); nearM = 30;
+res = playC(f);
+check('a worshipper 30 m from the shrine when the report lands is refused(away)', verdictOf(res.log) === 'away' && res.events.length === 0, res.log);
+f = freshC(); nearM = 11;
+res = playC(f);
+check('11 m (inside the 12 m radius) is fine', verdictOf(res.log) === 'held', res.log);
+nearM = 2;
+
+// Cleanup, not a deadline
+f = freshC();
+res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + 170000 });
+check('a report nearly three minutes late is still judged', verdictOf(res.log) === 'held', res.log);
+f = freshC();
+res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + 240000 });
+check('a report four minutes late is refused(expired)', verdictOf(res.log) === 'expired' && res.events.length === 0, res.log);
+f = freshC();
+virtual = f.start + f.w.totalMs + 200000; clear();
+timers.get('prayerSweep')();
+check('a round nobody reports is swept and logged, with no rest', /prayer expired/.test(out.logs.join(' | ')) && restOf(AKATOSH_SHRINE) < wallClock, out.logs.join(' | '));
+
+// Cooldowns unchanged
+f = freshC();
+res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + 2500 });
+check('a client-judged hold rests the shrine for its hour', verdictOf(res.log) === 'held' && Math.abs(restOf(AKATOSH_SHRINE) - (wallClock + 3600000)) < 5000, String(restOf(AKATOSH_SHRINE) - wallClock));
+r = activate(AKATOSH_SHRINE);
+check('...so the shrine will not hear the worshipper again at once', !r.w && /prayed here recently/.test(r.said), r.said);
+f = freshC();
+res = playC(f, { spans: [[0, 7000], [8000, f.w.totalMs]], claim: claimC({ win: false, why: 'released' }) });
+check('a client-judged lapse takes the 5 min fail rest, as before', Math.abs(restOf(AKATOSH_SHRINE) - (wallClock + 5 * 60000)) < 5000, String(restOf(AKATOSH_SHRINE) - wallClock));
+
+// Reports that arrive after Stand up, Escape or F2 (client packets are reliable, not ordered)
+f = freshC();
+virtual = f.start + 1000; clear(); fire('prayerStart', [f.w.nonce]);
+virtual = f.start + 1000 + 9000; clear(); fire('prayerCancel', [f.w.nonce]);
+const restCancel = restOf(AKATOSH_SHRINE);
+check('Stand up mid-verse still ends the prayer at once, as before', /prayer abandon\(cancel\)/.test(out.logs.join(' | ')) && out.widgets.length === 1 && out.widgets[0].resultKind === 'lose', out.logs.join(' | '));
+res = playC(f, { noStart: true, reportArrive: f.start + 1000 + f.w.totalMs + 400 });
+check('a report that lands after Stand up is still judged and held', verdictOf(res.log) === 'held' && /after-cancel/.test(susOfP(res.log)) && res.events.length === 1, res.log);
+check('...and the hold replaces the fail rest with the shrine\'s hour', restCancel - wallClock < 6 * 60000 && restOf(AKATOSH_SHRINE) - wallClock > 50 * 60000, `${restCancel - wallClock} -> ${restOf(AKATOSH_SHRINE) - wallClock}`);
+// Rise right after the widget's own verdict, overtaking the report (the front shows its verdict at once)
+f = freshC();
+virtual = f.start + 1000; clear(); fire('prayerStart', [f.w.nonce]);
+virtual = f.start + 1000 + f.w.totalMs + 30; clear(); fire('prayerCancel', [f.w.nonce]);
+const restRise = restOf(AKATOSH_SHRINE);
+check('Rise past the verses closes the panel without "You rise before the third verse"', /prayer abandon\(rise\)/.test(out.logs.join(' | ')) && out.widgets.length === 0 && !out.personals.length && restRise > wallClock, out.logs.join(' | '));
+res = playC(f, { noStart: true, reportArrive: f.start + 1000 + f.w.totalMs + 200 });
+check('...and the report that follows is held, told in chat, with the shrine\'s hour', verdictOf(res.log) === 'held' && !res.result && /takes note|answers/.test(res.said) && restOf(AKATOSH_SHRINE) - wallClock > 50 * 60000, res.log);
+f = freshC();
+virtual = f.start + 1000; clear(); fire('prayerStart', [f.w.nonce]);
+virtual = f.start + 1000 + f.w.totalMs + 50; clear(); fire('close', ['escape']);
+check('the relay close (Escape) ends the round, which used to hang', /prayer abandon\(close\)/.test(out.logs.join(' | ')) && restOf(AKATOSH_SHRINE) > wallClock, out.logs.join(' | '));
+res = playC(f, { noStart: true, reportArrive: f.start + 1000 + f.w.totalMs + 300 });
+check('...a report after it is still judged, its verdict told in chat', verdictOf(res.log) === 'held' && !res.result && /answers|takes note/.test(res.said), res.said);
+f = freshC();
+virtual = f.start + 500; clear(); fire('close', ['hidden']);
+check('F2 hiding the panel ends the round with no rest', /prayer abandon\(hidden\)/.test(out.logs.join(' | ')) && restOf(AKATOSH_SHRINE) < wallClock, out.logs.join(' | '));
+f = freshC();
+clear(); globalThis.__dboPrayerLeave(ACTOR);
+check('a logout ends the round with no rest', /prayer abandon\(logout\)/.test(out.logs.join(' | ')) && restOf(AKATOSH_SHRINE) < wallClock, out.logs.join(' | '));
+f = freshC();
+virtual = f.start + 5000;
+r = activate(AKATOSH_SHRINE);
+check('touching the shrine during a live round draws the same round again (a lost panel)', !!r.w && r.w.nonce === f.w.nonce, r.w ? r.w.nonce : 'no widget');
+playC(f, { noStart: true, reportArrive: f.start + 20000 });
+
+// Rollback: clientJudged false refuses on lag exactly as before
+api.cfg = { prayer: { clientJudged: false } };
+load();
+f = freshC();
+res = playC(f, { reportArrive: f.start + 1000 + f.w.totalMs + 4000 });
+check('rollback (clientJudged false): the same 4 s late hold is refused(late) again', verdictOf(res.log) === 'late' && judgeOfP(res.log) === 'server', res.log);
+f = freshC();
+check('...and the widget is not told it judges', f.w.judge === undefined);
+playC(f);
 
 Date.now = realNow;
 console.log('');
