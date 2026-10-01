@@ -24,7 +24,7 @@ check('the notice is for off and failed only, not while the loop connects', G.va
 const FORK = process.env.FORK, FORK_SERVER = process.env.FORK_SERVER;
 const src = FORK && path.join(FORK, 'skymp5-front/src/utils/VoiceManager.js');
 const esbuild = FORK_SERVER && path.join(FORK_SERVER, 'skymp5-server/node_modules/.bin/esbuild');
-const PARTS_2_3 = 20; // checks in parts 2 and 3
+const PARTS_2_3 = 33; // checks in parts 2 and 3
 const why = !src ? 'FORK is not set' : !fs.existsSync(path.join(FORK, 'skymp5-front/src/utils/voiceEchoGate.js')) ? `${FORK} has no voiceEchoGate.js`
   : !esbuild || !fs.existsSync(esbuild) ? 'no esbuild in FORK_SERVER' : '';
 let skipped = 0;
@@ -54,7 +54,7 @@ if (why) {
   vm.micLevel = () => 1; // loud
   vm.setPrefs({ activation: 'vad' });
   const echoLines = () => sent.filter((a) => a[0] === 'voice::echoLoop');
-  check('choosing vad reports the activation (no voice playing yet: echo none, vad in force)', JSON.stringify(echoLines().pop()) === JSON.stringify(['voice::echoLoop', 'none', 'vad', 'vad']), echoLines());
+  check('choosing vad reports the activation (no voice playing yet: echo none, vad in force)', JSON.stringify(echoLines().pop().slice(0, 4)) === JSON.stringify(['voice::echoLoop', 'none', 'vad', 'vad']), echoLines());
   vm.vadTick();
   check('with nothing playing, voice activation opens the mic', vm.transmitting === true && muted[muted.length - 1] === 'unmute');
   vm.setEcho('pending', '');
@@ -62,7 +62,7 @@ if (why) {
   vm.vadTick();
   check('...and voice does not reopen it', vm.transmitting === false);
   vm.setEcho('off', 'state new/new, 0 packets');
-  check('loop off: reported with the chosen and the used activation', JSON.stringify(echoLines().pop()) === JSON.stringify(['voice::echoLoop', 'off (state new/new, 0 packets)', 'vad', 'ptt']), echoLines());
+  check('loop off: reported with the chosen and the used activation', JSON.stringify(echoLines().pop().slice(0, 4)) === JSON.stringify(['voice::echoLoop', 'off (state new/new, 0 packets)', 'vad', 'ptt']), echoLines());
   const notices = () => sent.filter((a) => a[0] === 'voice::peer' && /push-to-talk only for now/.test(a[1]));
   check('...the player is told once', notices().length === 1, sent);
   vm.vadTick();
@@ -86,6 +86,52 @@ if (why) {
   delete globalThis.RTCPeerConnection;
   await vm.startLoopback({ out: {}, dest: { stream: { getAudioTracks: () => [] } } });
   check('no RTCPeerConnection: reported as off', echoLines().pop()[1] === 'off (no RTCPeerConnection)', echoLines().slice(-1));
+
+  // A push-to-talk press while the mic is still opening waits for it: LiveKit's own mic is never published beside it
+  const pubs = [], enabled = [];
+  const audioPubs = new Map();
+  let gum = null;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: {
+    getUserMedia: () => new Promise((resolve, reject) => { gum = { resolve, reject }; }),
+    enumerateDevices: () => Promise.resolve([]),
+  } } });
+  const node = () => ({ connect() {}, disconnect() {}, gain: { value: 1 }, fftSize: 0 });
+  globalThis.window.AudioContext = class { createMediaStreamSource() { return node(); } createGain() { return node(); } createAnalyser() { return node(); }
+    createMediaStreamDestination() { return { connect() {}, stream: { getAudioTracks: () => [{ id: 'dest' }] } }; } close() {} };
+  const fakePub = () => ({ mute: () => Promise.resolve(), unmute: () => { muted.push('unmute'); return Promise.resolve(); } });
+  vm.room = { localParticipant: {
+    audioTrackPublications: audioPubs,
+    publishTrack: (track) => { pubs.push(track); audioPubs.set('mic' + pubs.length, {}); return Promise.resolve(fakePub()); },
+    setMicrophoneEnabled: (on) => { enabled.push(on); if (on && !audioPubs.has('lk')) audioPubs.set('lk', {}); return Promise.resolve(); },
+    publishData: () => Promise.resolve(),
+  } };
+  const micStream = { getAudioTracks: () => [{ getSettings: () => ({ echoCancellation: true }) }], getTracks: () => [] };
+  vm.mic = null; vm.ptt = false; vm.setPrefs({ activation: 'ptt' });
+  const opening = vm.openMic();
+  const press = vm.setPtt(true);
+  await new Promise((r) => setImmediate(r));
+  check('a press while the mic opens publishes nothing yet', pubs.length === 0 && enabled.length === 0, { pubs: pubs.length, enabled });
+  check('...and a second start joins the first', vm.openMic() === opening);
+  gum.resolve(micStream);
+  await opening; await press;
+  check('...once open: exactly one publishTrack, LiveKit\'s own mic never enabled', pubs.length === 1 && enabled.length === 0, { pubs: pubs.length, enabled });
+  check('...and the held key transmits on that one track', vm.transmitting === true && muted[muted.length - 1] === 'unmute');
+  check('the start is forgotten once done', vm.micStarting === null);
+  vm.reportEcho();
+  check('the echo line carries the mic count and the capture\'s echo cancellation', echoLines().pop()[4] === 'mics 1, aec on', echoLines().slice(-1));
+  vm.ptt = false; vm.updateTransmit();
+  vm.mic = null; audioPubs.clear(); pubs.length = 0;
+  const failing = vm.openMic().catch(() => 'denied');
+  const press2 = vm.setPtt(true);
+  await new Promise((r) => setImmediate(r));
+  gum.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+  check('a mic that cannot open: the start fails', (await failing) === 'denied');
+  await press2;
+  check('...and only then does the press fall back to LiveKit\'s own mic, once', pubs.length === 0 && JSON.stringify(enabled) === '[true]', enabled);
+  check('...where the line shows that one mic and an unknown capture', vm.micSummary() === 'mics 1, aec ?', vm.micSummary());
+  vm.ptt = false; vm.room = null;
+  check('no room: the line counts no mics', vm.micSummary() === 'mics 0, aec ?');
+  check('the notice tells a player on speakers to use headphones', /use headphones/.test(G.BLOCKED_NOTICE) && /push-to-talk only for now/.test(G.BLOCKED_NOTICE));
   const vmSrc = fs.readFileSync(src, 'utf8');
   const codeLines = vmSrc.split('\n').filter((l) => !/^\s*\/\//.test(l));
   check('the chosen activation is written only by the defaults and setPrefs', codeLines.filter((l) => /activation:/.test(l)).length === 2 && !codeLines.some((l) => /prefs\.activation\s*=/.test(l)));
@@ -99,11 +145,20 @@ if (why) {
   const relayed = (text) => (cut ? cut({ arguments: ['voice::echoLoop', text] }) : null);
   check('the relay passes the page\'s own shapes', relayed('on (42 packets)') === 'on (42 packets)' && relayed('off (state new/new, 0 packets)') === 'off (state new/new, 0 packets)' && relayed('failed (NotFoundError)') === 'failed (NotFoundError)', !!cut);
   check('...and cuts anything else to the state word: no device label reaches the server', relayed('failed (NotFoundError: "Jane\'s AirPods" not found)') === 'failed', relayed('failed (NotFoundError: "Jane\'s AirPods" not found)'));
+  const micCut = block.match(/\/\^mics [^\n]*?\$\/\.test\(mic\)/);
+  const micOk = micCut ? new Function('mic', `return ${micCut[0]};`) : () => null;
+  check('the relay passes the mic summary in its one shape', micOk('mics 1, aec on') === true && micOk('mics 2, aec off') === true && micOk('mics 0, aec ?') === true, !!micCut);
+  check('...and drops anything else', micOk('mics 1, aec on; Jane\'s AirPods') === false && micOk('') === false);
   check('voiceService files a dboDiag "voice" line with the loop, the chosen and the used activation', /note\("voice", line\)/.test(block) && /activation \$\{chosen \|\| "\?"\}\$\{used && used !== chosen \? ` \(using \$\{used\}\)` : ""\}/.test(block), block.slice(0, 300));
 })().then(finish, (e) => { console.log(`FAIL  parts 2-3 threw: ${e && e.stack}`); failures++; finish(); });
 if (why) finish();
 
+// A promise that never settles empties the event loop and would end the run silently with exit 0
+let finished = false;
+process.on('beforeExit', () => { if (!finished) { console.log('FAIL  the run stalled on a promise that never settled'); failures++; finish(); } });
+
 function finish() {
+  finished = true;
   console.log(failures ? `${failures} FAILED` : skipped ? `all checks run passed, ${skipped} SKIPPED (see above)` : 'all checks passed');
   process.exit(failures ? 1 : 0);
 }
