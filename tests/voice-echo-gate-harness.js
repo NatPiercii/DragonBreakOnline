@@ -24,9 +24,15 @@ check('the notice is for off and failed only, not while the loop connects', G.va
 const FORK = process.env.FORK, FORK_SERVER = process.env.FORK_SERVER;
 const src = FORK && path.join(FORK, 'skymp5-front/src/utils/VoiceManager.js');
 const esbuild = FORK_SERVER && path.join(FORK_SERVER, 'skymp5-server/node_modules/.bin/esbuild');
-if (!src || !fs.existsSync(src) || !fs.existsSync(path.join(FORK, 'skymp5-front/src/utils/voiceEchoGate.js')) || !esbuild || !fs.existsSync(esbuild)) {
-  console.log('skip  parts 2-3: no FORK with voiceEchoGate.js or no esbuild in FORK_SERVER');
-} else {
+const PARTS_2_3 = 20; // checks in parts 2 and 3
+const why = !src ? 'FORK is not set' : !fs.existsSync(path.join(FORK, 'skymp5-front/src/utils/voiceEchoGate.js')) ? `${FORK} has no voiceEchoGate.js`
+  : !esbuild || !fs.existsSync(esbuild) ? 'no esbuild in FORK_SERVER' : '';
+let skipped = 0;
+if (why) {
+  require('./expect')('voice-echo-gate', `parts 2-3 cannot run: ${why}`);
+  skipped = PARTS_2_3;
+  console.log(`SKIP  ${PARTS_2_3} of the harness's checks (VoiceManager.js and the client relay): ${why}`);
+} else (async () => {
   const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-voice-')), 'vm.js');
   execFileSync(esbuild, [src, '--bundle', '--platform=node', '--format=cjs', '--external:livekit-client', '--loader:.png=empty', '--loader:.svg=empty', `--outfile=${out}`, '--log-level=error']);
   const sent = [];
@@ -72,6 +78,14 @@ if (!src || !fs.existsSync(src) || !fs.existsSync(path.join(FORK, 'skymp5-front/
   check('once the loop works, voice activation is back', vm.activation() === 'vad' && vm.transmitting === true && echoLines().pop()[3] === 'vad');
   vm.setPrefs({ activation: 'ptt' }); vm.vadTick();
   check('choosing push-to-talk is reported and voice no longer opens the mic', echoLines().pop()[2] === 'ptt' && vm.transmitting === false);
+  // A loop that throws reports the error's name only: its message could carry a device label (B's review)
+  const throwing = class { constructor() { const e = new Error('Could not open "Jane\'s AirPods"'); e.name = 'NotFoundError'; throw e; } };
+  globalThis.RTCPeerConnection = throwing;
+  await vm.startLoopback({ out: {}, dest: { stream: { getAudioTracks: () => [] } } });
+  check('a failed loop is reported by the error name alone', echoLines().pop()[1] === 'failed (NotFoundError)', echoLines().slice(-1));
+  delete globalThis.RTCPeerConnection;
+  await vm.startLoopback({ out: {}, dest: { stream: { getAudioTracks: () => [] } } });
+  check('no RTCPeerConnection: reported as off', echoLines().pop()[1] === 'off (no RTCPeerConnection)', echoLines().slice(-1));
   const vmSrc = fs.readFileSync(src, 'utf8');
   const codeLines = vmSrc.split('\n').filter((l) => !/^\s*\/\//.test(l));
   check('the chosen activation is written only by the defaults and setPrefs', codeLines.filter((l) => /activation:/.test(l)).length === 2 && !codeLines.some((l) => /prefs\.activation\s*=/.test(l)));
@@ -80,8 +94,16 @@ if (!src || !fs.existsSync(src) || !fs.existsSync(path.join(FORK, 'skymp5-front/
   // ---- 3. the client relay ----
   const vs = fs.readFileSync(path.join(FORK, 'skymp5-client/src/services/services/voiceService.ts'), 'utf8');
   const block = vs.slice(vs.indexOf('kind === "voice::echoLoop"'), vs.indexOf('kind === "voice::error"'));
+  const shape = block.match(/const raw = [^\n]*\n\s*const echo = [^\n]*/);
+  const cut = shape ? new Function('e', `${shape[0]}\nreturn echo;`) : null;
+  const relayed = (text) => (cut ? cut({ arguments: ['voice::echoLoop', text] }) : null);
+  check('the relay passes the page\'s own shapes', relayed('on (42 packets)') === 'on (42 packets)' && relayed('off (state new/new, 0 packets)') === 'off (state new/new, 0 packets)' && relayed('failed (NotFoundError)') === 'failed (NotFoundError)', !!cut);
+  check('...and cuts anything else to the state word: no device label reaches the server', relayed('failed (NotFoundError: "Jane\'s AirPods" not found)') === 'failed', relayed('failed (NotFoundError: "Jane\'s AirPods" not found)'));
   check('voiceService files a dboDiag "voice" line with the loop, the chosen and the used activation', /note\("voice", line\)/.test(block) && /activation \$\{chosen \|\| "\?"\}\$\{used && used !== chosen \? ` \(using \$\{used\}\)` : ""\}/.test(block), block.slice(0, 300));
-}
+})().then(finish, (e) => { console.log(`FAIL  parts 2-3 threw: ${e && e.stack}`); failures++; finish(); });
+if (why) finish();
 
-console.log(failures ? `${failures} FAILED` : 'all checks passed');
-process.exit(failures ? 1 : 0);
+function finish() {
+  console.log(failures ? `${failures} FAILED` : skipped ? `all checks run passed, ${skipped} SKIPPED (see above)` : 'all checks passed');
+  process.exit(failures ? 1 : 0);
+}
