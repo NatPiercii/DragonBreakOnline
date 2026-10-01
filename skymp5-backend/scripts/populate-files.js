@@ -7,6 +7,7 @@
 
 const fs   = require('fs')
 const path = require('path')
+const { findSymbolFiles } = require('./archive-symbols')
 
 // Source: the skymp build output Data/ directory
 const SKYMP_DATA = process.env.SKYMP_CLIENT_DATA
@@ -21,6 +22,17 @@ if (!fs.existsSync(SKYMP_DATA)) {
   console.error(`\nClient build output not found:\n  ${SKYMP_DATA}\n`)
   console.error('Build the client first, or set SKYMP_CLIENT_DATA to its Data/ folder.\n')
   process.exit(1)
+}
+
+// Source maps and PDBs stay on the server (scripts/archive-symbols.js removes them from the build output); refused only with AUTO_REPORT_SYMBOL_GUARD=true
+const symbols = findSymbolFiles(SKYMP_DATA)
+if (symbols.length > 0 && config.autoReportSymbolGuard) {
+  console.error(`\nRefusing to copy source maps or PDBs into the client files:\n  ${symbols.slice(0, 10).join('\n  ')}\n`)
+  console.error('Archive them with scripts/archive-symbols.js first.\n')
+  process.exit(1)
+}
+if (symbols.length > 0) {
+  console.warn(`\nCopying source maps or PDBs into the client files, AUTO_REPORT_SYMBOL_GUARD is off:\n  ${symbols.slice(0, 10).join('\n  ')}\n`)
 }
 
 // Plugins ship only through the MO2 install manifest; a zip copy lands in the real Data folder and drifts

@@ -59,6 +59,28 @@ scripts and their config blocks are present but need platform icons added first.
 
 Output goes to `../build/launcher` (see `directories.output` in package.json).
 
+### Building the Windows installer on Linux (CT 115)
+
+```bash
+npm ci
+npm run build:win-on-linux
+```
+
+This builds the same NSIS installer without wine. electron-builder would need wine for two steps, and the scripts in
+`build-linux/` replace both:
+- `preload.js` makes electron-builder read the NSIS uninstaller out of its generator in JavaScript, the way it
+  already does on macOS.
+- `afterPack.js` sets the app exe's icon and version info with `resedit` instead of rcedit.
+
+The script also sets a UTF-8 locale; without it makensis fails on the `©` in the copyright. The preload depends on
+electron-builder internals, so check it again after upgrading electron-builder from 26.8.1.
+
+`package-lock.json` is committed, so a Linux build and a Windows build use the same dependencies. Use `npm ci`, not
+`npm install`, for a release build.
+
+Before releasing a build made this way, install it on Windows once and test the silent in-app update and the
+uninstaller.
+
 ### Client settings file format
 
 Offline mode (server `offlineMode: true`):

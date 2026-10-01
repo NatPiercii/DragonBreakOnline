@@ -1,6 +1,6 @@
 import { System, Log, SystemContext } from "./system";
 import { CompanionSystem } from "./companionSystem";
-import { spellEffects, SpellEffect, MgefArchetype, npcLevel, keywordConditionsPass, turnsToAsh } from "./espmMagic";
+import { spellEffects, SpellEffect, MgefArchetype, npcLevel, keywordConditionsPass, turnsToAsh, pickSummon } from "./espmMagic";
 import { isPlayerActor, isNear, baseIdOf, hex } from "./actorUtil";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
@@ -72,10 +72,12 @@ export class ConjurationSystem implements System {
   private onSpellCast(casterId: number, spellId: number): void {
     if (!isPlayerActor(this.mp, casterId)) return;
     const effects = spellEffects(this.mp, spellId);
-    // The first summon effect is the unperked one; perk conditions are not evaluated server-side
-    const summon = effects.find((e) => e.archetype === MgefArchetype.SummonCreature && e.assocId);
-    if (summon) {
-      this.companions.spawn(casterId, summon.assocId, { kind: "summon", durationSec: this.duration(summon), source: spellId });
+    // The first summon effect is the unperked one; perk conditions are not evaluated server-side. A spell with one summon
+    // per caster race (Summon Skeleton) conjures the caster's (pickSummon)
+    const summons = effects.filter((e) => e.archetype === MgefArchetype.SummonCreature && e.assocId);
+    const pick = pickSummon(summons, () => this.casterRace(casterId));
+    if (pick) {
+      this.companions.spawn(casterId, pick.effect.assocId, { kind: "summon", durationSec: this.duration(pick.timed), source: spellId });
       return;
     }
     const reanimate = effects.find((e) => e.archetype === MgefArchetype.Reanimate);
@@ -97,6 +99,14 @@ export class ConjurationSystem implements System {
         if (refusal) this.log(`ConjurationSystem: ${hex(aggressorId)} cannot reanimate ${hex(targetId)} with ${hex(spellId)}: ${refusal}`);
         else this.reanimate(aggressorId, targetId, spellId, effect);
       }
+    }
+  }
+
+  private casterRace(casterId: number): number {
+    try {
+      return Number(this.mp.get(casterId, "appearance")?.raceId) >>> 0;
+    } catch {
+      return 0;
     }
   }
 

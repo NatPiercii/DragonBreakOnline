@@ -1,7 +1,7 @@
 project(savefile)
 include(${CMAKE_SOURCE_DIR}/cmake/apply_default_settings.cmake)
 
-file(GLOB_RECURSE savefile_src "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/src/*.h" "${CMAKE_CURRENT_LIST_DIR}/include/*.h")
+file(GLOB_RECURSE savefile_src CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/src/*.h" "${CMAKE_CURRENT_LIST_DIR}/include/*.h")
 
 list(APPEND savefile_src ${CMAKE_SOURCE_DIR}/.clang-format)
 

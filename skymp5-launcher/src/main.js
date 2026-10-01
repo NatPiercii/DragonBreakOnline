@@ -25,6 +25,8 @@ const nexus  = require('./nexus')
 const ini    = require('./ini')
 const gameversion = require('./gameversion')
 const report = require('./report')
+const crashWatch = require('./crashWatch')
+const nxmLinks = require('./nxm')
 
 // Settings stay in the folder named after the launcher's original product name.
 const USER_DATA_DIR = path.join(app.getPath('appData'), 'DragonBreak Online Launcher')
@@ -78,10 +80,17 @@ const store = new Store({
     gameDirPath:       '',     // legacy: pre-base-dir location of the game copy
     baseDirPath:       '',     // DragonBreak base dir: MO2 root, with the game at <base>\skyrim
     forcedDefaultsApplied: false, // server-required graphics defaults seeded once at first install
+    archiveDir:        '',     // a folder of mod archives already downloaded (Vortex's), used before asking Nexus
   }
 })
 
 mo2.setRootProvider(() => store.get('baseDirPath') || DEFAULT_BASE_DIR)
+
+// Nexus nxm:// links: ours only while an install waits for the player's downloads, then back to Vortex or whichever
+// manager had them (nxm.js)
+const nxm = nxmLinks.createNxm({ store, log, ownExes: () => [process.execPath, path.join(mo2.getRoot(), 'nxmhandler.exe')] })
+const nxmHandlerExe = () => (app.isPackaged ? process.execPath : path.join(mo2.getRoot(), 'nxmhandler.exe'))
+let nxmWaiting = false
 
 // Default install root for MO2 + the portable game copy when none is stored.
 const DEFAULT_BASE_DIR = 'C:\\DragonBreak'
@@ -275,6 +284,8 @@ function createWindow() {
 app.whenReady().then(() => {
   ensureSkyrimPath()
   createWindow()
+  // No install waits yet: links left with us by a crash, or by a launcher up to 2.1.29, go back
+  nxm.release()
   app.on('second-instance', (_e, argv) => {
     if (win) { if (win.isMinimized()) win.restore(); win.focus() }
     handleNxmArgv(argv)
@@ -284,6 +295,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('will-quit', () => { if (nxmWaiting) nxm.release() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
@@ -321,13 +334,15 @@ ipcMain.handle('settings:load', async () => {
     activeServerIndex: store.get('activeServerIndex'),
     mo2Enabled:        store.get('mo2Enabled'),
     isolatedGame:      store.get('isolatedGame'),
+    archiveDir:        store.get('archiveDir') || '',
+    vortexDownloads:   vortexDownloadsDir(),
     servers,
     multiServer:       servers.length > 1,
     discordUser:       store.get('discordUser') || null,
   }
 })
 ipcMain.handle('settings:save', (_e, data) => {
-  const allowed = ['skyrimPath', 'baseDirPath', 'activeServerIndex', 'mo2Enabled', 'isolatedGame']
+  const allowed = ['skyrimPath', 'baseDirPath', 'activeServerIndex', 'mo2Enabled', 'isolatedGame', 'archiveDir']
   const clean = {}
   for (const k of allowed) if (k in data) clean[k] = data[k]
   store.set(clean)
@@ -337,6 +352,20 @@ ipcMain.handle('settings:save', (_e, data) => {
 // Graphics edit the MO2 portable profile's SkyrimPrefs.ini. NOTE: this assumes
 // the DragonBreak profile uses profile-specific INI files; and if SSEDisplayTweaks is
 // active it may override window mode via its own ini.
+// Skyrim reads the two camera FOV settings from Skyrim.ini [Display], NOT from SkyrimPrefs.ini.
+// SkyrimPrefs only holds fDefaultFOV [General], which is the menu and inventory view.
+// The camera FOV the game will actually use, read from Skyrim.ini [Display]; falls back to whatever the
+// caller found in SkyrimPrefs so an older profile still shows a sensible number.
+function fovFromSkyrimIni(fallback) {
+  try {
+    const v = parseFloat(((ini.read(skyrimIniPath()) || {})['Display'] || {})['fDefaultWorldFOV'])
+    if (Number.isFinite(v) && v >= 50 && v <= 140) return Math.round(v)
+  } catch { /* no profile ini yet */ }
+  return fallback
+}
+function skyrimIniPath() {
+  return path.join(mo2.getProfileDir(), 'skyrim.ini')
+}
 function skyrimPrefsPath() {
   return path.join(mo2.getProfileDir(), 'skyrimprefs.ini')
 }
@@ -394,6 +423,9 @@ ipcMain.handle('graphics:load', () => {
       width:  disp['iSize W'] || origDisp['iSize W'] || '1920',
       height: disp['iSize H'] || origDisp['iSize H'] || '1080',
       invertY: String(controls['bInvertYValues'] || '0') === '1',
+      // Read back from the file the game actually reads it from. 80 is Skyrim's own default, so the box
+      // shows what the player has rather than a guess.
+      fov: fovFromSkyrimIni(num('General', 'fDefaultFOV', 80)),
       texQuality: skip >= 2 ? 'low' : (skip === 1 ? 'medium' : 'high'),
       aa: val('Display', 'bUseTAA', '1') === '1' ? 'taa'
         : (val('Display', 'bFXAAEnabled', '0') === '1' ? 'fxaa' : 'off'),
@@ -417,11 +449,22 @@ ipcMain.handle('graphics:save', (_e, g) => {
   try {
     g = g || {}
     const display = {}
+    const general = {}
     if (g.windowMode === 'fullscreen')      { display['bFull Screen'] = '1'; display['bBorderless'] = '0' }
     else if (g.windowMode === 'borderless') { display['bFull Screen'] = '0'; display['bBorderless'] = '1' }
     else if (g.windowMode === 'windowed')   { display['bFull Screen'] = '0'; display['bBorderless'] = '0' }
     if (g.width)  display['iSize W'] = String(g.width)
     if (g.height) display['iSize H'] = String(g.height)
+    // Field of view. Three settings in two files, and they are not interchangeable:
+    //   Skyrim.ini      [Display] fDefaultWorldFOV      third person
+    //   Skyrim.ini      [Display] fDefault1stPersonFOV  first person
+    //   SkyrimPrefs.ini [General] fDefaultFOV           menus, inventory, lockpicking
+    // 2.1.31 shipped all of it into SkyrimPrefs [Display], which the game does not read, so the setting
+    // did nothing. Both halves are written now, and the client re-applies the pair after the character
+    // creator, which sets its own close-up value and never restores it.
+    const fov = Number(g.fov)
+    const fovValue = Number.isFinite(fov) && fov >= 50 && fov <= 140 ? String(Math.round(fov)) : ''
+    if (fovValue) general['fDefaultFOV'] = fovValue
     const TEX = { high: '0', medium: '1', low: '2' }
     if (TEX[g.texQuality]) display['iTexMipMapSkip'] = TEX[g.texQuality]
     if (['off', 'fxaa', 'taa'].includes(g.aa)) {
@@ -453,7 +496,17 @@ ipcMain.handle('graphics:save', (_e, g) => {
       ultra:  { iWaterReflectHeight: '1024', iWaterReflectWidth: '1024', bReflectLODLand: '1', bReflectLODObjects: '1', bReflectLODTrees: '1', bReflectSky: '1' },
     }
     if (REFLECTIONS[g.reflections]) edits.Water = Object.assign({ bUseWaterReflections: '1' }, REFLECTIONS[g.reflections])
+    if (Object.keys(general).length) edits.General = Object.assign({}, edits.General || {}, general)
     ini.write(skyrimPrefsPath(), edits)
+    // The two camera FOV settings live in Skyrim.ini, so they are a second write to a different file.
+    // ini.write keeps every other key, and a missing profile Skyrim.ini is seeded elsewhere at install.
+    if (fovValue && fs.existsSync(skyrimIniPath())) {
+      try {
+        ini.write(skyrimIniPath(), { Display: { fDefaultWorldFOV: fovValue, fDefault1stPersonFOV: fovValue } })
+      } catch (err) {
+        log('[graphics] could not write the field of view to Skyrim.ini:', err.message)
+      }
+    }
     return { ok: true, path: skyrimPrefsPath() }
   } catch (err) {
     return { ok: false, error: err.message }
@@ -821,6 +874,17 @@ ipcMain.handle('api:news', async () => {
 ipcMain.handle('api:status', async () => {
   try {
     const data = await fetchJSON(`${config.apiUrl}/api/status`)
+    // The public /api/status is answered by a status probe that carries no player count (2026-09-27: Leerod asked for
+    // one; the badge only showed ONLINE). /api/servers always has it, so the count comes from there when missing.
+    if (data && data.players == null) {
+      try {
+        const list = await fetchJSON(`${config.apiUrl}/api/servers`)
+        // The selected server, picked the way activeServer() picks it from the cached list
+        const idx = Array.isArray(list) && list.length ? Math.min(store.get('activeServerIndex') || 0, list.length - 1) : -1
+        const online = idx >= 0 ? Number(list[idx].online) : NaN
+        if (Number.isFinite(online)) data.players = online
+      } catch { /* no count: the badge shows ONLINE alone */ }
+    }
     return { ok: true, ...data }
   } catch {
     return { ok: false }
@@ -1146,7 +1210,7 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
     let serverInfo = null
     try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
     mo2.ensureInstance(dst, serverInfo?.loadOrder)
-    mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
+    mo2.writeNxmHandlerIni()
     seedProfilePrefs(src)
 
     store.set('isolatedGame', true)
@@ -1522,6 +1586,60 @@ function isProcessRunning(imageName) {
   })
 }
 
+// The title of SkyrimSE.exe's window, or '' until it has one (tasklist /v shows "N/A" before then)
+function gameWindowTitle() {
+  return new Promise(resolve => {
+    require('child_process').exec(
+      'tasklist /V /FO CSV /NH /FI "IMAGENAME eq SkyrimSE.exe"',
+      { timeout: 8000, windowsHide: true },
+      (err, stdout) => {
+        if (err) return resolve('')
+        const row = stdout.split(/\r?\n/).find(l => /^"SkyrimSE\.exe"/i.test(l))
+        const cells = row ? row.split('","').map(c => c.replace(/^"|"$/g, '')) : []
+        const title = cells.length ? cells[cells.length - 1] : ''
+        resolve(title && title !== 'N/A' ? title : '')
+      }
+    )
+  })
+}
+
+// Once the game's window exists the launcher steps aside. Windows gives the keyboard only to the program that last had
+// the player's input, and that was the launcher (the game starts through MO2 and the SKSE loader), so the game showed
+// in front while the launcher kept the keys: players could not move until they tabbed out (2026-09-27). Minimizing the
+// launcher hands the keyboard to the window behind it, the game. Gives up after two minutes.
+function stepAsideForGame() {
+  if (process.platform !== 'win32') return
+  const started = Date.now()
+  const tick = async () => {
+    if (!win || win.isDestroyed() || win.isMinimized()) return
+    if (await gameWindowTitle()) { if (!win.isDestroyed() && !win.isMinimized()) win.minimize(); return }
+    if (Date.now() - started < 120_000) setTimeout(tick, 1500)
+  }
+  setTimeout(tick, 1500)
+}
+
+// After a launch, watch the game and tell the server how it closed (src/crashWatch.js). One watcher at a time; it
+// only speaks for a signed-in player, and a failure here never touches the game.
+let gameWatchRunning = false
+function watchGameExit() {
+  if (process.platform !== 'win32' || gameWatchRunning) return
+  const session = store.get('gameSession')
+  if (!session) return
+  gameWatchRunning = true
+  const docs = documentsDirOrNull()
+  const run = (file, args) => new Promise((resolve, reject) =>
+    require('child_process').execFile(file, args, { windowsHide: true, maxBuffer: 64 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+  crashWatch.watchGame({
+    run,
+    crashDirs: docs ? MYGAMES_VARIANTS.map(v => path.join(docs, 'My Games', v, 'SKSE')) : [],
+    launchedAt: Date.now(),
+    log,
+    send: note => postJSON(`${config.apiUrl}/api/files/session-end`,
+      { ...note, launcherVersion: app.getVersion(), filesVersion: store.get('filesVersion') || '' },
+      { 'x-session': store.get('gameSession') || session }),
+  }).catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
+}
+
 // Lightweight update probe for the Play/Update button: compares the server's
 // published client-files version with what was last installed.
 ipcMain.handle('files:updateCheck', async () => {
@@ -1776,6 +1894,8 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
       }
       spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
     }
+    stepAsideForGame()
+    watchGameExit()
     return { success: true, loadOrderFixed: prep.loadOrderFixed, warning: prep.warning }
   } catch (err) {
     return { success: false, error: err.message }
@@ -1789,7 +1909,7 @@ ipcMain.handle('launch:viaMO2', () => guardLaunch(async () => {
   if (!mo2.isInstalled()) return { success: false, error: 'MO2 is not installed - use Repair MO2 first.' }
   const prep = await prepareForLaunch(skyrimPath, true)
   if (!prep.success) return prep
-  try { mo2.launchGame(skyrimPath); return { success: true } }
+  try { mo2.launchGame(skyrimPath); stepAsideForGame(); watchGameExit(); return { success: true } }
   catch (err) { return { success: false, error: err.message } }
 }))
 
@@ -1804,6 +1924,8 @@ ipcMain.handle('launch:direct', () => guardLaunch(async () => {
   }
   try {
     spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
+    stepAsideForGame()
+    watchGameExit()
     return { success: true }
   } catch (err) { return { success: false, error: err.message } }
 }))
@@ -2157,7 +2279,7 @@ ipcMain.handle('install:mo2only', async (_e, opts) => {
         let serverInfo = null
         try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
         mo2.ensureInstance(gamePath, serverInfo?.loadOrder)
-        mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
+        mo2.writeNxmHandlerIni()
         applyForcedServerDefaults(gamePath)
       }
     }
@@ -2873,8 +2995,12 @@ function nexusNamePattern(modId, displayName, version) {
 
 // nxm:// links from "Mod Manager Download" on Nexus: the site puts a one-time key in the link, and with it a
 // free account may fetch the file through the API. The archive lands in the downloads folder under the name
-// the install expects, so the next PLAY picks it up; anything the manifest does not list is downloaded as named.
+// the install expects, so the next PLAY picks it up. A link the launcher has no use for goes on to the manager that
+// had the links before (nxm.js): any link while no install waits, a collection or another game's file, or a file
+// DragonBreak's list does not name. With no such manager, a file is downloaded as named.
 const nxmLog = msg => { log(`[nxm] ${msg}`); send('install:log', msg) }
+const NOT_A_FILE = 'That Nexus link is not a single mod file (a Vortex collection, or another game). The launcher installs '
+  + "DragonBreak's mod list itself when you press Install. To add a collection in Vortex, turn on \"Handle Mod Manager Download buttons on nexusmods.com\" in Vortex's Settings, Download tab."
 function handleNxmArgv(argv) {
   for (const a of argv || []) if (typeof a === 'string' && /^nxm:\/\//i.test(a)) handleNxmLink(a)
 }
@@ -2883,21 +3009,30 @@ function handleNxmLink(link) {
   nxmQueue = nxmQueue.then(() => handleNxmLinkNow(link)).catch(err => nxmLog(`Nexus download failed: ${err.message}`))
 }
 async function handleNxmLinkNow(link) {
-  let u
-  try { u = new URL(link) } catch { return nxmLog(`Ignored an unreadable link: ${link}`) }
+  const kind = nxm.classify(link)
+  if (kind === 'bad') return nxmLog(`Ignored an unreadable link: ${link}`)
+  if (kind === 'other' || !nxmWaiting) {
+    const to = nxm.forward(link)
+    if (to) return nxmLog(`Passed that Nexus link on to ${to}.`)
+    if (kind === 'other') return nxmLog(NOT_A_FILE)
+  }
+  const u = new URL(link)
   const m = u.pathname.match(/^\/mods\/(\d+)\/files\/(\d+)/)
-  if (u.hostname.toLowerCase() !== 'skyrimspecialedition' || !m) return nxmLog(`Ignored a link that is not a Skyrim Special Edition file: ${link}`)
   const modId = Number(m[1]), fileId = Number(m[2])
   const key = u.searchParams.get('key') || '', expires = u.searchParams.get('expires') || ''
   if (!key || !expires) return nxmLog('That link has no download key; use the Mod Manager Download button on the Nexus file page.')
-  const auth = await getNexusAuth()
-  if (!auth) return nxmLog('Sign in to Nexus with the button in the top bar, then click Mod Manager Download again.')
-  const downloadsDir = mo2.getDownloadsDir()
   let expected = null
   try {
     const manifest = await fetchJSON(`${config.apiUrl}/api/install-manifest`)
     expected = (manifest.archives || []).find(a => a.source && a.source.type === 'nexus' && Number(a.source.modId) === modId && Number(a.source.fileId) === fileId) || null
   } catch { /* the name comes from Nexus instead */ }
+  if (!expected) {
+    const to = nxm.forward(link)
+    if (to) return nxmLog(`That file is not on DragonBreak's list: passed it on to ${to}.`)
+  }
+  const auth = await getNexusAuth()
+  if (!auth) return nxmLog('Sign in to Nexus with the button in the top bar, then click Mod Manager Download again.')
+  const downloadsDir = mo2.getDownloadsDir()
   let fileName = expected ? expected.name : ''
   if (!fileName) { try { const info = await nexus.fileInfo(auth, modId, fileId); fileName = info.file_name || `${modId}-${fileId}.zip` } catch { fileName = `${modId}-${fileId}.zip` } }
   const mb = n => (n / 1048576).toFixed(1)
@@ -2915,6 +3050,8 @@ async function handleNxmLinkNow(link) {
 // file-pinned Nexus links, once per install run. `missing` narrows the page to
 // the archives this install still needs, so nothing already downloaded is listed.
 let _downloadListOpened = false
+// Restored for 2.1.33: ad3808ad replaced this definition with vortexDownloadsDir() but left its caller in the install,
+// so a player not signed in to Nexus hit "openDownloadList is not defined" (post-hoc review A8-1, 2026-09-28)
 function openDownloadList(downloadsDir, missing) {
   if (_downloadListOpened) return
   _downloadListOpened = true
@@ -2926,6 +3063,18 @@ function openDownloadList(downloadsDir, missing) {
   const query = need ? `?need=${encodeURIComponent(need)}` : ''
   shell.openExternal(`${config.apiUrl}/api/nexus-downloads${query}`)
 }
+
+// Vortex's Skyrim SE download folder at its default place ({USERDATA}\downloads\<game id>, Vortex's
+// getDownloadPath), or '' when there is none; a moved one is set by the player (archiveDir)
+function vortexDownloadsDir() {
+  const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+  const dir = path.join(appData, 'Vortex', 'downloads', 'skyrimse')
+  return fs.existsSync(dir) ? dir : ''
+}
+const otherArchiveDirs = () => [store.get('archiveDir'), vortexDownloadsDir()].filter(d => d && fs.existsSync(d))
+
+// One Nexus page at a time for the files still missing (nxm.js)
+const nexusGuide = items => nxmLinks.createGuide(items, { open: url => shell.openExternal(url), say: msg => send('install:log', msg) })
 
 // MO2 install
 // Full modpack pipeline: MO2 itself → SkyMP client files → manifest replay.
@@ -2986,7 +3135,7 @@ async function runMO2Install(opts = {}) {
     let serverInfo = null
     try { serverInfo = await fetchJSON(`${config.apiUrl}/api/serverinfo`) } catch {}
     mo2.ensureInstance(skyrimPath, serverInfo?.loadOrder)
-    mo2.registerNxmHandler(app.isPackaged ? process.execPath : undefined)
+    mo2.writeNxmHandlerIni()
     seedProfilePrefs(store.get('skyrimPath') || skyrimPath)
     applyForcedServerDefaults(skyrimPath)
 
@@ -3117,8 +3266,13 @@ async function runMO2Install(opts = {}) {
         const p = path.join(downloadsDir, name)
         if (fs.existsSync(p) && mo2.verifyArchive(p, a.hash)) return p
       }
-      return await mo2.findArchiveByHash(a.hash, a.size)   // manually moved / renamed file
+      // A manually moved / renamed file, or one Vortex already downloaded (the collection), linked in without a copy
+      const found = await mo2.findArchiveByHash(a.hash, a.size, otherArchiveDirs())
+      if (!found || path.dirname(found) === downloadsDir) return found
+      reused++
+      return mo2.adoptArchive(found)
     }
+    let reused = 0
 
     for (const a of manifest.archives.filter(x => neededArchiveIds.has(x.id))) {
       const existing = await locate(a)
@@ -3160,21 +3314,40 @@ async function runMO2Install(opts = {}) {
       }
     }
 
+    if (reused) send('install:log', `Used ${reused} mod archive(s) you already had (${store.get('archiveDir') ? `in ${store.get('archiveDir')} or Vortex's downloads` : "Vortex's downloads"}), without copying them or downloading them again.`)
+
     // 3b. Free / no-key path: open the downloads list page + MO2 staging folder
     if (needBrowser.length > 0) {
-      openDownloadList(downloadsDir, needBrowser)
-      send('install:progress', {
-        phase: 'mods',
-        file:  'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder.',
-        index: 0, total: needBrowser.length, skipped: false,
-      })
-      // Matched by sha256, so paths come back verified regardless of filename; the
-      // namePattern only flags likely wrong-version files in the status message.
-      const paths = await mo2.waitForDownloads(
-        needBrowser.map(a => ({ name: a.name, hash: a.hash, size: a.size, namePattern: nexusNamePattern(a.source.modId, a.name) })),
-        (done, total, message) => send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false }),
-        installAbort?.signal)
-      needBrowser.forEach((a, i) => { archivePaths[a.id] = paths[i] })
+      // "Mod Manager Download" comes to the launcher only while it waits here; after, the links go back
+      nxm.claim(nxmHandlerExe())
+      nxmWaiting = true
+      try {
+        // Signed in to Nexus: one page at a time, and its Slow download reaches the launcher, nothing to move.
+        // Not signed in: the whole list, downloaded by hand into the downloads folder.
+        const guide = nexusAuth ? nexusGuide(needBrowser) : null
+        if (!guide) openDownloadList(downloadsDir, needBrowser)
+        send('install:progress', {
+          phase: 'mods',
+          file:  guide
+            ? `${needBrowser.length} mod(s) to download from Nexus, one page at a time: click "Slow download" on each page the launcher opens; it downloads the file and opens the next. Mods you already have in Vortex's downloads are used as they are.`
+            : 'Opened the downloads list: open each link, click "Slow Download" (about 5 at a time), and move every archive into the DragonBreak downloads folder. Sign in to Nexus in the top bar first and each mod becomes one click with nothing to move.',
+          index: 0, total: needBrowser.length, skipped: false,
+        })
+        if (guide) guide(needBrowser.map(() => false))
+        // Matched by sha256, so paths come back verified regardless of filename; the
+        // namePattern only flags likely wrong-version files in the status message.
+        const paths = await mo2.waitForDownloads(
+          needBrowser.map(a => ({ name: a.name, hash: a.hash, size: a.size, namePattern: nexusNamePattern(a.source.modId, a.name) })),
+          (done, total, message, found) => {
+            send('install:progress', { phase: 'mods', file: message, index: done, total, skipped: false })
+            if (guide && found) guide(found)
+          },
+          installAbort?.signal)
+        needBrowser.forEach((a, i) => { archivePaths[a.id] = paths[i] })
+      } finally {
+        nxmWaiting = false
+        nxm.release()
+      }
     }
 
     // 3c. Replay the manifest: extract each archive once, apply directives

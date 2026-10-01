@@ -463,14 +463,11 @@ function serverPluginLines(loadOrder) {
 }
 
 /**
- * Point the nxm:// protocol at our portable instance so Nexus
- * "Mod Manager Download" buttons feed MO2's downloads folder.
+ * MO2's own nxmhandler.ini: its nxmhandler.exe sends Skyrim SE links to this instance. Which program Windows gives
+ * nxm:// links to is nxm.js's business, and only while an install waits for Nexus downloads.
  */
-function registerNxmHandler(handlerExe) {
-  const root       = getRoot()
-  const nxmHandler = handlerExe || path.join(root, 'nxmhandler.exe')
-
-  fs.writeFileSync(path.join(root, 'nxmhandler.ini'), [
+function writeNxmHandlerIni() {
+  fs.writeFileSync(path.join(getRoot(), 'nxmhandler.ini'), [
     '[handlers]',
     'size=1',
     '1\\games=skyrimse',
@@ -478,20 +475,6 @@ function registerNxmHandler(handlerExe) {
     '1\\arguments=',
     '',
   ].join('\r\n'))
-
-  if (process.platform !== 'win32') return
-  try {
-    // Pass argv arrays to reg.exe (no cmd.exe) so a baseDirPath containing shell
-    // metacharacters (& ^ %) cannot inject commands. The command value keeps its
-    // embedded quotes around the handler path and %1 so spaced paths still work.
-    const run = args => execFileSync('reg', args, { timeout: 5000, stdio: 'ignore' })
-    run(['add', 'HKCU\\Software\\Classes\\nxm', '/ve', '/d', 'URL:NXM Protocol', '/f'])
-    run(['add', 'HKCU\\Software\\Classes\\nxm', '/v', 'URL Protocol', '/d', '', '/f'])
-    run(['add', 'HKCU\\Software\\Classes\\nxm\\shell\\open\\command', '/ve', '/d', `"${nxmHandler}" "%1"`, '/f'])
-    _log('nxm:// handler registered')
-  } catch (err) {
-    _log('nxm handler registration failed:', err.message)
-  }
 }
 
 // Mod management
@@ -1018,6 +1001,11 @@ function enforceModRules() {
 
 // Browser-partial and sidecar files that are never a finished archive.
 const PARTIAL_RE = /\.(meta|unfinished|part|tmp|crdownload|download)$/i
+// Nexus serves mods as 7z, zip or rar. Anything else in the downloads folder (a player's copied Data folder: esp, bsa,
+// vortex_backup, ini) is not a download: scanning it made every loose file whose name resembled a mod show up as
+// "not the exact file the server expects" (2026-09-26, a Repair All listed Skyrim.esm and every vanilla BSA).
+const ARCHIVE_RE = /\.(7z|zip|rar)$/i
+let _looseFiles = 0   // non-archive files seen by the last scan, for one hint instead of a list
 // Caches so repeated scans (the wait loop, locate) don't re-hash or re-list unchanged files.
 const _archiveHashCache = new Map()   // full -> { size, mtimeMs, hash }
 const _archiveListCache = new Map()   // full -> { size, mtimeMs, listing }
@@ -1042,21 +1030,33 @@ async function hashCached(full, st) {
   return hash
 }
 
-/** Finished (non-partial) archive files in the downloads folder, one stat pass. */
-function listDownloadArchives() {
+/** Finished (non-partial) archive files in dir, one stat pass; loose counts the other files. */
+function listArchivesIn(dir) {
   const out = []
   let names
-  try { names = fs.readdirSync(getDownloadsDir()) } catch { return out }
+  try { names = fs.readdirSync(dir) } catch { return Object.assign(out, { loose: 0 }) }
+  let loose = 0
   for (const file of names) {
     if (PARTIAL_RE.test(file)) continue
-    const full = path.join(getDownloadsDir(), file)
+    if (!ARCHIVE_RE.test(file)) { loose++; continue }
+    const full = path.join(dir, file)
     let st
     try { st = fs.statSync(lp(full)) } catch { continue }
     if (st.isFile()) out.push({ file, full, st })
   }
+  return Object.assign(out, { loose })
+}
+
+/** Finished (non-partial) archive files in the downloads folder, one stat pass. */
+function listDownloadArchives() {
+  const dir = getDownloadsDir()
+  const out = listArchivesIn(dir)
+  _looseFiles = out.loose
+  // Only this folder's entries: archives found in other folders (Vortex's) keep their hashes
   const present = new Set(out.map(a => a.full))
+  const inDir = key => path.dirname(key.split('\0')[0]) === dir
   for (const cache of [_archiveHashCache, _archiveListCache]) {
-    for (const key of cache.keys()) if (!present.has(key.split('\0')[0])) cache.delete(key)
+    for (const key of cache.keys()) if (inDir(key) && !present.has(key.split('\0')[0])) cache.delete(key)
   }
   return out
 }
@@ -1066,14 +1066,37 @@ function listDownloadArchives() {
  * null. Matches by content so manually moved ("Slow Download") files are found
  * regardless of filename; the size pre-filter avoids hashing partials/unrelated files.
  */
-async function findArchiveByHash(hash, size) {
+async function findArchiveByHash(hash, size, otherDirs = []) {
   if (!hash) return null
   const want = String(hash).toLowerCase()
-  for (const a of listDownloadArchives()) {
-    if (typeof size === 'number' && size > 0 && a.st.size !== size) continue
-    try { if (await hashCached(a.full, a.st) === want) return a.full } catch { /* mid-copy or locked; caller retries */ }
+  const dirs = [...new Set(otherDirs.filter(d => d && path.resolve(d) !== path.resolve(getDownloadsDir())))]
+  for (const archives of [listDownloadArchives(), ...dirs.map(listArchivesIn)]) {
+    for (const a of archives) {
+      if (typeof size === 'number' && size > 0 && a.st.size !== size) continue
+      try { if (await hashCached(a.full, a.st) === want) return a.full } catch { /* mid-copy or locked; caller retries */ }
+    }
   }
   return null
+}
+
+/**
+ * An archive found in another folder (Vortex's downloads), linked into the downloads folder under its own name so
+ * nothing is copied and a later repair finds it even if Vortex removes it. A hard link needs the same drive; otherwise,
+ * or when the name is taken, the archive is used where it is.
+ */
+function adoptArchive(full) {
+  const dir = getDownloadsDir()
+  if (path.dirname(path.resolve(full)) === path.resolve(dir)) return full
+  const dest = path.join(dir, path.basename(full))
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    if (fs.existsSync(lp(dest))) return full
+    fs.linkSync(lp(full), lp(dest))
+    return dest
+  } catch (err) {
+    _log(`[archives] using ${full} in place (${err.code || err.message})`)
+    return full
+  }
 }
 
 /**
@@ -1140,6 +1163,7 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
   const hardDeadline = Date.now() + timeoutMs * 3
   const found    = new Array(wanted.length).fill(null)
   const prevSize = new Map()    // full -> size at the previous scan; a changing size = mid-copy
+  const prevPartial = new Map() // partial download (.unfinished, .part, ...) -> size: a growing one is activity
   let mismatched = []           // settled files that look like a wanted mod but fail verification
   let progressed = false        // a file appeared/grew or an item resolved since the last tick
 
@@ -1204,6 +1228,15 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
       if (prevSize.get(a.full) !== a.st.size) progressed = true // new file, or a copy still landing
       prevSize.set(a.full, a.st.size)
     }
+    // A slow Nexus download the launcher is writing (or a browser into this folder) keeps the wait alive
+    let names = []
+    try { names = fs.readdirSync(getDownloadsDir()).filter(f => PARTIAL_RE.test(f) && !/\.meta$/i.test(f)) } catch {}
+    for (const f of names) {
+      let size = -1
+      try { size = fs.statSync(lp(path.join(getDownloadsDir(), f))).size } catch { continue }
+      if (prevPartial.get(f) !== size) progressed = true
+      prevPartial.set(f, size)
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -1213,12 +1246,15 @@ function waitForDownloads(wanted, onProgress, signal, intervalMs = 1000, timeout
       try { await scan() } catch { /* transient fs error; retry next tick */ }
       if (progressed) deadline = Date.now() + timeoutMs        // the user is actively staging files
       const remaining = wanted.filter((_, i) => !found[i]).map(w => w.name || 'download')
-      const note = mismatched.length
+      const note = (mismatched.length
         ? ` (${mismatched.map(f => `${f} is not the exact file the server expects - download it through its link on the downloads page, which pins the right version; if that version is gone from Nexus the server admin must update the modlist`).join('; ')})`
-        : ''
+        : '') + (_looseFiles
+        ? ` (the downloads folder also holds ${_looseFiles} file(s) that are not mod archives, such as game files copied in by hand; they are ignored - it only needs the .7z/.zip/.rar files from Nexus)`
+        : '')
       if (onProgress) {
         onProgress(wanted.length - remaining.length, wanted.length,
-          remaining.length ? `Waiting for downloads: ${remaining.join(', ')}${note}` : 'All downloads received')
+          remaining.length ? `Waiting for downloads: ${remaining.join(', ')}${note}` : 'All downloads received',
+          found.map(Boolean))
       }
       if (remaining.length === 0) return resolve(found)
       if (Date.now() > deadline || Date.now() > hardDeadline) {
@@ -1386,10 +1422,11 @@ module.exports = {
   mo2BinaryStats,
   readMo2Stamp,
   ensureInstance,
-  registerNxmHandler,
+  writeNxmHandlerIni,
   downloadToDownloads,
   findDownloadByFileId,
   findArchiveByHash,
+  adoptArchive,
   verifyArchive,
   sha256File,
   sha256FileAsync,

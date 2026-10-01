@@ -110,6 +110,27 @@ export const weightOf = ({ kind, value = 0 }: WeightInput): number => {
 const clampW = (w: number): number => Math.max(0.5, Math.min(3, Math.round(w * 100) / 100));
 
 /**
+ * A craft weighed by how much goes into it (GroundedPasta and swag, 2026-09-30: "the cooking exp goes up so slow",
+ * "you should get more exp from making more complex food"). A dish is worth 1 to 40 gold, so the value term above
+ * gave every dish the 0.5 floor. `cw` is a skill's skills.json `craftWeight`: `byTier[t - 1]` when the recipe carries
+ * this skill's tier marker (HasSpell DBO_Skill_<skill>_T<t>, the tier gate tools/recipes puts on every recipe),
+ * otherwise `byIngredients[n]` for n ingredient entries (the last entry for more). Never below the value weight, so no
+ * craft is worth less than before; the repetition decay and the bucket still apply on top.
+ */
+export type CraftWeights = { byTier: number[]; byIngredients: number[] };
+export type CraftDetail = { value?: number; parts?: number; tier?: number };
+export const craftWeightOf = (detail: CraftDetail, cw: CraftWeights | null | undefined): number => {
+  const base = weightOf({ kind: "craft", value: detail.value });
+  if (!cw) return base;
+  const t = Math.floor(Number(detail.tier) || 0);
+  const n = Math.max(0, Math.floor(Number(detail.parts) || 0));
+  let w = 0;
+  if (t >= 1 && cw.byTier.length) w = cw.byTier[Math.min(t, cw.byTier.length) - 1];
+  else if (cw.byIngredients.length) w = cw.byIngredients[Math.min(n, cw.byIngredients.length - 1)];
+  return Math.max(base, Number.isFinite(w) && w > 0 ? clampW(w) : 0);
+};
+
+/**
  * Repetition decay: the k-th act on the same target/station/recipe within the window is worth w/(1+k/8).
  * The ring is persisted with the character, because an in-memory map is cleared by a relog - which is a
  * two-key macro. Returns the multiplier and the ring to store back.
@@ -225,9 +246,10 @@ const dayKey = (now: number): string => new Date(now).toISOString().slice(0, 10)
 /**
  * Apply `rawUnits` of validated work to one skill. Meters it through the token bucket, the per-skill and
  * per-character daily caps and the structural caps, then takes any pool overflow from a donor.
+ * `boost` (1..3) scales what the metered work is worth after the caps, so a boost moves the skill further, never faster through the bucket.
  * Mutates nothing: returns the outcome, with the record updated in place on the caller's copy.
  */
-export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: PointConfig, now: number): GainOutcome => {
+export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: PointConfig, now: number, boost = 1): GainOutcome => {
   const s = rec.skills[id] || (rec.skills[id] = { level: 0, xp: 0, lock: "raise" });
   const today = dayKey(now);
   if (s.day !== today) { s.day = today; s.spentToday = 0; }
@@ -256,7 +278,8 @@ export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: P
 
   // 4. the pool: a gain past it has to come from somewhere
   const before = s.level;
-  const grown = addUnits(s.level, s.xp, units, cap);
+  const worth = units * (Number.isFinite(boost) ? Math.min(3, Math.max(1, boost)) : 1);
+  const grown = addUnits(s.level, s.xp, worth, cap);
   const used = poolUsed(Object.entries(rec.skills).map(([k, v]) => ({ id: k, level: k === id ? grown.level : v.level, xp: v.xp, lock: v.lock })));
   const tookFrom: Array<{ id: string; units: number; levels: number }> = [];
   if (used > cfg.pool) {
@@ -275,7 +298,7 @@ export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: P
     // whatever the donors could not cover is simply not gained
     if (donors.short > 0) {
       const allowed = Math.max(0, cfg.pool - poolUsed(Object.entries(rec.skills).filter(([k]) => k !== id).map(([k, v]) => ({ id: k, level: v.level, xp: v.xp, lock: v.lock }))));
-      const capped = addUnits(before, s.xp, units, Math.min(cap, allowed));
+      const capped = addUnits(before, s.xp, worth, Math.min(cap, allowed));
       s.level = capped.level; s.xp = capped.xp;
       return { gained: capped.level - before, units, tookFrom, refused: "pool" };
     }

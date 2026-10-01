@@ -11,6 +11,7 @@ const fs = require('fs')
 const path = require('path')
 const config = require('../../config')
 const audit = require('./audit')
+const transcript = require('./ticketTranscript')
 
 const STATE_FILE = path.join(__dirname, '..', '..', 'data', 'tickets.json')
 
@@ -18,10 +19,6 @@ const STATE_FILE = path.join(__dirname, '..', '..', 'data', 'tickets.json')
 const TYPES = [
   { id: 'pk',   label: 'Player Kill Request', category: 'Player Kill Requests', emoji: '⚔️',
     blurb: 'Ask staff to approve a kill on another character.' },
-  { id: 'bug',  label: 'Bug Report',          category: 'Bug Reports',          emoji: '🐛',
-    blurb: 'Something in the game is not working as intended.' },
-  { id: 'map',  label: 'Map Changes / Bugs',  category: 'Map Reports',          emoji: '🗺️',
-    blurb: 'Broken terrain, a bad navmesh, or a change you want to the world.' },
   { id: 'mod',  label: 'Moderation Help',     category: 'Moderation Help',      emoji: '🛡️',
     blurb: 'You need a moderator, but nobody has broken a rule.' },
   { id: 'rep',  label: 'Report Player',       category: 'Player Reports',       emoji: '🚩',
@@ -30,21 +27,37 @@ const TYPES = [
 
 const byId = new Map(TYPES.map(t => [t.id, t]))
 
-function readState() {
+function readState(file = STATE_FILE) {
   try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
   } catch {
     return { counter: 0, categories: {}, panelMessageId: null }
   }
 }
 
-function writeState(state) {
+function writeState(state, file = STATE_FILE) {
   try {
-    fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true })
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + '\n')
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.writeFileSync(file, JSON.stringify(state, null, 2) + '\n')
   } catch (err) {
     console.error('[tickets] could not save state:', err.message)
   }
+}
+
+const channelLink = (id, name) => (id ? `<#${id}>` : `#${name}`)
+
+// Bugs and map changes have their own routes, all reaching the same staff, so tickets point there
+function frontDoor() {
+  const site = /^https:\/\//.test(config.websiteUrl || '')
+    ? `the [report form](${config.websiteUrl.replace(/\/+$/, '')}/report.html) on the website` : 'the report form on the website'
+  return [
+    `- In game: \`/bug <what happened>\`. It saves where you are.`,
+    `- On Discord: post in ${channelLink(config.discordBugsForumChannelId, 'bugs')}, one post per problem.`,
+    '- Game will not start: Report a Problem in the launcher.',
+    `- Or use ${site}.`,
+    'Exploits and dupes: never in public. Use `/bug` or the website form.',
+    `Ideas for changes to the world go in ${channelLink(config.discordSuggestionsChannelId, 'suggestions')}.`,
+  ].join('\n')
 }
 
 function panelEmbed() {
@@ -59,6 +72,7 @@ function panelEmbed() {
       'One ticket per issue, and use **Close** when you are done.',
     ].join('\n'))
     .addFields(TYPES.map(t => ({ name: `${t.emoji} ${t.label}`, value: t.blurb, inline: false })))
+    .addFields({ name: '🐛 Found a bug?', value: `Bugs are not taken as tickets. Any of these reaches the same staff:\n${frontDoor()}`, inline: false })
     .setFooter({ text: 'DragonBreak Online' })
 }
 
@@ -142,24 +156,39 @@ async function openTicket(interaction, typeId, summary) {
   return { channel, number, type }
 }
 
-async function closeTicket(interaction) {
+const closing = new Set()
+
+// The channel is deleted only once its transcript is kept somewhere; otherwise it stays open
+async function closeTicket(interaction, { wait = 5000, transcripts = transcript } = {}) {
   const channel = interaction.channel
-  await interaction.reply({ content: 'Closing in 5 seconds.' })
-  audit.log(`TICKET closed #${channel.name} by ${interaction.user.tag} (${interaction.user.id})`)
-  setTimeout(() => {
-    channel.delete('ticket closed').catch(err => console.error('[tickets] delete failed:', err.message))
-  }, 5000)
+  if (closing.has(channel.id)) return interaction.reply({ content: 'This ticket is already closing.', ephemeral: true })
+  closing.add(channel.id)
+  try {
+    await interaction.reply({ content: 'Closing in 5 seconds.' })
+    audit.log(`TICKET closed #${channel.name} by ${interaction.user.tag} (${interaction.user.id})`)
+    await new Promise(resolve => setTimeout(resolve, wait))
+    try {
+      audit.log(`TICKET transcript of #${channel.name} ${await transcripts.save(channel, interaction.user)}`)
+    } catch (err) {
+      console.error(`[tickets] transcript of #${channel.name} failed, channel kept:`, err.message)
+      await channel.send(err.channelNote || 'The transcript could not be saved, so this channel stays open. Tell a staff member.').catch(() => {})
+      return
+    }
+    await channel.delete('ticket closed').catch(err => console.error('[tickets] delete failed:', err.message))
+  } finally {
+    closing.delete(channel.id)
+  }
 }
 
 // Posts the panel once. Safe to call on every boot: it edits its own message if it is still there.
-async function ensurePanel(client) {
+async function ensurePanel(client, stateFile = STATE_FILE) {
   if (!config.discordTicketPanelChannelId) return
   const channel = await client.channels.fetch(config.discordTicketPanelChannelId).catch(() => null)
   if (!channel) {
     console.warn('[tickets] panel channel not found:', config.discordTicketPanelChannelId)
     return
   }
-  const state = readState()
+  const state = readState(stateFile)
   const payload = { embeds: [panelEmbed()], components: panelRows() }
 
   if (state.panelMessageId) {
@@ -175,7 +204,7 @@ async function ensurePanel(client) {
   })
   if (sent) {
     state.panelMessageId = sent.id
-    writeState(state)
+    writeState(state, stateFile)
   }
 }
 
@@ -188,7 +217,11 @@ async function handleInteraction(interaction) {
     if (interaction.isButton() && id.startsWith('ticket:open:')) {
       const typeId = id.slice('ticket:open:'.length)
       const type = byId.get(typeId)
-      if (!type) return true
+      // A button left on an old panel, such as the removed Bug Report
+      if (!type) {
+        await interaction.reply({ content: `That ticket type is gone. To report a bug:\n${frontDoor()}`, ephemeral: true })
+        return true
+      }
       const modal = new ModalBuilder()
         .setCustomId(`ticket:submit:${typeId}`)
         .setTitle(type.label.slice(0, 45))
@@ -209,7 +242,7 @@ async function handleInteraction(interaction) {
       const result = await openTicket(interaction, typeId, interaction.fields.getTextInputValue('summary'))
       await interaction.editReply(result
         ? `Ticket opened: <#${result.channel.id}>`
-        : 'That ticket type no longer exists.')
+        : `That ticket type is gone. To report a bug:\n${frontDoor()}`)
       return true
     }
 
@@ -226,4 +259,4 @@ async function handleInteraction(interaction) {
   return true
 }
 
-module.exports = { TYPES, ensurePanel, handleInteraction }
+module.exports = { TYPES, ensurePanel, handleInteraction, closeTicket }

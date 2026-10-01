@@ -7,7 +7,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/apply_default_settings.cmake)
 #
 
 if(WIN32)
-  file(GLOB_RECURSE src "client/*")
+  file(GLOB_RECURSE src CONFIGURE_DEPENDS "client/*")
   list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
   add_library(MpClientPlugin SHARED ${src})
   target_link_libraries(MpClientPlugin PUBLIC mp_common)
@@ -26,7 +26,7 @@ endif()
 # messages
 #
 
-file(GLOB_RECURSE src "${CMAKE_CURRENT_SOURCE_DIR}/messages/*")
+file(GLOB_RECURSE src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/messages/*")
 list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
 add_library(messages STATIC ${src})
 target_include_directories(messages PUBLIC "${CMAKE_CURRENT_LIST_DIR}/messages")
@@ -40,7 +40,7 @@ list(APPEND VCPKG_DEPENDENT messages)
 # mp_common
 #
 
-file(GLOB_RECURSE src "${CMAKE_CURRENT_SOURCE_DIR}/mp_common/*")
+file(GLOB_RECURSE src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/mp_common/*")
 list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
 add_library(mp_common STATIC ${src})
 target_compile_definitions(mp_common PUBLIC MAX_PLAYERS=1000)
@@ -57,7 +57,7 @@ endif()
 #
 
 # https://www.codeproject.com/Articles/1065730/Point-Inside-Convex-Polygon-in-Cplusplus
-file(GLOB_RECURSE src "${CMAKE_CURRENT_SOURCE_DIR}/geo/*")
+file(GLOB_RECURSE src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/geo/*")
 list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
 add_library(geo STATIC ${src})
 target_include_directories(geo PUBLIC "${CMAKE_CURRENT_LIST_DIR}/geo")
@@ -67,7 +67,7 @@ apply_default_settings(TARGETS geo)
 # server_guest_lib
 #
 
-file(GLOB_RECURSE src "${CMAKE_CURRENT_SOURCE_DIR}/server_guest_lib/*")
+file(GLOB_RECURSE src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/server_guest_lib/*")
 list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
 add_library(server_guest_lib STATIC ${src})
 target_include_directories(server_guest_lib PUBLIC "${CMAKE_CURRENT_LIST_DIR}/server_guest_lib")
@@ -79,7 +79,7 @@ target_link_libraries(server_guest_lib PUBLIC viet mp_common espm papyrus-vm-lib
 # localization-provider
 #
 
-file(GLOB src "${CMAKE_CURRENT_SOURCE_DIR}/localization_provider/*")
+file(GLOB src CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/localization_provider/*")
 list(APPEND src "${CMAKE_SOURCE_DIR}/.clang-format")
 add_library(localization-provider STATIC ${src})
 apply_default_settings(TARGETS localization-provider)

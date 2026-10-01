@@ -1,14 +1,17 @@
 // Admin tier resolution shared by AdminSystem and HousingSystem: adminProfileIds are always senior, then adminRoles tiers, then legacy adminRoleIds as senior
 
-export type AdminTier = "senior" | "developer" | "gm";
+export type AdminTier = "senior" | "developer" | "leadgm" | "gm";
 
 // Precedence when a player holds roles from several tiers
-const TIER_ORDER: AdminTier[] = ["senior", "developer", "gm"];
+const TIER_ORDER: AdminTier[] = ["senior", "developer", "leadgm", "gm"];
 
-export const TIER_CAPS: Record<AdminTier, { ban: boolean }> = {
-  senior: { ban: true },
-  developer: { ban: true },
-  gm: { ban: false },
+// spawn: anything that creates or changes the world or the economy (items, spells, beast forms, mastery, NPC zones,
+// kill, the Smite and Heal on Hit modes) and the server console. Jake and Nate, 2026-09-27: a GM observes and reports.
+export const TIER_CAPS: Record<AdminTier, { ban: boolean; spawn: boolean }> = {
+  senior: { ban: true, spawn: true },
+  developer: { ban: true, spawn: true },
+  leadgm: { ban: false, spawn: true },
+  gm: { ban: false, spawn: false },
 };
 
 export interface AdminRoleConfig {
@@ -22,7 +25,7 @@ const idList = (v: unknown): string[] => Array.isArray(v) ? v.map(String) : [];
 export function readAdminRoleConfig(all: Record<string, unknown> | null): AdminRoleConfig {
   const raw = all?.["adminRoles"];
   const tiers = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  const tierRoles: Record<AdminTier, string[]> = { senior: [], developer: [], gm: [] };
+  const tierRoles: Record<AdminTier, string[]> = { senior: [], developer: [], leadgm: [], gm: [] };
   for (const tier of TIER_ORDER) tierRoles[tier] = idList(tiers[tier]);
   const profiles = all?.["adminProfileIds"];
   return {

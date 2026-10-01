@@ -54,10 +54,6 @@ function buildEmbed() {
     .setTimestamp(new Date())
     .setFooter({ text: 'Updates every minute' })
 
-  if (config.skyrimServerAddress) {
-    const address = config.skyrimServerPort ? `${config.skyrimServerAddress}:${config.skyrimServerPort}` : config.skyrimServerAddress
-    embed.addFields({ name: 'Address', value: `\`${address}\``, inline: true })
-  }
   if (lastSeen && !fresh) {
     embed.addFields({ name: 'Last seen', value: `<t:${Math.floor(lastSeen.getTime() / 1000)}:R>`, inline: false })
   }

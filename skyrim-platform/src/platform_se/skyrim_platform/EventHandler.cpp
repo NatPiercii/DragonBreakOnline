@@ -1368,7 +1368,30 @@ EventResult EventHandler::ProcessEvent(
       caster->GetActorRuntimeData()
         .selectedSpells[RE::Actor::SlotTypes::kPowerOrShout] == spell;
 
-    const bool isCastValid = isLeftHand || isRightHand || isVoise || isInstant;
+    // A scroll is not a selected spell but an object held in a hand (ScrollItem derives from SpellItem, so the lookup
+    // above finds it), and every scroll cast was dropped here before scripts saw it: the server never learned of the
+    // cast and gave the scroll back (#bugs, 2026-09-28: "scrolls show the casting, then do nothing").
+    const bool isScroll = spell->GetFormType() == RE::FormType::Scroll;
+    const bool isScrollLeft = isScroll && caster->GetEquippedObject(true) == spell;
+    const bool isScrollRight = isScroll && caster->GetEquippedObject(false) == spell;
+
+    // A shout casts one of its words' spells (VoiceUnrelentingForce1...), while the caster's selected power is the
+    // shout itself, so every shout was dropped here too (Nate, 2026-09-28: shouts, a draugr's included, did nothing)
+    bool isShoutWord = false;
+    if (spell->GetSpellType() == RE::MagicSystem::SpellType::kVoicePower) {
+      auto* power = caster->GetActorRuntimeData().selectedPower;
+      if (auto* shout = power ? power->As<RE::TESShout>() : nullptr) {
+        for (const auto& variation : shout->variations) {
+          if (variation.spell == spell) {
+            isShoutWord = true;
+            break;
+          }
+        }
+      }
+    }
+
+    const bool isCastValid = isLeftHand || isRightHand || isVoise ||
+      isInstant || isScrollLeft || isScrollRight || isShoutWord;
 
     if (!isCastValid) {
       return;
@@ -1376,9 +1399,9 @@ EventResult EventHandler::ProcessEvent(
 
     auto castingSource = RE::MagicSystem::CastingSource::kLeftHand;
 
-    if (isRightHand) {
+    if (isRightHand || (!isLeftHand && isScrollRight)) {
       castingSource = RE::MagicSystem::CastingSource::kRightHand;
-    } else if (isVoise) {
+    } else if (isVoise || isShoutWord) {
       castingSource = RE::MagicSystem::CastingSource::kOther;
     } else if (isInstant) {
       castingSource = RE::MagicSystem::CastingSource::kInstant;

@@ -246,4 +246,5 @@ void PapyrusGame::Register(VirtualMachine& vm,
   AddStatic(vm, "GetForm", &PapyrusGame::GetForm);
   AddStatic(vm, "GetFormEx", &PapyrusGame::GetFormEx);
   AddStatic(vm, "ShakeController", &PapyrusGame::ShakeController);
+  AddStubStatic(vm, "ShakeCamera", VarValue::None());
 }

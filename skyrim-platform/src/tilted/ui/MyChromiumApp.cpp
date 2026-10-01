@@ -9,6 +9,7 @@
 
 #include <DInputHook.hpp>
 #include <Filesystem.hpp>
+#include <InputDiag.hpp>
 #include <MyChromiumApp.h>
 
 // https://stackoverflow.com/questions/440133/how-do-i-create-a-random-alpha-numeric-string-in-c
@@ -191,6 +192,15 @@ void MyChromiumApp::InjectKey(const cef_key_event_type_t aType,
     ev.native_key_code = aScanCode;
 
     m_pGameClient->GetBrowser()->GetHost()->SendKeyEvent(ev);
+    if (InputDiag::Count(InputDiag::kCefKey)) {
+      spdlog::info("InputDiag: key event {} vk {:#x} sent to browser {}",
+                   static_cast<int>(aType), aKey,
+                   m_pGameClient->GetBrowser()->GetIdentifier());
+    }
+  } else if (InputDiag::Count(InputDiag::kCefNotReady)) {
+    spdlog::info("InputDiag: key vk {:#x} not sent: {}", aKey,
+                 m_pGameClient ? "the page has not finished loading"
+                               : "no browser client");
   }
 }
 
@@ -208,6 +218,16 @@ void MyChromiumApp::InjectMouseButton(const uint16_t aX, const uint16_t aY,
 
     m_pGameClient->GetBrowser()->GetHost()->SendMouseClickEvent(ev, aButton,
                                                                 aUp, 1);
+    if (InputDiag::Count(InputDiag::kCefButton)) {
+      spdlog::info("InputDiag: mouse button {} {} at {},{} sent to browser {}",
+                   static_cast<int>(aButton), aUp ? "up" : "down", aX, aY,
+                   m_pGameClient->GetBrowser()->GetIdentifier());
+    }
+  } else if (InputDiag::Count(InputDiag::kCefNotReady)) {
+    spdlog::info("InputDiag: mouse button {} at {},{} not sent: {}",
+                 static_cast<int>(aButton), aX, aY,
+                 m_pGameClient ? "the page has not finished loading"
+                               : "no browser client");
   }
 }
 
@@ -249,8 +269,18 @@ void MyChromiumApp::InjectMouseMove(const float aX, const float aY,
 
     m_pGameClient->GetMyRenderHandler()->SetCursorLocation(aX, aY);
 
-    if (isBrowserFocused && aX >= 0 && aY >= 0)
+    if (isBrowserFocused && aX >= 0 && aY >= 0) {
       m_pGameClient->GetBrowser()->GetHost()->SendMouseMoveEvent(ev, false);
+      if (InputDiag::Count(InputDiag::kCefMouseMove)) {
+        spdlog::info("InputDiag: mouse move to {},{} sent to browser {}", aX,
+                     aY, m_pGameClient->GetBrowser()->GetIdentifier());
+      }
+    }
+  } else if (isBrowserFocused && aX >= 0 && aY >= 0 &&
+             InputDiag::Count(InputDiag::kCefNotReady)) {
+    spdlog::info("InputDiag: mouse move to {},{} not sent: {}", aX, aY,
+                 m_pGameClient ? "the page has not finished loading"
+                               : "no browser client");
   }
 }
 
@@ -266,6 +296,14 @@ void MyChromiumApp::InjectMouseWheel(const uint16_t aX, const uint16_t aY,
     ev.modifiers = aModifier;
 
     m_pGameClient->GetBrowser()->GetHost()->SendMouseWheelEvent(ev, 0, aDelta);
+    if (InputDiag::Count(InputDiag::kCefWheel)) {
+      spdlog::info("InputDiag: mouse wheel {} sent to browser {}", aDelta,
+                   m_pGameClient->GetBrowser()->GetIdentifier());
+    }
+  } else if (InputDiag::Count(InputDiag::kCefNotReady)) {
+    spdlog::info("InputDiag: mouse wheel {} not sent: {}", aDelta,
+                 m_pGameClient ? "the page has not finished loading"
+                               : "no browser client");
   }
 }
 
@@ -299,6 +337,11 @@ void MyChromiumApp::RunTasks()
     if (isFocusedInt != m_wasFocused) {
       m_wasFocused = isFocusedInt;
       m_pGameClient->GetBrowser()->GetHost()->SetFocus(isBrowserFocused);
+      if (InputDiag::Count(InputDiag::kCefFocus, true)) {
+        spdlog::info("InputDiag: browser {} host SetFocus({})",
+                     m_pGameClient->GetBrowser()->GetIdentifier(),
+                     isBrowserFocused);
+      }
     }
   }
 }

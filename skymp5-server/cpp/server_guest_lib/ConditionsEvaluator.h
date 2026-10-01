@@ -32,6 +32,10 @@ struct ConditionsEvaluatorSettings
 struct ConditionEvaluatorContext
 {
   std::optional<uint32_t> damageSourceFormId;
+
+  // Set by EvaluateConditions for crafting: a condition function the server
+  // does not implement fails instead of passing (see EvaluateCondition)
+  bool unknownFunctionsFail = false;
 };
 
 class ConditionsEvaluator

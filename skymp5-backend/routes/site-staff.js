@@ -1,10 +1,10 @@
 'use strict'
 // Staff dashboard data, behind the website sign-in and a Discord role check on EVERY request, so a
 // member who loses the role loses the page at their next click rather than when their session expires.
-// Roles: config.siteStaffRoleIds (Owners and Dragon Break Dev). The bot's role lookup fails closed:
-// if Discord cannot be asked, the answer is no.
+// Roles: config.siteStaffRoleIds (Owners and Dragon Break Dev) and config.siteOwnerRoleIds (Owners). The bot's
+// role lookup fails closed: if Discord cannot be asked, the answer is no.
 //
-//   GET /api/site/staff/me        whether the signed-in visitor is staff
+//   GET /api/site/staff/me        whether the signed-in visitor is staff, and for staff whether an Owner
 //   GET /api/site/staff/overview  server state and account totals
 //   GET /api/site/staff/players   every account: Discord name, characters, last launcher sign-in, last game join, factions
 
@@ -30,13 +30,16 @@ function withDeadline(promise) {
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer))
 }
 
-async function isStaff(discordId) {
-  for (const roleId of config.siteStaffRoleIds) {
+async function hasAnyRole(discordId, roleIds) {
+  for (const roleId of roleIds) {
     try { if (await withDeadline(discordBot.memberHasRole(discordId, roleId))) return true }
     catch (err) { console.error('[site-staff] role lookup failed:', err.message) }
   }
   return false
 }
+
+const isStaff = discordId => hasAnyRole(discordId, config.siteStaffRoleIds)
+const isOwner = discordId => hasAnyRole(discordId, config.siteOwnerRoleIds)
 
 async function requireStaff(req, res, next) {
   const session = currentSession(req)
@@ -48,8 +51,9 @@ async function requireStaff(req, res, next) {
 
 router.get('/me', async (req, res) => {
   const session = currentSession(req)
-  if (!session) return res.json({ signedIn: false, staff: false })
-  res.json({ signedIn: true, staff: await isStaff(session.discordId), name: String(session.username || '') })
+  if (!session) return res.json({ signedIn: false, staff: false, owner: false })
+  const staff = await isStaff(session.discordId)
+  res.json({ signedIn: true, staff, owner: staff && await isOwner(session.discordId), name: String(session.username || '') })
 })
 
 // Characters grouped by the account that owns them; a character stamped with another Discord id is skipped
@@ -134,3 +138,4 @@ router.get('/players', requireStaff, (_req, res) => {
 })
 
 module.exports = router
+module.exports.internals = { requireStaff, isOwner }

@@ -3,9 +3,11 @@
 #include "GetActorValuePercent.h"
 #include "GetEquipped.h"
 #include "GetEquippedItemType.h"
+#include "GetGlobalValue.h"
 #include "GetIsPlayableRace.h"
 #include "GetIsRace.h"
 #include "GetItemCount.h"
+#include "GetPCIsRace.h"
 #include "HasSpell.h"
 #include "IsBlocking.h"
 #include "IsInInterior.h"
@@ -51,6 +53,10 @@ ConditionFunctionMap ConditionFunctionFactory::CreateConditionFunctions()
     std::make_shared<ConditionFunctions::GetEquippedItemType>());
   res.RegisterConditionFunction(
     std::make_shared<ConditionFunctions::IsBlocking>());
+  res.RegisterConditionFunction(
+    std::make_shared<ConditionFunctions::GetGlobalValue>());
+  res.RegisterConditionFunction(
+    std::make_shared<ConditionFunctions::GetPCIsRace>());
 
   res.RegisterConditionFunction(
     std::make_shared<ConditionFunctions::SkympGetDamageSourceHasKeyword>());

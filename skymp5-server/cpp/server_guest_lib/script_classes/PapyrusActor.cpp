@@ -784,4 +784,6 @@ void PapyrusActor::Register(
   AddMethod(vm, "GetRace", &PapyrusActor::GetRace);
   AddMethod(vm, "GetSpellCount", &PapyrusActor::GetSpellCount);
   AddMethod(vm, "GetNthSpell", &PapyrusActor::GetNthSpell);
+  // AI packages run on the hosting client, never here
+  AddStubMethod(vm, "GetCurrentPackage", VarValue::None());
 }

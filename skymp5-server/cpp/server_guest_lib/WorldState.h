@@ -331,12 +331,13 @@ private:
     std::shared_ptr<GridImpl<MpObjectReference*>> grid =
       std::make_shared<GridImpl<MpObjectReference*>>();
     std::map<int16_t, std::map<int16_t, bool>> loadedChunks;
-    std::optional<bool> interior;
   };
 
   std::unordered_map<uint32_t, std::shared_ptr<MpForm>> forms;
   std::unordered_map<std::string, size_t> loadOrderMap;
   std::unordered_map<uint32_t, GridInfo> grids;
+  // cellOrWorld -> is an interior CELL, cached apart from grids (IsInteriorCell)
+  std::unordered_map<uint32_t, bool> interiorCells;
   std::unique_ptr<MakeID> formIdxManager;
   std::vector<MpObjectReference*> refrByIdxUnreliable;
   // Freed form indices, oldest first, with when they were freed

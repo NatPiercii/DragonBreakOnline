@@ -1,7 +1,7 @@
 project(libespm)
 include(${CMAKE_SOURCE_DIR}/cmake/apply_default_settings.cmake)
 
-file(GLOB ESPM_SRC "include/*.h" "src/*.cpp" "src/*.h")
+file(GLOB ESPM_SRC CONFIGURE_DEPENDS "include/*.h" "src/*.cpp" "src/*.h")
 add_library(espm STATIC ${ESPM_SRC})
 target_include_directories(espm PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 target_include_directories(espm PUBLIC ${CMAKE_CURRENT_LIST_DIR}/src)

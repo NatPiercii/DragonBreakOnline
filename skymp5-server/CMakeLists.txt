@@ -28,7 +28,7 @@ add_subdirectory(ts)
 
 # Add C++ addon for NodeJS
 if(NOT EMSCRIPTEN)
-  file(GLOB_RECURSE sources "${SKYMP5_SERVER_SOURCE_DIR}/cpp/addon/*")
+  file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${SKYMP5_SERVER_SOURCE_DIR}/cpp/addon/*")
   if(MSVC)
     list(APPEND sources "${CMAKE_SOURCE_DIR}/.clang-format")
   endif()
@@ -129,7 +129,7 @@ if(TARGET ${PROJECT_NAME})
   )
 endif()
 
-file(GLOB_RECURSE standard_scripts
+file(GLOB_RECURSE standard_scripts CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/standard_scripts/*
 )
 cmrc_add_resource_library(server_standard_scripts ${standard_scripts}

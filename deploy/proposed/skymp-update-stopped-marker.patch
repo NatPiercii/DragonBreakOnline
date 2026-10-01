@@ -1,0 +1,27 @@
+--- a/usr/local/bin/skymp-update.sh
++++ b/usr/local/bin/skymp-update.sh
+@@ -9,6 +9,8 @@
+ REPO=/opt/alduinak
+ CFG="-DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_CLIENT=OFF -DBUILD_SKYRIM_PLATFORM=OFF -DBUILD_SCRIPTS=OFF -DBUILD_UNIT_TESTS=OFF -DBUILD_GAMEMODE=OFF"
+ say(){ echo "$(date -u +%FT%TZ) $*"; }
++# An owner's stop holds only while the server is down; a marker left by a reboot or a manual start does not
++owner_stopped(){ [ -e /opt/skymp-stopped ] && ! systemctl is-active --quiet skymp; }
+ DEFER_STAMP=/opt/skymp-update-deferred-since
+ DEFER_CAP_MIN=120
+ 
+@@ -16,6 +18,7 @@
+ timeout 120 git fetch origin --quiet || { say "fetch failed"; exit 1; }
+ LOCAL=$(git rev-parse HEAD); REMOTE=$(git rev-parse origin/main)
+ if [ -e /opt/skymp-dev-hold ]; then say "skipped: deploy hold"; exit 0; fi
++if owner_stopped; then say "skipped: server stopped by owner"; exit 0; fi
+ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then say "skipped: uncommitted changes"; exit 0; fi
+ if ! git merge-base --is-ancestor HEAD origin/main; then say "skipped: local commits not on origin/main"; exit 0; fi
+ if [ "$LOCAL" = "$REMOTE" ]; then say "up to date (${LOCAL:0:8})"; rm -f "$DEFER_STAMP"; exit 0; fi
+@@ -68,6 +71,7 @@
+ fi
+ 
+ cp -a "$SNAP" "$SETTINGS"
++if owner_stopped; then say "skipped restart: server stopped by owner (built ${REMOTE:0:8}, it runs on the next Start)"; exit 0; fi
+ say "restarting"
+ systemctl restart skymp; sleep 20
+ if systemctl is-active --quiet skymp && ss -uln | grep -q ':7777'; then

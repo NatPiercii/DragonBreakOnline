@@ -1,5 +1,7 @@
 #include "MpClientPluginApi.h"
 
+#include <hooks/InputDiag.hpp>
+
 namespace {
 const char* GetPacketTypeName(int32_t type)
 {
@@ -97,10 +99,21 @@ Napi::Value MpClientPluginApi::Tick(const Napi::CallbackInfo& info)
                            const char* error, void* state);
   typedef void (*Tick)(OnPacket onPacket, void* state);
 
+  CEFUtils::InputDiag::Tally(CEFUtils::InputDiag::kNetTick);
+  CEFUtils::InputDiag::Get().lastNetTickMs.store(GetTickCount64(),
+                                                 std::memory_order_relaxed);
+
   auto f = (Tick)GetMpClientPlugin()->GetFunction("Tick");
   f(
     [](int32_t type, const char* rawContent, size_t length, const char* error,
        void* state) {
+      if (type == 0) {
+        CEFUtils::InputDiag::Tally(CEFUtils::InputDiag::kNetPacket);
+      } else if (CEFUtils::InputDiag::Count(CEFUtils::InputDiag::kNetEvent,
+                                            true)) {
+        spdlog::info("InputDiag: network {} {}", GetPacketTypeName(type),
+                     error ? error : "");
+      }
       auto onPacket = reinterpret_cast<Napi::Function*>(state);
       auto env = onPacket->Env();
 
@@ -129,6 +142,9 @@ Napi::Value MpClientPluginApi::Send(const Napi::CallbackInfo& info)
 
   auto f = (Send)GetMpClientPlugin()->GetFunction("Send");
   f(jsonContent.data(), reliable);
+  CEFUtils::InputDiag::Tally(CEFUtils::InputDiag::kNetSend);
+  CEFUtils::InputDiag::Get().lastNetSendMs.store(GetTickCount64(),
+                                                 std::memory_order_relaxed);
   return info.Env().Undefined();
 }
 
@@ -151,5 +167,8 @@ Napi::Value MpClientPluginApi::SendRaw(const Napi::CallbackInfo& info)
 
   auto f = (SendRaw)GetMpClientPlugin()->GetFunction("SendRaw");
   f(data, dataLength, reliable);
+  CEFUtils::InputDiag::Tally(CEFUtils::InputDiag::kNetSend);
+  CEFUtils::InputDiag::Get().lastNetSendMs.store(GetTickCount64(),
+                                                 std::memory_order_relaxed);
   return info.Env().Undefined();
 }

@@ -66,10 +66,14 @@ export const destroyRef = (mp: Mp, id: number): void => {
 };
 
 // Forms of a previous run exist only after the world DB loads (WORLD_LOADED_EVENT); plugin refs, player characters and ids failing isOurs are kept
+// A gone id is skipped after one read: every failed get logs a context dump, and a gone id would cost three (baseDesc and
+// profileId in isPlayerActor, type in destroyRef). The callers drop every leftover from their saved lists afterwards.
 export const destroyLeftovers = (mp: Mp, ids: number[], isOurs: (id: number) => boolean): number =>
   ids.filter((id) => {
     try {
-      if (id >>> 0 < 0xff000000 || isPlayerActor(mp, id) || !isOurs(id)) return false;
+      if (id >>> 0 < 0xff000000) return false;
+      try { mp.get(id, "type"); } catch { return false; }
+      if (isPlayerActor(mp, id) || !isOurs(id)) return false;
       destroyRef(mp, id);
       return true;
     } catch {

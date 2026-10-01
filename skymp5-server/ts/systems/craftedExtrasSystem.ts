@@ -1,4 +1,5 @@
 import { System, Log, SystemContext, Content } from "./system";
+import { Settings } from "../settings";
 import { espmFieldFormIds, readFormIdField, toFormId } from "./formIdUtil";
 import {
   EnchantmentEffect, Inventory, InventoryEntry, addEntries, copyValidExtras, describeExtras, healthStep,
@@ -32,14 +33,25 @@ const SOUL_CHARGE = [0, 250, 500, 1000, 2000, 3000];
 const RECHARGE_MARGIN = 2;
 // Legendary; vanilla has no bound beyond it only through potion loops
 const MAX_HEALTH_STEP = 16;
-// Twice the strongest plugin enchantment of an effect covers skill, perks and Fortify Enchanting potions
+// Tempering and enchanting need the Blacksmith and Enchanter skills: a report could claim Legendary, or two effects at
+// twice the strongest plugin enchantment, from anyone (review, 2026-09-29). Every real bench already asks for the skill
+// (masterySystem's station gate takes it up on first touch), so this refuses only reports no bench stood behind.
+// With server-settings.json "craftedExtrasRankGates": true (read at boot; off until Nate compares them with vanilla's
+// temper and enchant results in game), the rank also caps them: tempering Fine, Superior, Exquisite, Epic, Legendary
+// from Novice to Master (skills.json's Master tier promises "legendary improvement"), and enchantments at this share of
+// the strongest base game enchantment of the same kind. Off, every rank reaches Legendary and twice that cap.
+const TEMPER_CAP_BY_RANK = [11, 12, 13, 15, 16];
+const ENCHANT_MARGIN_BY_RANK = [0.5, 0.75, 1, 1.5, 2];
+// Twice the strongest base game enchantment of an effect covers skill, perks and Fortify Enchanting potions
 const ENCHANT_MARGIN = 2;
+const RANK_GATES_SETTING = "craftedExtrasRankGates";
 // Extra Effect perk
 const MAX_EFFECTS = 2;
 // Concentrated Poison perk
 const MAX_POISON_USES = 2;
-// Sanity band around the Creation Kit effect cost formula, which vanilla only roughly follows
-const COST_BAND = [0.05, 20];
+// Sanity band around the Creation Kit effect cost formula, which vanilla only roughly follows. The floor was 0.05, and a
+// cost 20 times too low is 20 times the uses from one charge (review, 2026-09-29)
+const COST_BAND = [0.5, 20];
 const STATION_RANGE = 1024;
 // An explicit 0 charge re-applies as a full one (AddItemEx skips ExtraCharge 0)
 const MIN_CHARGE = 0.01;
@@ -52,12 +64,21 @@ const KEYWORD_DISALLOW_ENCHANTING = 0x000c27bd;
 const KEYWORD_REUSABLE_SOUL_GEM = 0x000ed2f1;
 // ENCH ENIT enchant type; weapon enchantments are fire and forget on contact, armor ones constant on self
 const ENCH_TYPE_ENCHANTMENT = 6;
+// Caps come only from the base game's EnchWeapon, EnchArmor and EnchRobes enchantments; a mod's never raises one
+const BASE_GAME_FILES = new Set(["skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"]);
+const PLAYER_ENCHANTMENT = /^Ench(Weapon|Armor|Robes)/;
+// Effects on the Alchemy and Enchanting skills and their modifiers (the MGEF's actor value) are never accepted on an item
+const REFUSED_EFFECT_AVS = new Set([16, 23, 106, 113, 145]);
 // ALCH ENIT flag
 const FLAG_POISON = 0x20000;
 const TEMPER_SUFFIX = /\s\((Fine|Superior|Exquisite|Flawless|Epic|Legendary)\)$/;
 // A poison OnEquip consumed stays claimable this long, since the report can wait for the inventory menu to close
 const POISON_CREDIT_MS = 10 * 60 * 1000;
 const MAX_POISON_CREDITS = 8;
+// Work an accepted change is worth to the skill that made it (masterySystem's award, 0.5 to 3 units): an enchantment by
+// the soul spent (petty 1.4 .. grand 3), a temper by the steps it rose (one step 1)
+const ENCHANT_WORK_PER_SOUL = 0.4;
+const TEMPER_WORK_PER_STEP = 0.5;
 
 interface Cap {
   magnitude: number;
@@ -80,6 +101,9 @@ interface ItemInfo {
 interface Station {
   enchanting: boolean;
   temperBenches: number[];
+  // The highest health step this player may temper to (10 = none), and their enchantment margin (0 = none)
+  temperCap: number;
+  enchantMargin: number;
 }
 
 // A server copy the report says left the player, and how much of it is still unspent
@@ -116,9 +140,12 @@ interface Plan {
   soul: SoulSource | null;
   credit: PoisonCredit | null;
   notes: string[];
+  // What was paid for, for the skills' credit: the soul size of a new enchantment and the temper steps gained (0 none)
+  enchantSoul: number;
+  temperSteps: number;
 }
 
-const NO_STATION: Station = { enchanting: false, temperBenches: [] };
+const NO_STATION: Station = { enchanting: false, temperBenches: [], temperCap: 10, enchantMargin: 0 };
 const hex = (id: number): string => (id >>> 0).toString(16);
 const viewOf = (d: Uint8Array): DataView => new DataView(d.buffer, d.byteOffset, d.byteLength);
 const chargeOf = (e: InventoryEntry): number => (typeof e.chargePercent === "number" ? e.chargePercent : 0);
@@ -126,6 +153,14 @@ const chargeOf = (e: InventoryEntry): number => (typeof e.chargePercent === "num
 // Creation Kit effect cost; area is ignored, as it is for every vanilla enchantment
 const formulaCost = (baseCost: number, e: EnchantmentEffect): number =>
   baseCost * Math.pow(Math.max(e.magnitude, 1), 1.1) * Math.pow(Math.max(e.duration / 10, 1), 1.1);
+
+// Leading load order entries that are base game files (ids from 0 up to it); all five when there is no load order
+const baseGameFileCount = (loadOrder: unknown): number => {
+  if (!Array.isArray(loadOrder) || !loadOrder.length) return BASE_GAME_FILES.size;
+  let n = 0;
+  while (n < loadOrder.length && BASE_GAME_FILES.has(String(String(loadOrder[n]).split(/[\\/]/).pop()).toLowerCase())) n++;
+  return n;
+};
 
 const cleanName = (name: unknown): string | undefined => {
   if (typeof name !== "string") return undefined;
@@ -140,6 +175,15 @@ export class CraftedExtrasSystem implements System {
 
   // Applying a poison sends OnEquip, which eats and removes the poison before the craft report arrives
   async initAsync(ctx: SystemContext): Promise<void> {
+    try {
+      const settings = await Settings.get();
+      const all = settings.allSettings as Record<string, unknown> | null;
+      this.rankGates = !!all && all[RANK_GATES_SETTING] === true;
+      this.baseFiles = baseGameFileCount(settings.loadOrder);
+    } catch {
+      this.rankGates = false;
+    }
+    this.log(`[crafted] tempering and enchanting need the skill; rank caps ${this.rankGates ? "on" : "off"} (${RANK_GATES_SETTING})`);
     const mp = ctx.svr as Mp;
     const previous = typeof mp.onEatItem === "function" ? mp.onEatItem : null;
     mp.onEatItem = (...args: unknown[]) => {
@@ -204,6 +248,7 @@ export class CraftedExtrasSystem implements System {
         }
         this.commit(plan, added);
         this.log(`[crafted] ${hex(actorId)} ${hex(plan.entry.baseId)}: ${plan.notes.join(", ")} {${describeExtras(plan.entry).join(", ")}}`);
+        this.creditWork(actorId, plan);
       }
     }
     this.creditsOf(actorId);
@@ -312,6 +357,7 @@ export class CraftedExtrasSystem implements System {
     const notes: string[] = [];
     let soul: SoulSource | null = null;
     let credit: PoisonCredit | null = null;
+    let enchantSoul = 0, temperSteps = 0;
 
     // Souls only arrive through the soul trap system, and plugin enchantments never change
     if ((g.soul || 0) !== (s.soul || 0) || (g.enchantmentId || 0) !== (s.enchantmentId || 0)) return null;
@@ -319,9 +365,9 @@ export class CraftedExtrasSystem implements System {
 
     const enchanting = !sameEffects(s.enchantmentEffects, g.enchantmentEffects);
     if (enchanting) {
-      if (!station.enchanting || !info.enchantable || isEnchanted(s) || !g.enchantmentEffects) return null;
+      if (!station.enchanting || !(station.enchantMargin > 0) || !info.enchantable || isEnchanted(s) || !g.enchantmentEffects) return null;
       const weapon = info.type === "WEAP";
-      const effects = this.validEnchantment(ctx, g.enchantmentEffects, weapon);
+      const effects = this.validEnchantment(ctx, g.enchantmentEffects, weapon, station.enchantMargin);
       soul = effects ? this.takeSoul(souls, weapon ? g.maxCharge || 0 : Infinity) : null;
       if (!effects || !soul) return null;
       out.enchantmentEffects = effects;
@@ -337,6 +383,7 @@ export class CraftedExtrasSystem implements System {
       if (name) out.name = name;
       else delete out.name;
       notes.push(`enchanted with a size ${soul.size} soul`);
+      enchantSoul = soul.size;
     } else if (!sameFloat(s.maxCharge || 0, g.maxCharge || 0)) {
       return null;
     }
@@ -344,9 +391,12 @@ export class CraftedExtrasSystem implements System {
     const fromStep = healthStep(s.health);
     const toStep = healthStep(g.health);
     if (toStep !== fromStep) {
-      if (toStep < fromStep || !this.reserveTemper(ctx, s.baseId, station, pool, reserve)) return null;
-      out.health = Math.min(toStep, MAX_HEALTH_STEP) / 10;
+      // Held to the smith's rank; a claim above it is tempered only as far as they may, and not at all without the skill
+      const target = Math.min(toStep, station.temperCap, MAX_HEALTH_STEP);
+      if (toStep < fromStep || target <= fromStep || !this.reserveTemper(ctx, s.baseId, station, pool, reserve)) return null;
+      out.health = target / 10;
       notes.push(`tempered to ${out.health}`);
+      temperSteps = target - fromStep;
     }
 
     const fromPoison = s.poisonId || 0;
@@ -390,7 +440,7 @@ export class CraftedExtrasSystem implements System {
       }
     }
 
-    return notes.length ? { entry: out, reserve, soul, credit, notes } : null;
+    return notes.length ? { entry: out, reserve, soul, credit, notes, enchantSoul, temperSteps } : null;
   }
 
   // Something vanilla pays for (an enchantment, tempering, a new poison) rather than wear from use or Soul Siphon charge
@@ -441,19 +491,23 @@ export class CraftedExtrasSystem implements System {
     return false;
   }
 
-  // Effects of a player enchantment, clamped to twice the strongest plugin enchantment of the same kind
-  private validEnchantment(ctx: SystemContext, effects: EnchantmentEffect[], weapon: boolean): EnchantmentEffect[] | null {
+  // Effects of a player enchantment, clamped to the enchanter's share (margin) of the strongest base game enchantment of the
+  // same kind
+  private validEnchantment(ctx: SystemContext, effects: EnchantmentEffect[], weapon: boolean, margin: number): EnchantmentEffect[] | null {
     if (effects.length > MAX_EFFECTS || new Set(effects.map((e) => e.effectId)).size !== effects.length) return null;
     const caps = this.enchantmentCaps(ctx);
     const out: EnchantmentEffect[] = [];
     for (const e of effects) {
       const cap = caps.get((weapon ? "w" : "a") + (e.effectId >>> 0));
-      if (!cap) return null;
+      if (!cap) {
+        this.logUncapped(e.effectId, weapon);
+        return null;
+      }
       const clamped: EnchantmentEffect = {
         effectId: e.effectId >>> 0,
-        magnitude: Math.min(e.magnitude, cap.magnitude * ENCHANT_MARGIN),
-        area: Math.min(e.area, Math.floor(cap.area * ENCHANT_MARGIN)),
-        duration: Math.min(e.duration, Math.floor(cap.duration * ENCHANT_MARGIN)),
+        magnitude: Math.min(e.magnitude, cap.magnitude * margin),
+        area: Math.min(e.area, Math.floor(cap.area * margin)),
+        duration: Math.min(e.duration, Math.floor(cap.duration * margin)),
         cost: e.cost,
       };
       const estimate = formulaCost(this.baseCostOf(ctx, clamped.effectId), clamped);
@@ -479,14 +533,31 @@ export class CraftedExtrasSystem implements System {
       if (!res || res.record.type !== "FURN") return NO_STATION;
       const wbdt = this.fieldData(res, "WBDT");
       const bench = wbdt && wbdt.byteLength ? wbdt[0] : 0;
+      const smith = this.rankIn(mp, actorId, "blacksmith"), enchanter = this.rankIn(mp, actorId, "enchanter");
       return {
         enchanting: bench === BENCH_ENCHANTING || bench === BENCH_ENCHANTING_EXPERIMENT,
         temperBenches: bench === BENCH_SMITHING_WEAPON || bench === BENCH_SMITHING_ARMOR ? espmFieldFormIds(res, "KWDA") : [],
+        temperCap: smith < 0 ? 10 : this.rankGates ? TEMPER_CAP_BY_RANK[Math.min(smith, TEMPER_CAP_BY_RANK.length - 1)] : MAX_HEALTH_STEP,
+        enchantMargin: enchanter < 0 ? 0 : this.rankGates ? ENCHANT_MARGIN_BY_RANK[Math.min(enchanter, ENCHANT_MARGIN_BY_RANK.length - 1)] : ENCHANT_MARGIN,
       };
     } catch {
       return NO_STATION;
     }
   }
+
+  // The player's rank (0 Novice .. 4 Master) in a skill they have taken up (masterySystem's private.mastery), or -1
+  private rankIn(mp: Mp, actorId: number, skill: string): number {
+    try {
+      const rec = mp.get(actorId, "private.mastery");
+      if (!rec || !Array.isArray(rec.order) || rec.order.indexOf(skill) === -1) return -1;
+      const rank = Number(((rec.skills || {})[skill] || {}).rank);
+      return Number.isFinite(rank) ? Math.max(0, Math.min(4, Math.floor(rank))) : 0;
+    } catch {
+      return -1;
+    }
+  }
+
+  private rankGates = false;
 
   private itemInfo(ctx: SystemContext, baseId: number): ItemInfo {
     const hit = this.itemCache.get(baseId >>> 0);
@@ -523,6 +594,12 @@ export class CraftedExtrasSystem implements System {
     return !!enit && enit.byteLength >= 8 && (viewOf(enit).getUint32(4, true) & FLAG_POISON) !== 0;
   }
 
+  // The MGEF's primary actor value (DATA offset 68), or -1
+  private primaryAvOf(ctx: SystemContext, mgefId: number): number {
+    const data = this.fieldData(this.lookup(ctx, mgefId), "DATA");
+    return data && data.byteLength >= 72 ? viewOf(data).getInt32(68, true) : -1;
+  }
+
   private baseCostOf(ctx: SystemContext, mgefId: number): number {
     const data = this.fieldData(this.lookup(ctx, mgefId), "DATA");
     return data && data.byteLength >= 8 ? viewOf(data).getFloat32(4, true) : 0;
@@ -550,12 +627,14 @@ export class CraftedExtrasSystem implements System {
     }
   }
 
-  // Strongest effect of each kind in any plugin enchantment, keyed "w" or "a" plus the MGEF id
+  // Strongest effect of each kind in the base game's player enchantments, keyed "w" or "a" plus the MGEF id
   private enchantmentCaps(ctx: SystemContext): Map<string, Cap> {
     if (this.caps) return this.caps;
     const caps = new Map<string, Cap>();
     for (const id of this.recordIds(ctx, "ENCH")) {
+      if ((id >>> 24) >= this.baseFiles) continue;
       const res = this.lookup(ctx, id);
+      if (!res || !PLAYER_ENCHANTMENT.test(String(res.record.editorId || ""))) continue;
       const enit = this.fieldData(res, "ENIT");
       if (!enit || enit.byteLength < 24) continue;
       const view = viewOf(enit);
@@ -569,6 +648,7 @@ export class CraftedExtrasSystem implements System {
         if (!(f.data instanceof Uint8Array)) continue;
         if (f.type === "EFID" && f.data.byteLength >= 4) {
           try { effect = res.toGlobalRecordId(viewOf(f.data).getUint32(0, true)) >>> 0; } catch { effect = 0; }
+          if (effect && REFUSED_EFFECT_AVS.has(this.primaryAvOf(ctx, effect))) effect = 0;
         } else if (f.type === "EFIT" && effect && f.data.byteLength >= 12) {
           const v = viewOf(f.data);
           const key = kind + effect;
@@ -582,8 +662,16 @@ export class CraftedExtrasSystem implements System {
       }
     }
     this.caps = caps;
-    this.log(`[crafted] ${caps.size} enchantment effects known`);
+    this.log(`[crafted] ${caps.size} enchantment effects known from ${this.baseFiles} base game files`);
     return caps;
+  }
+
+  // An effect with no cap is refused; each one is logged once
+  private logUncapped(effectId: number, weapon: boolean): void {
+    const key = (weapon ? "w" : "a") + (effectId >>> 0);
+    if (this.uncappedLogged.has(key) || this.uncappedLogged.size >= 256) return;
+    this.uncappedLogged.add(key);
+    this.log(`[crafted] refused an enchantment with ${weapon ? "weapon" : "armor"} effect ${hex(effectId)}, which has no cap`);
   }
 
   // Constructible objects by created item: bench keyword and ingredients
@@ -612,6 +700,20 @@ export class CraftedExtrasSystem implements System {
     }
     this.recipes = recipes;
     return recipes;
+  }
+
+  // An accepted enchantment is Enchanter work and an accepted temper Blacksmith work, inside the Wheel's hourly and daily
+  // limits (masterySystem's award); the same item again counts less. Nothing else reached those skills from a bench.
+  private creditWork(actorId: number, plan: Plan): void {
+    const award = (globalThis as any).__alduinakMasteryAward;
+    if (typeof award !== "function") return;
+    const key = plan.entry.baseId >>> 0;
+    try {
+      if (plan.enchantSoul > 0) award(actorId, "enchanter", Math.min(3, 1 + ENCHANT_WORK_PER_SOUL * plan.enchantSoul), key);
+      if (plan.temperSteps > 0) award(actorId, "blacksmith", Math.min(3, 0.5 + TEMPER_WORK_PER_STEP * plan.temperSteps), key);
+    } catch (e) {
+      this.log(`[crafted] ${hex(actorId)}: skill credit failed: ${e}`);
+    }
   }
 
   // Unused, unexpired credits; the live list, so a committed plan marks its credit used
@@ -666,5 +768,7 @@ export class CraftedExtrasSystem implements System {
   private itemCache = new Map<number, ItemInfo>();
   private keywordCache = new Map<number, number[]>();
   private caps: Map<string, Cap> | null = null;
+  private baseFiles = BASE_GAME_FILES.size;
+  private uncappedLogged = new Set<string>();
   private recipes: Map<number, TemperRecipe[]> | null = null;
 }

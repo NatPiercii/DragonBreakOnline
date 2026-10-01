@@ -40,6 +40,8 @@ const SECURE = config.websiteUrl.startsWith('https:')
 
 let websiteOrigin = null
 try { websiteOrigin = new URL(config.websiteUrl).origin } catch { /* malformed WEBSITE_URL: logout refuses every Origin */ }
+// The exact website Origin; a missing one is refused
+const sameOrigin = req => !!websiteOrigin && req.get('origin') === websiteOrigin
 
 // Sign-in must start on the host Discord returns to, or the host-only state cookie never comes back
 let loginUrl = null
@@ -330,7 +332,7 @@ router.get('/characters', (req, res) => {
 // POST /api/site/report: the website report form, same-origin only and filed under the signed-in Discord account.
 // The origin and session checks and the rate limit all run before the 2 MB body is read.
 function reportSender(req, res, next) {
-  if (!websiteOrigin || req.get('origin') !== websiteOrigin) return res.status(403).json({ error: 'badOrigin' })
+  if (!sameOrigin(req)) return res.status(403).json({ error: 'badOrigin' })
   const session = currentSession(req)
   if (!session) return res.status(401).json({ error: 'signedOut' })
   req.siteSession = session
@@ -358,7 +360,7 @@ router.use('/report', problemReport.bodyErrors)
 
 // POST /api/site/logout: same-origin only, so another site cannot sign the visitor out
 router.post('/logout', (req, res) => {
-  if (!websiteOrigin || req.get('origin') !== websiteOrigin) return res.status(403).json({ error: 'badOrigin' })
+  if (!sameOrigin(req)) return res.status(403).json({ error: 'badOrigin' })
   const token = readCookie(req, SESSION_COOKIE)
   if (token) siteSessions.revoke(token)
   setCookie(res, SESSION_COOKIE, '', SESSION_PATH, 0)
@@ -366,5 +368,5 @@ router.post('/logout', (req, res) => {
 })
 
 module.exports = router
-// Shared with the staff dashboard route so both read sessions and characters the same way
-module.exports.internals = { currentSession, readStore, toSiteCharacter, profileIdOf, dynamicFields }
+// Shared with the staff dashboard routes so they read sessions and characters and check the Origin the same way
+module.exports.internals = { currentSession, readStore, toSiteCharacter, profileIdOf, dynamicFields, sameOrigin }

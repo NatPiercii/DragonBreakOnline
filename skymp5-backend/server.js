@@ -64,9 +64,10 @@ console.log(`[cors] allowed origins: ${corsOrigins.join(', ')}`)
 const globalJson = express.json({
   verify: (req, _res, buf) => { req.rawBody = buf },
 })
-// Problem reports are parsed by their own routes, up to 2 MB and only after the sender checks and rate limit
-const REPORT_PATHS = new Set(['/api/files/report', '/api/site/report'])
-app.use((req, res, next) => (REPORT_PATHS.has(req.path.toLowerCase().replace(/\/{2,}/g, '/').replace(/\/+$/, '')) ? next() : globalJson(req, res, next)))
+// Problem reports and the server controls are parsed by their own routes, only after the sender checks and rate limits
+const OWN_PARSER_PATHS = ['/api/files/report', '/api/site/report',
+  ...require('./sources/serverControl').ACTIONS.map(a => `/api/site/staff/server/actions/${a}`)]
+app.use(require('./sources/problemReport').parserExcept(OWN_PARSER_PATHS, globalJson))
 
 // Static file serving: root/ is installed into Skyrim/ (Data/ sub-dir)
 app.use('/files/root', express.static(path.join(config.clientFilesDir, 'root')))
@@ -103,6 +104,8 @@ app.use('/api/role-permissions',  rolePermissionsRoute)
 app.use('/api/server-access',      serverAccessRoute)
 app.use('/api/players',            playersRoute)
 app.use('/api/launch-check',       launchCheckRoute)
+const siteServerRoute = require('./routes/site-server')
+app.use('/api/site/staff/server', siteServerRoute)
 app.use('/api/site/staff', require('./routes/site-staff'))
 app.use('/api/site',               siteAuthRoute)
 // Body-parser failures on any route answer in JSON; NODE_ENV is unset here, so the default handler would send a stack trace
@@ -110,4 +113,6 @@ app.use(require('./sources/problemReport').bodyErrors)
 
 app.listen(PORT, () => {
   console.log(`DragonBreak backend running on http://localhost:${PORT}`)
+  siteServerRoute.recover()
+  require('./sources/autoReport').start()
 })

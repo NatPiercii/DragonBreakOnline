@@ -3,7 +3,7 @@ import * as path from "path";
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId } from "./formIdUtil";
-import { readAdminRoleConfig, adminTierOf, AdminRoleConfig } from "./adminRoles";
+import { readAdminRoleConfig, adminTierOf, AdminRoleConfig, TIER_CAPS } from "./adminRoles";
 import { getZones, Zones, Zone, normDesc } from "./zones";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
@@ -48,9 +48,10 @@ type Mp = any;
 //   bountyBoardMaxDistance  posting reach in game units, default 512
 //   bountyBoardTreasuryPercent  share of a paid post deposited in the zone's treasury, default 50
 
+// Not "6:DragonBreak.esp": it was the Noticeboard activator, but DragonBreak Online Edits overrides it as the
+// ExpeditionBoard (dungeons.js opens it), and none of its refs is a notice board.
 const DEFAULT_BASE_DESCS = [
   "3e10:notice board.esp",          // manny_up_NoticeBoardActivator
-  "6:DragonBreak.esp",              // Noticeboard
   "900:DragonBreak Harvest.esp",    // RP_NoticeBoard
   "901:DragonBreak Harvest.esp",    // RP_NoticeBoardCandle
   "902:DragonBreak Harvest.esp",    // RP_NoticeBoardWall
@@ -457,8 +458,9 @@ export class BountyBoardSystem implements System {
     return titles.length ? titles.join(", ") : "officials";
   }
 
+  // Staff powers on the boards (free Hold Notices, taking any notice down): Lead GM and above; a GM observes (review A3-1)
   private isAdmin(ctx: SystemContext, actorId: number): boolean {
-    try { return adminTierOf(ctx.svr as Mp, actorId, this.roleCfg) !== null; } catch { return false; }
+    try { const tier = adminTierOf(ctx.svr as Mp, actorId, this.roleCfg); return tier !== null && TIER_CAPS[tier].spawn; } catch { return false; }
   }
 
   // ── Gold ────────────────────────────────────────────────────────────────────

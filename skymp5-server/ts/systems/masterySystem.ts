@@ -46,6 +46,8 @@ type Mp = any;
 // A legacy one-profession record is migrated on first read.
 
 const MASTERY_PROP = "private.mastery";
+// { mult, until }: a timed skill boost the gameplay layer grants; honoured while Date.now() < until, mult 1..3
+const XP_BOOST_PROP = "private.xpBoost";
 const SKILLS_FILE = "skills.json";
 const GOLD_BASE_ID = 0x0000000f;
 
@@ -109,6 +111,7 @@ interface SkillDef {
   vanillaSkills: string[];
   counts: Record<string, unknown>;
   gates: Record<string, unknown>;
+  craftWeight: P.CraftWeights | null;   // skills.json craftWeight: what a recipe of this skill is worth, by tier or ingredients
 }
 
 interface SkillProgress {
@@ -156,6 +159,9 @@ interface ResolvedRules {
   killKeywords: Set<number>;
   hitKeywords: Set<number>;
   weaponTypes: Set<string>;
+  // Weapons listed by form id (skills.json counts.weaponIds): they count for this skill whatever their class, and for
+  // no other weapon skill (Martial Arts' staves animate as battleaxes but are never Blunt)
+  weaponIds: Set<number>;
   spellSchools: Set<string>;
   damageTakenWhileArmored: boolean;
   blockEvents: boolean;
@@ -206,6 +212,19 @@ interface Location { cell: string; pos: number[]; }
 const emptyRecord = (): MasteryRecord => ({ skills: {}, order: [], respecs: 0 });
 const emptyProgress = (): SkillProgress => ({ level: 0, lastPointAt: 0, rank: 0, granted: [] });
 const stringList = (v: unknown): string[] => Array.isArray(v) ? v.filter((x) => typeof x === "string" && x) : [];
+const numberList = (v: unknown): number[] => Array.isArray(v) ? v.map(Number).filter((x) => Number.isFinite(x) && x >= 0) : [];
+const craftWeightsOf = (v: any): P.CraftWeights | null => {
+  if (!v || typeof v !== "object") return null;
+  const w = { byTier: numberList(v.byTier), byIngredients: numberList(v.byIngredients) };
+  return w.byTier.length || w.byIngredients.length ? w : null;
+};
+// The one skill a player's cast of a school credits, when the gameplay names it (schools.js: Alteration is Priest's, or
+// Arcane Arts' for a mage who chose it as a school); undefined keeps skills.json's spellCastSchools
+const castRoute = (actorId: number, school: string): string | undefined => {
+  const route = (globalThis as any).__dboCastSkill;
+  if (typeof route !== "function") return undefined;
+  try { const id = route(actorId, school); return typeof id === "string" && id ? id : undefined; } catch { return undefined; }
+};
 
 export class MasterySystem implements System {
   systemName = "MasterySystem";
@@ -226,9 +245,15 @@ export class MasterySystem implements System {
 
     ctx.gm.on("userAssignActor", (userId: number, actorId: number) => this.onActorAssigned(ctx, userId, actorId >>> 0));
     (globalThis as any).__alduinakMasteryEvent = (kind: string, actorId: number, detail: unknown) => this.enqueue(kind, actorId, detail);
+    (globalThis as any).__alduinakXpBoost = XP_BOOST_PROP;
     // A first touch the gameplay layer decides on: spells.js takes up a school's skill when a Novice tome is read at a
     // spell study point (Nate, 2026-09-25). "ok", "held" (already taken up), "full" (no pool point free) or "unknown".
     (globalThis as any).__alduinakMasteryFirstTouch = (actorId: number, skillId: string): string => this.firstTouchFromGameplay(ctx, Number(actorId) >>> 0, String(skillId));
+    // Work the gameplay judged for one held skill, inside the Wheel's hourly and daily limits (see award)
+    (globalThis as any).__alduinakMasteryAward = (actorId: number, skillId: string, weight: number, key: number): number => {
+      try { return this.award(ctx, Number(actorId) >>> 0, String(skillId), Number(weight), Number(key) >>> 0); }
+      catch (e) { this.log(`[skills] award to ${skillId} failed: ${e}`); return 0; }
+    };
     this.hookNativeEvents(ctx);
   }
 
@@ -267,6 +292,7 @@ export class MasterySystem implements System {
       id: String(k.id), category: String(k.category || ""), label: String(k.label || k.id), title: String(k.title || ""),
       description: String(k.description || ""), tiers: stringList(k.tiers), vanillaSkills: stringList(k.vanillaSkills),
       counts: k.counts && typeof k.counts === "object" ? k.counts : {}, gates: k.gates && typeof k.gates === "object" ? k.gates : {},
+      craftWeight: craftWeightsOf(k.craftWeight),
     }));
     const h = raw.skills && raw.skills.find((k: any) => k.id === "harvesting");
     if (h) {
@@ -297,9 +323,13 @@ export class MasterySystem implements System {
         return verdict;
       };
     };
-    chain("onCraft", "craft", ([actorId, , , recipeId]) =>
-      [actorId, { recipeId, held: this.holdsInputs(ctx, Number(actorId) >>> 0, Number(recipeId) >>> 0) ? 1 : 0,
-                  value: this.productValue(ctx, Number(recipeId) >>> 0) }]);
+    chain("onCraft", "craft", ([actorId, , , recipeId]) => {
+      const shape = this.recipeShape(ctx, Number(recipeId) >>> 0);
+      const detail: Record<string, number> = { recipeId: Number(recipeId) >>> 0, held: this.holdsInputs(ctx, Number(actorId) >>> 0, Number(recipeId) >>> 0) ? 1 : 0,
+                                                value: this.productValue(ctx, Number(recipeId) >>> 0), parts: shape.parts };
+      if (shape.tierSkill) detail[`tier:${shape.tierSkill}`] = shape.tier;   // the tier gate names its skill
+      return [actorId, detail];
+    });
     chain("onActivate", "activate", ([refrId, casterId]) => [casterId, { refrId }], ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
     chain("onEatItem", "eat", ([actorId, baseId]) => [actorId, { baseId }]);
     // onHitDamage(aggressorId, targetId, sourceId, damage): credit the attacker (hit) and the defender (hurt).
@@ -471,6 +501,7 @@ export class MasterySystem implements System {
     const now = Date.now();
     const userId = this.userOf(ctx, ev.actorId);
     const mult = this.xpMultOf(ctx, ev.actorId);
+    const boost = this.xpBoostOf(ctx, ev.actorId);
     let changed = false;
     for (const id of this.candidates.get(ev.kind) || []) {
       const rules = this.rules[id]; if (!rules) continue;
@@ -485,7 +516,7 @@ export class MasterySystem implements System {
         if (rules.gateStations.size || rules.gatePrefixes.length) continue;
         if (!this.matches(ctx, id, rules, ev)) continue;
         const bank = prog || (rec.skills[id] = emptyProgress());
-        bank.shadow = (bank.shadow || 0) + P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * mult;
+        bank.shadow = (bank.shadow || 0) + this.weightFor(id, ev) * mult * boost;
         changed = true;
         if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
           bank.offered = true;
@@ -499,31 +530,55 @@ export class MasterySystem implements System {
         continue;
       }
       if (!this.matches(ctx, id, rules, ev)) continue;
-      const rep = P.repetitionFactor(prog.ring || [], this.noveltyOf(ev), now);
-      prog.ring = rep.ring;
       // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
       // It was never passed before, so every weight sat at its v=0 base and every scaling term in
       // weightOf was dead; an emitter that does not send one still gets that base.
-      const units = P.weightOf({ kind: ev.kind, value: ev.detail["value"] }) * rep.factor * mult;
-      const before = prog.level;
-      const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now);
+      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost);
       changed = true;
-      // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
-      if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
-      if (out.refused === "pool") this.noticeRefused(ctx, userId, ev.actorId);
-      if (out.gained > 0) {
-        this.notice(ctx, userId, `Your ${this.labelOf(id)} rises to ${prog.level}.`);
-        this.syncRank(ctx, ev.actorId, rec, id, userId);
-      } else if (prog.level < before) {
-        this.syncRank(ctx, ev.actorId, rec, id, userId);
-      }
-      for (const taken of out.tookFrom) {
-        if (taken.levels <= 0) continue;
-        this.notice(ctx, userId, `Your ${this.labelOf(taken.id)} slips to ${rec.skills[taken.id].level}.`);
-        this.syncRank(ctx, ev.actorId, rec, taken.id, userId);
-      }
     }
     if (changed) this.write(ctx, ev.actorId, rec);
+  }
+
+  // One act's worth of work on one held skill: the same key again within the hour counts less, the bucket and the day's
+  // caps decide what is kept, and a full Wheel takes from a waning skill. Returns the units credited.
+  // `boost` is the timed private.xpBoost multiplier (1..3); applyGain applies it after the bucket and the daily caps.
+  private gain(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, prog: SkillProgress, weight: number, novelty: number, now: number, userId: number, boost = 1): number {
+    const cfg = this.points; if (!cfg) return 0;
+    const rep = P.repetitionFactor(prog.ring || [], novelty, now);
+    prog.ring = rep.ring;
+    const units = weight * rep.factor;
+    const before = prog.level;
+    const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost);
+    // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
+    if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
+    if (out.refused === "pool") this.noticeRefused(ctx, userId, actorId);
+    if (out.gained > 0) {
+      this.notice(ctx, userId, `Your ${this.labelOf(id)} rises to ${prog.level}.`);
+      this.syncRank(ctx, actorId, rec, id, userId);
+    } else if (prog.level < before) {
+      this.syncRank(ctx, actorId, rec, id, userId);
+    }
+    for (const taken of out.tookFrom) {
+      if (taken.levels <= 0) continue;
+      this.notice(ctx, userId, `Your ${this.labelOf(taken.id)} slips to ${rec.skills[taken.id].level}.`);
+      this.syncRank(ctx, actorId, rec, taken.id, userId);
+    }
+    return out.units;
+  }
+
+  // Work the gameplay judged for one named skill (manuals.js: a smithing skill book read is Blacksmith work). Only a skill
+  // already held gains; one is taken up at its own station or offer, never by an award. `weight` is one act's worth in
+  // the units weightOf gives (0.5 to 3); `key` is what the repeat ring counts. Returns the units credited, 0 at the caps.
+  // A timed private.xpBoost applies to an award as to any other work.
+  private award(ctx: SystemContext, actorId: number, skillId: string, weight: number, key: number): number {
+    if (!this.points || !this.isPlayer(ctx, actorId) || !this.def(skillId) || !(weight > 0)) return 0;
+    const rec = this.read(ctx, actorId); if (!rec) return 0;
+    const prog = rec.skills[skillId]; if (!prog || !(prog.level >= 1)) return 0;
+    this.creditStats.events.set("award", (this.creditStats.events.get("award") || 0) + 1);
+    this.creditStats.actors.add(actorId);
+    const units = this.gain(ctx, actorId, rec, skillId, prog, Math.min(3, weight) * this.xpMultOf(ctx, actorId), (key >>> 0) ^ 0x61000000, Date.now(), this.userOf(ctx, actorId), this.xpBoostOf(ctx, actorId));
+    this.write(ctx, actorId, rec);
+    return units;
   }
 
   // The same target, station or recipe again and again is worth less; this is the key the ring counts.
@@ -577,6 +632,15 @@ export class MasterySystem implements System {
     return mult;
   }
 
+  private xpBoostOf(ctx: SystemContext, actorId: number): number {
+    try {
+      const b = (ctx.svr as Mp).get(actorId, XP_BOOST_PROP);
+      const m = Number(b && b.mult), until = Number(b && b.until);
+      if (Number.isFinite(m) && m > 1 && Number.isFinite(until) && Date.now() < until) return Math.min(3, m);
+    } catch { /* no boost */ }
+    return 1;
+  }
+
   private matches(ctx: SystemContext, skillId: string, rules: ResolvedRules, ev: ActivityEvent): boolean {
     switch (ev.kind) {
       case "craft": {
@@ -603,10 +667,15 @@ export class MasterySystem implements System {
         const targetId = ev.detail["targetId"]; const sourceId = ev.detail["sourceId"];
         const reach = this.hitReach(ctx, sourceId);
         if (reach <= 0 || this.isDead(ctx, targetId)) return false;
-        if (rules.weaponTypes.size) {
-          const cls = this.weaponClass(ctx, sourceId);
-          const ok = rules.weaponTypes.has(cls) || (cls === "Battleaxe" && rules.weaponTypes.has("Warhammer"));
-          if (!ok) return false;
+        if (rules.weaponTypes.size || rules.weaponIds.size) {
+          const src = Number(sourceId) >>> 0;
+          if (!rules.weaponIds.has(src)) {
+            // A weapon another skill lists by id is that skill's alone
+            if (this.claimedWeapons.has(src)) return false;
+            const cls = this.weaponClass(ctx, sourceId);
+            const ok = rules.weaponTypes.has(cls) || (cls === "Battleaxe" && rules.weaponTypes.has("Warhammer"));
+            if (!ok) return false;
+          }
         }
         return this.combatCounts(ctx, ev.actorId, targetId, rules.hitKeywords, reach);
       }
@@ -614,7 +683,9 @@ export class MasterySystem implements System {
       case "cast": {
         if (!rules.spellSchools.size) return false;
         const school = this.spellSchool(ctx, ev.detail["spellId"]);
-        return !!school && rules.spellSchools.has(school);
+        if (!school) return false;
+        const routed = castRoute(ev.actorId, school);
+        return routed ? routed === skillId : rules.spellSchools.has(school);
       }
       case "prayer": return skillId === "priest";
       case "lock": return skillId === "lockpicking";
@@ -979,7 +1050,7 @@ export class MasterySystem implements System {
 
   private async loadRules(ctx: SystemContext, dataDir: string, loadOrder: string[]): Promise<void> {
     const wanted = new Set<string>();
-    const raw: Record<string, { craftKeywords: string[]; craftStations: string[]; activatePrefixes: string[]; activateTypes: string[]; eatIngredient: boolean; killKeywords: string[]; hitKeywords: string[]; weaponTypes: string[]; spellSchools: string[]; damageTakenWhileArmored: boolean; blockEvents: boolean; gateStations: string[]; gatePrefixes: string[]; gateNodes: boolean }> = {};
+    const raw: Record<string, { craftKeywords: string[]; craftStations: string[]; activatePrefixes: string[]; activateTypes: string[]; eatIngredient: boolean; killKeywords: string[]; hitKeywords: string[]; weaponTypes: string[]; weaponIds: string[]; spellSchools: string[]; damageTakenWhileArmored: boolean; blockEvents: boolean; gateStations: string[]; gatePrefixes: string[]; gateNodes: boolean }> = {};
     const markerNames: string[] = [];
     for (const k of this.skills) {
       const c = k.counts as Record<string, unknown>; const g = k.gates as Record<string, unknown>;
@@ -988,7 +1059,7 @@ export class MasterySystem implements System {
         craftKeywords: stringList(c["craftKeywords"]), craftStations: stringList(c["craftStations"]),
         activatePrefixes: stringList(c["activatePrefixes"]), activateTypes: stringList(c["activateTypes"]),
         eatIngredient: !!c["eatIngredient"], killKeywords: stringList(c["killKeywords"]), hitKeywords: stringList(c["hitKeywords"]),
-        weaponTypes: stringList(c["weaponTypes"]), spellSchools: stringList(c["spellCastSchools"]),
+        weaponTypes: stringList(c["weaponTypes"]), weaponIds: stringList(c["weaponIds"]), spellSchools: stringList(c["spellCastSchools"]),
         damageTakenWhileArmored: !!c["damageTakenWhileArmored"], blockEvents: !!c["blockEvents"],
         // Every station entry is tried as a keyword first; whatever does not resolve gates by base editor id prefix instead.
         gateStations: stations,
@@ -1019,15 +1090,18 @@ export class MasterySystem implements System {
     const stationNames = new Set<string>(); for (const k of this.skills) for (const n of raw[k.id].gateStations) stationNames.add(n);
     this.log(`[skills] resolved ${ids.size}/${names.length} form(s) in ${scan.scannedMs} ms${unresolved.length ? `, unresolved: ${unresolved.filter((n) => !n.startsWith("DBO_Skill_") && !stationNames.has(n)).join(", ") || "none"}` : ""}${missingMarkers.length ? `, ${missingMarkers.length} marker spell(s) missing` : ""}`);
     const toIds = (list: string[]): Set<number> => new Set(list.map((n) => ids.get(n) || 0).filter((v) => v));
+    const descIds = (list: string[]): Set<number> => new Set(list.map((d) => { try { return mp.getIdFromDesc(d) >>> 0; } catch (e) { return 0; } }).filter((v) => v));
+    this.claimedWeapons = new Set();
     for (const k of this.skills) {
       const r = raw[k.id];
       this.rules[k.id] = {
         craftKeywords: toIds(r.craftKeywords), craftStations: toIds(r.craftStations),
         activatePrefixes: r.activatePrefixes.map((p) => p.toLowerCase()), activateTypes: new Set(r.activateTypes.map((t) => t.toUpperCase())),
         eatIngredient: r.eatIngredient, killKeywords: toIds(r.killKeywords), hitKeywords: toIds(r.hitKeywords),
-        weaponTypes: new Set(r.weaponTypes), spellSchools: new Set(r.spellSchools), damageTakenWhileArmored: r.damageTakenWhileArmored, blockEvents: r.blockEvents,
+        weaponTypes: new Set(r.weaponTypes), weaponIds: descIds(r.weaponIds), spellSchools: new Set(r.spellSchools), damageTakenWhileArmored: r.damageTakenWhileArmored, blockEvents: r.blockEvents,
         gateStations: toIds(r.gateStations), gatePrefixes: r.gateStations.filter((n) => !ids.has(n)).map((n) => n.toLowerCase()), gateNodes: r.gateNodes,
       };
+      for (const w of this.rules[k.id].weaponIds) this.claimedWeapons.add(w);
       const list: number[] = [];
       for (let t = 1; t <= this.tierHours.length; t++) list.push(ids.get(`DBO_Skill_${k.id}_T${t}`) || 0);
       if (list.some((v) => v)) this.spells[k.id] = list;
@@ -1172,6 +1246,35 @@ export class MasterySystem implements System {
     const hit = this.benchCache.get(recipeId); if (hit !== undefined) return hit;
     const bench = this.fieldFormIds(this.lookup(ctx, recipeId), "BNAM")[0] || 0;
     this.benchCache.set(recipeId, bench); return bench;
+  }
+
+  // What one act is worth to one skill. A craft is weighed by the skill's own craftWeight (skills.json) when it has one:
+  // by the recipe's tier marker for this skill, else by its ingredient count (skillPoints.craftWeightOf).
+  private weightFor(id: string, ev: ActivityEvent): number {
+    const d = ev.detail || {};
+    if (ev.kind !== "craft") return P.weightOf({ kind: ev.kind, value: d["value"] });
+    const def = this.def(id);
+    return P.craftWeightOf({ value: d["value"], parts: d["parts"], tier: d[`tier:${id}`] || 0 }, def ? def.craftWeight : null);
+  }
+
+  // How much goes into a recipe: its ingredient entries (CNTO), and the tier its gate asks for - a HasSpell condition
+  // (function 264) on a DBO_Skill_<skill>_T<n> marker, as tools/recipes writes on every Cook and Blacksmith recipe.
+  // CTDA: the function index is a uint16 at offset 8 and the first parameter a record-local form id at 12.
+  private recipeShape(ctx: SystemContext, recipeId: number): { parts: number; tier: number; tierSkill: string } {
+    const hit = this.shapeCache.get(recipeId); if (hit) return hit;
+    const out = { parts: 0, tier: 0, tierSkill: "" };
+    const res = recipeId ? this.lookup(ctx, recipeId) : null;
+    for (const f of (res && res.record && res.record.fields) || []) {
+      if (f.type === "CNTO") out.parts++;
+      if (f.type !== "CTDA" || !(f.data instanceof Uint8Array) || f.data.byteLength < 16) continue;
+      const view = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength);
+      if (view.getUint16(8, true) !== 264) continue;
+      let marker: any = null;
+      try { marker = this.lookup(ctx, res.toGlobalRecordId(view.getUint32(12, true)) >>> 0); } catch { continue; }
+      const m = /^DBO_Skill_(\w+)_T(\d)$/.exec(String((marker && marker.record && marker.record.editorId) || ""));
+      if (m && Number(m[2]) > out.tier) { out.tier = Number(m[2]); out.tierSkill = m[1]; }
+    }
+    this.shapeCache.set(recipeId, out); return out;
   }
 
   // Gold value of what a recipe makes, for skillPoints.weightOf's "craft" scale term.
@@ -1401,6 +1504,7 @@ export class MasterySystem implements System {
   private candidates = new Map<string, string[]>();  // event kind -> the skills that could possibly match it
   private lastRefuseMs = new Map<number, number>();
   private skills: SkillDef[] = [];
+  private shapeCache = new Map<number, { parts: number; tier: number; tierSkill: string }>();
   private categories: Array<{ id: string; label: string }> = [];
   private tierHours = DEFAULT_TIER_HOURS.slice();
   private tierNames = DEFAULT_TIER_NAMES.slice();
@@ -1414,6 +1518,7 @@ export class MasterySystem implements System {
   private intervalMs = DEFAULT_POINT_INTERVAL_MINUTES * 60000;
   private spells: Record<string, number[]> = {};
   private rules: Record<string, ResolvedRules> = {};
+  private claimedWeapons: Set<number> = new Set();
   private playerKeyword = 0;
   private neighborsFailed = false;
   private events: ActivityEvent[] = [];

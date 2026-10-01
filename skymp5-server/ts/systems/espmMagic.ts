@@ -19,6 +19,17 @@ export interface SpellEffect {
   magnitude: number;
   area: number;
   durationSec: number;
+  // The effect's GetIsRace conditions on the caster, e.g. Summon Skeleton's one skeleton per race
+  casterRaces: RaceCondition[];
+  // Every condition of the effect in order, so OR groups stay right; raceId 0 marks one the server does not evaluate
+  conditions: RaceCondition[];
+}
+
+interface RaceCondition {
+  raceId: number;
+  compare: number;
+  value: number;
+  or: boolean;
 }
 
 interface KeywordCondition {
@@ -30,7 +41,13 @@ interface KeywordCondition {
 // Script effect of Reanimate Corpse, Revenant and Dread Zombie that turns the zombie to ash; Dead Thrall has none
 const ASH_PILE_SCRIPT = "reanimateashpile";
 const CTDA_HAS_KEYWORD = 560;
+const CTDA_GET_IS_RACE = 69;
+const CTDA_OR = 0x01;
 const CTDA_USE_GLOBAL = 0x04;
+const CTDA_RUN_ON_SUBJECT = 0;
+const CTDA_RUN_ON_REFERENCE = 2;
+// On a server the player a spell's PlayerRef condition means is its caster
+const PLAYER_REF = 0x14;
 const ACBS_PC_LEVEL_MULT = 0x80;
 const TEMPLATE_USE_TRAITS = 0x0001;
 const TEMPLATE_USE_STATS = 0x0002;
@@ -78,6 +95,15 @@ export const spellEffects = (mp: Mp, spellId: number): SpellEffect[] => {
     let mgefId = 0;
     for (const f of spell.record.fields) {
       if (!(f?.data instanceof Uint8Array)) continue;
+      // Conditions follow the EFIT of the effect they belong to
+      if (f.type === "CTDA" && out.length && !mgefId) {
+        const cond = casterRaceCondition(spell, f.data);
+        if (cond) {
+          out[out.length - 1].conditions.push(cond);
+          if (cond.raceId) out[out.length - 1].casterRaces.push(cond);
+        }
+        continue;
+      }
       if (f.type === "EFID" && f.data.byteLength >= 4) {
         mgefId = toGlobal(spell, view(f.data).getUint32(0, true));
       } else if (f.type === "EFIT" && mgefId && f.data.byteLength >= 12) {
@@ -92,6 +118,8 @@ export const spellEffects = (mp: Mp, spellId: number): SpellEffect[] => {
           magnitude: efit.getFloat32(0, true),
           area: efit.getUint32(4, true),
           durationSec: efit.getUint32(8, true),
+          casterRaces: [],
+          conditions: [],
         });
         mgefId = 0;
       }
@@ -99,6 +127,56 @@ export const spellEffects = (mp: Mp, spellId: number): SpellEffect[] => {
   }
   effectCache.set(spellId, out);
   return out;
+};
+
+// A literal GetIsRace on the caster (the subject, or PlayerRef) with its race; any other condition with raceId 0, which
+// counts as passing but keeps its place in the OR groups; null for data too short to read
+const casterRaceCondition = (spell: any, data: Uint8Array): RaceCondition | null => {
+  if (data.byteLength < 28) return null;
+  const v = view(data);
+  const op = v.getUint8(0);
+  const other = { raceId: 0, compare: 0, value: 0, or: !!(op & CTDA_OR) };
+  if (v.getUint16(8, true) !== CTDA_GET_IS_RACE || op & CTDA_USE_GLOBAL) return other;
+  const runOn = v.getUint32(20, true);
+  const onPlayerRef = runOn === CTDA_RUN_ON_REFERENCE && toGlobal(spell, v.getUint32(24, true)) === PLAYER_REF;
+  if (runOn !== CTDA_RUN_ON_SUBJECT && !onPlayerRef) return other;
+  const raceId = toGlobal(spell, v.getUint32(12, true));
+  return raceId ? { raceId, compare: op >> 5, value: v.getFloat32(4, true), or: !!(op & CTDA_OR) } : other;
+};
+
+// The effect's caster race conditions, with OR binding tighter than AND as in the engine; the conditions the server does
+// not evaluate count as passing; true when it has none
+export const casterRacePasses = (effect: SpellEffect, raceId: number): boolean => {
+  const list = effect.conditions ?? effect.casterRaces;
+  let result = true;
+  let group = false;
+  for (const c of list) {
+    group = group || (c.raceId === 0 ? true : compare(raceId === c.raceId ? 1 : 0, c.compare, c.value));
+    if (!c.or) {
+      result = result && group;
+      group = false;
+    }
+  }
+  const last = list[list.length - 1];
+  return last && last.or ? result && group : result;
+};
+
+// Skyrim.esm NordRace: the human summon of a spell with one per race
+const NORD_RACE = 0x13746;
+
+// Which summon a caster of this race conjures, and the effect whose duration it keeps: the caster's own race's, else the
+// human one (gated on NordRace), else the first; an effect with no duration of its own (Summon Skeleton's later ones)
+// lasts as long as a sibling instead of forever
+export const pickSummon = (summons: SpellEffect[], raceOf: () => number): { effect: SpellEffect; timed: SpellEffect } | null => {
+  if (!summons.length) return null;
+  let effect = summons[0];
+  if (summons.some((e) => e.casterRaces.length > 0)) {
+    const race = raceOf();
+    effect = summons.find((e) => casterRacePasses(e, race))
+      ?? summons.find((e) => e.casterRaces.some((c) => c.raceId === NORD_RACE)) ?? summons[0];
+  }
+  const timed = effect.durationSec > 0 ? effect : summons.find((e) => e.durationSec > 0) ?? effect;
+  return { effect, timed };
 };
 
 // True when an effect of the spell runs the vanilla ReanimateAshPile script (MGEF VMAD)

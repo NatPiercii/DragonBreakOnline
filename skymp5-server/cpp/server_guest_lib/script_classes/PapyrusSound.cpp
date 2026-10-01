@@ -36,4 +36,5 @@ void PapyrusSound::Register(
   compatibilityPolicy = policy;
 
   AddMethod(vm, "Play", &PapyrusSound::Play);
+  AddStubStatic(vm, "StopInstance", VarValue::None());
 }

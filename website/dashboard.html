@@ -38,6 +38,33 @@
  input.search{background:var(--panel-soft);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.45rem .7rem;font:inherit;min-width:240px}
  .scroll{overflow-x:auto}
  .gate{text-align:center;padding:2rem 1rem}
+ .srv{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:.3rem 1rem;box-shadow:var(--glow);margin:.4rem 0 1rem;overflow-wrap:anywhere}
+ .blk{display:grid;grid-template-columns:7rem minmax(0,1fr);gap:.15rem 1rem;padding:.6rem 0;font-size:.9rem}
+ .blk+.blk{border-top:1px solid rgba(143,211,208,.13)}
+ .lbl{font-family:var(--title);color:var(--aqua);letter-spacing:.1em;text-transform:uppercase;font-size:.8rem;padding-top:.1rem}
+ .bar{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .9rem}
+ .pill{display:inline-flex;align-items:center;gap:.4rem;border:1px solid currentColor;border-radius:999px;padding:0 .6rem;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+ .pill::before{content:"";width:.45rem;height:.45rem;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+ .flag{display:inline-block;border:1px solid var(--border);border-radius:4px;padding:0 .4rem;font-size:.74rem;line-height:1.5;color:var(--aqua);background:rgba(143,211,208,.08);margin:.1rem .3rem .1rem 0;white-space:nowrap}
+ .flag.warn{color:var(--amber);border-color:rgba(201,138,58,.6);background:rgba(201,138,58,.1)}
+ .grp{margin:.3rem 0}
+ .grp>summary{cursor:pointer;color:var(--silver)}
+ .qi{padding:.3rem 0 .3rem 1rem;border-bottom:1px solid rgba(143,211,208,.08)}
+ .qm{display:flex;flex-wrap:wrap;align-items:center;gap:0 .7rem;font-size:.82rem}
+ .sha{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;color:var(--text-dim);margin-right:.5rem}
+ .stop{color:var(--amber);font-size:.78rem;letter-spacing:.06em;text-align:center;border-top:1px dashed var(--amber);margin:.4rem 0 .2rem}
+ .srv button{font-size:.78rem;padding:.3rem .9rem;margin-top:.4rem}
+ button.danger{background:rgba(201,70,58,.12);color:#e58b80;border-color:rgba(201,70,58,.65)}
+ button.danger:hover:not(:disabled){background:rgba(201,70,58,.26);border-color:var(--red)}
+ dialog.ctl{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow),var(--glow);padding:1rem 1.2rem;width:min(460px,calc(100vw - 32px))}
+ dialog.ctl::backdrop{background:rgba(0,0,0,.65)}
+ dialog.ctl h3{font-family:var(--title);font-weight:400;color:var(--silver);letter-spacing:.1em;margin:0 0 .5rem}
+ dialog.ctl p{margin:.4rem 0;font-size:.9rem}
+ dialog.ctl label{display:block;color:var(--text-dim);font-size:.8rem;margin:.7rem 0 .2rem}
+ dialog.ctl input{width:100%;background:var(--panel-soft);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:.45rem .7rem;font:inherit}
+ dialog.ctl .acts{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.6rem;margin-top:.9rem}
+ dialog.ctl button{font-size:.8rem;padding:.45rem 1rem}
+ @media (max-width:600px){.srv{padding:.2rem .75rem}.blk{grid-template-columns:minmax(0,1fr)}}
 </style></head><body>
 <img class="wm" src="dbo-watermark.png" alt="">
 <div class="wrap">
@@ -59,6 +86,28 @@
     <div class="status"><span class="live" id="live"></span><span id="status">Loading&hellip;</span></div>
     <a class="btn ghost" href="/profile.html">Your profile</a>
   </div>
+
+  <section id="server" class="srv" hidden>
+    <div class="blk"><span class="lbl">Server</span><div id="srvHead"></div></div>
+    <div class="blk"><span class="lbl">Live</span><div id="srvLive"></div></div>
+    <div class="blk"><span class="lbl">Next update</span><div id="srvQueue"></div></div>
+    <div class="blk"><span class="lbl">Recent</span><div id="srvRecent"></div></div>
+  </section>
+
+  <dialog id="ctl" class="ctl" aria-labelledby="ctlTitle">
+    <form id="ctlForm">
+      <h3 id="ctlTitle"></h3>
+      <p id="ctlWhat"></p>
+      <p id="ctlPlayers" class="dim"></p>
+      <label for="ctlReason">Reason, 5 to 200 characters (kept in the ops ledger and the audit log)</label>
+      <input id="ctlReason" maxlength="200" autocomplete="off">
+      <label for="ctlWord" id="ctlWordLabel"></label>
+      <input id="ctlWord" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <p id="ctlInfo" class="dim"></p>
+      <p id="ctlResult" role="status"></p>
+      <div class="acts"><button type="button" class="ghost" id="ctlClose">Close</button><button type="submit" id="ctlGo"></button></div>
+    </form>
+  </dialog>
 
   <div class="cards" id="cards"></div>
 
@@ -83,7 +132,6 @@
 
   <div class="two">
     <div><h2>Races of the realm</h2><table id="races"></table></div>
-    <div><h2>Builds</h2><table id="builds"></table></div>
   </div>
 </div>
 
@@ -94,7 +142,7 @@
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const num = n => (typeof n === 'number' ? n.toLocaleString('en-GB', { maximumFractionDigits: 3 }) : (n == null ? '-' : n));
-const history = [];
+const onlineSamples = [];
 let accounts = [];
 let sortKey = 'lastGameJoin', sortDir = -1;
 
@@ -145,14 +193,14 @@ const ms = s => (s == null || !Number.isFinite(s) ? 'n/a' : (s < 0.001 ? '< 1 ms
 
 function drawSpark() {
   const svg = $('spark'); svg.textContent = '';
-  if (history.length < 2) return;
-  const max = Math.max(4, ...history);
-  const step = 600 / (history.length - 1);
+  if (onlineSamples.length < 2) return;
+  const max = Math.max(4, ...onlineSamples);
+  const step = 600 / (onlineSamples.length - 1);
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-  line.setAttribute('points', history.map((v, i) => `${(i * step).toFixed(1)},${(58 - (v / max) * 54).toFixed(1)}`).join(' '));
+  line.setAttribute('points', onlineSamples.map((v, i) => `${(i * step).toFixed(1)},${(58 - (v / max) * 54).toFixed(1)}`).join(' '));
   line.setAttribute('fill', 'none'); line.setAttribute('stroke', '#8fd3d0'); line.setAttribute('stroke-width', '2');
   svg.append(line);
-  $('sparkNote').textContent = `${history.length} samples, peak ${Math.max(...history)} while this page has been open.`;
+  $('sparkNote').textContent = `${onlineSamples.length} samples, peak ${Math.max(...onlineSamples)} while this page has been open.`;
 }
 
 function renderPlayers() {
@@ -206,12 +254,13 @@ function renderPlayers() {
   $('count').textContent = `${rows.length} of ${accounts.length} accounts`;
 }
 
-async function getJson(path) {
-  const r = await fetch(path, { cache: 'no-store', credentials: 'same-origin' });
+async function request(path, headers = {}) {
+  const r = await fetch(path, { cache: 'no-store', credentials: 'same-origin', headers });
   if (r.status === 401) throw Object.assign(new Error('signedOut'), { code: 401 });
   if (r.status === 403) throw Object.assign(new Error('notStaff'), { code: 403 });
-  return r.json();
+  return r;
 }
+const getJson = async path => (await request(path)).json();
 
 async function refreshLive() {
   try {
@@ -226,7 +275,7 @@ async function refreshLive() {
     const p95 = quantile(m, 0.95);
     cards.append(card('Server tick, 95%', p95 == null ? 'n/a' : (p95 < 0.001 ? '<1 ms' : Math.round(p95 * 1000) + ' ms'), 'lower is better'));
 
-    if (typeof s.online === 'number') { history.push(s.online); if (history.length > 720) history.shift(); drawSpark(); }
+    if (typeof s.online === 'number') { onlineSamples.push(s.online); if (onlineSamples.length > 720) onlineSamples.shift(); drawSpark(); }
 
     table('perf', ['Measure', 'Value'], [
       ['Tick, median', ms(quantile(m, 0.5))],
@@ -258,11 +307,465 @@ async function refreshPlayers() {
   catch (err) { if (err.code === 401) show('signedOut'); else if (err.code === 403) show('notStaff'); }
 }
 
-async function refreshBuilds() {
+// Server panel: status every 15 s, the queue every 60 s (sooner when the status shows a new queue hash), both read only
+const SRV = '/api/site/staff/server';
+const srv = { status: null, statusFailed: false, queue: null, etag: null, queueFailed: false, queueBusy: false, older: [], moreBusy: false, closed: new Set() };
+const STATE = { reachable: ['Online', 'ok'], starting: ['Starting', 'warn'], updating: ['Updating', 'warn'], stopped: ['Stopped', 'warn'], unresponsive: ['Unresponsive', 'bad'], down: ['Down', 'bad'] };
+const FLAGS = { build: 'Server build', gameRestart: 'Game restart', bootOnly: 'Next restart', hotReload: 'Hot reload', migration: 'Data migration',
+  backendRestart: 'Backend restart', backendDeps: 'Backend packages', clientPack: 'Client change', clientUpdate: 'Client update', nativeBuild: 'Windows build',
+  launcherRelease: 'Launcher release', websiteInstall: 'Website install', news: 'Patch notes', manual: 'Manual step' };
+const HEAVY = new Set(['build', 'gameRestart', 'migration', 'clientUpdate', 'nativeBuild', 'backendDeps']);
+const RESULT = { upToDate: 'up to date', hold: 'skipped for the staging hold', skipped: 'skipped', deferred: 'deferred', updated: 'updated',
+  buildFailed: 'build failed', unhealthy: 'unhealthy after an update', fetchFailed: 'could not reach GitHub' };
+const KIND = { release: 'release', manual: 'manual release', hotfix: 'hotfix', rollback: 'rollback', updater: 'automatic update', gameplay: 'deploy', client: 'published' };
+const HOW = { stamp: 'stamped', matched: 'matched' };
+const STOP_WHY = { notReviewed: 'not reviewed', held: 'held', blocked: 'NO-GO', needsFork: 'waits for a game server change' };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const short = s => (s ? String(s).slice(0, 8) : '?');
+const autoUpdate = s => !['hold-s0', 'release'].includes(s.updater.mode) && !s.updater.blocked;
+// The status's queue counts, or the last full queue while the status has none (a failed refresh leaves only unavailable)
+const freshQueue = s => (s.queue?.hash ? s.queue : srv.queue);
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const line = (text, cls) => el('div', cls || '', text);
+const chip = f => el('span', HEAVY.has(f) ? 'flag warn' : 'flag', FLAGS[f] || f);
+function utc(iso, withDate = true) {
+  const t = Date.parse(iso || '');
+  if (!Number.isFinite(t)) return '?';
+  const d = new Date(t);
+  return (withDate ? `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ` : '') + d.toISOString().slice(11, 16);
+}
+const stamp = iso => utc(iso, !(Date.now() - Date.parse(iso) < 20 * 3600 * 1000)) + ' UTC';
+function span(ms) {
+  const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m / 60) % 24;
+  return d ? `${d} d ${h} h` : `${h} h ${m % 60} m`;
+}
+
+function driftText(code, s) {
+  const f = s.live?.fork || {}, c = s.live?.client || {}, u = s.updater.lastUpdate;
+  return {
+    headNotLive: `HEAD ${short(f.head)} is not live: last release ${short(f.sha)}`,
+    lastUpdateUnfinished: `The last automatic update (${u.from} -> ${u.to}) did not finish`,
+    gameplayOutsideRelease: 'Live gameplay changed without a release',
+    gameplayModified: 'Live gameplay matches no recent server commit',
+    clientOutsideRelease: `Client ${c.version || '?'} was not installed by a release`,
+    clientSourceNotOnMain: `Client ${c.version || '?'} is built from ${short(c.fork)}, which is not on main`,
+    newsOutsideRelease: 'Patch notes changed without a release',
+    extrasChanged: 'The client extras changed without a release',
+    pluginsDiffer: 'Plugin checksums differ from the record in the repo',
+    configChangedSinceStart: 'Server settings or the backend config changed after the service started',
+    versionLabelStale: `The client label says ${s.live?.clientLabel || '?'} while ${c.version || '?'} is served`,
+  }[code] || code;
+}
+
+function blockerText(code, q) {
+  if (code === 'dirtyTree') return q.dirty?.rolePermissionsOnly ? 'the live checkout has local edits: role permissions edited on the dashboard'
+    : `the live checkout has local edits (${plural(q.dirty?.count ?? 0, 'file')})`;
+  return { liveNotOnMain: 'main does not contain the live game server commit', openRelease: 'a release is already open' }[code] || code;
+}
+
+function reviewText(v) {
+  if (!v || v.state === 'none') return ['not reviewed', 'warn'];
+  if (v.state === 'NO-GO') return [`NO-GO${v.by ? ' by ' + v.by : ''}`, 'bad'];
+  if (v.state === 'sameChange') return [`GO (same change as ${v.sameAs})`, 'ok'];
+  if (v.state === 'live') return ['live', 'ok'];
+  return [v.cleanMerge ? 'GO (clean merge)' : `reviewed${v.by ? ' by ' + v.by : ''}`, 'ok'];
+}
+
+function renderHead(s) {
+  const box = $('srvHead'); box.textContent = '';
+  const bar = el('div', 'bar');
+  // systemd waits to start it again after a crash
+  const retrying = s.service.state === 'starting' && /^auto-restart/.test(s.service.sub || '');
+  const [label, tone] = retrying ? ['Crashed, restarting', 'bad'] : STATE[s.service.state] || ['Unknown', 'warn'];
+  bar.append(el('span', 'pill ' + tone, label));
+  bar.append(el('span', '', s.players.online == null ? 'players unknown' : plural(s.players.online, 'player') + ' online'));
+  if ((s.service.state === 'reachable' || s.service.state === 'unresponsive') && s.service.since) bar.append(el('span', '', 'up ' + span(Date.now() - Date.parse(s.service.since))));
+  const u = s.updater;
+  const [mode, modeTone, modeNote] = u.frozen ? ['Frozen', 'warn', 'release mode, updates held'] : u.mode === 'hold-s0' ? ['Staging on', 'ok', 'manual releases']
+    : u.mode === 'release' ? ['Release mode', 'ok', 'updates only by release'] : ['Auto-update on', 'warn', 'a push to main goes live'];
+  const m = el('span');
+  m.append(el('span', 'pill ' + modeTone, mode), el('span', 'dim', ` (${modeNote})`));
+  bar.append(m);
+  box.append(bar);
+  const st = s.stopped;
+  if (st && s.service.state === 'stopped') box.append(line(`Stopped by ${st.by || 'hand'} ${stamp(st.at)}${st.reason ? ': ' + st.reason : ''}`, 'dim'));
+  if (st?.leftover) box.append(line('! A stop marker from before the server last started (a reboot or a manual start) is still there. Restart or Start removes it.', 'warn'));
+  renderControls(s, box);
+  const run = [u.lastRun ? `Updater last ran ${stamp(u.lastRun.at)}: ${RESULT[u.lastRun.result] || u.lastRun.result}` : 'The updater has not run lately',
+    u.building && 'building an update now', u.waiting && 'an update waits for the server to empty'].filter(Boolean);
+  box.append(line(run.join(' · '), 'dim'));
+  if (u.blocked) box.append(line('! Automatic updates are blocked', 'warn'));
+  if (u.buildFailedFor) box.append(line(`! The last build failed${u.buildFailedFor === 'unknown' ? '' : ' for ' + short(u.buildFailedFor)}`, 'warn'));
+  if (s.claims.length) box.append(line('In use: ' + s.claims.map(c => `${c.resource} by ${c.operator} until ${stamp(c.until)}`).join('; '), 'dim'));
+  if (srv.statusFailed) box.append(line(`! Cannot reach the server right now; this is the status from ${stamp(s.generatedAt)}`, 'warn'));
+}
+
+// Owner controls (1b): Start, Stop and Restart at 0 players, confirmed in the dialog; the backend checks every request again
+const ACTS = {
+  start: { label: 'Start', word: 'START', title: 'Start the game server', what: 'Starts the game server. A stop made here is cleared, so automatic updates can run again.' },
+  stop: { label: 'Stop', word: 'STOP', title: 'Stop the game server', what: 'Stops the game server and keeps it stopped until an Owner presses Start. Automatic updates wait meanwhile. A host reboot starts it again and ends the stop.' },
+  restart: { label: 'Restart', word: 'RESTART', title: 'Restart the game server', what: 'Restarts the game server. This dialog shows when it is back.' },
+};
+const CAN = { start: 'canStart', stop: 'canStop', restart: 'canRestart' };
+const WHY = {
+  notOwner: 'Only Owners can control the server.',
+  controlsOff: 'The controls are switched off on the server.',
+  busy: 'Another action is running.',
+  claimed: 'The game server is in use in the ops ledger (see In use).',
+  playersOnline: 'Players are online: restarts with a countdown arrive with the next update.',
+  playersUnknown: 'The game server has not reported its player count lately, so Stop and Restart wait.',
+  changing: 'The server is starting or stopping.',
+  updating: 'An update is running.',
+  alreadyRunning: 'The server is already running.',
+  notRunning: 'The server is not running.',
+  useStart: 'The server is down: use Start.',
+  unavailable: 'The server state cannot be read right now.',
+};
+const RELOAD = 'The request was refused. Reload the page and try again.';
+const ERR = { ...WHY,
+  badRequest: RELOAD, badOrigin: RELOAD, badHeader: RELOAD, badContentType: RELOAD,
+  badReason: 'The reason must be 5 to 200 characters.',
+  badConfirm: 'Type the word exactly as shown.',
+  signedOut: 'Your sign-in has ended. Sign in again to use the controls.',
+  tooMany: 'Too many tries. Wait a few minutes and try again.',
+  ledgerUnavailable: 'The ops ledger cannot be reached, so nothing was changed.',
+  actionFailed: 'The server did not take the action; nothing was changed.',
+  unavailable: 'Something failed on the server. Check the panel before trying again.',
+  notFound: 'This backend has no controls yet.',
+};
+const DRY = 'Dry run: the checks run and are logged, but nothing changes.';
+const JOB_STATE = { running: 'running', done: 'done', failed: 'failed', unconfirmed: 'not confirmed within 2 minutes', interrupted: 'not followed to its end (the backend restarted)' };
+// The backend's reason cleaning: controls, C1, zero-width, separators and bidi marks become spaces
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g;
+const cleanReason = v => String(v || '').normalize('NFC').replace(UNSAFE, ' ').replace(/\s+/g, ' ').trim();
+const reasonOk = v => { const n = [...cleanReason(v)].length; return n >= 5 && n <= 200; };
+const ctl = { action: null, requestId: null, sending: false, job: null, result: null, timer: 0 };
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16)); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+function jobLine(j) {
+  const text = `Last action: ${ACTS[j.action]?.label || j.action} by ${j.by}, ${stamp(j.requestedAt)}: ${JOB_STATE[j.state] || j.state}${j.dryRun ? ' (dry run, nothing changed)' : ''} · ${j.reason}`;
+  return line(text, ['failed', 'unconfirmed', 'interrupted'].includes(j.state) ? 'warn' : 'dim');
+}
+
+function renderControls(s, box) {
+  const c = s.controls;
+  if (!s.owner) box.append(line(WHY.notOwner, 'dim'));
+  else if (c?.mode !== 'zeroPlayers') box.append(line('Controls arrive with the next update.', 'dim'));
+  else {
+    const bar = el('div', 'bar');
+    for (const [action, act] of Object.entries(ACTS)) {
+      const b = el('button', action === 'start' ? '' : 'danger', act.label);
+      b.type = 'button';
+      b.disabled = !c[CAN[action]];
+      b.addEventListener('click', () => openControl(action));
+      bar.append(b);
+    }
+    box.append(bar);
+    if (c.why) box.append(line(WHY[c.why] || c.why, 'dim'));
+    if (c.setting === 'dry-run') box.append(line(DRY, 'dim'));
+  }
+  if (c?.job) box.append(jobLine(c.job));
+}
+
+function jobResult(j) {
+  const name = ACTS[j.action]?.label || j.action;
+  if (j.dryRun) return [`Dry run: ${name} passed every check. Nothing was changed.`, 'ok'];
+  return { running: [`${name} sent. Waiting for the server to confirm (up to 2 minutes)…`, 'dim'], done: [`${name} done.`, 'ok'],
+    failed: [`${name} failed. Check the panel above.`, 'bad'], unconfirmed: [`${name} was not confirmed within 2 minutes. Check the panel above.`, 'warn'],
+    interrupted: [`The backend restarted before ${name} was confirmed. Check the panel above.`, 'warn'],
+    lost: ['The backend lost track of this action. Check the panel above.', 'warn'] }[j.state]
+    || [`${name}: ${j.state}`, 'dim'];
+}
+
+function errorText(status, body) {
+  const code = body.error;
+  if (code === 'claimed') return `The game server is in use in the ops ledger${body.holder ? ' by ' + body.holder : ''}. Try again when it is free.`;
+  // A body the backend could not read comes back as an English sentence
+  return ERR[code] || (typeof code === 'string' && code.includes(' ') ? code : `The server answered ${status}.`);
+}
+
+function renderDialog() {
+  if (!ctl.action || !$('ctl').open) return;
+  const s = srv.status || {}, c = s.controls || {}, n = s.players?.online, at = Date.parse(s.generatedAt || '');
+  $('ctlPlayers').textContent = `Players online now: ${n ?? 'unknown'}${Number.isFinite(at) ? ` (checked ${new Date(at).toLocaleTimeString('en-GB')})` : ''}`;
+  const info = [];
+  if (ctl.action === 'start' && s.updater && autoUpdate(s) && freshQueue(s)?.counts?.commits?.fork > 0) info.push('After Start, waiting commits deploy within about 5 minutes if nobody is online.');
+  if (ctl.action === 'restart' && s.stopped?.leftover) info.push('This also removes the stop marker left from before the last start.');
+  if (c.setting === 'dry-run') info.push(DRY);
+  $('ctlInfo').textContent = info.join(' ');
+  const blocked = !ctl.job && !c[CAN[ctl.action]];
+  const [text, tone] = ctl.result || (ctl.job && jobResult(ctl.job)) || (blocked && [WHY[c.why] || 'Not possible in the server\'s current state.', 'warn']) || ['', ''];
+  $('ctlResult').textContent = text;
+  $('ctlResult').className = tone;
+  $('ctlGo').disabled = ctl.sending || !!ctl.job || blocked || !reasonOk($('ctlReason').value) || $('ctlWord').value.trim() !== ACTS[ctl.action].word;
+}
+
+function openControl(action) {
+  const act = ACTS[action];
+  Object.assign(ctl, { action, requestId: uuid(), sending: false, job: null, result: null });
+  $('ctlTitle').textContent = act.title;
+  $('ctlWhat').textContent = act.what;
+  $('ctlWordLabel').textContent = `Type ${act.word} to confirm`;
+  $('ctlGo').textContent = act.label;
+  $('ctlGo').className = action === 'start' ? '' : 'danger';
+  $('ctlReason').value = $('ctlWord').value = '';
+  $('ctl').showModal();
+  $('ctlReason').focus();
+  clearInterval(ctl.timer);
+  ctl.timer = setInterval(refreshServer, 5000);
+  renderDialog();
+  refreshServer();
+}
+
+// Polls the job until systemd shows the result; the backend gives up after 2 minutes
+async function followJob(id) {
+  for (let i = 0; i < 60 && ctl.job?.id === id && ctl.job.state === 'running'; i++) {
+    await new Promise(done => setTimeout(done, 3000));
+    try {
+      const r = await request(`${SRV}/jobs/${id}`);
+      // A backend that restarts answers 502 for a while and then the saved job; 404 means it no longer has the job
+      const next = r.status === 404 ? { ...ctl.job, state: 'lost' } : r.ok ? (await r.json()).job : null;
+      if (next && ctl.job?.id === id) ctl.job = next;
+    } catch { /* the next poll tries again */ }
+    renderDialog();
+  }
+  refreshServer();
+}
+
+async function sendControl(ev) {
+  ev.preventDefault();
+  if ($('ctlGo').disabled) return;
+  const { action, requestId } = ctl;
+  Object.assign(ctl, { sending: true, result: ['Sending…', 'dim'] });
+  renderDialog();
+  let r = null, body = {};
   try {
-    const v = await (await fetch('/api/version', { cache: 'no-store' })).json();
-    table('builds', ['Build', 'Version'], [['Launcher', v.version], ['Client package', v.clientVersion], ['Server', v.serverVersion]]);
-  } catch { table('builds', ['Build', 'Version'], []); }
+    r = await fetch(`${SRV}/actions/${action}`, {
+      method: 'POST', cache: 'no-store', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-DBO-Control': '1' },
+      body: JSON.stringify({ requestId, reason: cleanReason($('ctlReason').value), confirm: $('ctlWord').value.trim() }),
+    });
+    body = await r.json().catch(() => ({}));
+  } catch { /* shown below */ }
+  if (ctl.requestId !== requestId) return;
+  ctl.sending = false;
+  // The backend keeps the last 50 requestIds, across its restarts too, so sending again after a lost answer is safe
+  if (!r) ctl.result = ['Cannot reach the server. Press the button again: the same request never runs twice.', 'warn'];
+  else if (body.job) {
+    Object.assign(ctl, { job: body.job, result: r.status === 502 ? [ERR.actionFailed, 'bad'] : null });
+    followJob(body.job.id);
+  } else ctl.result = [errorText(r.status, body), 'bad'];
+  renderDialog();
+  refreshServer();
+}
+
+$('ctlForm').addEventListener('submit', sendControl);
+$('ctlReason').addEventListener('input', renderDialog);
+$('ctlWord').addEventListener('input', renderDialog);
+$('ctlClose').addEventListener('click', () => $('ctl').close());
+$('ctl').addEventListener('close', () => clearInterval(ctl.timer));
+
+function renderLive(s) {
+  const box = $('srvLive'); box.textContent = '';
+  const lv = s.live;
+  if (!lv) return box.append(s.queue?.unavailable ? line('! Live versions cannot be read right now', 'warn') : line('Loading…', 'dim'));
+  const f = lv.fork, g = lv.server, c = lv.client;
+  const confirmed = f.confirmed === true ? 'confirmed' : f.confirmed === false ? 'not confirmed'
+    : s.updater.lastUpdate.state === 'unknown' ? 'not in the updater log' : 'cannot confirm';
+  const gameplay = g.sha ? `Gameplay ${short(g.sha)} (${[HOW[g.how] || g.how, g.deployedAt && 'deployed ' + utc(g.deployedAt)].filter(Boolean).join(', ')})`
+    : g.how === 'modified' ? 'Gameplay modified' : 'Gameplay unknown';
+  const first = line(`Game server ${short(f.sha)} (${utc(f.since || f.at)}, ${confirmed}) · ${gameplay}`);
+  first.title = f.subject || '';
+  const parts = [`Client ${c.version || '?'}${c.builtAt ? ' (built ' + utc(c.builtAt) + ')' : ''}`,
+    `Backend since ${utc(s.backend.since)}${s.backend.restartPending ? ' (restart pending)' : ''}`,
+    lv.website?.total ? `Website ${lv.website.matching} of ${lv.website.total} pages match` : null,
+    `Launcher ${lv.launcher || '?'}`];
+  box.append(first, line(parts.filter(Boolean).join(' · ')));
+  for (const code of freshQueue(s)?.drift || []) box.append(line('! ' + driftText(code, s), 'warn'));
+  if (c.zipMatches === false) box.append(line('! The served client zip differs from the recorded one', 'warn'));
+  if (lv.githubLive === 'behind') box.append(line('The live branch on GitHub is behind what runs here.', 'dim'));
+}
+
+function titleRow(it) {
+  const r = el('div', 'qi' + (it.blocked ? ' bad' : ''));
+  const t = el('div');
+  if (!it.title.includes(it.short)) t.append(el('span', 'sha', it.short));
+  t.append(el('span', '', it.title));
+  if (it.at) r.title = utc(it.at) + ' UTC';
+  r.append(t);
+  return r;
+}
+
+function queueRow(it) {
+  const r = titleRow(it), meta = el('div', 'qm dim');
+  const [review, tone] = reviewText(it.review);
+  meta.append(el('span', '', it.author || 'unknown'), el('span', tone, review));
+  if (it.held) meta.append(el('span', 'warn', 'held' + (it.heldReason ? ': ' + it.heldReason : '')));
+  if (it.reverted) meta.append(el('span', '', 'reverted (no effect)'));
+  if (it.requiresFork) meta.append(el('span', it.requiresForkMet ? '' : 'warn', `needs game server ${it.requiresFork}`));
+  if (it.kind === 'pack') meta.append(el('span', '', `built from ${it.fork || '?'}`));
+  if (it.kind === 'item') meta.append(el('span', '', [it.applyBy && 'applied by ' + it.applyBy, it.keys?.length && 'keys: ' + it.keys.join(', ')].filter(Boolean).join(' · ')));
+  for (const w of it.warnings || []) meta.append(el('span', 'warn', w));
+  for (const f of it.flags) meta.append(chip(f));
+  r.append(meta);
+  return r;
+}
+
+function group(g) {
+  const d = el('details', 'grp');
+  d.open = !srv.closed.has(g.area);
+  d.addEventListener('toggle', () => { if (d.open) srv.closed.delete(g.area); else srv.closed.add(g.area); });
+  // A group mixes packs, both repos and items, so the rows in the default come first, each part in ship order
+  const inDefault = g.items.filter(it => it.inDefault), rest = g.items.filter(it => !it.inDefault);
+  const scope = !inDefault.length ? 'not in the default update' : inDefault.length === g.count ? 'in the default update' : `${inDefault.length} in the default update`;
+  d.append(el('summary', '', `${g.area} (${g.count}) · ${scope}`));
+  inDefault.forEach(it => d.append(queueRow(it)));
+  if (inDefault.length && rest.length) d.append(el('div', 'stop', 'the default update stops here'));
+  rest.forEach(it => d.append(queueRow(it)));
+  if (g.items.length < g.count) d.append(line(`${g.count - g.items.length} more not listed`, 'dim'));
+  return d;
+}
+
+// With no row listed, what git still counts is docs or merges, unless the gameplay queue is unknown
+function idleText(q, s) {
+  const c = q.counts.commits || {};
+  if (c.fork == null || c.server == null) return 'Waiting on GitHub: unknown (the gameplay queue cannot be worked out).';
+  const hidden = c.fork + c.server;
+  if (!hidden) return 'Nothing waits on GitHub.';
+  const what = q.docs.count >= hidden ? 'docs' : q.docs.count ? 'docs and merges' : 'merges';
+  const auto = c.fork > 0 && autoUpdate(s);
+  return `Only ${what} wait (${hidden})${auto ? '; a push still restarts the game while auto-update is on' : ''}.`;
+}
+
+function renderQueue(s) {
+  const box = $('srvQueue'); box.textContent = '';
+  const q = srv.queue, fresh = freshQueue(s), failed = srv.queueFailed || !!s.queue?.unavailable;
+  if (!q) box.append(line(failed ? 'The list cannot be read right now.' : 'Building the list…', 'dim'));
+  else {
+    const n = q.counts, inDefault = q.groups.reduce((a, g) => a + g.items.filter(it => it.inDefault).length, 0);
+    const head = el('div', 'bar');
+    head.append(el('span', '', [plural(n.total, 'change'), `${n.reviewed} reviewed`, n.unreviewed && `${n.unreviewed} not reviewed`,
+      n.blocked && `${n.blocked} blocked`, n.held && `${n.held} held`, `${inDefault} in the default update`].filter(Boolean).join(' · ')));
+    const flags = el('span');
+    q.flags.forEach(f => flags.append(chip(f)));
+    head.append(flags);
+    box.append(head);
+    if (!n.total) box.append(line(idleText(q, s), 'dim'));
+    q.groups.forEach(g => box.append(group(g)));
+    if (q.docs.count && n.total) box.append(line(`Docs (${q.docs.count}, hidden)`, 'dim'));
+    // A docs commit or a merge has no row, so name it when it stops the default
+    for (const [side, name] of [['fork', 'game server'], ['server', 'gameplay']]) {
+      const st = q.stops?.[side];
+      if (st && st.kind !== 'commit') box.append(line(`The default ${name} update stops at ${st.short} (${st.kind === 'docs' ? 'docs' : 'a merge'}, ${STOP_WHY[st.reason] || st.reason})`));
+    }
+    for (const h of q.held) box.append(line(`Held: ${h.repo} ${h.range}: ${h.reason}`, 'warn'));
+    for (const v of q.versions) {
+      const change = v.from === v.to ? `stays ${v.to}` : `${v.from || '?'} -> ${v.to}`;
+      box.append(line(`${v.name} ${change}${v.stale ? `, which does not match client ${q.default.client || '?'}` : ''}`, v.stale ? 'warn' : ''));
+    }
+    if (q.default.needsAck) box.append(line('! Client changes in this update reach players only with a later client pack', 'warn'));
+    for (const w of q.warnings) box.append(line('! ' + w, 'warn'));
+    if (q.outside.length || q.notOnMain.length) box.append(line('Outside this update:', 'dim'));
+    for (const o of q.outside) {
+      const d = el('details', 'grp');
+      d.append(el('summary', '', `${o.area} (${o.count}): ${o.why}`));
+      o.items.forEach(it => { const r = titleRow(it); r.append(line(it.author, 'qm dim')); d.append(r); });
+      box.append(d);
+    }
+    for (const up of ['main', 'server']) {
+      const bs = q.notOnMain.filter(b => b.upstream === up);
+      if (bs.length) box.append(line(`Not on ${up}: ` + bs.map(b => `${b.branch} (${b.uniqueCommits}${b.unowned ? ', no owner' : ''})`).join(', '), 'dim'));
+    }
+    if (failed) box.append(line('! The list could not be refreshed; this is the last one', 'warn'));
+  }
+  for (const code of fresh?.blockers || []) box.append(line('! No update can start: ' + blockerText(code, fresh), 'bad'));
+  if (fresh) box.append(line(`Checked with GitHub ${fresh.fetchedAt ? stamp(fresh.fetchedAt) : 'never'} · list built ${stamp(fresh.generatedAt)}`, 'dim'));
+}
+
+function recentRow(r) {
+  const parts = [['Game server', r.fork], ['Gameplay', r.server], ['Client', r.client]].filter(([, p]) => p)
+    .map(([name, p]) => `${name} ${p.from && p.to && p.from !== p.to ? `${p.from} -> ${p.to}` : p.to || p.from}`);
+  const how = [KIND[r.kind] || r.kind, r.by && 'by ' + r.by, r.outside && 'outside a release'].filter(Boolean).join(', ');
+  const d = el('div');
+  d.append(el('span', 'sha', utc(r.at)), el('span', '', `${parts.join(' · ') || 'Gameplay'} (${how})`));
+  if (r.state === 'unfinished') d.append(el('span', 'warn', ' did not finish'));
+  return d;
+}
+
+function renderRecent(s) {
+  const box = $('srvRecent'); box.textContent = '';
+  const lowest = s.history.length ? s.history[s.history.length - 1].n : Infinity;
+  const rows = [...s.history, ...srv.older.filter(r => r.n < lowest)];
+  if (!rows.length) box.append(line('Nothing recorded yet.', 'dim'));
+  rows.forEach(r => box.append(recentRow(r)));
+  const oldest = rows[rows.length - 1];
+  if (oldest && oldest.n > 1) {
+    const more = el('button', 'ghost', 'More');
+    more.disabled = srv.moreBusy;
+    more.addEventListener('click', () => moreRecent(oldest.n));
+    box.append(more);
+  }
+}
+
+function renderServer() {
+  const s = srv.status;
+  if (!s) return;
+  renderHead(s); renderLive(s); renderQueue(s); renderRecent(s); renderDialog();
+}
+
+async function moreRecent(before) {
+  srv.moreBusy = true; renderServer();
+  try {
+    const r = await request(`${SRV}/releases?before=${before}`);
+    if (r.ok) srv.older.push(...(await r.json()).rows);
+  } catch (err) {
+    if (err.code === 401) return show('signedOut');
+    if (err.code === 403) return show('notStaff');
+  } finally { srv.moreBusy = false; }
+  renderServer();
+}
+
+async function refreshQueue() {
+  if (srv.queueBusy || $('server').hidden) return;
+  srv.queueBusy = true;
+  try {
+    const r = await request(`${SRV}/queue`, srv.etag ? { 'If-None-Match': srv.etag } : {});
+    if (r.ok) { srv.queue = await r.json(); srv.etag = r.headers.get('ETag'); }
+    // The first status after a backend start has no live versions yet; the status cache lasts 5 s
+    if (r.ok && srv.status && !srv.status.live) setTimeout(refreshServer, 5500);
+    srv.queueFailed = !r.ok && r.status !== 304;
+  } catch (err) {
+    if (err.code === 401) return show('signedOut');
+    if (err.code === 403) return show('notStaff');
+    srv.queueFailed = true;
+  } finally { srv.queueBusy = false; }
+  renderServer();
+}
+
+async function refreshServer() {
+  try {
+    const r = await request(SRV);
+    // An older backend (404) or a failed status source (503) keeps the section hidden
+    if (r.status === 404 || r.status === 503) { $('server').hidden = true; return; }
+    if (!r.ok) throw new Error('status ' + r.status);
+    srv.status = await r.json(); srv.statusFailed = false;
+  } catch (err) {
+    if (err.code === 401) return show('signedOut');
+    if (err.code === 403) return show('notStaff');
+    srv.statusFailed = true;
+  }
+  if (!srv.status) return;
+  $('server').hidden = false;
+  renderServer();
+  const hash = srv.status.queue?.hash;
+  if (!srv.queue || (hash && hash !== srv.queue.hash)) refreshQueue();
 }
 
 async function main() {
@@ -273,9 +776,11 @@ async function main() {
   if (!me.staff) return show('notStaff');
   show('board');
   $('search').addEventListener('input', renderPlayers);
-  await Promise.all([refreshLive(), refreshPlayers(), refreshBuilds()]);
+  await Promise.all([refreshLive(), refreshPlayers(), refreshServer()]);
   setInterval(refreshLive, 10000);
   setInterval(refreshPlayers, 60000);
+  setInterval(refreshServer, 15000);
+  setInterval(refreshQueue, 60000);
 }
 main();
 </script>

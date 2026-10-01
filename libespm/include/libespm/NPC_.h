@@ -72,6 +72,11 @@ public:
     bool isProtected = false;
 
     uint32_t race = 0;
+    uint32_t acbsFlags = 0;
+    // A multiplier times 1000 when acbsFlags has PC Level Mult
+    uint16_t level = 0;
+    uint16_t calcMinLevel = 0;
+    uint32_t classId = 0;
     int16_t healthOffset = 0;
     int16_t magickaOffset = 0;
     int16_t staminaOffset = 0;

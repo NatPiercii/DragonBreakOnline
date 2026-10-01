@@ -9,9 +9,11 @@ const GAME = 'skyrimspecialedition'
 const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
-// File-pinned Nexus link so free users grab the exact version the manifest expects (the Engine Fixes preloader now ships in the client zip, not here)
+// File-pinned Nexus link so free users grab the exact version the manifest expects (the Engine Fixes preloader now ships in the client zip, not here).
+// nmm=1 opens the file's Mod Manager Download page (the link Vortex opens for free accounts): its Slow download sends the
+// file to the launcher, which puts it where the install expects it.
 const linkFor = (modId, fileId) =>
-  `https://www.nexusmods.com/${GAME}/mods/${modId}?tab=files${fileId ? `&file_id=${fileId}` : ''}`
+  `https://www.nexusmods.com/${GAME}/mods/${modId}?tab=files${fileId ? `&file_id=${fileId}` : ''}&nmm=1`
 
 const page = body => `<!doctype html>
 <html lang="en">
@@ -85,11 +87,12 @@ router.get('/', (req, res) => {
   res.type('text/html').send(page(`
   <h1>DragonBreak mod downloads</h1>
   <div class="note">
-    <p>Keep the launcher open. Open each link below and click <strong>Mod Manager Download</strong> on the Nexus page
-    (free accounts have it, next to Slow Download): the DragonBreak launcher catches the download and puts the file where
-    the install expects it. Do about <strong>5 at a time</strong> so Nexus doesn't throttle you.</p>
-    <p>If Mod Manager Download does nothing on your PC, use <strong>Slow Download</strong> and move the zip/7z into your
-    <code>DragonBreak/downloads</code> folder, which the launcher opened for you. Press <strong>PLAY</strong> in the launcher when the list is done.</p>
+    <p>Keep the launcher open while it waits for downloads, and sign in to Nexus in its top bar. Open each link below
+    and click <strong>Slow download</strong> on the Nexus page: the DragonBreak launcher catches the download and puts the
+    file where the install expects it, with nothing to move. Do about <strong>5 at a time</strong> so Nexus doesn't
+    throttle you. Mods you already downloaded with Vortex are used as they are and are not listed.</p>
+    <p>If the download goes to your browser instead, move the zip/7z into your <code>DragonBreak/downloads</code>
+    folder. Press <strong>PLAY</strong> in the launcher when the list is done.</p>
     ${hiddenCount > 0 ? `<p>${hiddenCount} mod${hiddenCount === 1 ? '' : 's'} you already downloaded ${hiddenCount === 1 ? 'is' : 'are'} hidden.</p>` : ''}
     ${shown.length ? `<p>
       <button class="open-all" id="open-batch">Open the first ${Math.min(5, shown.length)} links</button>

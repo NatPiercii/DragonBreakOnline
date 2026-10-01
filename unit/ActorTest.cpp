@@ -69,7 +69,7 @@ TEST_CASE("Actor should load be able to load appearance, equipment, "
 TEST_CASE("Actor factions in changeForm", "[Actor]")
 {
   PartOne p;
-  p.worldState.espmFiles = { "Skyrim.esm" };
+  p.worldState.espmFiles = std::vector<std::string>{ "Skyrim.esm" };
 
   MpActor actor(LocationalData(), FormCallbacks::DoNothing());
 

@@ -1,11 +1,11 @@
 'use strict'
 // One problem report from the launcher, the game or the website: logs are scrubbed, a screenshot must be
-// a small JPEG from a signed-in player, and the report becomes a thread in the error-report forum.
+// a small JPEG from a signed-in player, and the report becomes its own tagged thread in the bug-tracker forum.
 
 const crypto  = require('crypto')
 const express = require('express')
 const config  = require('../config')
-const { scrub } = require('./scrubLog')
+const { scrub, dropUiLines } = require('./scrubLog')
 const { postReport } = require('./discord/errorReport')
 const audit = require('./discord/audit')
 
@@ -15,6 +15,7 @@ const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log']
 const CONTEXT_FIELDS = ['launcherVersion', 'clientVersion', 'filesVersion', 'os', 'gameVersion',
                         'installDir', 'step', 'error', 'mo2Enabled', 'freeSpaceGb']
 const SOURCES = { launcher: 'from the launcher', game: 'in game', site: 'from the website' }
+const SOURCE_TAGS = { launcher: ['Manual', 'Launcher'], game: ['Manual'], site: ['Manual'] }
 // A 1080p JPEG at quality 80 measured 213-489 KiB; the cap leaves room for the logs inside a 2 MB body
 const MAX_IMAGE_BYTES = 700 * 1024
 const MAX_IMAGE_BASE64 = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 8
@@ -32,10 +33,14 @@ function text(value) {
   return ''
 }
 
+// Controls, soft hyphen, zero-width, line separators and bidi marks, as a regex class body shared with the server controls
+const UNSAFE_CHARS = '\\x00-\\x1f\\x7f\\u00ad\\u200b-\\u200f\\u2028-\\u202e\\u2066-\\u2069\\ufeff'
+const UNSAFE_RE = new RegExp(`[${UNSAFE_CHARS}]`, 'g')
+
 // Names go into a thread title and a bold header line, so control characters and markdown are neutralised
-function cleanName(value) {
-  const name = [...text(value).replace(/[\x00-\x1f\x7f\u00ad\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim()]
-    .slice(0, 64).join('').trim()
+function cleanName(value, max = 64) {
+  const name = [...text(value).replace(UNSAFE_RE, ' ').replace(/\s+/g, ' ').trim()]
+    .slice(0, max).join('').trim()
   return name || 'Unknown player'
 }
 // '<' and ':' too, so a typed mention or link cannot render as one
@@ -82,7 +87,7 @@ async function submit(reporter, body) {
   for (const [field, filename] of LOG_FIELDS) {
     const raw = text(body[field])
     if (!raw) continue
-    const cleaned = scrub(raw)
+    const cleaned = scrub(dropUiLines(raw))
     redactions += cleaned.redactions
     files.push({ name: filename, text: cleaned.text })
   }
@@ -122,7 +127,7 @@ async function submit(reporter, body) {
   const entry = { state: 'pending', at: Date.now() }
   entry.promise = (async () => {
     try {
-      const thread = await postReport({ title: name, summary: lines.join('\n'), files })
+      const thread = await postReport({ title: name, summary: lines.join('\n'), files, tags: SOURCE_TAGS[source] })
       entry.state = 'done'
       entry.at = Date.now()
       audit.log(`REPORT problem ${SOURCES[source]} from ${name}`
@@ -150,6 +155,16 @@ async function respond(res, reporter, body) {
   }
 }
 
+// The parser on every path but those whose own route parses the body after its checks; paths match as Express decodes them
+function parserExcept(paths, parser) {
+  const own = new Set(paths)
+  const key = p => {
+    try { p = decodeURIComponent(p) } catch { /* left as sent; Express refuses it as a route param too */ }
+    return p.toLowerCase().replace(/\/{2,}/g, '/').replace(/\/+$/, '')
+  }
+  return (req, res, next) => (own.has(key(req.path)) ? next() : parser(req, res, next))
+}
+
 // Body-parser failures answer in JSON instead of the default HTML page with a stack trace
 function bodyErrors(err, _req, res, next) {
   if (!err || typeof err.type !== 'string' || !/^(entity\.|encoding\.|charset\.|request\.)/.test(err.type)) return next(err)
@@ -160,4 +175,4 @@ function bodyErrors(err, _req, res, next) {
   res.status(status).json({ error })
 }
 
-module.exports = { submit, respond, bodyErrors, parseReport, cleanName, MAX_IMAGE_BYTES }
+module.exports = { submit, respond, bodyErrors, parserExcept, parseReport, cleanName, escapeMarkdown, MAX_IMAGE_BYTES, UNSAFE_CHARS }

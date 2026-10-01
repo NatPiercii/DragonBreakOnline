@@ -1,6 +1,7 @@
 #include "Condition.h"
 #include "condition_functions/ConditionFunctionFactory.h"
 #include <spdlog/spdlog.h>
+#include <string>
 
 namespace {
 std::string ConvertOperatorToString(espm::CTDA::Operator op)
@@ -84,7 +85,9 @@ std::string ConvertFunctionIndexToString(uint16_t functionIndex)
   }
   spdlog::warn("ConvertFunctionIndexToString - Unknown function index: {}",
                functionIndex);
-  return "";
+  // A name no function has, which keeps the index for ConditionsEvaluator's
+  // policy on functions the server does not implement and for the logs
+  return "#" + std::to_string(functionIndex);
 }
 }
 

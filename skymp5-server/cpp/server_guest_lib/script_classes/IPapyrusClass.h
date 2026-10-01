@@ -39,6 +39,22 @@ public:
         -> VarValue { return (this_->*memberFn)(self, arg); });
   }
 
+  // A native the server cannot act on: returns what the missing call gave the script anyway, without an error each time.
+  // That is None: a missing method returns None, and None compares differently from false or 0 in the VM
+  void AddStubMethod(VirtualMachine& vm, const char* funcName, VarValue result)
+  {
+    vm.RegisterFunction(GetName(), funcName, FunctionType::Method,
+                        [result](VarValue, const std::vector<VarValue>&)
+                          -> VarValue { return result; });
+  }
+
+  void AddStubStatic(VirtualMachine& vm, const char* funcName, VarValue result)
+  {
+    vm.RegisterFunction(GetName(), funcName, FunctionType::GlobalFunction,
+                        [result](VarValue, const std::vector<VarValue>&)
+                          -> VarValue { return result; });
+  }
+
   template <class MemberFn>
   void AddMethod(VirtualMachine& vm, const char* funcName, MemberFn memberFn)
   {
