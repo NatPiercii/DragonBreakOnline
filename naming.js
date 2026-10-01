@@ -107,7 +107,7 @@ module.exports = (api) => {
   // A deleted character stays in the world state's name index until the next restart (destroyActor leaves the index;
   // fork 1e853ee0 clears it, not live): its form is gone, and only that exact error frees the name
   const formGone = (id) => {
-    try { mp.get(Number(id) >>> 0, 'type'); return false; } catch (e) { return /doesn't exist/.test(String(e && e.message)); }
+    try { mp.get(Number(id) >>> 0, 'type'); return false; } catch (e) { return /^Form with id \S+ doesn't exist$/.test(String(e && e.message)); }
   };
   globalThis.__dboFormGone = formGone;
   const takenBy = (key, self) => {

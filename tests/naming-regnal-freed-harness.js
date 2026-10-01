@@ -12,7 +12,7 @@ const SERVER = path.resolve(__dirname, '..');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-naming2-'));
 process.chdir(dir);
 process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* the OS will */ } });
-fs.writeFileSync('name-filter.json', JSON.stringify({ maxWords: 3, minLength: 2, maxLength: 30, maxRepeatedLetters: 2, blocked: ['nwah'], reserved: ['admin', 'talos'] }));
+fs.writeFileSync('name-filter.json', JSON.stringify({ maxWords: 3, minLength: 2, maxLength: 30, maxRepeatedLetters: 2, blocked: ['nwah', 'hentai'], reserved: ['admin', 'talos'] }));
 let failures = 0;
 const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 
@@ -69,6 +69,9 @@ check('...and "Aaalia II" (a letter three times)', /No letter repeats/.test(ok('
 check('...and capitals throughout: "TITUS MEDE II"', /not written in capitals/.test(ok('TITUS MEDE II') || ''));
 check('the suffix counts as a word: four words are still too many', /at most 3 words/.test(ok('Lord Vaeric Goldenshaft III') || ''));
 check('blocked words still refused with a suffix', /will not do here/.test(ok("Big N'wah II") || ''));
+for (const n of ['Henta II', 'Henta III', 'Henta IV', 'Henta IX']) check(`the blocked check reads the whole name, suffix included: "${n}" is refused`, /will not do here/.test(ok(n) || ''), ok(n));
+for (const n of ['Bob IIII', 'Bob VV', 'Bob XX', 'Bob IIX', 'Bob iii', 'Bob Iii', 'Bob-II', 'BobII', 'Bob  II']) check(`"${n}" is refused`, !!ok(n), ok(n));
+check('"Bob I" is a one-letter word, as before (not a numeral)', ok('Bob I') === null);
 check('reserved names cannot hide behind a suffix: "Admin II", "Talos III"', ok('Admin II') === 'That name is reserved.' && ok('Talos III') === 'That name is reserved.');
 check('the length cap holds with a suffix', !!ok('Abcdefghijklmn Opqrstuvwxyzab III'));
 check('names without a suffix behave as before', ok('Aela Stone') === null && /Capitals only/.test(ok('AeLa Stone') || ''));
@@ -81,6 +84,8 @@ check('a living (offline) character\'s name is still taken', globalThis.__dboNam
 check('one\'s own name is not taken by oneself', globalThis.__dboNameTaken('aelastone', LIVE) === false);
 getThrows = 'world state busy';
 check('any other error keeps the name taken (only "doesn\'t exist" frees it)', globalThis.__dboNameTaken('aelastone', ME) === true);
+getThrows = 'Form with id 0xff000002 is not Actor (actually it is MpObjectReference)';
+check('..."is not Actor" keeps it taken too', globalThis.__dboNameTaken('aelastone', ME) === true);
 getThrows = null;
 props.get(`${ME}|appearance`).name = 'Prisoner';
 N.cmds.name(ME, 'Vaeric Goldenshaft');

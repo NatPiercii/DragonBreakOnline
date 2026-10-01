@@ -1,19 +1,5 @@
 [
   {
-    "title": "Character Names",
-    "date": "2026-10-01",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Naming your character",
-        "items": [
-          "A name may now end in a regnal number from II to X, like Titus Mede II, and the name of a character you deleted is free again at once."
-        ]
-      }
-    ]
-  },
-  {
     "title": "Welcome to the Alpha",
     "date": "2026-10-01",
     "version": "Server update",
@@ -66,6 +52,20 @@
           "The 24 hours run in real time, online or not, and cover every character on your account. Type /boost to see how long you have left.",
           "Your work still counts towards the usual hourly and daily limits; each bit of it simply moves your skill twice as far.",
           "Log in by 8 October at 05:00 UTC to claim it."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Character Names",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Naming your character",
+        "items": [
+          "A name may now end in a regnal number from II to X, like Titus Mede II, and the name of a character you deleted is free again at once."
         ]
       }
     ]
