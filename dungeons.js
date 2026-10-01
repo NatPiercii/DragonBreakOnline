@@ -15,7 +15,8 @@
 // dungeon again.
 //
 // gamemode-config.json "dungeons": { enabled, leaseMinutes, cooldownMinutes, warnMinutes,
-//   graceMinutes, partyMax, lockedShare: {story, normal, hard, nightmare} }
+//   graceMinutes, partyMax, lockedShare: {story, normal, hard, nightmare},
+//   crashLoop: {enabled, withinMinutes, lateSeconds, keepClaimMinutes} }
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -676,15 +677,66 @@ module.exports = (api) => {
     setTimeout(() => finish(-1), 6000);
     Promise.resolve().then(() => spawnNow(`${ZONE_PREFIX}${d.id}:`)).then((n) => finish(Number(n) || 0), (e) => { log('dungeon prespawn failed', e && e.message); finish(-1); });
   };
+  // ---- a crash inside a claim (crash-wave-1001 §2): logging back in put the player in the same fight, which crashed
+  // 12 more times on 1 Oct. A member whose newest launcher note (downed.js) is a recent crash wakes at the entrance,
+  // still a member; the empty claim waits keepClaimMinutes for them, and ending empty costs them no rest.
+  const CL = Object.assign({ enabled: true, withinMinutes: 15, lateSeconds: 30, keepClaimMinutes: 10 }, C.crashLoop || {});
+  ST.crashMoved = ST.crashMoved instanceof Map ? ST.crashMoved : new Map(); // `${pid}:${note time}` -> when it was acted on
+  const noteTime = (n) => Number(n.at) || Number(n.endedAt) || 0;
+  const lastNote = (pid) => { try { return typeof globalThis.__dboLastSessionNote === 'function' ? globalThis.__dboLastSessionNote(pid) : null; } catch (e) { return null; } };
+  // The crash note that sends this player to the entrance on a login at loginAt, or null
+  const crashNoteFor = (pid, loginAt) => {
+    const n = lastNote(pid);
+    if (!CL.enabled || !n || n.outcome !== 'crash') return null;
+    const t = noteTime(n), key = `${pid}:${t}`;
+    if (ST.crashMoved.has(key) || loginAt - t > CL.withinMinutes * 60000 || t - loginAt > CL.lateSeconds * 1000) return null;
+    return { n, key };
+  };
+  const crashSpared = (lease, pid) => {
+    if (!CL.enabled) return false;
+    if (lease.crashMoved instanceof Set && lease.crashMoved.has(pid)) return true;
+    const n = lastNote(pid);
+    return !!(n && n.outcome === 'crash' && Date.now() - noteTime(n) <= CL.withinMinutes * 60000);
+  };
+  const emptyTooLong = (lease, now) => now - lease.lastInsideAt > C.graceMinutes * 60000 && !(Number(lease.crashKeepUntil) > now);
+  const breakCrashLoop = (a, d, lease, loginAt) => {
+    const pid = profileOf(a);
+    const hit = crashNoteFor(pid, loginAt); if (!hit) return false;
+    const e = outsideSpot(d, lease.entrance); if (!e) return false;
+    if (!teleport(a, e.world || e.cell, e.pos, e.rot)) return false;
+    ST.crashMoved.set(hit.key, Date.now());
+    for (const [k, t] of ST.crashMoved) if (Date.now() - t > 24 * 3600000) ST.crashMoved.delete(k);
+    lease.lastInsideAt = Date.now();
+    lease.crashKeepUntil = Math.max(Number(lease.crashKeepUntil) || 0, Date.now() + CL.keepClaimMinutes * 60000);
+    if (!(lease.crashMoved instanceof Set)) lease.crashMoved = new Set();
+    lease.crashMoved.add(pid);
+    system(a, `You crashed inside ${d.name}, so you've been moved to its entrance and won't land in the same fight again. Your claim and your party are kept: go back in when you're ready.`);
+    audit(`CRASHLOOP ${who(a)} moved to the entrance of ${d.name}: the game crashed ${Math.round((loginAt - noteTime(hit.n)) / 1000)} s before this login`);
+    return true;
+  };
+  // A note can land just after the login: looked for again every few seconds while the player stays inside
+  const watchLateCrashNote = (a, d, lease, loginAt) => {
+    if (!CL.enabled || !(CL.lateSeconds > 0)) return;
+    const check = () => {
+      if (Date.now() - loginAt > CL.lateSeconds * 1000 || !onlineActors().includes(a)) return;
+      const now = dungeonAround(a);
+      if (!now || now.id !== d.id || ST.leases.get(d.id) !== lease) return;
+      if (!breakCrashLoop(a, d, lease, loginAt)) setTimeout(check, 5000);
+    };
+    setTimeout(check, 5000);
+  };
+
   const endLease = (lease, why) => {
     const d = byId.get(lease.id);
     ST.leases.delete(lease.id);
     if (isRaidRuin(byId.get(lease.id))) { const p = partyOf(lease.leader); if (p) pushParty(p); }
     for (const pid of lease.members) {
-      setAccountRest(pid, lease.id, Date.now() + C.cooldownMinutes * 60000);
+      const spared = why === 'left' && crashSpared(lease, pid);
+      if (spared) log(`dungeon ${lease.id}: no rest for profile ${pid}, who crashed inside it`);
+      else setAccountRest(pid, lease.id, Date.now() + C.cooldownMinutes * 60000);
       const a = actorByProfile(pid);
       if (!a) continue;
-      setCooldown(a, lease.id, Date.now() + C.cooldownMinutes * 60000);
+      if (!spared) setCooldown(a, lease.id, Date.now() + C.cooldownMinutes * 60000);
       // Journal stats: an expedition that goes home after its masters fell was won
       if (why === 'returned' && lease.bossDownAt) { try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(a, 'expeditionsCompleted'); } catch (e) { /* journal stats only */ } }
       glowOff(a, d ? d.chestIds : []);
@@ -794,7 +846,7 @@ module.exports = (api) => {
             for (const pid of lease.members) { const a = actorByProfile(pid); if (a) system(a, `The expedition leaves ${lease.name} in 2 minutes.`); }
           }
           if (now >= lease.endsAt) { endLease(lease, 'returned'); continue; }
-          if (now - lease.lastInsideAt > C.graceMinutes * 60000) endLease(lease, 'left'); // everyone went home already
+          if (emptyTooLong(lease, now)) endLease(lease, 'left'); // everyone went home already
           continue;
         }
       }
@@ -804,7 +856,7 @@ module.exports = (api) => {
         lease.warned = true;
         for (const pid of lease.members) { const a = actorByProfile(pid); if (a) system(a, `${C.warnMinutes} minutes left in ${lease.name}.`); }
       }
-      if (now - lease.lastInsideAt > C.graceMinutes * 60000) endLease(lease, 'left');
+      if (emptyTooLong(lease, now)) endLease(lease, 'left');
     }
   };
   every('dungeons.tick', 15000, () => { try { tick(); } catch (e) { log('dungeon tick failed', e.message); } });
@@ -1181,6 +1233,9 @@ module.exports = (api) => {
       const d = dungeonAround(a); if (!d) return false;
       const lease = leaseHolding(a);
       if (lease && lease.id === d.id) {                // their own claim still runs; they may stay
+        const loginAt = Date.now();
+        if (breakCrashLoop(a, d, lease, loginAt)) return true;
+        watchLateCrashNote(a, d, lease, loginAt);
         try { if (globalThis.__dboRuinArrived) globalThis.__dboRuinArrived(d.id, a); } catch (e) { log('ruin arrival failed', e.message); }
         return false;
       }

@@ -271,6 +271,13 @@ const at = () => (get(P, 'pos') || []).join(',');
   down('22:10:10'); clock('22:10:20'); online = []; respawn('22:11:10');
   check('diagnostic off: a silent client is still forgiven', !chilled() && at() === FELL.join(','));
 
+  // ---- the newest note of any outcome, which dungeons.js's crash-loop breaker asks for ----
+  writeNotes([note('crash', T('22:20:00')), note('closed', T('22:30:00')), note('crash', T('22:25:00'), { profileId: 2 })]); await read();
+  const last1 = globalThis.__dboLastSessionNote(1), last2 = globalThis.__dboLastSessionNote(2);
+  check('the newest note of each profile is kept, whatever its outcome: a clean quit after a crash', last1 && last1.outcome === 'closed' && last1.endedAt === T('22:30:00'));
+  check('...and a crash that is the newest', last2 && last2.outcome === 'crash' && last2.at === T('22:25:00') + 2074);
+  check('a profile without a note has none', globalThis.__dboLastSessionNote(99) === null);
+
   // ---- a broken file changes nothing ----
   fs.writeFileSync(NOTES, '{"outcome":"crash", broken\nnot json at all\n'); mtime++; fs.utimesSync(NOTES, mtime, mtime);
   check('a broken notes file is read without throwing', (await read()) === 0);

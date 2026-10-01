@@ -509,22 +509,29 @@ module.exports = (api) => {
     } catch (e) { return null; }
   };
   const lastPacketOf = (a) => { const m = globalThis.__dboLastPacketAt; return m instanceof Map && m.has(a) ? m.get(a) : 0; };
+  // Each profile's newest note of any outcome (crash, closed, ended), by the server's time of arrival: dungeons.js asks
+  S.lastNotes = S.lastNotes instanceof Map ? S.lastNotes : new Map();
   const readCrashNotes = async () => {
-    if (!C.crashForgive) return 0;
     let st = null; try { st = await fs.promises.stat(C.crashNotesFile); } catch (e) { return 0; }
     if (st.mtimeMs === S.crashMtime) return 0;
     let text = ''; try { text = await fs.promises.readFile(C.crashNotesFile, 'utf8'); } catch (e) { return 0; }
     S.crashMtime = st.mtimeMs;
     const since = Date.now() - DAY;
-    const byProfile = new Map();
+    const byProfile = new Map(), latest = new Map();
     for (const line of text.split('\n')) {
-      if (line.indexOf('"crash"') < 0) continue;
+      if (line.indexOf('"outcome"') < 0) continue;
       let n = null; try { n = JSON.parse(line); } catch (e) { continue; }
-      if (!n || n.outcome !== 'crash' || !(Number(n.endedAt) > since) || !(Number(n.profileId) >= 0)) continue;
+      if (!n || !(Number(n.endedAt) > since) || !(Number(n.profileId) >= 0)) continue;
       const p = Number(n.profileId);
+      const note = { endedAt: Number(n.endedAt), at: Number(n.at) || 0, outcome: String(n.outcome || ''), exitCode: n.exitCode, crashLog: n.crashLog === true };
+      const prev = latest.get(p);
+      if (!prev || (note.at || note.endedAt) >= (prev.at || prev.endedAt)) latest.set(p, note);
+      if (note.outcome !== 'crash') continue;
       if (!byProfile.has(p)) byProfile.set(p, []);
-      byProfile.get(p).push({ endedAt: Number(n.endedAt), at: Number(n.at) || 0, exitCode: n.exitCode, crashLog: n.crashLog === true });
+      byProfile.get(p).push({ endedAt: note.endedAt, at: note.at, exitCode: note.exitCode, crashLog: note.crashLog });
     }
+    S.lastNotes = latest;
+    if (!C.crashForgive) return 0;
     S.crashes = byProfile;
     for (const m of [S.shielded, S.unshielded]) for (const [a, t] of m) if (Date.now() - t > DAY) m.delete(a);
     for (const [a, pr] of S.probes) if (Date.now() - pr.note.endedAt > DAY) S.probes.delete(a);
@@ -647,6 +654,7 @@ module.exports = (api) => {
   };
   globalThis.__dboCrashShield = crashShield;
   globalThis.__dboCrashNotesRead = readCrashNotes;
+  globalThis.__dboLastSessionNote = (pid) => S.lastNotes.get(Number(pid)) || null;
 
   // Wakes at the spawn point (the temple of the area, set on death) the way the engine's own respawn does
   const toTemple = (t) => {
