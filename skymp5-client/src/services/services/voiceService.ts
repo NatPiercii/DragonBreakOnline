@@ -210,7 +210,8 @@ export class VoiceService extends ClientListener {
       // Only the page's own shapes leave the client; any other text (a device label in an error) is cut to the state word
       const raw = String(e.arguments[1] ?? "");
       const echo = /^(none|pending|on|off|failed|elements)( \([A-Za-z0-9 /,]{0,80}\))?$/.test(raw) ? raw : (raw.match(/^[a-z]{1,12}/) || ["?"])[0];
-      const line = `echo loop ${echo}; activation ${chosen || "?"}${used && used !== chosen ? ` (using ${used})` : ""}`;
+      const mic = String(e.arguments[4] ?? "");
+      const line = `echo loop ${echo}; activation ${chosen || "?"}${used && used !== chosen ? ` (using ${used})` : ""}${/^mics \d{1,2}, aec (on|off|\?)$/.test(mic) ? `; ${mic}` : ""}`;
       logTrace(this, `voice ${line}`);
       const note = (globalThis as any).__dboDiagNote;
       if (typeof note === "function") note("voice", line);
