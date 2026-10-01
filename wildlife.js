@@ -120,7 +120,8 @@ module.exports = (api) => {
   const campLoot = (province = '') => {
     const out = [];
     const add = (item, count) => { if (!item) return; const id = idOf(item.id); if (id) out.push({ id, count, name: item.name }); };
-    out.push({ id: GOLD_BASE, count: rnd(15, 45), name: 'Gold' });
+    // Halved on 1 Oct with the dungeons' gold (was 15-45)
+    out.push({ id: GOLD_BASE, count: rnd(8, 22), name: 'Gold' });
     if (Math.random() < 0.6) add(pickFrom(pool('ingredients')), rnd(1, 3));
     if (Math.random() < 0.5) add(pickFrom(pool('materials')), rnd(1, 2));
     if (Math.random() < 0.25) add(pickFrom(pool('gems').filter((g) => !/flawless/i.test(g.name))), 1);
