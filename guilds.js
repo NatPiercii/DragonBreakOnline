@@ -37,6 +37,15 @@ module.exports = (api) => {
     if (!f.id || !ranks.length) { log(`faction ${f.id || '?'} has no ranks, skipped`); continue; }
     FACTIONS.set(f.id, Object.assign({}, f, { ranks }));
   }
+  // Factions founded by players' charters (charters.js) live in player-factions.json, written at runtime and never in git;
+  // guild-defs.json stays the hand-kept canon list. A defs id always wins over a player faction of the same id.
+  const PLAYER_PATH = path.resolve('player-factions.json');
+  const addPlayerFaction = (f) => {
+    if (!f || !f.id || FACTIONS.has(String(f.id)) || !Array.isArray(f.ranks) || !f.ranks.length) return false;
+    FACTIONS.set(String(f.id), Object.assign({}, f, { id: String(f.id), player: true }));
+    return true;
+  };
+  for (const f of (readJson(PLAYER_PATH, { factions: [] }).factions || [])) addPlayerFaction(f);
 
   // ---- membership state -------------------------------------------------------------------------
   // { factionId: { actorId: { rank, name, tag, since } } }
@@ -194,7 +203,7 @@ module.exports = (api) => {
     if (!h || !h.name) return null;
     return { name: String(h.name), zone: h.zone || '', doors: Array.isArray(h.doors) ? h.doors.slice() : [], shared: !!h.shared, note: h.note || '' };
   };
-  globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret, hall: hallOf(f) }; });
+  globalThis.__dboGuildsOf = (a) => membershipsOf(a >>> 0).map((m) => { const f = FACTIONS.get(m.fid); const r = f.ranks[m.e.rank] || {}; return { id: m.fid, name: f.name, title: r.title || '', role: r.role || '', kind: f.kind || '', zone: f.zone || '', secret: !!f.secret, player: !!f.player, hall: hallOf(f) }; });
   globalThis.__dboGuildExists = (id) => FACTIONS.has(String(id));
   // When a faction was founded, for realm.js's protectDays: its first member's joining; a hold or stronghold is as old as
   // the land (review m6: nothing defined this, so the rule never applied)
@@ -212,6 +221,31 @@ module.exports = (api) => {
   // the doors that lead in. The Blades have none on purpose while Cloud Ruler Temple is a ruin.
   globalThis.__dboGuildHall = (id) => { const f = FACTIONS.get(String(id)); return f ? hallOf(f) : null; };
   globalThis.__dboGuildStorage = (id) => storageOf(String(id));
+  // charters.js: a faction founded by charter goes live at once (charters.js has already written player-factions.json, so a
+  // reload keeps it). The founder takes the leader rank, and each co-founder ({ actor, role }) the rank of their role, or
+  // the rank below the leader without one. An error string, or null.
+  globalThis.__dboGuildFoundPlayer = (def, founder, cofounders) => {
+    if (!addPlayerFaction(def)) return `A faction with the id ${def && def.id} already exists.`;
+    const fid = String(def.id); const f = FACTIONS.get(fid);
+    const lead = Math.max(0, f.ranks.findIndex((r) => r.role === 'leader'));
+    const err = setMember(fid, founder, lead);
+    if (err) { FACTIONS.delete(fid); delete ST.members[fid]; save(); return err; }
+    for (const c of cofounders || []) {
+      const actor = typeof c === 'object' && c ? c.actor : c;
+      const at = typeof c === 'object' && c ? f.ranks.findIndex((r) => r.role === c.role) : -1;
+      const e = setMember(fid, actor, at > lead ? at : Math.min(lead + 1, lowestRank(fid)));
+      if (e) log(`charter faction ${fid}: ${e}`);
+    }
+    return null;
+  };
+  // charters.js: a GM dissolves a player faction. Its roster goes; a canon faction from guild-defs.json is never touched.
+  globalThis.__dboGuildDissolvePlayer = (id) => {
+    const f = FACTIONS.get(String(id)); if (!f || !f.player) return false;
+    const ids = Object.keys(rosterOf(f.id)).map(Number);
+    delete ST.members[f.id]; FACTIONS.delete(f.id); save();
+    for (const m of ids) mirror(m);
+    return true;
+  };
   globalThis.__dboGuildMembers = (id) => Object.keys(ST.members[String(id)] || {}).map((x) => Number(x) >>> 0);
   // Characters deleted at character select, by /wipechars or from the admin panel stay on the rosters (nothing tells
   // the gameplay), and economy.js paid wages to them until it threw (review A1-2). economy.js calls this before it pays;

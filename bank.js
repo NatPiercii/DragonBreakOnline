@@ -181,6 +181,18 @@ module.exports = (api) => {
       audit(`BANK treasury of ${fid} received ${n} gold (${why || 'unspecified'})`);
       return true;
     },
+    // A new landless faction's treasury (charters.js): its bank.json key, at 0 or the given seed. An existing balance is kept
+    open: (fid, seed, why) => {
+      const key = treasuryKeyOf(fid);
+      if (!key || !key.startsWith('faction:')) return false;
+      const id = key.slice(8);
+      if (Object.prototype.hasOwnProperty.call(data().factions, id)) return true;
+      const n = Math.max(0, Math.floor(Number(seed) || 0));
+      data().factions[id] = n;
+      try { save(); } catch (e) { delete data().factions[id]; log('bank: bank.json write failed', e.message); return false; }
+      audit(`BANK treasury of ${fid} opened with ${n} gold (${why || 'unspecified'})`);
+      return true;
+    },
   };
 
   // ---- being at a bank -----------------------------------------------------------------------------------------------

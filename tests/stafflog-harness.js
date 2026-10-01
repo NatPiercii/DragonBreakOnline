@@ -22,7 +22,8 @@ check('without one, the character alone', staffWho(0x15) === 'Guest #GST1', staf
 
 // Every staffLog call: its fourth argument (the line posted) must start from staffWho, or 'staff' when no one is online
 const calls = src.split('\n').filter((l) => /staffLog\(/.test(l) && !/const staffLog = /.test(l));
-check('the gamemode logs staff actions from five places', calls.length === 5, calls.length);
+// The sixth is charters.js's staffNote: the founder or the GM who acted, named the same way
+check('the gamemode logs staff actions from six places', calls.length === 6, calls.length);
 for (const c of calls) {
   const posted = c.slice(c.indexOf('staffLog('));
   check(`posted line names the Discord account: ${posted.slice(0, 70)}...`, /`\$\{(?:actor \? )?staffWho\((?:a|actor)\)/.test(posted));

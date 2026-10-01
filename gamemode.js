@@ -374,12 +374,13 @@ const staffList = () => {
 };
 const WEEK_MS = 7 * 86400000;
 // who: the staff member's name as the counts show it; what: the command word counted; detail: the full line posted
-const staffLog = (whoName, tier, what, detail) => {
+// tally false: posted, but left out of the week's staff summary (a player's own act, such as a submitted charter)
+const staffLog = (whoName, tier, what, detail, tally = true) => {
   const now = Date.now();
   const list = staffList();
-  list.push({ at: now, who: whoName, tier: tier || '', what });
+  if (tally) list.push({ at: now, who: whoName, tier: tier || '', what });
   while (list.length && now - list[0].at > WEEK_MS) list.shift();
-  staffState.dirty = true;
+  if (tally) staffState.dirty = true;
   if (discordTarget && discordTarget.kind === 'bot') {
     staffState.queue.push(`[${new Date(now).toISOString().slice(11, 19)}] ${detail}`);
     if (staffState.queue.length > 500) staffState.queue.splice(0, staffState.queue.length - 500);
@@ -5346,6 +5347,15 @@ try {
   require(BANK_JS)({ mp, log, personal, audit, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, takeGold, giveItem,
     goldOf, depositToTreasury, zoneById, zoneList, zoneOfActor, ranksOf, profileOf, distanceMeters, every });
 } catch (e) { log('bank.js failed to load:', e.stack || e.message); globalThis.__dboBankActivate = null; }
+// ---- faction charters: players found a faction, GMs approve it (server\charters.js, after guilds.js and bank.js) ----
+try {
+  const CHARTERS_JS = path.resolve('charters.js');
+  delete require.cache[CHARTERS_JS];
+  // #staff-commands names whoever acted: the founder for a submission or a withdrawal, the GM for a decision
+  const staffNote = (a, what, detail) => staffLog(display(a), tierOf(a), what, `${staffWho(a)}: ${detail}`, isAdmin(a));
+  require(CHARTERS_JS)({ mp, log, personal, audit, who, display, nameOf, cfg, registerChatCommand, onlineActors, isAdmin, isLeadStaff,
+    findByName, profileOf, takeGold, giveItem, every, staffNote });
+} catch (e) { log('charters.js failed to load:', e.stack || e.message); }
 // ---- alchemy at the ordinary labs: the nearest vanilla potion for a client-side mix (server alchemy.js) ------------
 try {
   const ALCHEMY_JS = path.resolve('alchemy.js');

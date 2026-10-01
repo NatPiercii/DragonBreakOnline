@@ -17,6 +17,8 @@ faction-storage.json
 parties.json
 dungeon-cooldowns.json
 bank.json
+charters.json
+player-factions.json
 economy.json
 wars.json
 territory-owners.json
