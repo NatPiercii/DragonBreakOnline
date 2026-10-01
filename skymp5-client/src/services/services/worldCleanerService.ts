@@ -5,6 +5,7 @@ import { Actor } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 import { isOwnCompanion, isAnyCompanion } from "../../sync/ownCompanions";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
+import { WcPluginDeletes } from "./wcPluginDeletes";
 
 export class WorldCleanerService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -38,6 +39,7 @@ export class WorldCleanerService extends ClientListener {
   }
 
   private onUpdate() {
+    this.notePluginDeletes(this.pluginDeletes.due(Date.now()));
     const count = Date.now() < this.burstUntil ? WorldCleanerService.burstActorsPerUpdate : 1;
     for (let i = 0; i < count; i++) {
       this.processOneActor();
@@ -49,6 +51,7 @@ export class WorldCleanerService extends ClientListener {
     if (pc === null) {
       return;
     }
+    try { this.notePluginDeletes(this.pluginDeletes.seeCell(ObjectReferenceEx.getWorldOrCell(pc), Date.now())); } catch (e) { /* diagnostics only */ }
 
     const actor = this.sp.Game.findRandomActor(
       pc.getPositionX(),
@@ -86,6 +89,7 @@ export class WorldCleanerService extends ClientListener {
     }
 
     if (this.isActorInDialogue(actor)) {
+      if (actorId < 0xff000000 && !actor.isDead()) this.countPluginDelete(actor, actorId);
       // Deleting an actor in dialogue crashes Skyrim: https://github.com/skyrim-multiplayer/issue-tracker/issues/13
       actor.setPosition(0, 0, 0);
       actor.disableNoWait(true); // Seems to not crash
@@ -126,6 +130,8 @@ export class WorldCleanerService extends ClientListener {
     // spawned actor's animation graph was stepped through a freed pointer (2026-09-29).
     if (actorId >= 0xff000000) {
       this.noteSpawnSwept(actor, actorId, currentProtection);
+    } else {
+      this.countPluginDelete(actor, actorId);
     }
 
     actor.disable(false).then(() => {
@@ -152,6 +158,18 @@ export class WorldCleanerService extends ClientListener {
     note("wc:sweep", `${(actorId >>> 0).toString(16)} base=${base.toString(16)} adopted=${remoteId ? "yes" : "NO"} protection=${protection} 3d=${loaded} ${age}`);
   }
 
+  private countPluginDelete(actor: Actor, actorId: number): void {
+    try {
+      this.pluginDeletes.add(actorId, actor.getBaseObject()?.getFormID() || 0, actor.isInCombat(), actor.is3DLoaded(), Date.now());
+    } catch (e) { /* diagnostics only */ }
+  }
+
+  private notePluginDeletes(line: string | null): void {
+    if (!line) return;
+    const note = (globalThis as any).__dboDiagNote;
+    if (typeof note === "function") note("wc:plugin", line);
+  }
+
   private isActorInDialogue(ac: Actor) {
     return ac.isInDialogueWithPlayer() || ac.getDialogueTarget() !== null;
   }
@@ -160,6 +178,7 @@ export class WorldCleanerService extends ClientListener {
   // When this client first laid eyes on a server spawn, so a sweep can say how young the actor was
   private firstSeen = new Map<number, number>();
   private burstUntil = 0;
+  private pluginDeletes = new WcPluginDeletes();
   private static readonly burstActorsPerUpdate = 8;
   private initialPos?: NiPoint3;
   private initialCellOrWorld?: number;
