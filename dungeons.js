@@ -1261,7 +1261,7 @@ module.exports = (api) => {
           try { if (globalThis.__dboRuinArrived) globalThis.__dboRuinArrived(d.id, casterId); } catch (e) { log('ruin arrival failed', e.message); }
           return false;
         }
-        return deny(casterId, `Someone is inside ${d.name}. It frees up in ${minutesLeft(lease.endsAt)} minutes at most.`, `${d.id} is claimed by another party for ${minutesLeft(lease.endsAt)} more min`);
+        return deny(casterId, `Someone is inside ${d.name}. It frees up in ${minutesLeft(lease.endsAt)} minutes at most. Only the party that claimed it can go in. ${PARTY_HINT}`, `${d.id} is claimed by another party for ${minutesLeft(lease.endsAt)} more min`);
       }
       const cd = Math.max(Number(cooldownsOf(casterId)[d.id]) || 0, restingUntil(pid, d.id));
       if (cd > Date.now()) return deny(casterId, `${d.name} still rests for you. Come back in ${minutesLeft(cd)} minutes.`, `${d.id} rests for them ${minutesLeft(cd)} more min`);
@@ -1324,23 +1324,31 @@ module.exports = (api) => {
     }
     return null;
   };
+  // A refused door leaves the client half into its load (an automatic door starts it before the server answers, and the
+  // gate panel keeps the activation refused); putting them back at the entrance finishes it. For Cancel and a refused claim
+  const putBack = (a, p, why) => {
+    const e = p && p.entrance && Array.isArray(p.entrance.pos) && !p.entrance.expedition ? p.entrance : null;
+    if (e && teleport(a, e.world || e.cell, e.pos, e.rot)) log(`${display(a)} ${why} at ${p.dungeonId}; put back at the entrance`);
+  };
+  const PARTY_HINT = 'To go in together, party up with /party invite before anyone claims it.';
   onUi('dungeonClaim', (a, args) => {
     const p = ST.pending.get(a); if (!p || String(args[0]) !== p.nonce) return;
     ST.pending.delete(a); closeWidget(a, GATE_WIDGET_ID);
     const d = byId.get(p.dungeonId); const diff = DIFFICULTIES.find((x) => x.id === String(args[1]));
-    if (!d || !diff) return;
-    if (ST.leases.has(d.id)) { log(`dungeon refused ${who(a)}: ${d.id} was claimed by someone else while their gate was open`); return personal(a, `Someone claimed ${d.name} first.`); }
+    if (!d || !diff) return putBack(a, p, 'sent an unknown claim');
+    // Viggo #UFHK, 1 Oct: two friends not in a party touched the same automatic door; the one who lost the race froze
+    if (ST.leases.has(d.id)) {
+      log(`dungeon refused ${who(a)}: ${d.id} was claimed by someone else while their gate was open`);
+      personal(a, `Someone claimed ${d.name} first. ${PARTY_HINT}`);
+      return putBack(a, p, 'lost the claim');
+    }
+    // Wandered off: they could move, so no load is held open and nobody is moved
     if (!atEntrance(a, p.entrance)) { log(`dungeon refused ${who(a)}: ${d.id} claim from beyond ${C.entranceReach} units of the entrance`); return personal(a, 'You have wandered from the entrance.'); }
     // The party can change while the gate is open: whoever joined must not be resting from it either (exploit audit)
-    if (partyMembers(profileOf(a)).some((pid) => restingUntil(pid, d.id) > Date.now())) { log(`dungeon refused ${who(a)}: ${d.id} rests for someone who joined the party while the gate was open`); return personal(a, `${d.name} still rests for someone in your party.`); }
+    if (partyMembers(profileOf(a)).some((pid) => restingUntil(pid, d.id) > Date.now())) { log(`dungeon refused ${who(a)}: ${d.id} rests for someone who joined the party while the gate was open`); personal(a, `${d.name} still rests for someone in your party.`); return putBack(a, p, 'was refused (party rest)'); }
     startLease(a, d, p.entrance, diff);
   });
-  // The refused door leaves the client half into its load; putting them back at the entrance finishes it
-  const turnBack = (a) => {
-    const p = ST.pending.get(a); ST.pending.delete(a);
-    const e = p && p.entrance && Array.isArray(p.entrance.pos) && !p.entrance.expedition ? p.entrance : null;
-    if (e && teleport(a, e.world || e.cell, e.pos, e.rot)) log(`${display(a)} turned back at ${p.dungeonId}; put back at the entrance`);
-  };
+  const turnBack = (a) => { const p = ST.pending.get(a); ST.pending.delete(a); putBack(a, p, 'turned back'); };
   onUi('dungeonCancel', (a) => { turnBack(a); closeWidget(a, GATE_WIDGET_ID); });
 
   // ---- expeditions from the Synod Conclave ----------------------------------------------------------
