@@ -38,7 +38,8 @@ module.exports = (api) => {
     enabled: true, skill: 'blacksmith', scholarSkill: 'scholar', consume: true,
     shop: { enabled: true, maxTier: 2, priceMultiplier: 3, cells: ['20ff:BSHeartland.esm'], treasury: 'bruma' },
     loot: { enabled: true, chance: { story: 0.03, normal: 0.05, hard: 0.08, nightmare: 0.1 },
-      maxTier: { story: 2, normal: 3, hard: 4, nightmare: 4 }, rareTier: 4, rareWeight: 0.2, staffTier: 5 },
+      maxTier: { story: 2, normal: 3, hard: 4, nightmare: 4 }, rareTier: 4, rareWeight: 0.2, staffTier: 5,
+      capManuals: { steel: ['steel', 'silver', 'chainmail'], iron: [] } },
     provinces: {},
     copy: { enabled: true, paperId: '7cba1:BSHeartland.esm', paper: 1 },
     skillBooks: { enabled: true, av: 10, weight: 3 },
@@ -226,7 +227,13 @@ module.exports = (api) => {
     // Nate, 1 Oct). Without that pattern no manual drops, rather than any
     const banned = globalThis.__dboBannedLoot instanceof RegExp ? globalThis.__dboBannedLoot : null;
     if (!banned) return null;
-    const pool = READY.filter((m) => m.tier <= maxTier && m.tier < Number(C.loot.staffTier) && inProvince(m, province) && !banned.test(String(m.material || m.name || '')));
+    // Under the dungeons' gear ceiling (loottiers.js cap, globalThis.__dboLootCap; Jake and Nate, 1 Oct) only the manuals of
+    // what may drop: at 'steel' Steel, Silver and Chainmail (Ancient Nord and Falmer teach their honed pieces too, which hit
+    // like Elven), at 'iron' none. Without the cap known, no manual
+    const cap = typeof globalThis.__dboLootCap === 'string' ? globalThis.__dboLootCap : '';
+    if (!cap) return null;
+    const capKeys = cap === 'none' ? null : new Set(((C.loot.capManuals || {})[cap] || []).map((k) => String(k).toLowerCase()));
+    const pool = READY.filter((m) => m.tier <= maxTier && m.tier < Number(C.loot.staffTier) && inProvince(m, province) && !banned.test(String(m.material || m.name || '')) && (!capKeys || capKeys.has(m.key)));
     if (!pool.length) return null;
     const weight = (m) => (m.tier >= Number(C.loot.rareTier) ? Number(C.loot.rareWeight) || 0 : 1);
     const total = pool.reduce((n, m) => n + weight(m), 0);
