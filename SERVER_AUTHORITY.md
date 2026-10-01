@@ -29,6 +29,7 @@ The instinct is right and the direction is right. It needs three words instead o
 5. A CLIENT-SIDE BLOCK IS AN OPTIMISATION, NEVER AN ENFORCEMENT. Write it when the engine misbehaves without it, feed it from the server, and make the server re-check the outcome independently. playtest.js is the template: the server sends the door list, the client blocks the door so the engine does not start a cell load, and the server bounces anyone outside the region on a timer regardless. A patched client buys itself a few seconds.
 
 6. WHEN A CLIENT MUST BE THE ONLY WITNESS, LET IT REPORT EVIDENCE, NEVER AN OUTCOME. The reading mini-game is the pattern and it is already in gamemode.js: the server generates the shuffle, the client returns a permutation, the server checks it. The client holds the puzzle and not the answer. Labour and skinning got this wrong by asking the client for a SCORE; craftedExtrasSystem got it right by accepting a REPORT and re-planning it against inventory the server actually holds. Anything a client reports must also be bounded — its own actor and the actors it hosts, with a cap and a rate limit — because an unbounded report is a primitive handed to a file the player owns.
+   THE ONE DELIBERATE EXCEPTION (Jake, 2026-09-30): the timing mini-games (mining, woodcutting, skinning, reading's candle, prayer, lockpicking, the rite, struggle) now let the widget decide the outcome on the player's machine and report it with its own timings, because judging them on the server's clock failed honest players on latency. The server still issues the round, still replays the reported timings for the audit, and still owns every reward, rest, cap and tier gate; it only stopped measuring how late a packet arrived. Reading keeps the words on the server: the widget decides the time, never the answer. See migration 7 for what is kept and what a modified client can now do.
 
 ---
 
@@ -176,6 +177,25 @@ it, so a refused packet no longer reaches other clients; hosted actors keep the 
   counts, strikes inside the stagger, cuts after the attempt ended, replays and slow-motion rounds are refused
   and logged. Tests: `node server\tests\labour-harness.js`, `node server\tests\skinning-harness.js`.
 - **Risk if skipped:** Free ore and firewood at the maximum tier for a one-line widget edit, limited only by the vein rest timers, plus free Mastery credit. It feeds the trade economy, so it inflates prices for honest players rather than just benefiting the cheat. Skinning failures simply stop existing.
+- **CLIENT-JUDGED 2026-10-01 (Jake, 30 Sep: "Having them be server side is an issue due to latency which is causing
+  failures"; DESIGN.md and the evidence in /opt/dragonbreak-handover/minigames-client-judged):** the round is still the
+  server's (seed, bands, deadlines, a nonce), but the widget plays it on its own clock, decides the result and sends it
+  as one trailing argument, a JSON verdict of at most 256 characters (`{"v":1,"win":true,...}`), beside the timings it
+  always sent. The server accepts that verdict and keeps ONLY checks latency cannot fail: the round was issued to this
+  player, one report per round, the player still near the node/body/shrine/lock where that matters, no faster than the
+  round's exact minimum (on the widget's clock, and on the server's clock only as a LOWER bound counted from when it
+  sent the round), cooldowns, caps, tier gates and reward tables. It never uses an upper bound in seconds on its own
+  clock: `late`, `future` and the rite's arrival timer are gone, a round unreported for minutes is cleaned up, and
+  `lag=` is logged on every verdict for bot review and decides nothing. The replay of the widget's own timings is kept
+  for the audit: `replayCheck: 'log'` (the default for the first week) lets a mismatched claim stand with a
+  `<GAME>-MISMATCH` audit line, `'refuse'` refuses it. Old widgets (0.3.71, timings only) are judged from their timings
+  with the server-clock limits relaxed to the cleanup timeout; the rite's old widget sends no timing, so it keeps an
+  arrival window, widened and made continuous. Each game has its switch, `<game>.clientJudged` in
+  gamemode-config.json (`supernatural.rite.clientJudged` for the rite); false and a gamemode reload put back today's
+  judging. ACCEPTED EXPOSURE: a modified widget could already compute perfect timings (the bands are sent); the window
+  for playing a round in slow motion grows from 2.5 s to the cleanup timeout and is flagged (`sus=slow`), not refused.
+  What bounds the damage is unchanged and server-side: rests, caps, reward tables, tier gates. Shared rules:
+  `minigames.js`; fake-network tests: `tests/lib/netsim.js` and each game's harness.
 
 ### 8. Twin Souls: the client reads player.hasPerk() and the server raises the summon limit on that claim alone.
 

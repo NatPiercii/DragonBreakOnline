@@ -34,6 +34,12 @@ const cfg = (() => {
   log('no gamemode-config.json found in', dirs.join(' or '), '- using defaults');
   return {};
 })();
+// Shared rules for the mini-games judged on the player's machine (minigames.js; Jake, 2026-09-30): the per-game
+// clientJudged switch, the verdict argument, the lower-bound and review-flag helpers and the audit fields. Reloaded with
+// the gamemode; labour.js, prayer.js, lockpick.js, supernatural.js and struggle.js require it beside themselves.
+const MINIGAMES_JS = path.resolve('minigames.js');
+delete require.cache[MINIGAMES_JS];
+const MG = require(MINIGAMES_JS);
 const R = Object.assign({ whisper: 3, low: 8, say: 20, wide: 35, shout: 80, emote: 20, emoteLow: 8, emoteLong: 35, looc: 20, loocLow: 8, loocLong: 35 }, cfg.rangesMeters || {});
 const serverSettings = (() => { try { return mp.getServerSettings() || {}; } catch (e) { return {}; } })();
 
@@ -2354,6 +2360,10 @@ const panelTabsFor = (a) => {
 };
 const panelState = globalThis.__dboPanelState || (globalThis.__dboPanelState = { caps: new Map(), nonces: new Map() });
 const hasPlayerMenu = (a) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has('playerMenu'); };
+// Any other capability the client's UI named in dbo:uiCaps (hud UI_CAPS): lockpick.js asks for 'lockpickLocal' and
+// supernatural.js for 'riteJudge' before they issue a round the widget judges itself, since an older widget given one
+// would hang or be judged wrongly (DESIGN.md 3.2)
+const hasUiCap = (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(String(cap)); };
 const openPlayerMenu = (a, tab) => {
   const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
   panelState.nonces.set(a >>> 0, nonce);
