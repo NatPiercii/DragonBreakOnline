@@ -22,6 +22,7 @@ const SESSIONS = [
   ['champions.js', 'seen', 'spawns already rolled for promotion'],
   ['gamemode.js', 'skinSessions', 'skinning rounds'],
   ['prayer.js', 'sessions', 'prayer rounds'],
+  ['prayer.js', 'blessCasts', 'blessings cast this session'],
   ['supernatural.js', 'rites', 'rites'],
   ['struggle.js', 'sessions', 'struggles'],
   ['robbery.js', 'S', 'robberies'],

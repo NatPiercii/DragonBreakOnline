@@ -269,7 +269,10 @@ const w4 = activate(AKATOSH_SHRINE).w;
 res = report(w4, wholeHold(w4), w4.totalMs, 100, 9000000);
 Math.random = roll;
 const blessing = props.get(ACTOR + '|private.dboBlessing');
-check('the blessing is a real spell, granted through AddSpell',
+// This harness has no spell records, so the module cannot read the blessing's SPIT and keeps AddSpell, its fallback.
+// How each real blessing is given (a Fire-and-Forget spell cast on the worshipper, an Ability or Power learned) is
+// tests/prayer-blessings-harness.js.
+check('the blessing is a real spell; with no readable record it is granted through AddSpell',
   res.papyrus.some((p) => p[0] === 'AddSpell') && !!blessing && blessing.spell === idOf(choiceOf('akatosh').blessing),
   JSON.stringify(res.papyrus) + ' ' + JSON.stringify(blessing));
 check('and it is written with an expiry', !!blessing && blessing.until > Date.now(), JSON.stringify(blessing));

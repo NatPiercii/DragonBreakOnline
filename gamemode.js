@@ -1833,6 +1833,8 @@ const onCharacterReady = (userId, a) => {
     sendFavorites(a);
     try { if (globalThis.__dboCharLevelLogin) globalThis.__dboCharLevelLogin(a); } catch (e) { log('level login failed', e.message); }
     try { if (globalThis.__dboBoostLogin) globalThis.__dboBoostLogin(a); } catch (e) { log('boost login failed', e.message); }
+    // A shrine blessing still running is cast on the player again: the client's effect did not survive the logout (prayer.js)
+    try { if (globalThis.__dboPrayerLogin) globalThis.__dboPrayerLogin(a); } catch (e) { log('prayer login failed', e.message); }
   }, 8000);
 };
 const startLoginWait = (userId, seenActor) => {
@@ -4963,7 +4965,7 @@ try {
   require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF,
     isLeadStaff, findAnyByName, sendPacket,
     takeGold, treasuryHere: (a, gold) => { const z = zoneOfActor(a); return depositToTreasury(z && typeof z === 'object' ? z.id : z, gold); } });
-} catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; }
+} catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; globalThis.__dboPrayerLogin = null; }
 
 // ---- beds, inn rooms, Well Rested and Well Fed (server\rest.js, config "rest", beds.json) ---------
 try {

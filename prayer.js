@@ -132,6 +132,50 @@ module.exports = (api) => {
   };
 
   // ── blessings ───────────────────────────────────────────────────────────────────────────────
+  // How a blessing reaches the worshipper depends on its spell record (SPEL SPIT: type u32 at 8, cast type at 16,
+  // delivery at 20; libespm SPEL.h SPITData, as combat.js and gamemode.js read it):
+  //  - a Spell cast Fire-and-Forget on Self, which is every Divine and Prince blessing: the worshipper's own client
+  //    casts it on them (dboCastSelf, castSelfService; the Ayleid well in gamemode.js does the same). That is how the
+  //    vanilla shrine gives it too (TempleBlessingScript: TempleBlessing.Cast(akActionRef, akActionRef)). The server's
+  //    AddSpell only puts a spell in the learned list, so until 2026-10-01 these worshippers were taught a castable
+  //    "Blessing of X" and no effect ever ran.
+  //  - an Ability (Trinimac, the Worm Cult): AddSpell, which runs a constant effect for as long as the spell is known,
+  //    and RemoveSpell when the blessing ends. The learned list survives a relog and the client re-applies it at login.
+  //  - a Power or Lesser Power (the Hist, the Ancestors, the Yokudan gods, Riddle'Thar), or a record the server cannot
+  //    read: AddSpell as before, a power to use while the blessing lasts.
+  // A cast does not survive a relog (client active effects are not saved here), so it is made again at every login
+  // while the blessing runs, and again when the spell's own duration (8 h for the altar spells) ends before the
+  // blessing's 8 to 24 h. A cast of the same spell replaces the running one; it does not stack.
+  const SWEEP_MS = 60000;
+  const SPIT_SPELL = 0, CAST_FIRE_AND_FORGET = 1, DELIVERY_SELF = 0;
+  const spellInfoCache = new Map();
+  // { type, castType, delivery, cast, ms } for a SPEL (cast: the client casts it on the worshipper; ms: its longest
+  // effect, EFIT duration u32 at 8), or null when the record cannot be read
+  const spellInfo = (spellId) => {
+    spellId >>>= 0;
+    if (spellInfoCache.has(spellId)) return spellInfoCache.get(spellId);
+    let out = null;
+    const r = spellId ? baseRecord(spellId) : null;
+    const fields = (r && r.record && String(r.record.type) === 'SPEL' && r.record.fields) || [];
+    const spit = fields.find((f) => f && f.type === 'SPIT' && f.data instanceof Uint8Array && f.data.byteLength >= 24);
+    if (spit) {
+      const u32 = (f, at) => new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(at, true);
+      const type = u32(spit, 8), castType = u32(spit, 16), delivery = u32(spit, 20);
+      let secs = 0;
+      for (const f of fields) if (f && f.type === 'EFIT' && f.data instanceof Uint8Array && f.data.byteLength >= 12) secs = Math.max(secs, u32(f, 8));
+      out = { type, castType, delivery, cast: type === SPIT_SPELL && castType === CAST_FIRE_AND_FORGET && delivery === DELIVERY_SELF, ms: secs * 1000 };
+    }
+    spellInfoCache.set(spellId, out);
+    return out;
+  };
+  // When each worshipper's client last cast their blessing this session (actorId -> ms). Kept across a reload, emptied by
+  // a logout, since the client's effect goes with the session.
+  const blessCasts = globalThis.__dboBlessingCasts || (globalThis.__dboBlessingCasts = new Map());
+  const castOnSelf = (a, spellId) => {
+    if (typeof sendPacket !== 'function') return false;
+    try { sendPacket(a, { customPacketType: 'dboCastSelf', spell: spellId >>> 0 }); blessCasts.set(a, Date.now()); return true; }
+    catch (e) { log(`prayer: could not cast ${spellId.toString(16)} on ${display(a)}: ${e.message}`); return false; }
+  };
   // AddSpell/RemoveSpell are Actor methods and the worshipper is a player, so the call lands
   // (the memory note `papyrus-calls-only-reach-player-actors`: unregistered methods on a
   // server-spawned NPC log and return None, but a player actor is fine).
@@ -149,10 +193,13 @@ module.exports = (api) => {
     return /^[0-9a-f]+:/i.test(s) ? idOf(s) : 0;     // "<author: ...>" placeholders resolve to 0
   };
   const blessingOf = (a) => { try { const b = mp.get(a, 'private.dboBlessing'); return b && typeof b === 'object' && b.until ? b : null; } catch (e) { return null; } };
+  // A cast blessing (via 'cast') was never in the learned list, so there is nothing to take back. A record without `via`
+  // was granted before 2026-10-01 by AddSpell, whatever its spell, and is taken back as it always was.
   const clearBlessing = (a, why) => {
     const b = blessingOf(a);
     if (!b) return;
-    if (b.spell) castSpell(a, Number(b.spell) >>> 0, false);
+    if (b.spell && b.via !== 'cast') castSpell(a, Number(b.spell) >>> 0, false);
+    blessCasts.delete(a);
     try { mp.set(a, 'private.dboBlessing', null); } catch (e) { /* gone with the character */ }
     if (why) personal(a, why);
   };
@@ -186,11 +233,42 @@ module.exports = (api) => {
       log(`prayer: ${display(a)} earned a blessing from ${d.name}, which has no spell record`);
       return false;
     }
-    if (spell && !castSpell(a, spell, true)) return false;
+    const info = spell ? spellInfo(spell) : null;
+    const cast = !!(info && info.cast);
+    if (cast) {
+      // A worshipper blessed before 2026-10-01 may still hold this spell, taught and never cast: it goes first. The
+      // server's RemoveSpell does nothing (and tells the client nothing) for a spell it never taught, and it runs on the
+      // client before the cast, which arrives after it.
+      castSpell(a, spell, false);
+      if (!castOnSelf(a, spell)) return false;
+    } else if (spell && !castSpell(a, spell, true)) return false;
     const until = Date.now() + Math.max(1, hours) * 3600000;
-    try { mp.set(a, 'private.dboBlessing', { deity: d.id, spell, until }); } catch (e) { /* not fatal */ }
+    // `via` says how the spell was given, so the expiry knows whether there is anything to take back
+    try { mp.set(a, 'private.dboBlessing', spell ? { deity: d.id, spell, until, via: cast ? 'cast' : 'spell' } : { deity: d.id, spell, until }); } catch (e) { /* not fatal */ }
+    if (spell) log(`prayer: the blessing of ${d.name} ${cast ? 'cast on' : 'given as a spell to'} ${display(a)} for ${Math.max(1, hours)} h${info ? '' : ' (spell record unreadable)'}`);
     return true;
   };
+
+  // Cast a running blessing again: at login, when the spell's own duration ends first, or for a worshipper blessed before
+  // 2026-10-01 (taught, not cast), whose spell leaves the learned list here. Nothing for a blessing about to fade: a new
+  // cast would outlast it by the spell's whole duration.
+  const recastBlessing = (a, why) => {
+    const b = blessingOf(a);
+    if (!b || !b.spell || Number(b.until) - Date.now() <= SWEEP_MS) return false;
+    const spell = Number(b.spell) >>> 0;
+    const info = spellInfo(spell);
+    if (!info || !info.cast) return false;            // an Ability or a Power stays in the learned list, which the client re-applies
+    if (b.via !== 'cast') {
+      castSpell(a, spell, false);
+      try { mp.set(a, 'private.dboBlessing', Object.assign({}, b, { via: 'cast' })); } catch (e) { return false; }
+      log(`prayer: ${display(a)}'s blessing of ${b.deity} was a taught spell (before 2026-10-01); taken back and cast`);
+    }
+    if (!castOnSelf(a, spell)) return false;
+    log(`prayer: the blessing of ${b.deity} cast again on ${display(a)} (${why})`);
+    return true;
+  };
+  // gamemode.js calls this with the other login hooks, 8 s into the login
+  globalThis.__dboPrayerLogin = (a) => { blessCasts.delete(a); recastBlessing(a, 'login'); };
 
   // Sanguine's boon is not a spell and could not be one: the Prince of indulgence belongs on the
   // appetite meter, and appetite is the gamemode's (private.needs), not the engine's. The needs tick
@@ -216,14 +294,28 @@ module.exports = (api) => {
     } catch (e) { return false; }
   };
 
-  // A blessing is worn, not held: nothing else expires it, so the module does.
-  every('prayerBlessings', 60000, () => {
+  // A blessing is worn, not held: nothing else expires it, so the module does. The same sweep keeps a cast blessing on
+  // its worshipper: once more a sweep before the spell's own duration ends, while the blessing runs on past it.
+  every('prayerBlessings', SWEEP_MS, () => {
+    // Players online at the last sweep; on globalThis so a reload does not count everyone as just arrived (rest.js)
+    const seen = globalThis.__dboBlessingSeen instanceof Set ? globalThis.__dboBlessingSeen : new Set();
+    const here = globalThis.__dboBlessingSeen = new Set();
     for (const a of (api.onlineActors ? api.onlineActors() : [])) {
+      here.add(a);
       const b = blessingOf(a);
-      if (b && Number(b.until) <= Date.now()) {
+      if (!b) continue;
+      if (Number(b.until) <= Date.now()) {
         const d = deityById(b.deity);
         clearBlessing(a, `The blessing of ${d ? d.name : 'your god'} fades.`);
+        continue;
       }
+      const info = b.spell ? spellInfo(Number(b.spell) >>> 0) : null;
+      if (!info || !info.cast) continue;
+      const at = blessCasts.get(a);
+      // Not cast this session: the login does it, 8 s in. Someone already here at the last sweep was missed by it, or was
+      // blessed before 2026-10-01 and online when this loaded.
+      if (at === undefined) { if (seen.has(a)) recastBlessing(a, 'not cast this session'); continue; }
+      if (info.ms > 0 && Date.now() >= at + info.ms - SWEEP_MS && Number(b.until) - (at + info.ms) > SWEEP_MS) recastBlessing(a, 'the spell ran out before the blessing');
     }
   });
 
@@ -685,7 +777,8 @@ module.exports = (api) => {
   });
   // Someone who logs out, mid-pick or before the offer reached them, is offered it again next time (gamemode.js calls this
   // on every logout)
-  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); };
+  // The blessing's cast goes with the session too: the client does not keep it, and the next login casts it again.
+  globalThis.__dboDeityForget = (a) => { offered.delete(a); offerReadySince.delete(a); pickerNonce.delete(a); creationStep.delete(a); blessCasts.delete(a); };
 
   // Taking or changing a god. `atShrine` is the older chat path's extra rule and is not applied to
   // the menu, because the brief moved conversion onto a menu key rather than a pilgrimage.
@@ -768,8 +861,9 @@ module.exports = (api) => {
       }
       if (blessing) {
         const bd = deityById(blessing.deity);
-        if (blessing.spell) castSpell(t, Number(blessing.spell) >>> 0, false);
+        if (blessing.spell && blessing.via !== 'cast') castSpell(t, Number(blessing.spell) >>> 0, false);
         mp.set(t, 'private.dboBlessing', null);
+        blessCasts.delete(t >>> 0);
         cleared.push(`the blessing of ${bd ? bd.name : blessing.deity}`);
       }
       if (offering) { mp.set(t, 'private.dboOffering', null); cleared.push(`an offering of ${Number(offering.gold) || 0} gold`); }
@@ -878,16 +972,22 @@ module.exports = (api) => {
   // A blessing id that does not resolve is silent: the prayer succeeds, the roll lands and the
   // worshipper is told the god "gives no sign". Count them at boot so a mistyped form id shows up
   // in the log rather than in somebody's play session.
+  // How each resolved blessing will be given (see the blessings block): cast on the worshipper, or learned (an Ability, a
+  // Power, or a record the server could not read, which keeps AddSpell)
   const blessingCheck = (() => {
-    const out = { ok: 0, server: 0, broken: [] };
+    const out = { ok: 0, server: 0, broken: [], cast: 0, learned: 0, unread: [] };
     for (const d of DEITIES) {
       if (d.blessingSource === 'server') { out.server++; continue; }
-      if (blessingIdOf(d)) out.ok++; else out.broken.push(d.name);
+      const id = blessingIdOf(d);
+      if (!id) { out.broken.push(d.name); continue; }
+      out.ok++;
+      const info = spellInfo(id);
+      if (!info) out.unread.push(d.name); else if (info.cast) out.cast++; else out.learned++;
     }
     return out;
   })();
   if (blessingCheck.broken.length) log(`prayer: ${blessingCheck.broken.length} blessing(s) do not resolve: ${blessingCheck.broken.join(', ')}`);
 
   const reachable = DEITIES.filter((d) => Number(d.inBruma) > 0 || d.prayAnywhere).length;
-  log(`prayer ${CFG.enabled ? 'on' : 'off'}: ${DEITIES.length} deities, ${shrineIndex().size} shrine ids, ${reachable} reachable under the region lock; ${VERSES} verses of ${VERSE_MS} ms, ${SLACK_MS} ms slack, ${Math.round(SHRINE_COOLDOWN_MS / 60000)} min per shrine, conversion every ${CONVERSION_DAYS} day(s); blessings ${blessingCheck.ok} resolved, ${blessingCheck.server} server-side, ${blessingCheck.broken.length} broken`);
+  log(`prayer ${CFG.enabled ? 'on' : 'off'}: ${DEITIES.length} deities, ${shrineIndex().size} shrine ids, ${reachable} reachable under the region lock; ${VERSES} verses of ${VERSE_MS} ms, ${SLACK_MS} ms slack, ${Math.round(SHRINE_COOLDOWN_MS / 60000)} min per shrine, conversion every ${CONVERSION_DAYS} day(s); blessings ${blessingCheck.ok} resolved (${blessingCheck.cast} cast on the worshipper, ${blessingCheck.learned} learned${blessingCheck.unread.length ? `, ${blessingCheck.unread.length} unreadable and learned: ${blessingCheck.unread.join(', ')}` : ''}), ${blessingCheck.server} server-side, ${blessingCheck.broken.length} broken`);
 };
