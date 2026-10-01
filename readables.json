@@ -620,8 +620,8 @@
   {
    "id": "Skyrim.esm:0B3165",
    "name": "dunTrevasSpellTomeSpectralArrow",
-   "school": "Restoration",
-   "rank": 0,
+   "school": "Conjuration",
+   "rank": 1,
    "spell": "dunTrevasSpectralArrow",
    "value": 250
   },
@@ -756,7 +756,7 @@
   {
    "id": "Skyrim.esm:0A26F6",
    "name": "SpellTomeCommandDaedra",
-   "school": "Restoration",
+   "school": "Conjuration",
    "rank": 3,
    "spell": "CommandDaedra",
    "value": 660
@@ -772,7 +772,7 @@
   {
    "id": "Skyrim.esm:0A26E8",
    "name": "SpellTomeParalyze",
-   "school": "Restoration",
+   "school": "Alteration",
    "rank": 3,
    "spell": "Paralyze",
    "value": 685

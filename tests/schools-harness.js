@@ -44,6 +44,9 @@ const T = {
   boundSword: ['9e2a9:Skyrim.esm', '211eb:Skyrim.esm'], courage: ['9e2ad:Skyrim.esm', '4dee8:Skyrim.esm'],
   calm: ['a2711:Skyrim.esm', '4dee9:Skyrim.esm'], candlelight: ['9e2a7:Skyrim.esm', '43324:Skyrim.esm'],
   oakflesh: ['9e2a8:Skyrim.esm', '5ad5c:Skyrim.esm'],
+  // Spectral Arrow: Conjuration Apprentice by its first, costliest effect (#bugs 1555203751822762084: spell-tomes.json had it
+  // Restoration Novice, by its free stagger effect, so a Destruction mage learned it and took up Priest)
+  spectral: ['b3165:Skyrim.esm', 'ab23d:Skyrim.esm'],
 };
 const HEALING = '12fcc:Skyrim.esm';
 
@@ -209,6 +212,7 @@ check('a secondary before Arcane Arts 76 is refused', !rec(MAGE).secondary && /o
 // ---- the school gate on tomes ----
 check('a Novice Destruction tome is learned', (await read(MAGE, T.flames)) !== false && studied(MAGE).includes(T.flames[1]), studied(MAGE));
 check('a Conjuration tome is refused: not one of the schools', (await read(MAGE, T.boundSword)) === false && /Conjuration is not one of your schools of magic/.test(said(MAGE)), said(MAGE));
+check('Spectral Arrow\'s tome is a Conjuration tome: refused to a Destruction mage, and it takes up no Priest', (await read(MAGE, T.spectral)) === false && /Conjuration is not one of your schools of magic/.test(said(MAGE)) && !touches.some(([x, sk]) => x === MAGE && sk === 'priest') && !known(MAGE).has(idOf(T.spectral[1])), [said(MAGE), touches]);
 check('an Alteration tome too, once Alteration is one of the four', (await read(MAGE, T.candlelight)) === false && /(Alteration is not one of your schools|not taken up Priest)/.test(said(MAGE)), said(MAGE));
 arcane(MAGE, 30);
 check('Arcane Arts Apprentice but the school still Novice: an Apprentice tome is refused by the school', (await read(MAGE, T.firebolt)) === false && /Your study of Destruction is Novice; an Apprentice spell needs more/.test(said(MAGE)), said(MAGE));
