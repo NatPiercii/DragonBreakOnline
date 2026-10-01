@@ -134,3 +134,28 @@ TEST_CASE("Formula is race-dependent for unarmed attack",
   p.DestroyActor(0xff000000);
   DoDisconnect(p, 0);
 }
+
+TEST_CASE("A staff enchantment's damage is its visible damage effects",
+          "[TES5DamageFormula]")
+{
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  p.CreateActor(0xff000000, { 0, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, 0xff000000);
+  auto& ac = p.worldState.GetFormAt<MpActor>(0xff000000);
+
+  TES5DamageFormula formula{};
+  const auto damageOf = [&](uint32_t enchantmentId) {
+    return formula.CalculateDamage(
+      ac, ac,
+      SpellCastData{ 0xff000000, 0xff000000, enchantmentId, false, false,
+                     SpellType::Left });
+  };
+  // StaffEnchSparks: ShockDamageConcAimed 8
+  REQUIRE(damageOf(0x0004dedc) == 8.f);
+  // StaffEnchIceSpike: FrostDamageFFAimed 25; its FrostSlow rider lowers SpeedMult, not Health
+  REQUIRE(damageOf(0x0004ded7) == 25.f);
+
+  p.DestroyActor(0xff000000);
+  DoDisconnect(p, 0);
+}
