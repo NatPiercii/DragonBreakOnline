@@ -8,7 +8,7 @@ import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
 import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
 import { HOST_TRY_GHOST_AFTER, isSettling } from "./npcLifetime";
-import { hostBackoff, safeDelete } from "./npcLifetimeRuntime";
+import { hostBackoff, noteActorCall, noteCopyBorn, safeDelete } from "./npcLifetimeRuntime";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -284,6 +284,7 @@ export class FormView {
           spawnMethod.triggerSpawnProcess(refr, spawnPos, model.appearance || null, () => {
             this.ready = true;
             this.spawnMoment = Date.now();
+            noteCopyBorn(this.refrId);
           });
         } else {
           printConsole("Unable to triggerSpawnProcess for null refr");
@@ -696,6 +697,7 @@ export class FormView {
           // Never on a beast copy: the queued 3D reset holds a raw actor pointer and the beast graph is the one that crashed
           if (isOnScreen && !this.isBeastCopy(model) && Date.now() - this.lastNiNodeUpdateMs >= FormView.niNodeUpdateMinIntervalMs) {
             this.lastNiNodeUpdateMs = Date.now();
+            noteActorCall("ninode", this.refrId);
             queueCopyNiNodeUpdate(actor.getFormID());
             // The rebuilt 3D drops effect shaders
             if (this.adminShaderOn) {

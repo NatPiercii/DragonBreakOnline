@@ -227,6 +227,7 @@ export class RemoteServer extends ClientListener {
     const msg = event.message;
     const target = msg.target;
     logTrace(this, 'hostStop ' + target.toString(16));
+    noteActorCall("hoststop", remoteIdToLocalId(target) || 0, `remote=${(target >>> 0).toString(16)}`);
 
     const hosted = storage['hosted'] as Array<number>;
     if (typeof hosted === typeof []) {

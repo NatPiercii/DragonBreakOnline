@@ -2,6 +2,7 @@ import { Actor } from "skyrimPlatform";
 import { ApplyDeathStateEvent } from "../events/applyDeathStateEvent";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { RespawnNeededError } from "../../lib/errors";
+import { noteActorCall } from "../../view/npcLifetimeRuntime";
 import { AnimationEventName } from "../../sync/animation";
 import { RagdollService } from "./ragdollService";
 
@@ -94,6 +95,7 @@ export class DeathService extends ClientListener {
       actor.setDontMove(true);
       this.killWithPush(actor);
     } else {
+      noteActorCall("kill", actor.getFormID());
       actor.endDeferredKill();
       actor.kill(killer);
     }
