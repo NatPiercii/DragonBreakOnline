@@ -614,6 +614,10 @@ module.exports = (api) => {
     // After the verdict the round is already gone: Rise only closes the window
     if (!round) return closeWidget(a, WIDGET_ID);
     if (String(args[0]) !== round.nonce) return;
+    // A round never begun (no first press, dbo:prayerStart) is no failed prayer and rests nothing. Every touch of a shrine
+    // that is not resting starts a round, and /offer wants that touch, so closing the panel to make an offering rested
+    // the shrine for failRestMinutes before the prayer the offering was for (2026-10-01).
+    if (!round.begun) return finish(a, round, false, 'You rise without praying. Kneel again when you are ready.', 'lose', false);
     finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose');
   });
 

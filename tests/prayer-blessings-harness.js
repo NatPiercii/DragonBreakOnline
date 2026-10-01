@@ -2,8 +2,8 @@
 // learned list, so every Divine and Prince blessing (a Spell cast Fire-and-Forget on Self) was taught as a castable
 // "Blessing of X" and never ran. Now such a blessing is cast on the worshipper by their own client (dboCastSelf), again at
 // every login while it runs and again when the spell's own duration ends first; an Ability is still learned, and so is a
-// Power. Loads the real module with a mock gamemode api and spell records shaped like the real ones. Run it from this
-// folder's parent with
+// Power. Also: closing a prayer round before its first press (to make an offering) rests no shrine. Loads the real
+// module with a mock gamemode api and spell records shaped like the real ones. Run it from this folder's parent with
 //
 //   node tests/prayer-blessings-harness.js
 'use strict';
@@ -309,6 +309,29 @@ prayAndWin('nocturnal');
 check('a blessing whose record cannot be read is taught as before, not lost', calls('AddSpell').length === 1 && casts().length === 0 && blessing().via === 'spell'
   && out.logs.some((l) => /record unreadable/.test(l)));
 records.set(spellOf('nocturnal'), saved);
+
+// ---- 11. an offering costs no shrine rest (the second fix of 2026-10-01) ------------------------------------------
+// /offer wants the shrine touched first, and a touch at a shrine that is not resting opens a prayer round. Closing that
+// round to type /offer used to finish it as a failure, which rested the shrine for 5 minutes before the prayer.
+const SHRINE = idOf(choiceOf('akatosh').shrines[0]);
+const rests = () => props.get(ACTOR + '|private.prayedShrines') || {};
+const touch = () => { wallClock += 2000; virtual += 100000; clear(); globalThis.__dboPrayerActivate(SHRINE, ACTOR); return { w: out.widgets.find((x) => x.type === 'prayer' && !x.result), said: out.personals.join(' | ') }; };
+worship('akatosh');
+let t = touch();
+check('a touch at the shrine opens a round', !!t.w);
+clear(); fire('prayerCancel', [t.w.nonce]);
+const closed = out.widgets.find((x) => x.type === 'prayer' && x.result);
+check('closed before the first press, it rests nothing', !rests()[SHRINE.toString(16)] && !!closed && /without praying/.test(closed.result), JSON.stringify(rests()));
+clear(); commands.get('offer')(ACTOR, '50');
+const offering = props.get(ACTOR + '|private.dboOffering');
+check('the offering is taken at the shrine just touched', !!offering && offering.deityId === 'akatosh' && offering.gold === 50, out.personals.join(' | '));
+t = touch();
+check('and the shrine hears the prayer it was made for at once', !!t.w && !/prayed here recently/.test(t.said), t.said);
+clear(); fire('prayerStart', [t.w.nonce]);
+virtual += 3000; clear(); fire('prayerCancel', [t.w.nonce]);
+check('a round begun (the first press) and abandoned still rests the shrine', Number(rests()[SHRINE.toString(16)]) === wallClock + 5 * 60000, JSON.stringify(rests()));
+t = touch();
+check('so the next touch is refused for those minutes', !t.w && /prayed here recently/.test(t.said), t.said);
 
 console.log('');
 console.log('deity        cast  learned  via');
