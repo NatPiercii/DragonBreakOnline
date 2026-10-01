@@ -31,6 +31,20 @@ const PEER_MAX = 2;
 const PEERS_KEY = 'dboVoicePeers';
 const DEFAULT_PREFS = { inputLabel: '', outputLabel: '', micGain: 1, outputVolume: 1, activation: 'ptt', vadThreshold: 0.06 };
 
+// Connects two local peer connections to each other; munge may rewrite each SDP
+const pairUp = async (a, b, munge = (sdp) => sdp) => {
+  a.onicecandidate = (e) => { if (e.candidate) b.addIceCandidate(e.candidate).catch(() => {}); };
+  b.onicecandidate = (e) => { if (e.candidate) a.addIceCandidate(e.candidate).catch(() => {}); };
+  const offer = await a.createOffer();
+  const offerSdp = munge(offer.sdp);
+  await a.setLocalDescription({ type: 'offer', sdp: offerSdp });
+  await b.setRemoteDescription({ type: 'offer', sdp: offerSdp });
+  const answer = await b.createAnswer();
+  const answerSdp = munge(answer.sdp);
+  await b.setLocalDescription({ type: 'answer', sdp: answerSdp });
+  await a.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+};
+
 const readPeers = () => { try { return JSON.parse(window.localStorage.getItem(PEERS_KEY)) || {}; } catch (e) { return {}; } };
 const clampNum = (v, lo, hi, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
 const MODE_IMG = { whisper: whisperImg, talk: talkImg, shout: shoutImg };
@@ -175,22 +189,13 @@ class VoiceManager {
     try {
       a = new RTCPeerConnection({ iceServers: [] });
       b = new RTCPeerConnection({ iceServers: [] });
-      a.onicecandidate = (e) => { if (e.candidate) b.addIceCandidate(e.candidate).catch(() => {}); };
-      b.onicecandidate = (e) => { if (e.candidate) a.addIceCandidate(e.candidate).catch(() => {}); };
       b.ontrack = (e) => {
         try { if ('playoutDelayHint' in e.receiver) e.receiver.playoutDelayHint = 0; } catch (err) { /* not in this Chromium */ }
         mix.out.srcObject = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
         const p = mix.out.play(); if (p && p.catch) p.catch(() => {});
       };
       mix.dest.stream.getAudioTracks().forEach((t) => a.addTrack(t, mix.dest.stream));
-      const offer = await a.createOffer();
-      const offerSdp = stereo(offer.sdp);
-      await a.setLocalDescription({ type: 'offer', sdp: offerSdp });
-      await b.setRemoteDescription({ type: 'offer', sdp: offerSdp });
-      const answer = await b.createAnswer();
-      const answerSdp = stereo(answer.sdp);
-      await b.setLocalDescription({ type: 'answer', sdp: answerSdp });
-      await a.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+      await pairUp(a, b, stereo);
       mix.loop = { a, b };
       // A loop that never connects, or carries no audio, hands playback back to the direct stream
       setTimeout(async () => {
@@ -240,6 +245,28 @@ class VoiceManager {
       if (typeof s.echoCancellation === 'boolean') aec = s.echoCancellation ? 'on' : 'off';
     } catch (e) { /* LiveKit's own mic, or none */ }
     return `mics ${mics}, aec ${aec}`;
+  }
+
+  // For DevTools (the PC test). Chromium reports echo cancellation stats only for a mic track sent over a peer connection,
+  // never for the WebAudio track this client publishes, so the raw capture goes over a local pair for a moment.
+  // Meaningful only while someone is heard: with nothing playing there is no echo to cancel.
+  async aecProbe(ms = 2000) {
+    const raw = this.mic && this.mic.stream.getAudioTracks()[0];
+    if (!raw || typeof RTCPeerConnection !== 'function') return null;
+    const a = new RTCPeerConnection({ iceServers: [] });
+    const b = new RTCPeerConnection({ iceServers: [] });
+    try {
+      a.addTrack(raw);
+      await pairUp(a, b);
+      await new Promise((r) => setTimeout(r, ms));
+      const out = { playing: this.peerNodes.size, mic: this.micSummary() };
+      (await a.getStats()).forEach((r) => {
+        if (r.type === 'media-source' && r.kind === 'audio') { out.echoReturnLoss = r.echoReturnLoss; out.echoReturnLossEnhancement = r.echoReturnLossEnhancement; }
+      });
+      return out;
+    } finally {
+      a.close(); b.close();
+    }
   }
 
   stopLoopback(mix) {
