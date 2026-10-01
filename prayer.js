@@ -204,6 +204,18 @@ module.exports = (api) => {
     try { sendPacket(a, { customPacketType: 'dboCastSelf', spell: spellId >>> 0 }); blessCasts.set(a, Date.now()); return true; }
     catch (e) { log(`prayer: could not cast ${spellId.toString(16)} on ${display(a)}: ${e.message}`); return false; }
   };
+  // A cast blessing that ends before its spell does (the faiths' 4 to 12 h over an 8 h spell, Auri-El's 12 h spell, a
+  // turn, a staff reset, a late relog's fresh 8 h) is ended on the worshipper by their own client: dboDispelSelf, the
+  // castSelfService handler beside dboCastSelf (Actor.DispelSpell, as beastFormService already uses it). A client without
+  // that handler (0.3.74 and older) ignores the packet, as every one of its custom packet listeners returns on a type it
+  // does not know, so there the effect runs its own duration as it did before.
+  const dispelOnSelf = (a, spellId, why) => {
+    if (typeof sendPacket !== 'function' || !spellId) return false;
+    try { sendPacket(a, { customPacketType: 'dboDispelSelf', spell: spellId >>> 0 }); }
+    catch (e) { log(`prayer: could not end ${spellId.toString(16)} on ${display(a)}: ${e.message}`); return false; }
+    log(`prayer: the blessing's effect ${spellId.toString(16)} ended on ${display(a)}'s client (${why})`);
+    return true;
+  };
   // AddSpell/RemoveSpell are Actor methods and the worshipper is a player, so the call lands
   // (the memory note `papyrus-calls-only-reach-player-actors`: unregistered methods on a
   // server-spawned NPC log and return None, but a player actor is fine).
@@ -221,12 +233,14 @@ module.exports = (api) => {
     return /^[0-9a-f]+:/i.test(s) ? idOf(s) : 0;     // "<author: ...>" placeholders resolve to 0
   };
   const blessingOf = (a) => { try { const b = mp.get(a, 'private.dboBlessing'); return b && typeof b === 'object' && b.until ? b : null; } catch (e) { return null; } };
-  // A cast blessing (via 'cast') was never in the learned list, so there is nothing to take back. A record without `via`
-  // was granted before 2026-10-01 by AddSpell, whatever its spell, and is taken back as it always was.
-  const clearBlessing = (a, why) => {
+  // A cast blessing (via 'cast') was never in the learned list, so there is nothing to take back; its effect is ended on
+  // the client instead (dboDispelSelf). A record without `via` was granted before 2026-10-01 by AddSpell, whatever its
+  // spell, and is taken back as it always was. `reason` names the end in the log (expired, replaced, turned).
+  const clearBlessing = (a, why, reason) => {
     const b = blessingOf(a);
     if (!b) return;
     if (b.spell && b.via !== 'cast') castSpell(a, Number(b.spell) >>> 0, false);
+    if (b.spell && b.via === 'cast') dispelOnSelf(a, Number(b.spell) >>> 0, reason || 'ended');
     blessCasts.delete(a);
     try { mp.set(a, 'private.dboBlessing', null); } catch (e) { /* gone with the character */ }
     if (why) personal(a, why);
@@ -253,7 +267,7 @@ module.exports = (api) => {
     // the reading round and the dungeon loot; neither has a record, so "no spell" is only a failure when the deity has
     // nothing server-side either.
     const serverSide = !!d.hungerHalf || !!d.scholarBoon;
-    clearBlessing(a, null);
+    clearBlessing(a, null, 'replaced');
     if (!spell && !serverSide) {
       // Every Prince still waiting on its SPEL lands here. The prayer succeeded and counted; there
       // is simply nothing to hand over yet.
@@ -280,7 +294,9 @@ module.exports = (api) => {
   // Cast a running blessing again: at login, when the spell's own duration ends first, or for a worshipper blessed before
   // 2026-10-01 (taught, not cast), whose spell leaves the learned list here. Nothing for a blessing about to fade: a new
   // cast would outlast it by the spell's whole duration.
-  const recastBlessing = (a, why) => {
+  // `fresh` ends the running effect first (dboDispelSelf), for a cast that lands on one still running: the spell's last
+  // minute.
+  const recastBlessing = (a, why, fresh) => {
     const b = blessingOf(a);
     if (!b || !b.spell || Number(b.until) - Date.now() <= SWEEP_MS) return false;
     const spell = Number(b.spell) >>> 0;
@@ -291,6 +307,7 @@ module.exports = (api) => {
       try { mp.set(a, 'private.dboBlessing', Object.assign({}, b, { via: 'cast' })); } catch (e) { return false; }
       log(`prayer: ${display(a)}'s blessing of ${b.deity} was a taught spell (before 2026-10-01); taken back and cast`);
     }
+    if (fresh && b.via === 'cast') dispelOnSelf(a, spell, 'cast again');
     if (!castOnSelf(a, spell)) return false;
     log(`prayer: the blessing of ${b.deity} cast again on ${display(a)} (${why})`);
     return true;
@@ -334,7 +351,7 @@ module.exports = (api) => {
       if (!b) continue;
       if (Number(b.until) <= Date.now()) {
         const d = deityById(b.deity);
-        clearBlessing(a, `The blessing of ${d ? d.name : 'your god'} fades.`);
+        clearBlessing(a, `The blessing of ${d ? d.name : 'your god'} fades.`, 'expired');
         continue;
       }
       const info = b.spell ? spellInfo(Number(b.spell) >>> 0) : null;
@@ -343,7 +360,7 @@ module.exports = (api) => {
       // Not cast this session: the login does it, 8 s in. Someone already here at the last sweep was missed by it, or was
       // blessed before 2026-10-01 and online when this loaded.
       if (at === undefined) { if (seen.has(a)) recastBlessing(a, 'not cast this session'); continue; }
-      if (info.ms > 0 && Date.now() >= at + info.ms - SWEEP_MS && Number(b.until) - (at + info.ms) > SWEEP_MS) recastBlessing(a, 'the spell ran out before the blessing');
+      if (info.ms > 0 && Date.now() >= at + info.ms - SWEEP_MS && Number(b.until) - (at + info.ms) > SWEEP_MS) recastBlessing(a, 'the spell ran out before the blessing', true);
     }
   });
 
@@ -1000,7 +1017,7 @@ module.exports = (api) => {
         return { ok: false, text: `You must stand at a shrine of ${d.name} and touch it, then say this again.` };
       }
     }
-    if (faith) clearBlessing(a, null);
+    if (faith) clearBlessing(a, null, 'turned');
     setFaith(a, {
       id: d.id, name: d.name, kind: d.kind,
       at: faith ? Number(faith.at) || Date.now() : Date.now(),
@@ -1066,6 +1083,8 @@ module.exports = (api) => {
         if (blessing.spell && blessing.via !== 'cast') castSpell(t, Number(blessing.spell) >>> 0, false);
         mp.set(t, 'private.dboBlessing', null);
         blessCasts.delete(t >>> 0);
+        // A cast blessing's effect ends on the client of a worshipper who is online; an offline one's went with the session
+        if (blessing.spell && blessing.via === 'cast' && onlineNow(t)) dispelOnSelf(t >>> 0, Number(blessing.spell) >>> 0, 'reset');
         cleared.push(`the blessing of ${bd ? bd.name : blessing.deity}`);
       }
       if (offering) { mp.set(t, 'private.dboOffering', null); cleared.push(`an offering of ${Number(offering.gold) || 0} gold`); }
