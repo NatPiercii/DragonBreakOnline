@@ -1083,7 +1083,9 @@ module.exports = (api) => {
   const denyAt = new Map();
   const denySwallowed = new Map();
   // A refusal used to reach the player only, so nobody could tell afterwards why a claim failed; reasons are logged too
+  let denySeq = 0;   // counts every refusal, swallowed ones too (an automatic door steps the player back on each)
   const deny = (a, text, why) => {
+    denySeq++;
     const now = Date.now();
     if (now - (denyAt.get(a) || 0) <= 1500) { denySwallowed.set(a, (denySwallowed.get(a) || 0) + 1); return false; }
     denyAt.set(a, now);
@@ -1164,10 +1166,41 @@ module.exports = (api) => {
     }
     if (inside) return true; // leaving is always allowed
     const out = outsideDoors.get(targetId);
-    if (out) return offerGate(casterId, out.d, out.entrance);
+    if (out) {
+      const before = denySeq;
+      const v = offerGate(casterId, out.d, out.entrance);
+      if (denySeq !== before && isAutomaticDoor(targetId)) stepBack(casterId, out.entrance);
+      return v;
+    }
     const chest = chestRefs.get(targetId);
     return chest ? chestActivate(targetId, casterId, chest) : null;
   };
+  // An automatic load door (DOOR FNAM flag 0x02, AutoLoadDoor01 at most cave mouths) starts the engine's load as the
+  // player walks into it, before the server answers; a refusal left that load half-open (Fader and Mist menus up, the
+  // player frozen until a relog: /bug 2026-10-01 01:43, Plundered Mine). So a refusal there also steps the player back
+  // onto the entrance's outside marker, which gives the load somewhere to land. Read from the door's own base record.
+  const autoBase = globalThis.__dboAutoDoorBases instanceof Map ? globalThis.__dboAutoDoorBases : (globalThis.__dboAutoDoorBases = new Map());
+  const isAutomaticDoor = (refId) => {
+    let base = 0;
+    try { base = mp.getIdFromDesc(String(mp.get(refId >>> 0, 'baseDesc') || '')) >>> 0; } catch (e) { return false; }
+    if (!base) return false;
+    if (!autoBase.has(base)) {
+      let auto = false;
+      try {
+        const r = mp.lookupEspmRecordById(base);
+        const f = r && r.record && String(r.record.type) === 'DOOR' ? (r.record.fields || []).find((x) => x && x.type === 'FNAM' && x.data && x.data.length) : null;
+        auto = !!(f && (f.data[0] & 0x02));
+      } catch (e) { auto = false; }
+      autoBase.set(base, auto);
+    }
+    return autoBase.get(base);
+  };
+  const stepBack = (a, entrance) => {
+    if (!entrance || !Array.isArray(entrance.pos) || !(entrance.world || entrance.cell)) return;
+    if (teleport(a, entrance.world || entrance.cell, entrance.pos, entrance.rot)) log(`dungeon: ${who(a)} stepped back from the automatic door of ${entrance.outsideDesc || 'an entrance'}`);
+  };
+  try { let n = 0; for (const id of outsideDoors.keys()) if (isAutomaticDoor(id)) n++; log(`dungeons: ${n} of ${outsideDoors.size} entrance doors are automatic (a refusal there steps the player back)`); }
+  catch (e) { log('dungeons: automatic door census failed', e.message); }
   // Claims at an outside door or an expedition from the Synod: the party and difficulty panel. For a door, true lets
   // the engine carry a member of the live claim inside; an expedition carries them there itself.
   const offerGate = (casterId, d, entrance) => {
