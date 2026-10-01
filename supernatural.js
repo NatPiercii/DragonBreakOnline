@@ -27,8 +27,23 @@ module.exports = (api) => {
   const fs = require('fs');
   const path = require('path');
   const { mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin,
-    findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf, cfg } = api;
+    findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf, cfg, hasUiCap } = api;
+  // The shared rules for client-judged mini-games, beside this file (reloaded with it)
+  const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
+  delete require.cache[MINIGAMES_JS];
+  const MG = require(MINIGAMES_JS);
 
+  // The rite mini-game. leadMs before the marker moves, timeoutMs a round may wait for a strike. Old widgets (they send
+  // only "struck") are judged by when the strike ARRIVES, less latencyMs. Rollback (clientJudged false): three samples
+  // slackMs apart, as before. Client-judged: one continuous window, lateWindowMs back and earlyWindowMs ahead (the gaps
+  // between the three samples cost 12 of 49 misses, and every player above about 280 ms of lag was judged outside the
+  // whole slack), and legacyExtraMs more on the round's timer. A client whose UI names 'riteJudge' (the next client cut)
+  // judges each strike at the frame on screen with graceMs and reports it with its own times; the server never reads
+  // when that report arrived, and a round it never reports is a miss after silentMs (DESIGN.md section 4.6).
+  // replayCheck: 'log' lets a claimed hit the widget's own press time does not bear out stand with a RITE-MISMATCH
+  // audit line; 'refuse' scores the replay instead.
+  const RITE_DEFAULTS = { rounds: 5, needFever: 3, needVoluntary: 4, leadMs: 700, timeoutMs: 7000, latencyMs: 120, slackMs: 160,
+    clientJudged: true, lateWindowMs: 250, earlyWindowMs: 160, legacyExtraMs: 2500, graceMs: 100, silentMs: 120000, replayCheck: 'log' };
   const C = Object.assign({
     // Werewolf harder to come by than vampirism (Nate, 2026-09-27: 5% -> 2%)
     infectVampire: 0.10, infectWerewolf: 0.02, infectFeed: 0.10,
@@ -57,7 +72,7 @@ module.exports = (api) => {
     // Claws deal the race's unarmed damage (werewolf 20, Vampire Lord 10) and the server runs none of the beast perks,
     // so a beast hit weaker than a sword. Multiplies a beast player's melee hit: 50 and 35 against an unarmoured target.
     beastMeleeMult: { werewolf: 2.5, vampirelord: 3.5 },
-    rite: { rounds: 5, needFever: 3, needVoluntary: 4, leadMs: 700, timeoutMs: 7000, latencyMs: 120, slackMs: 160 },
+    rite: RITE_DEFAULTS,
     // Onny's suggestion (Nate 2026-09-30: game hours, no permadeath). A vampire turned by the fever has no gifts until
     // their first meal. After firstMealHours of their own play without one (game hours, counted like incubation),
     // each further game hour withers their health and stamina recovery by witherPerHour, up to witherMax. Blood
@@ -67,6 +82,9 @@ module.exports = (api) => {
     // or not yet fed)
     vampireFood: 0.25, vampireFoodThirsty: 0.10,
   }, cfg.supernatural || {});
+  // Merged key by key, as C.feed is below: a partial override such as {"rite":{"clientJudged":false}} used to replace the
+  // whole block and wipe rounds, need and leadMs (DESIGN.md section 4.6)
+  C.rite = Object.assign({}, RITE_DEFAULTS, (cfg.supernatural || {}).rite || {});
   // Feeding takes time. A vampire's seconds come from their blood rank (bloodranks.js), `seconds` without it; from
   // the rank bloodranks names, a vampire can also feed deeply: longMult as long, a longer thirst hold, faster
   // recovery for longSatedHours game hours, longBloodMult the rank blood, and a standing captive blacks out.
@@ -546,16 +564,30 @@ module.exports = (api) => {
   const markerAt = (round, t) => { const ph = (((t % round.period) + round.period) % round.period) / round.period; return ph < 0.5 ? ph * 2 : 2 - ph * 2; };
   const newRound = (r) => {
     const i = r.round;
-    return { period: Math.round(1700 - i * 150 + Math.random() * 200), center: 0.2 + Math.random() * 0.6, width: Math.max(0.1, 0.24 - i * 0.03), startsAt: Date.now() + C.rite.leadMs };
+    return { period: Math.round(1700 - i * 150 + Math.random() * 200), center: 0.2 + Math.random() * 0.6, width: Math.max(0.1, 0.24 - i * 0.03), startsAt: Date.now() + C.rite.leadMs,
+      // One per round, for a client that judges itself: its report names it, so a round is reported once (the rite's own
+      // nonce covers the whole rite). sentAt: the server's monotonic clock when the round went out, for the lower bound.
+      rnonce: Math.floor(Math.random() * 0x7fffffff).toString(36), sentAt: performance.now() };
   };
+  const riteClientJudged = () => MG.clientJudged(C.rite);
   const showRite = (a, r, result) => {
     const def = RITES[r.type]; const rd = r.current;
-    openWidget(a, {
+    const w = {
       type: 'rite', id: RITE_ID, nonce: r.nonce, title: def.title, flavor: def.flavor, deadly: !!def.deadly,
       round: r.round + 1, rounds: C.rite.rounds, need: def.need, hits: r.hits, misses: r.misses,
       period: rd ? rd.period : 0, zone: rd ? [rd.center, rd.width] : [0.5, 0.2], startsIn: rd ? Math.max(0, rd.startsAt - Date.now()) : 0,
       result: result || '',
-    }, true);
+    };
+    // A widget that judges itself: the round's own nonce, its grace and how long it may wait for a strike
+    if (r.client && rd) Object.assign(w, { judge: 'client', rnonce: rd.rnonce, graceMs: C.rite.graceMs, limitMs: C.rite.timeoutMs });
+    openWidget(a, w, true);
+  };
+  // The round's timer. Client: no deadline on the server's clock, only a cleanup after silentMs for a widget that never
+  // reports (a miss). Old widget: the arrival timer, legacyExtraMs longer when client-judged. Rollback: as before.
+  const armTimer = (a, r) => {
+    const wait = r.client ? C.rite.leadMs + C.rite.timeoutMs + Math.max(60000, Number(C.rite.silentMs) || 120000)
+      : C.rite.leadMs + C.rite.timeoutMs + (riteClientJudged() ? Math.max(0, Number(C.rite.legacyExtraMs) || 0) : 0);
+    r.timer = setTimeout(() => judge(a, r, false, r.client ? 'silent' : 'too late'), wait);
   };
   // A deadly trial never opens this soon after a login; the login-focus bugs of 2026-09-26 showed the client
   // can still be holding the keyboard and cursor well after the player is technically in the world.
@@ -563,11 +595,13 @@ module.exports = (api) => {
   const startRite = (a, type) => {
     if (rites.has(a)) return;
     const r = { type, nonce: `${a.toString(16)}-${Date.now().toString(36)}`, round: 0, hits: 0, misses: 0, current: null, timer: null };
+    // Decided at the start: a client rite round is played without an arrival timer, which an old widget would not survive
+    r.client = riteClientJudged() && typeof hasUiCap === 'function' && hasUiCap(a, 'riteJudge');
     rites.set(a, r);
     r.current = newRound(r);
-    r.timer = setTimeout(() => judge(a, r, false, 'too late'), C.rite.leadMs + C.rite.timeoutMs);
+    armTimer(a, r);
     showRite(a, r);
-    log(`supernatural: ${display(a)} began ${RITES[type].title}`);
+    log(`supernatural: ${display(a)} began ${RITES[type].title} judge=${r.client ? 'client' : riteClientJudged() ? 'legacy' : 'server'}`);
   };
   // A rite the player never touched has not been failed, it has not been played. Dying to a cursor that never
   // appeared (swag, 2026-09-27: the Blood Fever opened a second after joining, no mouse, no space, dead) is a
@@ -595,7 +629,7 @@ module.exports = (api) => {
     if (lost && untouchedAbandon(a, r)) return;
     if (r.hits >= def.need || lost || r.round >= C.rite.rounds) return finishRite(a, r, !lost && r.hits >= def.need);
     r.current = newRound(r);
-    r.timer = setTimeout(() => judge(a, r, false, 'too late'), C.rite.leadMs + C.rite.timeoutMs);
+    armTimer(a, r);
     showRite(a, r, hit ? 'True.' : `Missed${why ? ` (${why})` : ''}.`);
   };
   // opts.noPermadeath: a rite lost by disconnecting kills but never ends the character (see leaveRite)
@@ -623,14 +657,75 @@ module.exports = (api) => {
     personal(a, `${def.title} breaks you, but lets you live to wake again.`);
     try { mp.set(a, 'isDead', true); } catch (e) { /* dead already */ }
   };
+  // Whether the marker sits in the zone at any millisecond of [from, to]: the window is continuous, not three samples
+  const inZoneAt = (rd, x) => Math.abs(markerAt(rd, x) - rd.center) <= rd.width / 2;
+  const zoneWithin = (rd, from, to) => { for (let x = Math.floor(from); x <= Math.ceil(to); x++) if (inZoneAt(rd, x)) return true; return false; };
+  const riteIgnored = MG.limiter(5000);
   onUi('riteStrike', (a, args) => {
     const r = rites.get(a); if (!r || String(args[0]) !== r.nonce || !r.current) return;
+    // A widget that judges itself names the round and its verdict; anything shorter is an old widget's "struck"
+    if (r.client && Array.isArray(args) && args.length >= 5) return clientStrike(a, r, args);
     r.acted = true;
     const t = Date.now() - r.current.startsAt - C.rite.latencyMs;
-    if (t < -C.rite.slackMs) return log(`supernatural: rite ${display(a)} strike ignored, ${Math.round(-t)} ms before round ${r.round + 1} began`);
-    const inZone = (x) => Math.abs(markerAt(r.current, x) - r.current.center) <= r.current.width / 2;
-    const seen = [t - C.rite.slackMs, t, t + C.rite.slackMs].map((x) => markerAt(r.current, x).toFixed(2)).join('/');
-    judge(a, r, [t - C.rite.slackMs, t, t + C.rite.slackMs].some(inZone), 'off the mark', `struck ${Math.round(t)} ms in, marker ${seen}`);
+    if (!riteClientJudged()) {
+      // Rollback: three samples, as before
+      if (t < -C.rite.slackMs) return log(`supernatural: rite ${display(a)} strike ignored, ${Math.round(-t)} ms before round ${r.round + 1} began`);
+      const inZone = (x) => Math.abs(markerAt(r.current, x) - r.current.center) <= r.current.width / 2;
+      const seen = [t - C.rite.slackMs, t, t + C.rite.slackMs].map((x) => markerAt(r.current, x).toFixed(2)).join('/');
+      return judge(a, r, [t - C.rite.slackMs, t, t + C.rite.slackMs].some(inZone), 'off the mark', `struck ${Math.round(t)} ms in, marker ${seen} judge=server`);
+    }
+    // An old widget sends no time at all, so it is still judged by arrival, with one continuous window: lateWindowMs back
+    // (the strike left the player's machine before it arrived) and earlyWindowMs ahead
+    const early = Number(C.rite.earlyWindowMs), late = Number(C.rite.lateWindowMs);
+    if (t < -early) return log(`supernatural: rite ${display(a)} strike ignored, ${Math.round(-t)} ms before round ${r.round + 1} began`);
+    const hit = zoneWithin(r.current, t - late, t + early);
+    judge(a, r, hit, 'off the mark', `struck ${Math.round(t)} ms in, window ${Math.round(t - late)}..${Math.round(t + early)}, marker ${markerAt(r.current, t).toFixed(2)} judge=legacy`);
+  });
+  // The new widget's strike: [nonce, round, rnonce, 'hit'|'miss', pressMs, atMs, shown]. pressMs: when the player pressed,
+  // whole ms after the marker began moving on the widget's own clock; atMs: ms since the round's packet arrived, when it
+  // sent this; shown: the marker it drew on that frame (the client-minigames-client-judged front, FRONT-NOTES.md).
+  // The server checks the round is the live one (once only), that the press fits the round on the widget's clock, and that
+  // the report did not reach it sooner after it sent the round than lead-in plus press; it replays the press for the
+  // audit. It never reads when the strike arrived.
+  const clientRound = (a, r, args) => {
+    const n = MG.ms(args[1]), rn = String(args[2]);
+    if (n === r.round + 1 && rn === r.current.rnonce) return true;
+    if (riteIgnored(a, performance.now())) log(`supernatural: rite ${display(a)} report for round ${String(args[1]).slice(0, 4)} ignored (${n <= r.round ? 'already judged' : 'not that round'})`);
+    return false;
+  };
+  const clientStrike = (a, r, args) => {
+    if (!clientRound(a, r, args)) return;
+    r.acted = true;
+    const rd = r.current;
+    const claim = args[3] === 'hit' ? true : args[3] === 'miss' ? false : null;
+    const press = MG.ms(args[4]), at = MG.ms(args[5]), shown = Number(args[6]);
+    const sinceSent = performance.now() - rd.sentAt;
+    // The round's packet out, the strike back: what the server saw pass less what the widget saw since the packet came
+    const lag = Number.isFinite(at) ? Math.round(sinceSent - at) : NaN;
+    const sus = MG.lagFlags(lag, 50, MG.SLOW_FLAG_MS);
+    let hit = false, why = 'off the mark';
+    let replay = null;
+    if (claim === null || !Number.isFinite(press)) why = 'malformed';
+    else if (press < 0 || press > C.rite.timeoutMs + 100) why = 'out of time';
+    else if (MG.serverTooSoon(sinceSent, C.rite.leadMs + press, 50)) why = 'too fast';
+    else {
+      replay = zoneWithin(rd, press - Number(C.rite.graceMs), press + Number(C.rite.graceMs));
+      if (replay !== claim) {
+        sus.push('mismatch');
+        audit(`RITE-MISMATCH ${who(a)} ${RITES[r.type].title} round ${r.round + 1} widget=${claim ? 'hit' : 'miss'} replay=${replay ? 'hit' : 'miss'} press=${press}`);
+      }
+      hit = MG.replayRefuses(C.rite) ? replay : claim;
+    }
+    const err = Number.isFinite(press) ? Math.abs(markerAt(rd, press) - rd.center) / (rd.width / 2) : NaN;
+    judge(a, r, hit, why, `press=${Number.isFinite(press) ? press : '-'} at=${Number.isFinite(at) ? at : '-'} shown=${Number.isFinite(shown) ? shown.toFixed(2) : '-'} replay=${replay === null ? '-' : replay ? 'hit' : 'miss'} err=${Number.isFinite(err) ? err.toFixed(2) : '-'}`
+      + MG.tail({ judge: 'client', own: at, lag, claim: claim === null ? null : claim ? 'hit' : 'miss', sus }));
+  };
+  // The new widget's own limit ran out with no strike: a miss, judged by the widget's clock
+  onUi('riteTimeout', (a, args) => {
+    const r = rites.get(a); if (!r || String(args[0]) !== r.nonce || !r.current || !r.client) return;
+    if (!clientRound(a, r, args)) return;
+    const at = MG.ms(args[3]);
+    judge(a, r, false, 'too late', `the widget's ${C.rite.timeoutMs} ms ran out at=${Number.isFinite(at) ? at : '-'}${MG.tail({ judge: 'client' })}`);
   });
   const forfeit = (a) => { const r = rites.get(a); if (r) { r.acted = true; r.misses = C.rite.rounds; finishRite(a, r, false); } };
   // A disconnect mid-rite (a game crash, a dropped connection, or Alt-F4) used to forfeit it: death, and for the two

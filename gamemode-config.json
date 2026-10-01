@@ -199,7 +199,17 @@
    "_comment": "Overrides for supernatural.js defaults. huntMarkChance: the chance that surviving Hircine's Great Hunt (/rite) gives Sanies Lupinus; an unmarked survivor waits riteFailCooldownHours to run it again. infectWerewolf: a werewolf's bite's chance to pass it on. Nate, 2026-09-27: werewolf harder to come by than vampirism, 0.5 -> 0.25 and 0.05 -> 0.02.",
    "huntMarkChance": 0.25,
    "infectWerewolf": 0.02,
-   "feedPair": { "_comment": "The standing bite played for both players (client 0.3.71). Off until Nate has seen it in game; the release checks it is written here as false.", "enabled": false }
+   "feedPair": { "_comment": "The standing bite played for both players (client 0.3.71). Off until Nate has seen it in game; the release checks it is written here as false.", "enabled": false },
+   "rite": {
+    "_comment": "The rite mini-game (Blood Fever, Hircine's Hunt, Molag Bal's Embrace, the Great Hunt). Merged key by key with supernatural.js RITE_DEFAULTS, so a partial block like this one keeps rounds, need and leadMs.",
+    "_clientJudged": "Jake, 2026-09-30: about half the rite misses of the players we could measure came from lag. A client whose UI names riteJudge (the next client cut) judges each strike at the frame on screen with graceMs and reports it with its own times; the server checks the round (once only), that the press fits the round on the widget's clock and that the report did not arrive sooner than the round could be played, and never reads when it arrived. Today's widgets send no time, so they are still judged by arrival, now with one continuous window (lateWindowMs back, earlyWindowMs ahead) and legacyExtraMs more on the round's timer. replayCheck: 'log' lets a claimed hit the press time does not bear out stand with a RITE-MISMATCH audit line, 'refuse' scores the replay. ROLLBACK: set clientJudged to false and reload the gamemode; the three-sample arrival check and the 7.7 s timer come back for every client.",
+    "clientJudged": true,
+    "replayCheck": "log",
+    "graceMs": 100,
+    "lateWindowMs": 250,
+    "earlyWindowMs": 160,
+    "legacyExtraMs": 2500
+   }
  },
  "npcPowerHits": {
   "_comment": "How hard a creature's or NPC's power attack lands on a player (gamemode.js npcPowerHitMult). The server's damage formula doubles every power attack flat, on top of the NPC-on-player x2 in server-settings, ignoring the attack's own multiplier (1.0 for most creature power attacks), so a boar bit a new character for half their health (Purr, 30 Sep). 0.5 undoes that flat x2; 1 changes nothing. Players' own power attacks and hits on NPCs are never touched. Hot reload.",
