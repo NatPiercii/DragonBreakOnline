@@ -52,12 +52,22 @@ ANCHORS = [
     (0x125BD3, 'DBO_ShrineOfPeryite', 'Peryite'), (0x125BD6, 'DBO_ShrineOfVaermina', 'Vaermina')]]
 
 
-def same_region(a, b):
+# REGN subrecords that hold a form id: compared by (plugin, local id), since a plugin saved with its masters in
+# another order numbers the same worldspace differently (DLE v9 moved BSHeartland from master 11 to 6)
+REGN_FORM_IDS = (b'WNAM',)
+
+
+def same_region(a, b, norm_a=None, norm_b=None):
     """The same border: every subrecord byte-identical except RPLD, whose points must be the same polygon - the same
-    cycle, from any start, in either direction (DLE v8 came with v4's 18 points wound the other way round)"""
+    cycle, from any start, in either direction (DLE v8 came with v4's 18 points wound the other way round), and the
+    form-id subrecords, which must name the same record through each file's own master list"""
     if [x for x, _ in a] != [x for x, _ in b]:
         return False
     for (s1, v1), (s2, v2) in zip(a, b):
+        if s1 in REGN_FORM_IDS and norm_a and norm_b and len(v1) == len(v2) == 4:
+            if norm_a(struct.unpack('<I', v1)[0]) != norm_b(struct.unpack('<I', v2)[0]):
+                return False
+            continue
         if s1 != b'RPLD':
             if v1 != v2:
                 return False
@@ -84,6 +94,10 @@ class Esp:
             if s:
                 self.rec[(s.lower(), loc & 0xFFFFFF)] = (t, fl, off, sz)
         self.me = self.p.key
+
+    def norm(self, fid):
+        s, loc = self.p.modindex_source(fid)
+        return ((s or '?').lower(), loc & 0xFFFFFF)
 
     def subs(self, k):
         t, fl, off, sz = self.rec[k]
@@ -142,7 +156,7 @@ def main():
     else:
         if r[3] != BORDER_SIZE:
             fails.append(f'border: REGN 0B0CBCDD is {r[3]} bytes, want {BORDER_SIZE} (border v4, 18 points)')
-        if BORDER in live.rec and not same_region(new.subs(BORDER), live.subs(BORDER)):
+        if BORDER in live.rec and not same_region(new.subs(BORDER), live.subs(BORDER), new.norm, live.norm):
             fails.append('border: REGN 0B0CBCDD is not the live border (points, or another field, differ)')
     bn, bl = new.border_cells(), live.border_cells()
     fmt = lambda ks: ', '.join('%06X %s' % (k[1], new.edid(k) or live.edid(k)) for k in sorted(ks)[:12]) + (' ...' if len(ks) > 12 else '')

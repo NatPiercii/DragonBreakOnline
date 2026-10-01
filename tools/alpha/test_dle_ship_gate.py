@@ -102,6 +102,14 @@ def main():
     ok(G.same_region(sub(pts), sub(pts[2:] + pts[:2])), 'same_region: the same cycle from another start is the same border')
     ok(G.same_region(sub(pts), sub(pts[::-1])), 'same_region: the other winding is the same border')
     ok(not G.same_region(sub(pts), sub([pts[1], pts[0]] + pts[2:])), 'same_region: two points swapped is not')
+    # a worldspace link named through each file's own master list (DLE v9 put BSHeartland at master 6, live at 11)
+    w = lambda fid: [(b'EDID', b'x\0'), (b'WNAM', struct.pack('<I', fid)), (b'RPLD', b''.join(pts))]
+    live_m = lambda fid: ({0x0B: 'bsheartland.esm', 0x06: 'ccqdrsse001-survivalmode.esl'}.get(fid >> 24, '?'), fid & 0xFFFFFF)
+    v9_m = lambda fid: ({0x06: 'bsheartland.esm', 0x0B: 'ccqdrsse001-survivalmode.esl'}.get(fid >> 24, '?'), fid & 0xFFFFFF)
+    ok(G.same_region(w(0x0B0A764B), w(0x060A764B), live_m, v9_m), 'same_region: the same worldspace through reordered masters is the same border')
+    ok(not G.same_region(w(0x0B0A764B), w(0x0B0A764B), live_m, v9_m), 'same_region: the same bytes naming another plugin is not (live bytes copied into v9)')
+    ok(not G.same_region(w(0x0B0A764B), w(0x060A764C), live_m, v9_m), 'same_region: another worldspace is not')
+    ok(not G.same_region(w(0x0B0A764B), w(0x060A764B)), 'same_region: without master lists, bytes still have to match')
     print('\nall checks passed' if not fails else f'\n{fails} FAILED')
     return 1 if fails else 0
 
