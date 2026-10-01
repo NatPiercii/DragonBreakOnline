@@ -1850,6 +1850,8 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboBoostLogin) globalThis.__dboBoostLogin(a); } catch (e) { log('boost login failed', e.message); }
     // A shrine blessing still running is cast on the player again: the client's effect did not survive the logout (prayer.js)
     try { if (globalThis.__dboPrayerLogin) globalThis.__dboPrayerLogin(a); } catch (e) { log('prayer login failed', e.message); }
+    // The first spell: a mage at Arcane Arts 25 with no school is offered the choice, one with a school and no spell gets its starter (schools.js)
+    try { if (globalThis.__dboSchoolsLogin) globalThis.__dboSchoolsLogin(a); } catch (e) { log('schools login failed', e.message); }
   }, 8000);
 };
 const startLoginWait = (userId, seenActor) => {
@@ -5590,7 +5592,7 @@ try {
   const SCHOOLS_JS = path.resolve('schools.js');
   delete require.cache[SCHOOLS_JS];
   require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
-} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered']) globalThis[k] = null; }
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {
