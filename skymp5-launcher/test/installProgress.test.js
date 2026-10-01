@@ -206,3 +206,37 @@ test('the install banner asks for the peak free space, not the end state', () =>
   assert.doesNotMatch(P.BANNER, /60 GB/)
   assert.doesNotMatch(renderer, /about 60 GB free/)
 })
+
+// ---- the window must not tell the player a refused save succeeded -------------------------------------------------
+const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'renderer.js'), 'utf8')
+
+test('an install locks its own settings, both Browse buttons and Save, with the busy title', () => {
+  const at = renderer.indexOf('const INSTALL_LOCKED')
+  assert.ok(at >= 0, 'the locked set is named in one place')
+  const set = renderer.slice(at, renderer.indexOf(']', at))
+  for (const f of ['fieldSkyrimPath', 'fieldBaseDir', 'fieldArchiveDir', 'fieldMo2Enabled', 'fieldIsolated']) {
+    assert.match(set, new RegExp(f), `${f} is locked while an install runs`)
+  }
+  for (const b of ['btn-browse', 'btn-browse-base', 'btn-save']) {
+    assert.match(set, new RegExp(b.replace(/-/g, '-')), `${b} is locked while an install runs`)
+  }
+  const lock = renderer.slice(renderer.indexOf('function setInstallLock'), renderer.indexOf('for (const b of [btnConnect'))
+  assert.match(lock, /for \(const el of INSTALL_LOCKED\(\)\)/)
+  assert.match(lock, /el\.disabled = true/)
+  assert.match(lock, /el\.title = IP\.BUSY_TITLE/)
+  assert.match(lock, /el\.disabled = false/, 'and they are released when the install ends')
+})
+
+test('a refused save says so and puts the stored values back', () => {
+  const at = renderer.indexOf("document.getElementById('btn-save').addEventListener")
+  assert.ok(at >= 0, 'the Save handler is in renderer.js')
+  const body = renderer.slice(at, renderer.indexOf('\n})', at))
+  assert.match(body, /const saved = await window\.electronAPI\.saveSettings\(data\)/, 'the result is kept, not discarded')
+  assert.match(body, /if \(saved && saved\.ok === false\)/)
+  assert.match(body, /await loadSettings\(\)/, 'the blocked fields are restored from settings:load')
+  assert.match(body, /Not saved: an install is running/)
+  // "Saved!" must not be reachable on the refusal path
+  const refusal = body.slice(body.indexOf('saved.ok === false'))
+  assert.ok(refusal.indexOf('return') < refusal.indexOf("'Saved!'") || refusal.indexOf("'Saved!'") === -1,
+    'the refusal path returns before the Saved! message')
+})

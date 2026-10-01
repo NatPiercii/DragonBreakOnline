@@ -771,11 +771,19 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     isolatedGame: fieldIsolated.checked,
   }
 
-  await window.electronAPI.saveSettings(data)
+  const saved = await window.electronAPI.saveSettings(data)
   await saveGameSettingsTab()
   refreshMo2Status()
 
   const btn = document.getElementById('btn-save')
+  // The main process refuses the install's own settings while one runs. Say so instead of "Saved!", and put the fields
+  // back to what is actually stored, so the form never shows a value the launcher does not hold.
+  if (saved && saved.ok === false) {
+    await loadSettings()
+    btn.textContent = 'Not saved: an install is running'
+    setTimeout(() => { btn.textContent = 'Save Settings' }, 2600)
+    return
+  }
   btn.textContent = 'Saved!'
   setTimeout(() => { btn.textContent = 'Save Settings' }, 1400)
 })
@@ -935,9 +943,27 @@ function drawInstallBar(root, d) {
 
 // While any install runs nothing else may start one; the buttons say why on hover
 let installActive = false
+// The settings an install reads as it goes (main.js INSTALL_SETTINGS), their Browse buttons and Save. The main process
+// refuses to store these mid-install; locking them here is what stops the player editing a field, being told "Saved!"
+// and keeping a value that was never written (Worker F's delta check on 838fd321).
+const INSTALL_LOCKED = () => [
+  fieldSkyrimPath, fieldBaseDir, fieldArchiveDir, fieldMo2Enabled, fieldIsolated,
+  document.getElementById('btn-browse'), document.getElementById('btn-browse-base'), document.getElementById('btn-save'),
+].filter(Boolean)
+
 function setInstallLock(on) {
   if (on === installActive) return
   installActive = on
+  for (const el of INSTALL_LOCKED()) {
+    if (on) {
+      el.dataset.titleBeforeInstall = el.title
+      el.disabled = true
+      el.title = IP.BUSY_TITLE
+    } else {
+      el.disabled = false
+      if (el.title === IP.BUSY_TITLE) el.title = el.dataset.titleBeforeInstall || ''
+    }
+  }
   for (const b of [btnConnect, ...REPAIR_BUTTONS]) {
     if (b === btnRepairModlist && mo2InstallRunning) continue   // it is the Cancel button then
     if (on) {
