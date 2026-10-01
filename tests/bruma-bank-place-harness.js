@@ -106,8 +106,9 @@ const oldDoors = before('doors.json');
 if (oldDoors) {
   const o = JSON.parse(oldDoors).doors;
   const added = Object.keys(doors).filter((k) => !(k in o));
-  const changed = Object.keys(o).filter((k) => doors[k] !== o[k]);
-  ok(added.length === 2 && changed.length === 0, 'only the two bank doors were added to doors.json; nothing else changed', { added, changed });
+  // The only other edits allowed are the door-name fixes (door-names-harness.js): a name whose words were glued
+  const changed = Object.keys(o).filter((k) => doors[k] !== o[k] && !(/[a-z](of|the|and)\b|Nchuand Zel/.test(o[k]) && doors[k].replace(/[\s'-]/g, '').toLowerCase() === o[k].replace(/[\s'-]/g, '').toLowerCase()));
+  ok(added.length === 2 && changed.length === 0, 'only the two bank doors were added to doors.json; nothing else changed but glued names split', { added, changed });
 }
 ok(JSON.parse(fs.readFileSync(path.join(SERVER, 'zone-cells.json'), 'utf8'))[BANK] === 'bruma', 'zone-cells.json gives the bank cell to Bruma');
 if (oldZones) ok(fs.readFileSync(path.join(SERVER, 'zones.json'), 'utf8') === oldZones, 'zones.json is unchanged (restart-only: the fork reads it at boot)');

@@ -65,7 +65,8 @@
       {
         "heading": "Bruma",
         "items": [
-          "The Bank of Bruma now counts as part of Bruma inside as well as out, and its doors are named: Bank of Bruma on the way in, Bruma on the way out."
+          "The Bank of Bruma now counts as part of Bruma inside as well as out, and its doors are named: Bank of Bruma on the way in, Bruma on the way out.",
+    "Door names across the land now read properly, for example the Cathedral of St Martin in Bruma."
         ]
       }
     ]

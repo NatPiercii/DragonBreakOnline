@@ -20,7 +20,22 @@ def humanize(e):
     e = re.sub(r'([a-z])([A-Z])', r'\1 \2', e)
     e = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1 \2', e)
     e = e.replace('_', ' ')
-    return re.sub(r'\s+', ' ', e).strip()
+    return unglue(re.sub(r'\s+', ' ', e).strip())
+# Editor ids write connectors in lower case (CathedralofStMartin), so the camel split glues them to the word before
+# ("Cathedralof St Martin"). Every "of" is split off a stem of 4+ letters (Roof and Hoof stay whole); "the" and "and"
+# only for the words listed, since plenty of names end in them (Heartland, Strand, Alftand, Irkngthand, Left Hand).
+GLUED = {'Arnleifand': 'Arnleif and', 'Avringand': 'Avring and', 'Beeand': 'Bee and', 'Odfelsand': 'Odfels and',
+         'Mjollthe': 'Mjoll the', 'Underthe': 'Under the', 'Botramthe': 'Botram the', 'Olavathe': 'Olava the', 'Wayofthe': 'Way of the'}
+WHOLE = {'Bruma Botram the Hammers House': "Bruma Botram the Hammer's House",
+         'Whiterun Olava the Feebles House': "Whiterun Olava the Feeble's House", 'Nchuand Zel': 'Nchuand-Zel'}
+def unglue(name):
+    words = []
+    for w in name.split(' '):
+        if w in GLUED: words.append(GLUED[w]); continue
+        m = re.match(r'^([A-Z][a-z]{3,}?)(ofthe|of)$', w)
+        words.append(f"{m.group(1)} {'of the' if m.group(2) == 'ofthe' else 'of'}" if m else w)
+    out = ' '.join(words)
+    return WHOLE.get(out, out)
 cells, locs, worlds, loc_parent = {}, {}, {}, {}
 for p in lo.plugins:
     for ri, t, fid, fl, off, sz, ctx in lo.records(p, ("CELL", "LCTN", "WRLD")):
