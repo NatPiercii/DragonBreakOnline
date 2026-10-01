@@ -18,6 +18,7 @@ const loginRefusedReasons: Record<string, string> = {
   loadOrderMismatch: loginOutdated,
   serverLocked: "The server is closed to players right now. Please try again later.",
   notWhitelisted: "Your Discord account does not have access to this server yet.",
+  legalNotAccepted: "Please accept the Terms of Service in the launcher. Update the launcher if you don't see them.",
 };
 const loginRefusedDefault = "The server refused your login. Start the game again from the DragonBreak launcher, and ask staff if this keeps happening.";
 

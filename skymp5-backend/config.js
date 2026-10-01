@@ -71,6 +71,8 @@ module.exports = {
 
   // Refuse game-server connections whose launcher didn't verify client files + load order; set LAUNCH_CHECK_ENFORCE=false to disable (e.g. for launcher builds predating the check)
   launchCheckEnforce: process.env.LAUNCH_CHECK_ENFORCE !== 'false',
+  // Refuse game sessions of players who have not accepted the current Terms of Service and Privacy Policy (sources/legal.js)
+  legalRequired: process.env.LEGAL_REQUIRED === 'true',
 
   // Admin service
   adminUrl:   process.env.ADMIN_URL   || 'http://localhost:5001',
