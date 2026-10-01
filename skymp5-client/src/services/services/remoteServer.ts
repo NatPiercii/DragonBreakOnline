@@ -46,7 +46,7 @@ import { UpdateAppearanceMessage } from '../messages/updateAppearanceMessage';
 import { TeleportMessage } from '../messages/teleportMessage';
 import { DeathStateContainerMessage } from '../messages/deathStateContainerMessage';
 import { RespawnNeededError } from '../../lib/errors';
-import { safeDelete } from '../../view/npcLifetimeRuntime';
+import { noteActorCall, queueReseat, safeDelete } from '../../view/npcLifetimeRuntime';
 import { OpenContainerMessage } from '../messages/openContainerMessage';
 import { ActivateMessage } from '../messages/activateMessage';
 import { ClientListener, CombinedController, Sp } from './clientListener';
@@ -212,11 +212,9 @@ export class RemoteServer extends ClientListener {
         }
         // A remote copy may have been locked sheathed; our own AI decides from here
         TESModPlatform.setWeaponDrawnMode(ac, -1);
-        // Re-seat it where it stands so havok takes it back, but never while the world is still
-        // streaming: forcing a position on an actor without 3D can wedge the load.
-        if (ac.is3DLoaded()) {
-          ac.setPosition(ac.getPositionX(), ac.getPositionY(), ac.getPositionZ());
-        }
+        // Re-seated where it stands so havok takes it back, once it is loaded, settled and not ragdolling (npcLifetime.ts)
+        noteActorCall("hoststart", ac.getFormID());
+        queueReseat(ac.getFormID());
         ac.evaluatePackage();
       } catch (e) {
         logError(this, `hostStart settle failed for`, target.toString(16), e);
