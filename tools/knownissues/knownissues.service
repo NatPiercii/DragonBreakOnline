@@ -1,0 +1,18 @@
+[Unit]
+Description=DragonBreak known issues: errors and crashes counted by kind; #known-issues kept current (knownissues.py)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# --collect counts and saves, posting nothing. Posting goes live by changing it to --write (README.md, "Going live").
+ExecStart=/usr/bin/python3 /opt/dragonbreak-tools/knownissues/knownissues.py --collect
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=300
+MemoryMax=256M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/dragonbreak-tools/state

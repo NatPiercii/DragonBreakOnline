@@ -1,0 +1,23 @@
+{
+ "_about": "Known-harmless kinds: counted, never posted. match is a regular expression on the signature (knownissues.py --list shows them); source limits it to server, client or launcher. Give every entry its reason and who decided.",
+ "ignore": [
+  {
+   "source": "server",
+   "match": "^SendToNeighbours - No permission to update actor <id> \\(not a hoster\\)$",
+   "reason": "a movement update from a client that just lost the hoster role to another player; the server drops it, by design",
+   "by": "Jake, 1 Oct 2026"
+  },
+  {
+   "source": "server",
+   "match": "^SendToNeighbours - No permission to send \\w+ with \\w+ actor <id>$",
+   "reason": "SendToNeighbours permission bursts (OnSpellCast, OnHit) from a client that does not host the actor; refused, by design",
+   "by": "Jake, 1 Oct 2026"
+  },
+  {
+   "source": "server",
+   "match": "^resolved context \\(reason=exception\\): custom baseDesc @ ScampServer\\.cpp Get$",
+   "reason": "handled throws in debugsnap.js and npcground.js for an actor whose base comes from a plugin the espm table does not index; not player-visible (Worker B's triage, 1 Oct 07:55Z)",
+   "by": "Jake, 1 Oct 2026"
+  }
+ ]
+}
