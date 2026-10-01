@@ -11,7 +11,7 @@ import { applyDriftConfig, driftConfig, driftConfigEcho } from "../../sync/drift
 import { getApplyState } from "../../sync/movementApply";
 import { getMovement } from "../../sync/movementGet";
 import { SpawnProcess } from "../../view/spawnProcess";
-import { locomotionSource, probeGraph } from "./locomotionDiag";
+import { locomotionSource, readGraph } from "./locomotionDiag";
 
 const POLL_MS = 500;
 const HEARTBEAT_MS = 30000;
@@ -381,10 +381,7 @@ export class HostedDriftService extends ClientListener {
     const apply = getApplyState(ac.getFormID());
     const repairedAt = this.repairedAt.get(remoteId);
     const target = ac.getCombatTarget();
-    const graph = probeGraph({
-      getFloat: (n) => ac.getAnimationVariableFloat(n), setFloat: (n, v) => ac.setAnimationVariableFloat(n, v),
-      getBool: (n) => ac.getAnimationVariableBool(n), setBool: (n, v) => ac.setAnimationVariableBool(n, v),
-    });
+    const graph = readGraph({ getFloat: (n) => ac.getAnimationVariableFloat(n), getBool: (n) => ac.getAnimationVariableBool(n) });
     this.send({
       kind: "locomotion", remoteId: remoteId.toString(16), base: this.baseName(ac), moved: Math.round(moved),
       speed: Math.round(ac.getAnimationVariableFloat("SpeedSampled")), direction: Math.round(ac.getAnimationVariableFloat("Direction") * 100) / 100,
@@ -393,7 +390,7 @@ export class HostedDriftService extends ClientListener {
       apply: { translating: apply.translating, offset: apply.offset, targetAgeMs: apply.targetAgeMs },
       ai: ac.isAIEnabled(), speedMult: Math.round(ac.getActorValue("SpeedMult")),
       target: target ? { player: target.getFormID() === 0x14, dist: Math.round(this.dist(this.refPos(ac), this.refPos(target))) } : null,
-      vars: graph.vars, undefinedVars: graph.undefinedVars,
+      vars: graph.vars, zeroAmbiguous: graph.zeroAmbiguous,
     });
   }
 
