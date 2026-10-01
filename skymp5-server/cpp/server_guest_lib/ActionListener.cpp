@@ -1796,6 +1796,25 @@ void ActionListener::OnUpdateAnimVariables(
   SendToNeighbours(myActor->idx, rawMsgData);
 }
 
+namespace {
+// The castRelayBlockedRaces gate; an NPC whose race cannot be resolved is relayed as before
+bool IsCastRelayBlocked(MpActor& caster)
+{
+  WorldState* worldState = caster.GetParent();
+  if (!worldState || !worldState->HasCastRelayBlockedRaces()) {
+    return false;
+  }
+  try {
+    return worldState->IsCastRelayBlockedRace(caster.GetRaceId());
+  } catch (std::exception& e) {
+    spdlog::debug("IsCastRelayBlocked - race of {:x} not resolved: {}",
+                 caster.GetFormId(), e.what());
+    return false;
+  }
+}
+
+}
+
 void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
                                  const SpellCastMessage& msg)
 {
@@ -1831,10 +1850,15 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     spellCastData.target = myActor->GetFormId();
   }
 
+  // A watcher's copy of a non-humanoid NPC takes the humanoid caster variables into its graph and crashes (1 Oct)
+  const bool relay = caster == myActor || !IsCastRelayBlocked(*caster);
+
   // Stops are relayed before the death, equipment and denylist gates so none is dropped
   // Relays are reliable so observers get casts, keep-alives and stops in order
   if (spellCastData.interruptCast) {
-    SendToNeighbours(myActor->idx, rawMsgData, true);
+    if (relay) {
+      SendToNeighbours(myActor->idx, rawMsgData, true);
+    }
     UpdateWardChannel(caster->GetFormId(), spellCastData);
     // Only the stopped spell's channel ends, the other hand may still heal
     auto channelIt = restorationChannels.find(caster->GetFormId());
@@ -1886,7 +1910,9 @@ void ActionListener::OnSpellCast(const RawMessageData& rawMsgData,
     !caster->GetEquipment().IsSpellEquipped(spellCastData.spell) &&
     IsHeldScroll(*caster, spellCastData.spell);
 
-  SendToNeighbours(myActor->idx, rawMsgData, true);
+  if (relay) {
+    SendToNeighbours(myActor->idx, rawMsgData, true);
+  }
   UpdateWardChannel(caster->GetFormId(), spellCastData);
 
   auto& browser = partOne.worldState.GetEspm().GetBrowser();

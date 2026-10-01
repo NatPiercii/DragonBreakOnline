@@ -463,6 +463,26 @@ ScampServer::ScampServer(const Napi::CallbackInfo& info)
       partOne->worldState.SetBlockedSpells(blockedSpells);
     }
 
+    // castRelayBlockedRaces: race descs ("d53:Skyrim.esm") whose NPCs' casts reach their host only (non-humanoid graphs)
+    auto castRacesIt = serverSettings.find("castRelayBlockedRaces");
+    if (castRacesIt != serverSettings.end() && (*castRacesIt).is_array()) {
+      std::set<uint32_t> races;
+      for (auto& v : *castRacesIt) {
+        if (!v.is_string()) {
+          continue;
+        }
+        try {
+          races.insert(FormDesc::FromString(v.get<std::string>())
+                         .ToFormId(partOne->worldState.espmFiles));
+        } catch (std::exception& e) {
+          spdlog::warn("castRelayBlockedRaces: skipping {}: {}",
+                       v.get<std::string>(), e.what());
+        }
+      }
+      spdlog::info("castRelayBlockedRaces: {} race(s)", races.size());
+      partOne->worldState.SetCastRelayBlockedRaces(races);
+    }
+
     // movementValidation: per-actor speed ceilings for player movement
     // packets, in units per second
     auto movementIt = serverSettings.find("movementValidation");

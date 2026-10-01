@@ -258,6 +258,9 @@ public:
   void SetBlockedSpells(const std::set<uint32_t>& spells);
   // Callable from ActionListener (not a friend), so it lives in this public section
   [[nodiscard]] bool IsSpellBlocked(uint32_t spellId) const noexcept;
+  void SetCastRelayBlockedRaces(const std::set<uint32_t>& races);
+  [[nodiscard]] bool HasCastRelayBlockedRaces() const noexcept;
+  [[nodiscard]] bool IsCastRelayBlockedRace(uint32_t raceId) const noexcept;
   void SetPlayersInheritBaseSpells(bool enable);
   [[nodiscard]] bool PlayersInheritBaseSpells() const noexcept;
   void SetEnableConsoleCommandsForAllSetting(bool enable);

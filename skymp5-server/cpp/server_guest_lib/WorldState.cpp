@@ -58,6 +58,7 @@ struct WorldState::Impl
   std::vector<RelootTimeForTypesEntry> relootTimeForTypes;
   std::set<std::string> forbiddenRelootTypes;
   std::set<uint32_t> blockedSpells;
+  std::set<uint32_t> castRelayBlockedRaces;
   bool playersInheritBaseSpells = true;
   std::vector<std::unique_ptr<IPapyrusClassBase>> classes;
   std::array<std::shared_ptr<std::vector<uint32_t>>, 0x100>
@@ -1376,6 +1377,21 @@ void WorldState::SetBlockedSpells(const std::set<uint32_t>& spells)
 bool WorldState::IsSpellBlocked(uint32_t spellId) const noexcept
 {
   return pImpl->blockedSpells.find(spellId) != pImpl->blockedSpells.end();
+}
+
+void WorldState::SetCastRelayBlockedRaces(const std::set<uint32_t>& races)
+{
+  pImpl->castRelayBlockedRaces = races;
+}
+
+bool WorldState::HasCastRelayBlockedRaces() const noexcept
+{
+  return !pImpl->castRelayBlockedRaces.empty();
+}
+
+bool WorldState::IsCastRelayBlockedRace(uint32_t raceId) const noexcept
+{
+  return pImpl->castRelayBlockedRaces.count(raceId) > 0;
 }
 
 void WorldState::SetPlayersInheritBaseSpells(bool enable)
