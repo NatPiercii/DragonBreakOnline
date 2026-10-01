@@ -92,6 +92,7 @@ class VoiceManager {
     this.mix = null;           // { ctx, master, dest, out } once built
     this.peerNodes = new Map(); // identity -> { source, gain }
     this.mic = null;           // { stream, ctx, gain, analyser, track, pub }
+    this.micStarting = null;   // startMic in flight (openMic)
     this.vadOpenUntil = 0;
     this.echo = 'none';         // the playback's echo cancellation (voiceEchoGate.js)
     this.echoDetail = '';
@@ -323,6 +324,12 @@ class VoiceManager {
     this.transmitting = false;
   }
 
+  // Every mic start goes through here, so a push-to-talk press waits for it instead of publishing LiveKit's own mic beside it
+  openMic() {
+    if (!this.micStarting) this.micStarting = this.startMic().finally(() => { this.micStarting = null; });
+    return this.micStarting;
+  }
+
   async stopMic() {
     const m = this.mic;
     this.mic = null;
@@ -333,7 +340,7 @@ class VoiceManager {
 
   async restartMic() {
     await this.stopMic();
-    try { await this.startMic(); } catch (e) { sendToGame('voice::micDenied', String(e && e.message || e)); }
+    try { await this.openMic(); } catch (e) { sendToGame('voice::micDenied', String(e && e.message || e)); }
     this.updateTransmit();
   }
 
@@ -444,7 +451,7 @@ class VoiceManager {
       this.publishRange();
       // Opening the mic here also pre-warms Chromium's device stack, so the first press only unmutes
       try {
-        await this.startMic();
+        await this.openMic();
       } catch (e) {
         this.mic = null;
         try {
@@ -509,6 +516,7 @@ class VoiceManager {
 
   async setPtt(down) {
     this.ptt = !!down;
+    if (this.micStarting) { try { await this.micStarting; } catch (e) { /* falls back below */ } }
     if (this.mic) { this.updateTransmit(); return; }
     // Fallback path (LiveKit's own microphone): the HUD status panel shows transmit state
     window.dispatchEvent(new CustomEvent('dbo:voicePtt', { detail: this.ptt }));
