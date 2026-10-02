@@ -14,8 +14,11 @@ process.chdir(scratch);
 const fromDesc = (d) => { const [h, p] = String(d).split(':'); return /bsheartland/i.test(p) ? (0x08000000 | parseInt(h, 16)) >>> 0 : 0; };
 const calls = []; const said = []; const logs = []; const audits = [];
 let failOn = null;
+// Where each form is: refId/actor -> { cell, pos }; mp.get throws for a form the stub does not know, as the server does
+const where = new Map(); let online = [];
 const mp = {
   getIdFromDesc: fromDesc,
+  get: (id, p) => { const w = where.get(id >>> 0); if (!w) throw new Error('no such form'); return p === 'pos' ? w.pos : p === 'worldOrCellDesc' ? w.cell : undefined; },
   callPapyrusFunction: (kind, cls, fn, self, args) => {
     if (failOn && self.desc === failOn) throw new Error('no such reference');
     calls.push({ kind, cls, fn, ref: self.desc, arg: args[0], args });
@@ -23,7 +26,7 @@ const mp = {
 };
 const PLAYER = 0xff000014;
 const packets = [];
-const load = (cfg) => { delete require.cache[MODULE]; require(MODULE)({ mp, log: (...a) => logs.push(a.join(' ')), personal: (a, t) => said.push(t), audit: (t) => audits.push(t), who: () => 'Falcius Octavio', cfg: cfg || {}, sendPacket: (a, p) => packets.push([a, p]) }); };
+const load = (cfg) => { delete require.cache[MODULE]; require(MODULE)({ mp, log: (...a) => logs.push(a.join(' ')), personal: (a, t) => said.push(t), audit: (t) => audits.push(t), who: () => 'Falcius Octavio', cfg: cfg || {}, sendPacket: (a, p) => packets.push([a, p]), onlineActors: () => online }); };
 load();
 
 let failures = 0;
@@ -64,6 +67,7 @@ check('and says the way ahead opens', said[said.length - 1] === 'With a grinding
 
 // A late arrival (dungeons.js late join / login inside a claim): the open gamebryo stair is played for them alone
 const LATE = 0xff000077;
+packets.length = 0;
 check('an arrival in Telepe gets its open stair as a dboRefAnim, for them alone', globalThis.__dboRuinArrived('CYRTelepeLocation', LATE) === 1 && packets.length === 1 && packets[0][0] === LATE && JSON.stringify(packets[0][1]) === JSON.stringify({ customPacketType: 'dboRefAnim', refId: fromDesc(STAIRS), name: 'Open', gamebryo: true }), packets);
 packets.length = 0;
 check('an arrival in Silorn gets nothing for the gate: PlayAnimation poles already reach a newcomer as lastAnimation', globalThis.__dboRuinArrived('CYRSilornLocation', LATE) === 0 && packets.length === 0);
@@ -115,6 +119,30 @@ check('and it is not recorded as open, so the next press tries again and works',
   check('and Anga\'s lease ending closes Anga\'s', calls.length === 1 && calls[0].ref === ANGA_STAIR && calls[0].arg === 'Close', calls);
   packets.length = 0; press(RIELLE_BTN); globalThis.__dboRuinArrived('CYRRielleLocation', LATE);
   check('a late arrival in Rielle gets its open stair too', packets.length === 1 && packets[0][1].refId === fromDesc(RIELLE_STAIR) && packets[0][1].name === 'Open', packets);
+}
+// Rielle, 1 Oct (#bugs): the friend further in never saw the stair open, and their own press did nothing. The engine
+// reaches only the stair's grid neighbours, so everyone else in the cell is sent it, and a second press replays it
+{
+  delete globalThis.__dboRuinButtons; fs.copyFileSync(DATA, 'ruin-buttons.json'); load(); calls.length = 0; packets.length = 0;
+  const RIELLE_BTN = 'cbadf:BSHeartland.esm', RIELLE_STAIR = 'cbade:BSHeartland.esm', CELL = 'rielle01';
+  const FAR = 0xff000101, NEAR = 0xff000102, OUT = 0xff000103, UNKNOWN = 0xff000104;
+  where.set(fromDesc(RIELLE_STAIR), { cell: CELL, pos: [1000, 2000, 0] });
+  where.set(PLAYER, { cell: CELL, pos: [1200, 2100, 0] });
+  where.set(FAR, { cell: CELL, pos: [1000, 7000, 0] });      // 5000 units further in
+  where.set(NEAR, { cell: CELL, pos: [4000, 4500, 0] });     // within 4096 on both axes: the engine reached them
+  where.set(OUT, { cell: 'tamriel', pos: [1000, 2000, 0] }); // outside the ruin
+  online = [PLAYER, FAR, NEAR, OUT, UNKNOWN];
+  press(RIELLE_BTN);
+  const to = (a) => packets.filter(([x]) => x === a).map(([, p]) => p);
+  check('Rielle: a party member further in than the engine reaches is sent the opened stair', to(FAR).length === 1 && to(FAR)[0].refId === fromDesc(RIELLE_STAIR) && to(FAR)[0].name === 'Open' && to(FAR)[0].gamebryo === true, packets);
+  check('...but not one near enough for the engine, the presser, anyone outside, or a player whose place cannot be read', !to(NEAR).length && !to(PLAYER).length && !to(OUT).length && !to(UNKNOWN).length, packets);
+  check('...and it is logged', logs.some((l) => l === 'ruinbuttons: 1 player(s) further into Rielle sent the opened sequence(s)'), logs[logs.length - 1]);
+  packets.length = 0;
+  check('pressing the open stair\'s button again plays it for that player', globalThis.__dboRuinButton(fromDesc(RIELLE_BTN), FAR) === true && to(FAR).length === 1 && to(FAR)[0].name === 'Open' && calls.length === 1, packets);
+  where.delete(fromDesc(RIELLE_STAIR)); globalThis.__dboRuinLeaseEnded('CYRRielleLocation'); packets.length = 0;
+  press(RIELLE_BTN);
+  check('a stair whose place cannot be read: everyone else in the cell is sent it', to(FAR).length === 1 && to(NEAR).length === 1 && !to(OUT).length && !to(PLAYER).length, packets);
+  online = []; globalThis.__dboRuinLeaseEnded('CYRRielleLocation');
 }
 delete globalThis.__dboRuinButtons; load({ ruinButtons: { enabled: false } });
 check('switched off in config, buttons are left to the engine', press(TELEPE_A) === false);

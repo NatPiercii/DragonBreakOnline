@@ -5259,7 +5259,7 @@ try {
 try {
   const RUINBUTTONS_JS = path.resolve('ruinbuttons.js');
   delete require.cache[RUINBUTTONS_JS];
-  require(RUINBUTTONS_JS)({ mp, log, personal, audit, who, cfg, sendPacket });
+  require(RUINBUTTONS_JS)({ mp, log, personal, audit, who, cfg, sendPacket, onlineActors });
 } catch (e) { log('ruinbuttons.js failed to load:', e.stack || e.message); globalThis.__dboRuinButton = null; globalThis.__dboRuinLeaseEnded = null; }
 
 // ---- jails, cell doors and sentences (server\jail.js, config "jail", jails.json) ------------------
