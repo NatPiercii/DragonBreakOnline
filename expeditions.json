@@ -1,5 +1,5 @@
 {
-"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating. bossChest (Nate, 2026-09-28): a chest that is the boss chest though its base is an ordinary one; Silorn's is aaee4, right behind the lich's spawn (606 units, behind its facing). kind (Nate, 2026-09-28): boss (a boss dungeon, 1-6, one boss) or raid (up to 12, two or more bosses); Bawn's second boss is bc39f, the Ayleid undead nearest its second boss chest bd0d6 (1242 units), promoted to an Ayleid champion as Niryastare's was.",
+"_comment": "Expeditions from the Synod Conclave (dungeons.js /expedition). Built on CT 115 from the load order by ck-mcp dungeons_survey.py + dungeons_build.py (scratch copy), then given an expedition entrance: cell/pos/rot = where the party sets out and comes back (the Synod), inside* = the arrival spot 200 units into the ruin from its main door, which has no destination of its own. boss: true marks an expedition's boss (dungeons.js): never thinned by difficulty, and when every boss of the claim is dead a 10-minute timer starts, after which anyone still inside is taken home. Hand-set on 2026-09-28 (Nate: 'we should add bosses'); Niryastare had none, so its nearest guard to the boss chest was promoted to an Ayleid undead boss. Keep these when regenerating. bossChest (Nate, 2026-09-28): a chest that is the boss chest though its base is an ordinary one; Silorn's is aaee4, right behind the lich's spawn (606 units, behind its facing). kind (Nate, 2026-09-28): boss (a boss dungeon, 1-6, one boss) or raid (up to 12, two or more bosses); Bawn's second boss is bc39f, the Ayleid undead nearest its second boss chest bd0d6 (1242 units), promoted to an Ayleid champion as Niryastare's was. storyOptions (proposed for Nate, 2 Oct; a balance call): a boss's own leveled line on Novice only, in place of options. Silorn's lich (BSKEncAyleidLich, 6026fd:BSAssets.esm) is a fixed level-50 dragon-priest build (1490 health, 100 Destruction, Augmented Shock, Thunderbolt and Chain Lightning) and has no lower variant, so Novice picked it for a level-1 party and its bolts downed a solo player in about three hits (/bug 1 Oct 23:04). On Novice it is the Ayleid undead boss line instead (Skeleton02/03 BossMagic, Skeleton04 BossLich: level 10-20, 140-240 health, Lightning Bolt and Chain Lightning); Adept and up keep the lich. Keep when regenerating.",
 "expeditions": [
 {
 "id": "CYRNiryastareLocation",
@@ -2274,7 +2274,21 @@
 "6026fd:BSAssets.esm"
 ]
 ],
-"boss": true
+"boss": true,
+"storyOptions": [
+[
+1,
+"8ad31:BSHeartland.esm"
+],
+[
+13,
+"8ad33:BSHeartland.esm"
+],
+[
+21,
+"8ad35:BSHeartland.esm"
+]
+]
 }
 ]
 },

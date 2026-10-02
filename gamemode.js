@@ -1224,6 +1224,15 @@ mp.onActivate = (targetId, casterId) => {
     try { return activateChain(targetId, casterId); } catch (e) { return activateThrew(targetId, casterId, e); }
   };
 }
+// A ruin's opened stair, for a player who comes into its cell through an inner door (ruinbuttons.js __dboRuinDoorUsed)
+{
+  const activateBeforeRuinDoors = mp.onActivate;
+  mp.onActivate = (targetId, casterId) => {
+    const allowed = activateBeforeRuinDoors(targetId, casterId);
+    if (allowed !== false) { try { if (globalThis.__dboRuinDoorUsed) globalThis.__dboRuinDoorUsed(casterId >>> 0); } catch (e) { log('ruin door replay failed', e.message); } }
+    return allowed;
+  };
+}
 // TEMPORARY door trace (2026-09-16, Applewatch house doors would not open): every door activation and its answer
 {
   const activateCore = mp.onActivate;
@@ -5260,7 +5269,7 @@ try {
   const RUINBUTTONS_JS = path.resolve('ruinbuttons.js');
   delete require.cache[RUINBUTTONS_JS];
   require(RUINBUTTONS_JS)({ mp, log, personal, audit, who, cfg, sendPacket });
-} catch (e) { log('ruinbuttons.js failed to load:', e.stack || e.message); globalThis.__dboRuinButton = null; globalThis.__dboRuinLeaseEnded = null; }
+} catch (e) { log('ruinbuttons.js failed to load:', e.stack || e.message); globalThis.__dboRuinButton = null; globalThis.__dboRuinLeaseEnded = null; globalThis.__dboRuinDoorUsed = null; }
 
 // ---- jails, cell doors and sentences (server\jail.js, config "jail", jails.json) ------------------
 try {

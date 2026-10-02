@@ -299,6 +299,10 @@ module.exports = (api) => {
       for (const npc of z.npcs || []) {
         const edid = String(npc.edid || '');
         let opts = npc.options || [];
+        // Novice: a boss may name its own leveled line (expeditions.json storyOptions). pickScaled falls back to a
+        // placement's lowest option when nothing is in band, so a boss with one fixed high-level option (Silorn's
+        // level-50 lich) came at full strength to a level-1 Novice party (/bug 1 Oct 23:04). Balance call for Nate.
+        if (diff.id === 'story' && Array.isArray(npc.storyOptions) && npc.storyOptions.length) opts = npc.storyOptions;
         let kind = edid;
         // A generic placement cycles through its own faction's archetypes; anything unlisted stays vanilla
         const ref = String(npc.ref || '');
