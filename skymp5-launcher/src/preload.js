@@ -101,6 +101,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Isolated game copy (baseDir optional; falls back to the stored/default install location; opts { force } re-copies the vanilla files)
   isolatedStatus: () => ipcRenderer.invoke('game:isolatedStatus'),
   createIsolated: (baseDir, opts) => ipcRenderer.invoke('game:createIsolated', baseDir, opts),
+  // Where the game copy goes, about how big, and the free-space check, shown before anything is copied
+  copyPreview: (baseDir) => ipcRenderer.invoke('game:copyPreview', baseDir),
   onIsolatedProgress: (cb) => ipcRenderer.on('isolated:progress', (_e, msg) => cb(msg)),
   removeIsolatedListeners: () => ipcRenderer.removeAllListeners('isolated:progress'),
 

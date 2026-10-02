@@ -27,6 +27,8 @@ const prefsSeed = require('./prefsSeed')
 const controlmapCheck = require('./controlmapCheck')
 const gameversion = require('./gameversion')
 const downgrade = require('./downgrade')
+const gamecopy = require('./gamecopy')
+const isolation = require('./isolation')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
 const nxmLinks = require('./nxm')
@@ -158,25 +160,56 @@ function isolatedGameDir() {
   return path.join(local, 'DragonBreak', 'GameDir')
 }
 
-function isolatedGameReady() {
-  return fs.existsSync(path.join(isolatedGameDir(), 'SkyrimSE.exe'))
-}
-
-// A usable game copy needs more than SkyrimSE.exe (it is copied first, so an
-// interrupted run leaves it behind with a partial Data). The completion marker
-// written by copyGameDir is authoritative; copies made before the marker
-// existed fall back to the masters check (the esms are copied nearly last,
-// so their presence implies the BSAs made it too).
+// A usable game copy needs more than SkyrimSE.exe (it is copied first, so an interrupted run leaves it behind with a
+// partial Data): the verified copy's record, the legacy completion marker written by copyGameDir, or for copies made
+// before the marker the masters (copied nearly last, so their presence implies the BSAs made it too). isolation.js
 function gameCopyComplete(dir) {
-  if (!fs.existsSync(path.join(dir, 'SkyrimSE.exe'))) return false
-  if (fs.existsSync(path.join(dir, 'vanilla-copy-complete.json'))) return true
-  return fs.existsSync(path.join(dir, 'Data', 'Skyrim.esm'))
-    && fs.existsSync(path.join(dir, 'Data', 'Update.esm'))
+  return isolation.copyReady(dir)
 }
 
+function isolatedGameReady() {
+  return gameCopyComplete(isolatedGameDir())
+}
+
+// Where the game runs and the client files go. In isolated mode it is the copy or nothing: never the Skyrim folder,
+// so SKSE, the preloader DLLs, Data\Platform and the client settings cannot land in Steam's folder (phase 2 leak fix)
 function effectiveGamePath() {
-  if (store.get('isolatedGame') && isolatedGameReady()) return isolatedGameDir()
-  return store.get('skyrimPath')
+  return isolation.gamePathFor({
+    isolated: !!store.get('isolatedGame'), copyReady: isolatedGameReady(), copyDir: isolatedGameDir(), skyrimPath: store.get('skyrimPath'),
+  })
+}
+
+// What every install and launch path says when effectiveGamePath() is null
+const noGamePathError = () => isolation.noGamePathError(!!store.get('isolatedGame'))
+
+// The bundled vanilla list for the Skyrim folder's edition: null for Epic and Microsoft Store, ready false while the
+// file in src is still the placeholder (or, for GOG, until a GOG list ships)
+const copyManifests = new Map()
+function copyManifest(edition = mo2.detectEdition(store.get('skyrimPath'))) {
+  if (!copyManifests.has(edition)) copyManifests.set(edition, isolation.manifestFor(edition))
+  return copyManifests.get(edition)
+}
+
+// 'verified' (only hash-checked files, the rest from Steam's depot download) once the list for the player's edition
+// has files; until then 'legacy', today's copy by name from the Skyrim folder
+function copyMode() {
+  return isolation.copyMode({ isolated: !!store.get('isolatedGame'), manifest: copyManifest() })
+}
+
+// The folder whose version decides startup and PLAY: the copy once it is ready, so a changed Steam exe never blocks
+// a good copy (isolation.versionGateDir)
+function versionGateDir() {
+  return isolation.versionGateDir({
+    isolated: !!store.get('isolatedGame'), copyReady: isolatedGameReady(), copyDir: isolatedGameDir(),
+    skyrimPath: store.get('skyrimPath'), mode: copyMode(),
+  })
+}
+
+// downgrade.assess for that folder, or null when there is nothing to gate
+function playTarget() {
+  const dir = versionGateDir()
+  if (!dir || !fs.existsSync(path.join(dir, 'SkyrimSE.exe'))) return null
+  return downgrade.assess(dir, mo2.detectEdition(dir))
 }
 
 // Skyrim path auto-detection
@@ -318,7 +351,8 @@ function createWindow() {
     win.show()
     // Chained so the two startup modals never stack
     maybeWarnNeverLaunched().then(() => {
-      const target = downgradeTarget()
+      // Our copy decides once it is ready: another launcher's change to Steam's exe no longer opens the panel
+      const target = playTarget()
       if (gameVersionProblem() || (target && target.action !== 'none')) showDowngradePanel()
     })
   })
@@ -331,6 +365,8 @@ app.whenReady().then(() => {
   createWindow()
   // No install waits yet: links left with us by a crash, or by a launcher up to 2.1.29, go back
   nxm.release()
+  // A Creations catalog still aside from a session that ended while the launcher was closed goes back
+  putBackCatalogAtStart().catch(err => log(`[defaults] ${err.message}`))
   app.on('second-instance', (_e, argv) => {
     if (win) { if (win.isMinimized()) win.restore(); win.focus() }
     handleNxmArgv(argv)
@@ -429,12 +465,16 @@ function skyrimPrefsPath() {
 }
 // Server hotkeys live in the Skyrim Platform client settings (the object exposed
 // to the client as settings["skymp5-client"] - the file content is that object).
+// null without a game folder (isolated mode before the copy is ready): never a path relative to the launcher's folder
 function clientSettingsPath() {
-  return path.join(effectiveGamePath() || '', 'Data', 'Platform', 'Plugins', 'skymp5-client-settings.txt')
+  const gp = effectiveGamePath()
+  return gp ? path.join(gp, 'Data', 'Platform', 'Plugins', 'skymp5-client-settings.txt') : null
 }
 function readClientSettings() {
+  const f = clientSettingsPath()
+  if (!f) return {}
   try {
-    const obj = JSON.parse(fs.readFileSync(clientSettingsPath(), 'utf8'))
+    const obj = JSON.parse(fs.readFileSync(f, 'utf8'))
     return obj && typeof obj === 'object' ? obj : {}
   } catch { return {} }
 }
@@ -616,6 +656,7 @@ ipcMain.handle('clientprefs:save', (_e, p) => {
     if (typeof p.uiScale === 'number') { if (p.uiScale > 0) c.uiScale = p.uiScale; else delete c.uiScale }
     if (typeof p.panelScaleReset === 'number' && p.panelScaleReset > 0) c.panelScaleReset = p.panelScaleReset
     const f = clientSettingsPath()
+    if (!f) return { ok: false, error: noGamePathError() }
     fs.mkdirSync(path.dirname(f), { recursive: true })
     fs.writeFileSync(f, JSON.stringify(c, null, 2))
     return { ok: true }
@@ -643,6 +684,7 @@ ipcMain.handle('hotkeys:save', (_e, h) => {
     if (typeof h.voiceMode === 'number')   c.voiceModeKeyCode = h.voiceMode
     if (typeof h.mask === 'number')        c.maskToggleKeyCode = h.mask
     const p = clientSettingsPath()
+    if (!p) return { ok: false, error: noGamePathError() }
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.writeFileSync(p, JSON.stringify(c, null, 2))
     return { ok: true, path: p }
@@ -839,16 +881,12 @@ function applyForcedServerDefaults(gamePath) {
   // it. A CSV2_<uuid> entry in there makes the engine stoull a uuid and throw the same "invalid stoull argument"
   // (Leerod, 2026-09-22 17:16, still on 2.1.26). It is a Bethesda.net cache this copy never reads, and a machine
   // with no catalog at all launches fine, so it is moved aside rather than parsed. Kept, not deleted: it belongs to
-  // the player's own Skyrim, which rebuilds it the next time they open the Creations menu.
+  // the player's own Skyrim, so it goes back once our game has closed (restoreCatalogAfterGame). An earlier one still
+  // aside is never overwritten (isolation.moveCatalogAside).
   try {
-    const local = process.env.LOCALAPPDATA
-    const catalog = local ? path.join(local, 'Skyrim Special Edition', 'ContentCatalog.txt') : null
-    if (catalog && fs.existsSync(catalog) && fs.statSync(catalog).size > 0) {
-      const kept = catalog + '.dbo-disabled'
-      try { fs.rmSync(kept, { force: true }) } catch { /* first run */ }
-      fs.renameSync(catalog, kept)
-      log(`[defaults] moved the Creations content catalog aside (kept as ${path.basename(kept)})`)
-    }
+    const moved = isolation.moveCatalogAside(process.env.LOCALAPPDATA)
+    if (moved === 'moved') log('[defaults] moved the Creations content catalog aside (kept as ContentCatalog.txt.dbo-disabled)')
+    else if (moved === 'session') log('[defaults] moved a new Creations content catalog aside; the player\'s own is still kept as .dbo-disabled')
   } catch (err) {
     log('[defaults] could not move the Creations content catalog aside:', err.message)
   }
@@ -1196,35 +1234,37 @@ ipcMain.handle('game:createIsolated', async (_e, baseDirOverride, opts) => {
   }
 })
 
-// force re-copies every vanilla file; SKSE, client files and the controlmap in the copy are other Repair sections and stay.
-async function createIsolatedImpl(baseDirOverride, force = false) {
+// force re-copies (legacy) or re-checks by hash (verified) every vanilla file; SKSE, client files and the controlmap in
+// the copy are other Repair sections and stay. progress, when given, also receives the verified copy's progress events
+// (the Skyrim Version panel passes one).
+async function createIsolatedImpl(baseDirOverride, force = false, { progress = null } = {}) {
   const src = store.get('skyrimPath')
   if (!src || !fs.existsSync(path.join(src, 'SkyrimSE.exe'))) {
     return { success: false, error: 'Set a valid Skyrim path first (SkyrimSE.exe not found).' }
   }
+  const edition = mo2.detectEdition(src)
+  // The verified copy takes only files whose sha256 matches the bundled list and gets the rest from Steam's own
+  // download, so Steam may be on any build. The legacy copy (no list for this edition yet) copies by name from the
+  // Skyrim folder, which therefore has to be the right build.
+  const verified = isolation.copyMode({ isolated: true, manifest: copyManifest(edition) }) === 'verified'
 
-  // Never copy a wrong-version exe into the portable install
-  const gv = gameversion.checkGameVersion(src, mo2.detectEdition(src))
-  if (!gv.ok) {
-    showDowngradePanel()
-    return { success: false, error: `Skyrim ${gv.version} found; downgrade to ${gv.required} before installing the game copy.` }
+  if (!verified) {
+    // Never copy a wrong-version exe into the portable install
+    const gv = gameversion.checkGameVersion(src, edition)
+    if (!gv.ok) {
+      showDowngradePanel()
+      return { success: false, error: `Skyrim ${gv.version} found; downgrade to ${gv.required} before installing the game copy.` }
+    }
   }
 
   if (!findOriginalPrefsIni()) {
     return { success: false, error: NEVER_LAUNCHED_ERROR }
   }
 
-  // No clean-install check needed: copyGameDir copies only vanilla files, so a modded source is fine.
+  // No clean-install check needed: only vanilla files are copied, so a modded source is fine.
 
-  // Install target: the Install Location field, else the stored/default base dir.
-  let base = (typeof baseDirOverride === 'string' && baseDirOverride.trim()) ||
-             store.get('baseDirPath') || DEFAULT_BASE_DIR
-
-  // Portable instance fix: nest a generic folder under \DragonBreak
-  if (path.basename(base).toLowerCase() !== 'dragonbreak' &&
-      !fs.existsSync(path.join(base, 'alduinak-instance.txt'))) {
-    base = path.join(base, 'DragonBreak')
-  }
+  // Install target: the Install Location field, else the stored/default base dir, nested under \DragonBreak
+  const base = isolation.resolveBase({ override: baseDirOverride, stored: store.get('baseDirPath'), fallback: DEFAULT_BASE_DIR })
 
   const dst = path.join(base, 'skyrim')
 
@@ -1253,25 +1293,41 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
     // Mark this folder as an DragonBreak instance so future setups reuse it in
     // place instead of nesting again.
     try { fs.mkdirSync(base, { recursive: true }); fs.writeFileSync(path.join(base, 'alduinak-instance.txt'), '') } catch {}
+
+    // What the player is told before anything is copied: where, about how big, that their own Skyrim stays as it is,
+    // and the free-space check. The verified copy checks the space again once it knows exactly what it will write.
+    const preview = await copyPreview(base)
+    send('isolated:progress', preview.text)
+    send('isolated:progress', preview.spaceText)
+    log(`[isolated] ${preview.mode} copy: ${preview.text} ${preview.spaceText}`)
+    if (!preview.enough && (force || !gameCopyComplete(dst))) return { success: false, error: preview.spaceText }
+
     send('isolated:progress', 'Installing Mod Organizer 2…')
     await mo2.ensureInstalled(msg => send('isolated:progress', msg))
 
-    if (force) {
-      // The copy folder could have become a link into the original install since the first check
-      if (pathsOverlap(src, dst)) return { success: false, error: 'The game copy folder resolves into your original Skyrim install - remove the link before repairing.' }
-      send('isolated:progress', 'Removing the old vanilla game files…')
-      try { fs.rmSync(path.join(dst, 'vanilla-copy-complete.json'), { force: true }) } catch {}
-      for (const job of vanillaJobs(src)) {
-        try { fs.rmSync(path.join(dst, job.sub, job.rel), { force: true }) } catch {}
-      }
-    }
-    // portable copy setup (re-copies when a previous copy was interrupted:
-    // SkyrimSE.exe lands first, so its presence alone proves nothing)
-    if (force || !gameCopyComplete(dst)) {
-      const copy = await copyGameDir(src, dst)
+    // The copy folder could have become a link into the original install since the first check
+    if (force && pathsOverlap(src, dst)) return { success: false, error: 'The game copy folder resolves into your original Skyrim install - remove the link before repairing.' }
+    let counts = {}
+    if (verified) {
+      const copy = await buildVerifiedCopy(src, dst, { force, progress })
       if (!copy.success) return copy
+      counts = { copied: copy.copied, kept: copy.kept }
     } else {
-      log('[isolated] reusing existing game copy at ' + dst)
+      if (force) {
+        send('isolated:progress', 'Removing the old vanilla game files…')
+        try { fs.rmSync(path.join(dst, isolation.COPY_MARKER), { force: true }) } catch {}
+        for (const job of vanillaJobs(src)) {
+          try { fs.rmSync(path.join(dst, job.sub, job.rel), { force: true }) } catch {}
+        }
+      }
+      // portable copy setup (re-copies when a previous copy was interrupted:
+      // SkyrimSE.exe lands first, so its presence alone proves nothing)
+      if (force || !gameCopyComplete(dst)) {
+        const copy = await copyGameDir(src, dst)
+        if (!copy.success) return copy
+      } else {
+        log('[isolated] reusing existing game copy at ' + dst)
+      }
     }
 
     // configuration
@@ -1285,11 +1341,51 @@ async function createIsolatedImpl(baseDirOverride, force = false) {
     store.set('mo2Enabled', true)
 
     log(`[isolated] DragonBreak install ready at ${base}`)
-    return { success: true, dir: base }
+    return { success: true, dir: base, ...counts }
   } catch (err) {
     return { success: false, error: err.message }
   }
 }
+
+// Free space and the setup text for a base folder, before anything is copied (also the game:copyPreview IPC).
+// The legacy estimate is the vanilla files of the Skyrim folder less what the copy already holds; the verified one is
+// the listed files the copy does not hold at the right size, less depot files on the same drive (moved, not copied).
+async function copyPreview(base) {
+  const src = store.get('skyrimPath') || null
+  const edition = mo2.detectEdition(src)
+  const dst = path.join(base, 'skyrim')
+  const manifest = copyManifest(edition)
+  const verified = isolation.copyMode({ isolated: true, manifest }) === 'verified'
+  let total = 0
+  let needed = 0
+  if (verified) {
+    const e = await gamecopy.estimateBytes(manifest, dst, { depotDir: depotDirMap(src) })
+    total = e.total
+    needed = e.bytes
+  } else if (src && fs.existsSync(path.join(src, 'Data'))) {
+    for (const job of vanillaJobs(src)) {
+      const size = fileSize(jobSource(src, job))
+      if (size < 0) continue
+      total += size
+      needed += Math.max(0, size - Math.max(0, fileSize(path.join(dst, job.sub, job.rel))))
+    }
+  }
+  const free = await gamecopy.freeBytes(dst)
+  const space = isolation.spaceCheck({ needed, free })
+  return {
+    ok: true, base, dir: dst, edition, mode: verified ? 'verified' : 'legacy', neededBytes: needed, freeBytes: free,
+    enough: space.enough, text: isolation.setupText({ dir: dst, edition, totalBytes: total }), spaceText: space.text,
+  }
+}
+
+ipcMain.handle('game:copyPreview', async (_e, baseDirOverride) => {
+  try {
+    const base = isolation.resolveBase({ override: baseDirOverride, stored: store.get('baseDirPath'), fallback: DEFAULT_BASE_DIR })
+    return await copyPreview(base)
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
 
 // Vanilla root files, by store edition. Only those present get copied.
 // Skyrim.ccc is deliberately NOT copied: only the free CC plugins below are copied (the load order lists them), and
@@ -1415,11 +1511,25 @@ function optionalCopyFailed(job, to, err) {
 
 // Copy only Bethesda's vanilla files from the (possibly modded) source so the user's install stays intact.
 async function copyGameDir(src, dst) {
-  const jobs = vanillaJobs(src)
+  let jobs = vanillaJobs(src)
 
   if (!jobs.some(j => j.rel.toLowerCase() === 'skyrim.esm')) {
     return { success: false, error: 'Skyrim.esm not found in Data - is the Skyrim path correct?' }
   }
+
+  // Nothing whose content is known to be wrong goes in: the exe must be the target build and the files with a known
+  // 1.6.1170 sha256 must have it (isolation.vetFile). A wrong optional CC archive from a fallback folder is left out.
+  send('isolated:progress', 'Checking the Skyrim files before copying…')
+  const edition = mo2.detectEdition(src)
+  const vetted = []
+  for (const job of jobs) {
+    const v = await isolation.vetFile(path.join(job.sub, job.rel), jobSource(src, job), { edition })
+    if (v.ok) { vetted.push(job); continue }
+    if (job.from) { log(`[isolated] left out ${job.rel} from ${job.from}: ${v.why}`); continue }
+    showDowngradePanel()
+    return { success: false, error: `The game copy was not made: in your Skyrim folder, ${v.why}. Downgrade it in the Skyrim Version panel, then try again.` }
+  }
+  jobs = vetted
 
   let copied = 0
   // Weighted by bytes for the progress bar: the archives dwarf the rest
@@ -1455,6 +1565,130 @@ async function copyGameDir(src, dst) {
   return { success: true, copied }
 }
 
+// Verified copy (src/gamecopy.js): Steam's download_depot output as { depotId: folder }, in any of the four layouts
+function depotDirMap(gameDir) {
+  return Object.fromEntries(downgradeDepots(gameDir).filter(d => d.dir).map(d => [d.id, d.dir]))
+}
+
+// Root DLLs in the copy that are ours: SKSE's, the Engine Fixes preloader's and those the client package put there
+function rootDllAllow(dir) {
+  let skse = []
+  try { skse = fs.readdirSync(dir).filter(n => /^skse64_.*\.dll$/i.test(n)) } catch { /* no copy */ }
+  return [...skse, ...PRELOADER_DLLS, ...(store.get('clientRootDlls') || [])]
+}
+
+// gamecopy progress events as one line each, at most a few per second, to a sink(text, event)
+function copyProgressLine(sink) {
+  let last = 0
+  let lastFile = null
+  return p => {
+    const now = Date.now()
+    if (p.file === lastFile && now - last < 250) return
+    last = now
+    lastFile = p.file
+    const verb = p.step === 'copy' ? 'Copying verified game files' : 'Checking game files'
+    const pct = p.totalBytes ? ` ${Math.min(100, Math.floor(100 * (p.doneBytes || 0) / p.totalBytes))}%` : ''
+    sink(`${verb}… ${p.index}/${p.total}${pct} (${p.file})`, p)
+  }
+}
+
+const depotNames = ids => ids.map(id => (downgrade.DEPOTS.find(d => d.id === id) || { holds: id }).holds).join(', ')
+
+/**
+ * The verified copy: built from files whose sha256 matches the bundled list (gamecopy.build). Files the copy already
+ * holds right stay, so a stopped build resumes and a copy made by launcher 2.1.36 or older is checked by hash rather
+ * than copied again. When the Skyrim folder lacks right copies of some files the player is sent to the Skyrim Version
+ * panel to download them; they then go into the copy, and the Steam folder is never written.
+ */
+async function buildVerifiedCopy(src, dst, { force = false, progress = null, signal } = {}) {
+  const manifest = copyManifest(mo2.detectEdition(src))
+  if (!manifest || !manifest.ready) return { success: false, error: 'This launcher has no Skyrim file list for your edition.' }
+  if (force) {
+    try { fs.rmSync(path.join(dst, gamecopy.RECORD_FILE), { force: true }) } catch { /* rebuilt below */ }
+  }
+  // The bar only belongs to the game copy's own install run (Repair Game Copy, first PLAY), not the modpack's
+  const ownBar = installTrack.kind() === 'other'
+  if (ownBar) installStep('copy', { index: 0, total: manifest.bytes })
+  const line = copyProgressLine((text, p) => {
+    send('isolated:progress', text)
+    if (ownBar && p.step === 'copy') { installTrack.step('copy', { index: p.doneBytes || 0, total: p.totalBytes || 0 }); sendInstallState() }
+  })
+  const res = await gamecopy.build(src, dst, {
+    manifest, depotDir: depotDirMap(src), signal,
+    onProgress: p => { line(p); if (progress) progress(p) },
+    checkSpace: async need => {
+      const c = isolation.spaceCheck({ needed: need.bytes + need.largest, free: await gamecopy.freeBytes(dst) })
+      return c.enough ? null : c.text
+    },
+  })
+  if (!res.ok) {
+    if (res.error) return { success: false, error: res.error }
+    const files = [...res.unresolved.map(u => u.path), ...res.failed.map(f => f.path)]
+    store.set('copyNeedsDepots', { files: files.slice(0, 50), count: files.length, depots: res.depotsNeeded, at: Date.now() })
+    log(`[isolated] verified copy needs ${files.length} file(s) from depot(s) ${res.depotsNeeded.join(', ') || '?'}: ${files.slice(0, 20).join(', ')}`)
+    showDowngradePanel()
+    return {
+      success: false, needDepots: true,
+      error: `${files.length} Skyrim file(s) in your Skyrim folder are not the ${isolation.targetBuild(mo2.detectEdition(src))} files ` +
+        `(${files.slice(0, 4).join(', ')}${files.length > 4 ? ', …' : ''}). Download them with Steam's own download in the Skyrim Version ` +
+        `panel (the download${res.depotsNeeded.length > 1 ? 's' : ''} for ${depotNames(res.depotsNeeded)}); they go into DragonBreak's copy, and your Steam Skyrim is not changed.`,
+    }
+  }
+  store.delete('copyNeedsDepots')
+  // AE popup fix, as in copyGameDir: the launcher keeps Skyrim.ccc empty (it is left out of the list for that reason)
+  try { fs.writeFileSync(path.join(dst, 'Skyrim.ccc'), '') } catch { /* re-applied by applyForcedServerDefaults */ }
+  try { fs.rmSync(path.join(dst, isolation.COPY_MARKER), { force: true }) } catch { /* the record replaces it */ }
+  log(`[isolated] verified copy at ${dst}: ${res.kept} file(s) already right, ${res.written} copied or moved in`)
+  return { success: true, copied: res.written, kept: res.kept }
+}
+
+// ensureVanillaIntegrity for the verified copy
+async function verifiedIntegrity(gamePath, { signal } = {}) {
+  const src = store.get('skyrimPath') || null
+  const sink = copyProgressLine(text => send('install:progress', { phase: 'download', file: text, index: 0, total: 0, skipped: false }))
+  try {
+    const record = await gamecopy.readRecord(gamePath)
+    if (!record) {
+      // A copy made by launcher 2.1.36 or older (by file name): checked once by hash, wrong files replaced
+      log('[integrity] the game copy has no record yet: checking it against the 1.6.1170 file list')
+      const built = await buildVerifiedCopy(src, gamePath, { signal })
+      return built.success ? { ok: true, warning: null, repaired: built.copied } : { ok: false, error: built.error }
+    }
+    const manifest = copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam')
+    if (!manifest || !manifest.ready) return { ok: true, warning: null }
+    const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath), signal })
+    const foreign = isolation.dllsToSetAside(d.extraRootDlls)
+    const others = d.extraRootDlls.filter(n => !foreign.includes(n))
+    if (others.length) log(`[integrity] other DLLs in the game copy's root, left alone: ${others.join(', ')}`)
+    if (!d.changed.length && !d.missing.length && !d.linked.length && !foreign.length && !d.touched.length) {
+      return { ok: true, warning: null }
+    }
+    log(`[integrity] changed: ${d.changed.join(', ') || '-'}; missing: ${d.missing.join(', ') || '-'}; linked: ${d.linked.join(', ') || '-'}; foreign DLLs: ${foreign.join(', ') || '-'}`)
+    const r = await gamecopy.repair(gamePath, d, [
+      { dir: record.source && record.source.dir, kind: 'source' },
+      { dir: depotDirMap(src), kind: 'depot' },
+    ], { record, manifest, signal, setAside: foreign, onProgress: sink })
+    if (!r.ok) {
+      const files = r.unresolved.map(u => u.path)
+      const depots = [...new Set(r.unresolved.map(u => u.depot).filter(Boolean))].sort()
+      store.set('copyNeedsDepots', { files: files.slice(0, 50), count: files.length, depots, at: Date.now() })
+      showDowngradePanel()
+      return { ok: false, error: `Skyrim files in DragonBreak's game copy were changed, and no right copy was found: ${files.slice(0, 4).join(', ')}` +
+        `${files.length > 4 ? ', …' : ''}. Download them with Steam's own download in the Skyrim Version panel; your Steam Skyrim is not changed.` }
+    }
+    store.delete('copyNeedsDepots')
+    if (r.repaired.length) log(`[integrity] repaired from verified files: ${r.repaired.join(', ')}`)
+    return {
+      ok: true, repaired: r.repaired.length,
+      warning: r.setAside.length ? `Moved ${r.setAside.join(', ')} out of the DragonBreak game copy (kept in ${gamecopy.SET_ASIDE_DIR}): another program had put ${r.setAside.length > 1 ? 'them' : 'it'} there.` : null,
+    }
+  } catch (err) {
+    if (signal && signal.aborted) return { ok: false, error: 'Cancelled.' }
+    log(`[integrity] ${err.message}`)
+    return { ok: false, error: `Checking the game copy failed: ${err.message}` }
+  }
+}
+
 // Vanilla files in the game copy that are missing or the wrong size compared
 // to the original install.
 function vanillaMismatches(src, dir) {
@@ -1466,12 +1700,17 @@ function vanillaMismatches(src, dir) {
   return bad
 }
 
-// Vanilla integrity gate, run on every install pass. Portable copies are
-// verified against the player's original install and repaired file by file;
-// when playing from the real install there is no clean source to copy from,
-// so a failed check only warns.
-async function ensureVanillaIntegrity(gamePath) {
+// Vanilla integrity gate, run on every install pass (so before every PLAY).
+//   verified copy  checked against its own record (size, mtime, file id; only what differs is hashed) and repaired
+//                  only from files whose sha256 matches: the record's source folder, then Steam's depot download
+//   legacy copy    compared by size with the Skyrim folder, as before, but a file is taken from that folder only when
+//                  its content is not known to be wrong (isolation.legacyRepairPlan): never an exe of another build,
+//                  never a master whose 1.6.1170 sha256 differs, nothing from a folder on another build. The copy's own
+//                  file stays when the folder is the one that changed.
+// When playing from the real install there is no clean source to copy from, so a failed check only warns.
+async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
   const portable = store.get('isolatedGame') && isolatedGameReady() && gamePath === isolatedGameDir()
+  if (portable && copyMode() === 'verified') return verifiedIntegrity(gamePath, { signal })
   if (portable) {
     const original = store.get('skyrimPath')
     if (!original || !fs.existsSync(path.join(original, 'Data', 'Skyrim.esm'))) {
@@ -1480,9 +1719,22 @@ async function ensureVanillaIntegrity(gamePath) {
     }
     const bad = vanillaMismatches(original, gamePath)
     if (bad.length === 0) return { ok: true, warning: null }
-    log(`[integrity] repairing ${bad.length} vanilla file(s): ${bad.map(j => j.rel).join(', ')}`)
+    const decided = await isolation.legacyRepairPlan(bad.map(job => ({
+      rel: path.join(job.sub, job.rel), from: jobSource(original, job), to: path.join(gamePath, job.sub, job.rel), optional: !!job.from, job,
+    })), { srcDir: original, edition: mo2.detectEdition(original) })
+    for (const k of decided.keep) log(`[integrity] kept the game copy's ${k.rel}: in the Skyrim folder, ${k.why}`)
+    for (const k of decided.skipped) log(`[integrity] skipped ${k.rel}: ${k.why}`)
+    if (decided.broken.length) {
+      const list = decided.broken.map(b => `${b.rel} (${b.why})`).join('; ')
+      log(`[integrity] cannot repair: ${list}`)
+      return { ok: false, error: `The game copy is missing or has wrong Skyrim files, and your Skyrim folder has no right copy of them: ${list}. ` +
+        'Downgrade your Skyrim folder in Settings > Repair > Skyrim Version, then press Repair Game Copy.' }
+    }
+    const jobs = decided.copy.map(c => c.job)
+    if (!jobs.length) return { ok: true, warning: null }
+    log(`[integrity] repairing ${jobs.length} vanilla file(s): ${jobs.map(j => j.rel).join(', ')}`)
     let done = 0
-    for (const job of bad) {
+    for (const job of jobs) {
       const to = path.join(gamePath, job.sub, job.rel)
       try {
         fs.mkdirSync(path.dirname(to), { recursive: true })
@@ -1492,7 +1744,7 @@ async function ensureVanillaIntegrity(gamePath) {
         continue
       }
       done++
-      send('install:progress', { phase: 'download', file: `Repairing vanilla game files… ${done}/${bad.length} (${job.rel})`, index: done, total: bad.length, skipped: false })
+      send('install:progress', { phase: 'download', file: `Repairing vanilla game files… ${done}/${jobs.length} (${job.rel})`, index: done, total: jobs.length, skipped: false })
     }
     return { ok: true, warning: null, repaired: done }
   }
@@ -1589,10 +1841,12 @@ function gameVersionSummary(folders) {
     (f.data.missing.length ? ` (${f.data.missing.join(', ')} missing)` : '')).join('; ')
 }
 
-// Checks the original install first (the portable copy is rebuilt from it), then the copy that actually runs
+// Both folders are still logged; only the one that decides (versionGateDir: the copy once it is ready) counts
 function gameVersionProblem() {
-  for (const f of logGameFolders()) if (!f.gv.ok) return f.gv
-  return null
+  const folders = logGameFolders()
+  const dir = versionGateDir()
+  const f = dir && folders.find(x => path.resolve(x.dir).toLowerCase() === path.resolve(dir).toLowerCase())
+  return f && !f.gv.ok ? f.gv : null
 }
 
 // Seed the MO2 profile SkyrimPrefs.ini from the player's own prefs (or, without any, the game's template or a
@@ -1705,10 +1959,42 @@ function stepAsideForGame() {
   setTimeout(tick, 1500)
 }
 
+// The player's Creations catalog goes back once our game has closed: the game is polled until it has come and gone
+// (or never started within five minutes). The launcher's own start puts back one left aside by a session that
+// ended while the launcher was closed. Not while the game runs: that catalog crashed it (applyForcedServerDefaults).
+let catalogWatch = null
+function putBackCatalog(when) {
+  try {
+    if (isolation.restoreCatalog(process.env.LOCALAPPDATA)) log(`[defaults] put the Creations content catalog back (${when})`)
+  } catch (err) {
+    log(`[defaults] could not put the Creations content catalog back: ${err.message}`)
+  }
+}
+const skyrimRunning = async () => (await isProcessRunning('SkyrimSE.exe')) || (await isProcessRunning('skse64_loader.exe'))
+function restoreCatalogAfterGame() {
+  if (process.platform !== 'win32' || catalogWatch || !isolation.catalogAside(process.env.LOCALAPPDATA)) return
+  const started = Date.now()
+  let seen = false
+  const tick = async () => {
+    const running = await skyrimRunning()
+    if (running) seen = true
+    if (running || (!seen && Date.now() - started < 5 * 60_000)) { catalogWatch = setTimeout(tick, 10_000); return }
+    catalogWatch = null
+    putBackCatalog('the game has closed')
+  }
+  catalogWatch = setTimeout(tick, 10_000)
+}
+async function putBackCatalogAtStart() {
+  if (process.platform !== 'win32' || !isolation.catalogAside(process.env.LOCALAPPDATA)) return
+  if (await skyrimRunning()) { restoreCatalogAfterGame(); return }
+  putBackCatalog('at launcher start')
+}
+
 // After a launch, watch the game and tell the server how it closed (src/crashWatch.js). One watcher at a time; it
 // only speaks for a signed-in player, and a failure here never touches the game.
 let gameWatchRunning = false
 function watchGameExit() {
+  restoreCatalogAfterGame()
   if (process.platform !== 'win32' || gameWatchRunning) return
   const session = store.get('gameSession')
   if (!session) return
@@ -2069,7 +2355,7 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
   const mo2Enabled = store.get('mo2Enabled')
 
   if (!skyrimPath) {
-    return { success: false, error: 'Skyrim path not configured.' }
+    return { success: false, error: noGamePathError() }
   }
 
   if (mo2Enabled && !mo2.isInstalled()) {
@@ -2103,7 +2389,7 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
 // Troubleshooting: force a launch path regardless of the mo2Enabled setting.
 ipcMain.handle('launch:viaMO2', () => guardLaunch(async () => {
   const skyrimPath = effectiveGamePath()
-  if (!skyrimPath) return { success: false, error: 'Skyrim path not configured.' }
+  if (!skyrimPath) return { success: false, error: noGamePathError() }
   if (!mo2.isInstalled()) return { success: false, error: 'MO2 is not installed - use Repair MO2 first.' }
   const prep = await prepareForLaunch(skyrimPath, true)
   if (!prep.success) return prep
@@ -2113,7 +2399,7 @@ ipcMain.handle('launch:viaMO2', () => guardLaunch(async () => {
 
 ipcMain.handle('launch:direct', () => guardLaunch(async () => {
   const skyrimPath = effectiveGamePath()
-  if (!skyrimPath) return { success: false, error: 'Skyrim path not configured.' }
+  if (!skyrimPath) return { success: false, error: noGamePathError() }
   const prep = await prepareForLaunch(skyrimPath, false)
   if (!prep.success) return prep
   const exe = path.join(skyrimPath, 'skse64_loader.exe')
@@ -2234,13 +2520,24 @@ function isVanillaRel(rel) {
   return parts.length === 3 && ['video', 'strings'].includes(parts[1].toLowerCase())
 }
 
-// Brings the game copy in line with the original after a downgrade or a restore: the changed vanilla files are copied
-// across and the removed ones deleted. Explicit, because the integrity check compares sizes only.
+// Brings the legacy game copy in line with the original after an in-place downgrade: the changed vanilla files are
+// copied across and the removed ones deleted. Explicit, because the integrity check compares sizes only.
+// Only from a Skyrim folder that is now the right build, and only files not known to be wrong (isolation.js): after a
+// Restore the folder is on its old build again and the copy keeps its 1.6.1170 files. The verified copy never takes
+// files this way (it repairs itself from hash-checked sources).
 async function refreshGameCopy(gameDir, changed, removed) {
   const copy = gameCopyDir(gameDir)
-  if (!copy) return 0
+  if (!copy || copyMode() === 'verified') return 0
+  const edition = mo2.detectEdition(gameDir)
+  const trust = isolation.trustSource(gameDir, edition)
+  if (!trust.ok) {
+    log(`[downgrade] game copy ${copy} left as it is: ${trust.why}`)
+    return 0
+  }
   let n = 0
   for (const rel of changed.filter(isVanillaRel)) {
+    const vet = await isolation.vetFile(rel, path.join(gameDir, rel), { edition })
+    if (!vet.ok) { log(`[downgrade] not copied into the game copy: ${vet.why}`); continue }
     const to = path.join(copy, rel)
     fs.mkdirSync(path.dirname(to), { recursive: true })
     await fs.promises.copyFile(path.join(gameDir, rel), to)
@@ -2293,29 +2590,69 @@ ipcMain.handle('downgrade:status', async () => {
   const backup = downgrade.latestBackup(a.gameDir)
   const copy = gameCopyDir(a.gameDir)
   const copyVersion = copy ? gameversion.readPeFileVersion(path.join(copy, 'SkyrimSE.exe')) : null
+  // In isolated mode the copy counts: with the verified copy the panel fills the copy from the downloads instead of
+  // changing the Steam folder (isolation.panelState)
+  const mode = copyMode()
+  const panel = isolation.panelState({
+    mode, isolated: !!store.get('isolatedGame'), copyReady: isolatedGameReady(), steam: a,
+    copy: copy ? downgrade.assess(copy, mo2.detectEdition(copy)) : null, needs: mode === 'verified' ? store.get('copyNeedsDepots') : null,
+  })
+  if (mode === 'verified') acf = null   // the Steam folder is not downgraded, so its update setting does not matter
   return {
     ok: true,
     busy: downgradeBusy,
-    action: a.action,
-    blocking: a.blocking,
+    action: panel.action,
+    blocking: panel.blocking,
+    copyOwn: panel.copyOwn,
+    copyBuild: panel.copyBuild,
+    copyWrong: panel.copyWrong,
+    copyDir: isolatedGameDir(),
+    copyVersion,
     version: a.version,
     required: a.required,
     edition: a.edition,
     newerData: a.newerData,
     gameDir: a.gameDir,
-    copyStale: a.action === 'none' && !!copyVersion && !!a.version && copyVersion !== a.version,
+    copyStale: mode === 'legacy' && a.action === 'none' && !!copyVersion && !!a.version && copyVersion !== a.version,
     depots,
     steamRunning: acf ? await isProcessRunning('steam.exe') : false,
     acf,
     backup: backup ? { name: backup.name, replaced: (backup.record.replaced || []).length, added: (backup.record.added || []).length } : null,
-    runtime: a.action === 'none' ? downgradeRuntime(a.gameDir) : null,
+    runtime: panel.action === 'none' ? downgradeRuntime(a.gameDir) : null,
   }
 })
 
 ipcMain.handle('downgrade:openConsole', () => { shell.openExternal('steam://open/console'); return true })
 ipcMain.handle('downgrade:steamVerify', () => { shell.openExternal(`steam://validate/${downgrade.APP_ID}`); return true })
 
+// Verified copy: the Install button fills DragonBreak's own copy from the downloaded depots (a move on the same drive)
+// through the normal game copy setup. No backup, no appmanifest edit, nothing written to the Steam folder.
+async function runCopyFromDepots() {
+  const running = await runningGameProcesses()
+  if (running.length) return { ok: false, error: `Close ${running.join(', ')} first. Nothing was changed.` }
+  const depots = downgradeDepots(store.get('skyrimPath'))
+  if (!depots.some(d => d.dir)) return { ok: false, error: 'No downloaded depot was found yet: run the commands above in Steam\'s console first.' }
+  const busy = depots.filter(d => d.dir && (depotStates.get(d.id) || {}).state !== 'done')
+  if (busy.length) return { ok: false, error: `Depot ${busy.map(d => d.id).join(', ')} has not finished downloading. Nothing was changed.` }
+  const gate = beginInstall('the game copy')
+  if (!gate.ok) return { ok: false, error: gate.error }
+  try {
+    const line = copyProgressLine((_text, p) => send('downgrade:progress', { step: p.step === 'copy' ? 'gamecopy' : 'gamecheck', index: p.index, total: p.total, file: p.file }))
+    const r = await createIsolatedImpl(undefined, false, { progress: line })
+    depotStates.clear()
+    if (!r.success) return { ok: false, error: r.error }
+    log(`[downgrade] the game copy was filled from the depot downloads: ${r.copied || 0} file(s) in, ${r.kept || 0} already right`)
+    return {
+      ok: true, copy: true, copied: r.copied || 0, kept: r.kept || 0, dir: isolatedGameDir(),
+      version: isolation.targetVersion(mo2.detectEdition(store.get('skyrimPath'))), runtime: downgradeRuntime(store.get('skyrimPath')),
+    }
+  } finally {
+    endInstall()
+  }
+}
+
 async function runDowngrade() {
+  if (copyMode() === 'verified') return runCopyFromDepots()
   const a = downgradeTarget()
   if (!a || a.action !== 'downgrade') return { ok: false, error: 'This Skyrim folder does not need a downgrade.' }
   const running = await runningGameProcesses()
@@ -2421,20 +2758,34 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   // Every PLAY logs both folders' exe versions and data sizes, so a report shows the game it ran
   try { logGameFolders() } catch (err) { log(`[version] could not check the game data: ${err.message}`) }
 
-  // Version gate: the Skyrim Version panel opens in the window and PLAY stops here
+  // Version gate on the folder the game runs from: in isolated mode that is our copy (skyrimPath here is
+  // effectiveGamePath()), never Steam's folder, so another launcher's change to Steam does not block a good copy.
+  // The Skyrim Version panel opens and PLAY stops here.
+  const ownCopy = !!store.get('isolatedGame') && skyrimPath === isolatedGameDir()
+  const copyFix = () => {
+    // The legacy copy is rebuilt from the Skyrim folder, which then has to be on 1.6.1170 itself
+    const steam = downgradeTarget()
+    if (copyMode() === 'verified' || (steam && steam.blocking)) showDowngradePanel()
+    return 'Press Settings > Repair > Repair Game Copy to rebuild it' +
+      (copyMode() === 'legacy' && steam && steam.blocking ? ' (downgrade your Skyrim folder in the Skyrim Version panel first)' : '') +
+      ', then press PLAY again.'
+  }
   const gv = gameversion.checkGameVersion(skyrimPath, mo2.detectEdition(skyrimPath))
   if (!gv.ok) {
+    if (ownCopy) return { success: false, error: `DragonBreak's game copy has Skyrim ${gv.version}; it needs ${gv.required}. ${copyFix()}` }
     showDowngradePanel()
     return { success: false, error: `Skyrim ${gv.version} found in ${skyrimPath}; DragonBreak needs ${gv.required}. Downgrade it in the Skyrim Version panel, then press PLAY again.` }
   }
   // The 1.6.1170 exe on newer game data blocks too (Nate, 2026-09-29): 1.7.99 changed the masters and archives, not the
   // exe. Only a Steam install's "newer data" verdict counts; "unknown" (GOG, a missing file) stays in the log.
-  const target = downgradeTarget()
+  const target = playTarget()
   if (target && target.action === 'downgrade' && target.blocking) {
+    const differ = (target.newerData || []).join(', ') || 'the exe'
+    if (ownCopy) return { success: false, error: `DragonBreak's game copy has game data from a newer Steam update (${differ} differ from 1.6.1170). ${copyFix()}` }
     showDowngradePanel()
     return {
       success: false,
-      error: `Skyrim's game data is from a newer Steam update (${(target.newerData || []).join(', ') || 'the exe'} differ from 1.6.1170). ` +
+      error: `Skyrim's game data is from a newer Steam update (${differ} differ from 1.6.1170). ` +
         'DragonBreak needs 1.6.1170: downgrade it in the Skyrim Version panel, then press PLAY again.',
     }
   }
@@ -2872,17 +3223,33 @@ async function checkFilesImpl() {
     const src = store.get('skyrimPath')
     if (!gameOk) {
       add('missing', show(path.join(gamePath, 'SkyrimSE.exe')), 'game')
+    } else if (copyMode() === 'verified') {
+      // Against the copy's own record, never the Steam folder (reads nothing but the copy; changes nothing)
+      const record = await gamecopy.readRecord(gamePath)
+      const manifest = record && copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam')
+      if (!record || !manifest || !manifest.ready) {
+        add('missing', `${show(path.join(gamePath, gamecopy.RECORD_FILE))} (the next PLAY checks the game copy by hash)`, 'game')
+      } else {
+        const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath) })
+        for (const rel of d.missing) add('missing', show(gamecopy.safeJoin(gamePath, rel)), 'game')
+        for (const rel of d.changed) add('corrupt', show(gamecopy.safeJoin(gamePath, rel)), 'game')
+        for (const rel of d.linked) add('corrupt', `${show(gamecopy.safeJoin(gamePath, rel))} (linked to another install)`, 'game')
+        for (const n of isolation.dllsToSetAside(d.extraRootDlls)) add('corrupt', `${show(path.join(gamePath, n))} (another program's DLL)`, 'game')
+      }
     } else {
-      if (src && fs.existsSync(path.join(src, 'Data', 'Skyrim.esm'))) {
+      // Legacy copy: by size against the Skyrim folder, but only while that folder is on 1.6.1170 itself; a folder
+      // another launcher changed says nothing about our copy
+      const trust = src ? isolation.trustSource(src, mo2.detectEdition(src)) : { ok: false, why: 'no Skyrim folder is set' }
+      if (src && trust.ok && fs.existsSync(path.join(src, 'Data', 'Skyrim.esm'))) {
         for (const job of vanillaMismatches(src, gamePath)) {
           const full = path.join(gamePath, job.sub, job.rel)
           add(sizeOf(full) === -1 ? 'missing' : 'corrupt', show(full), 'game')
         }
       } else {
-        notes.push('Game copy: the original Skyrim install is unreadable, so the vanilla files were not compared.')
+        notes.push(`Game copy: the vanilla files were not compared with your Skyrim folder (${trust.ok ? 'it is unreadable' : trust.why}).`)
         if (!gameCopyComplete(gamePath)) add('missing', `${show(path.join(gamePath, 'Data', 'Skyrim.esm'))} (game copy incomplete)`, 'game')
       }
-      const marker = path.join(gamePath, 'vanilla-copy-complete.json')
+      const marker = path.join(gamePath, isolation.COPY_MARKER)
       if (!fs.existsSync(marker)) add('missing', show(marker), 'game')
       const ccc = sizeOf(path.join(gamePath, 'Skyrim.ccc'))
       if (ccc !== 0) add(ccc === -1 ? 'missing' : 'corrupt', `${show(path.join(gamePath, 'Skyrim.ccc'))}${ccc > 0 ? ' (must be empty)' : ''}`, 'game')
@@ -3213,6 +3580,9 @@ async function extractClientZip(zipPath, destDir, onProgress) {
   const zip     = new AdmZip(zipPath)
   const entries = zip.getEntries().filter(e => !e.isDirectory)
   const total   = entries.length
+  // The client package's own root DLLs (the preloader and any others): the game copy's check must not take them
+  // for another program's (rootDllAllow)
+  store.set('clientRootDlls', entries.map(e => e.entryName).filter(n => !/[\\/]/.test(n) && /\.dll$/i.test(n)))
 
   // Zip-slip guard (defense-in-depth over adm-zip): reject any entry whose
   // resolved destination escapes destDir before writing it.
@@ -3439,11 +3809,11 @@ async function runDirectInstall(force = false) {
     endInstall()
   }
 
-  if (!skyrimPath) return fail('Skyrim path not configured.')
+  if (!skyrimPath) return fail(noGamePathError())
   if (!srv)        return fail('No server selected - open Settings and choose a server.')
 
   // Vanilla integrity (repairs portable copies, warns for the real install).
-  const integrity = await ensureVanillaIntegrity(skyrimPath)
+  const integrity = await ensureVanillaIntegrity(skyrimPath, { signal: installAbort ? installAbort.signal : undefined })
   if (!integrity.ok) return fail(integrity.error)
 
   let serverInfo = null
@@ -3589,7 +3959,7 @@ async function runMO2Install(opts = {}) {
   }
 
   const skyrimPath = effectiveGamePath()
-  if (!skyrimPath) return fail('Skyrim path not configured.')
+  if (!skyrimPath) return fail(noGamePathError())
 
   const srv = activeServer()
   if (!srv) return fail('No server selected - open Settings and choose a server.')
@@ -3600,7 +3970,7 @@ async function runMO2Install(opts = {}) {
     // 0. Vanilla integrity: verify the game copy (existence + size) against
     // the original install and repair portable copies file by file. Playing
     // from the real install only produces a warning.
-    const integrity = await ensureVanillaIntegrity(skyrimPath)
+    const integrity = await ensureVanillaIntegrity(skyrimPath, { signal: installAbort ? installAbort.signal : undefined })
     if (!integrity.ok) return fail(integrity.error)
     if (integrity.repaired) log(`[mo2-install] repaired ${integrity.repaired} vanilla file(s)`)
     const vanillaWarning = integrity.warning || null

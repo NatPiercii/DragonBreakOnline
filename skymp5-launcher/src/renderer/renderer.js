@@ -726,6 +726,14 @@ async function refreshIsolatedStatus() {
   if (!st.ready) {
     isolatedDot.className    = 'vortex-status-dot'
     isolatedText.textContent = 'Game copy not installed yet - use Repair Game Copy'
+    // Before anything is copied: where it goes, about how big, that the player's own Skyrim stays, and the free space
+    if (fieldIsolated.checked) {
+      const pv = await window.electronAPI.copyPreview(fieldBaseDir.value.trim()).catch(() => null)
+      if (pv && pv.ok) {
+        isolatedText.textContent = `Game copy not installed yet. ${pv.text} ${pv.spaceText}`
+        if (!pv.enough) isolatedDot.className = 'vortex-status-dot dot-warn'
+      }
+    }
   } else if (!fieldIsolated.checked) {
     isolatedDot.className    = 'vortex-status-dot dot-warn'
     isolatedText.textContent = 'DragonBreak install exists - playing from the original Skyrim'
@@ -742,6 +750,12 @@ async function repairGameCopy() {
   // Game-copy steps stream into the shared install progress log.
   window.electronAPI.onIsolatedProgress(msg => installLive(msg))
   installLog('Repairing game copy…')
+  // The setup text and the free-space check come before any copying
+  const pv = await window.electronAPI.copyPreview(fieldBaseDir.value.trim()).catch(() => null)
+  if (pv && pv.ok) {
+    installLog(pv.text)
+    installLog(pv.spaceText)
+  }
 
   const result = await window.electronAPI.createIsolated(fieldBaseDir.value.trim(), { force: true })
   window.electronAPI.removeIsolatedListeners()
@@ -1413,6 +1427,14 @@ btnConnect.addEventListener('click', async () => {
 
     // 0. First run: create the game copy + MO2 at the default install location instead of bouncing the player into Settings.
     if (needsGameCopy) {
+      // Said before anything is copied: where the copy goes, about how big, that the player's own Skyrim and other
+      // servers stay as they are, and whether the drive has room
+      const pv = await window.electronAPI.copyPreview().catch(() => null)
+      if (pv && pv.ok) {
+        installLog(pv.text)
+        installLog(pv.spaceText)
+        if (!pv.enough) { showWarning(`${pv.text} ${pv.spaceText}`); return }
+      }
       btnConnect.textContent = '\u2699 INSTALLING\u2026'
       window.electronAPI.removeIsolatedListeners()
       window.electronAPI.onIsolatedProgress(msg => installLive(msg))
@@ -2059,6 +2081,21 @@ window.electronAPI.onDowngradeShow(openDowngrade)
 // [headline, detail] for the panel's top
 function downgradeSummary(s) {
   if (!s.ok) return [s.error, null]
+  // DragonBreak's own copy (once the launcher ships the Skyrim file list): the downloads fill the copy, Steam stays
+  if (s.copyBuild) {
+    const n = s.copyBuild.count
+    const some = s.copyBuild.files && s.copyBuild.files.length ? ` (${s.copyBuild.files.slice(0, 3).join(', ')}${n > 3 ? ', …' : ''})` : ''
+    return [`DragonBreak keeps its own Skyrim ${s.required} and needs ${n ? `${n} file(s)` : 'files'} your Skyrim folder does not have as ${s.required}${some}.`,
+      `Download them below with Steam's own download, under your own Steam account. They go into DragonBreak's copy in ${s.copyDir}; your Steam Skyrim and other servers are not changed.`]
+  }
+  if (s.copyOwn) {
+    return [`DragonBreak plays its own Skyrim ${s.required} in ${s.copyDir}.`,
+      `Your Steam Skyrim${s.version ? ` (${s.version})` : ''} is not used or changed, so other servers and Steam updates do not affect DragonBreak.`]
+  }
+  if (s.copyWrong) {
+    return [`DragonBreak's game copy is on ${s.copyVersion || 'another version'}, not ${s.required}, while your Skyrim folder is right.`,
+      'Press Repair Game Copy in Settings > Repair to rebuild it from your Skyrim folder.']
+  }
   if (s.action === 'downgrade' && s.newerData && s.newerData.length) {
     return [`Your Skyrim program is ${s.version}, but its game data (${s.newerData.join(', ')}) comes from a newer Steam update (1.7.99 or later). DragonBreak needs the ${s.required} data, so Skyrim has to be downgraded before you can play.`,
       `The launcher does it with Steam's own download of the ${s.required} files, under your own Steam account. Skyrim folder: ${s.gameDir}`]
@@ -2189,6 +2226,8 @@ function downgradeLine(text, replaceLast) {
 }
 
 const DOWNGRADE_STEP_TEXT = {
+  gamecheck: 'Checking game files',
+  gamecopy: 'Copying verified files into the game copy',
   verify:  'Checking the downloads',
   copy:    'Backing up and copying',
   refresh: 'Updating the game copy',
@@ -2226,7 +2265,9 @@ async function downgradeAction(button, busyLabel, call, done) {
 dgEl('downgrade-open-console').addEventListener('click', () => window.electronAPI.downgradeOpenConsole())
 dgEl('downgrade-install').addEventListener('click', e => downgradeAction(e.currentTarget, 'Installing…',
   () => window.electronAPI.downgradeInstall(),
-  r => `Skyrim is now ${r.version}. ${r.replaced} file(s) replaced (the old ones are in the backup), ${r.added} added` +
+  r => r.copy
+    ? `DragonBreak's game copy is ready on ${r.version}: ${r.copied} file(s) copied or moved in, ${r.kept} already right. Your Steam Skyrim was not changed.`
+    : `Skyrim is now ${r.version}. ${r.replaced} file(s) replaced (the old ones are in the backup), ${r.added} added` +
     `${r.refreshed ? `, ${r.refreshed} updated in the game copy` : ''}.` +
     (r.steamManaged ? ' One last step below keeps Steam from updating it again.' : '')))
 dgEl('downgrade-set-autoupdate').addEventListener('click', e => downgradeAction(e.currentTarget, 'Setting…',
