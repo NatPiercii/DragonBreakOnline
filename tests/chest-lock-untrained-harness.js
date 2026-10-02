@@ -133,6 +133,12 @@ check('untrainedMaxLock 0: an untrained player is refused an Apprentice lock', o
 load({ entryStagger: { enabled: false }, untrainedMaxLock: 'lots' }); lease = claim(RIELLE); globalThis.__dboLockpick = lockpickStub;
 untrained(A); lease.locked.set(CH, 4); begun.length = 0; said.length = 0; now += 60000;
 check('a bad untrainedMaxLock falls back to Apprentice: a Master lock stays refused', open(A, CH) === false && begun.length === 0, saidTo(A));
+load({ entryStagger: { enabled: false }, untrainedMaxLock: 9 }); lease = claim(RIELLE); globalThis.__dboLockpick = lockpickStub;
+untrained(A); lease.locked.set(CH, 4); begun.length = 0; said.length = 0; now += 60000;
+check('an out-of-range untrainedMaxLock (9) is not clamped to Master: it falls back to Apprentice', open(A, CH) === false && begun.length === 0 && saidTo(A).some((t) => /only try Novice and Apprentice locks/.test(t)), saidTo(A));
+load({ entryStagger: { enabled: false }, untrainedMaxLock: 2 }); lease = claim(RIELLE); globalThis.__dboLockpick = lockpickStub;
+untrained(A); lease.locked.set(CH, 3); begun.length = 0; said.length = 0; now += 60000;
+check('three levels read as a list: Novice, Apprentice and Adept', saidTo(A).length === 0 && open(A, CH) === false && saidTo(A).some((t) => /only try Novice, Apprentice and Adept locks/.test(t)), saidTo(A));
 
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);
