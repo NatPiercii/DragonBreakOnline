@@ -29,6 +29,7 @@ const gameversion = require('./gameversion')
 const downgrade = require('./downgrade')
 const gamecopy = require('./gamecopy')
 const isolation = require('./isolation')
+const cefTemp = require('./cefTemp')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
 const nxmLinks = require('./nxm')
@@ -2221,6 +2222,8 @@ async function guardLaunch(launch) {
       return { success: false, error: 'Skyrim is still starting - give MO2 a moment.' }
     }
     if (legal.blocksLaunch()) return { success: false, legalRequired: true, error: LEGAL_BLOCK_MESSAGE }
+    // The game is not running, so no browser cache folder is in use
+    if (process.platform === 'win32') { try { cefTemp.cleanCefTemp({ log }) } catch (e) { log(`[cefTemp] ${e.message}`) } }
     const result = await launch()
     if (result.success) launchStartedAt = Date.now()
     return result
