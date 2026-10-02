@@ -84,7 +84,8 @@ function versionGateDir({ isolated, copyReady: ready, copyDir, skyrimPath, mode 
 /**
  * Whether a file from the Skyrim folder may go into the copy: not when its content is known to be wrong. SkyrimSE.exe
  * must be the target build (1.6.1170.0, GOG 1.6.1179.0; an unreadable one is refused too), and a file whose 1.6.1170
- * size and sha256 are known must have them (Steam only: GOG's 1.6.1179 files are not listed). { ok, why }.
+ * size and sha256 are known must have them (Steam only: GOG's 1.6.1179 files are not listed).
+ * { ok, why, kind }: kind 'exe' for the exe check, 'data' for a known Data file (which the legacy copy tolerates).
  */
 async function vetFile(rel, file, {
   edition, readVersion = gameversion.readPeFileVersion, hash = gamecopy.hashFile, known = KNOWN_FILES,
@@ -93,14 +94,14 @@ async function vetFile(rel, file, {
   if (key === 'skyrimse.exe') {
     const want = targetVersion(edition)
     const v = readVersion(file)
-    return v === want ? { ok: true } : { ok: false, why: `its SkyrimSE.exe is ${v || 'unreadable'}, not ${want}` }
+    return v === want ? { ok: true } : { ok: false, kind: 'exe', why: `its SkyrimSE.exe is ${v || 'unreadable'}, not ${want}` }
   }
   const k = edition === 'GOG' ? null : known.get(key)
   if (!k) return { ok: true }
   let size
-  try { size = fs.statSync(file).size } catch { return { ok: false, why: `${k.path} is missing` } }
-  if (size !== k.size) return { ok: false, why: `${k.path} is not the ${targetBuild(edition)} file (size)` }
-  if ((await hash(file)) !== k.sha256) return { ok: false, why: `${k.path} is not the ${targetBuild(edition)} file (sha256)` }
+  try { size = fs.statSync(file).size } catch { return { ok: false, kind: 'data', why: `${k.path} is missing` } }
+  if (size !== k.size) return { ok: false, kind: 'data', why: `${k.path} is not the ${targetBuild(edition)} file (size)` }
+  if ((await hash(file)) !== k.sha256) return { ok: false, kind: 'data', why: `${k.path} is not the ${targetBuild(edition)} file (sha256)` }
   return { ok: true }
 }
 
@@ -123,21 +124,38 @@ function trustSource(dir, edition, { readVersion = gameversion.readPeFileVersion
  * [{ rel, from, to, optional }]. A file is copied only when the folder is a trusted source and the file passes
  * vetFile. Otherwise the copy's own file stays when it is there and passes vetFile itself (the copy is the good one:
  * Steam was updated or modded); a missing or wrong copy file with no good source is broken, or skipped if optional.
- * Returns { copy, keep, broken, skipped, trusted }, keep/broken/skipped entries with why.
+ * tolerateData (the legacy copy, while there is no vanilla list): a known Data file with other bytes (a cleaned
+ * master) is not an error. The copy's existing file is still never replaced by it, but a missing one is copied with a
+ * warning (warned), as setup does. The exe and a folder on another build stay strict.
+ * Returns { copy, keep, broken, skipped, warned, trusted }, keep/broken/skipped/warned entries with why.
  */
-async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, known } = {}) {
+async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, known, tolerateData = false } = {}) {
   const opts = { edition, readVersion, hash, known }
   const trusted = trustSource(srcDir, edition, { readVersion })
-  const out = { copy: [], keep: [], broken: [], skipped: [], trusted }
+  const out = { copy: [], keep: [], broken: [], skipped: [], warned: [], trusted }
   for (const job of jobs) {
-    const vet = trusted.ok ? await vetFile(job.rel, job.from, opts) : { ok: false, why: trusted.why }
+    const vet = trusted.ok ? await vetFile(job.rel, job.from, opts) : { ok: false, kind: 'source', why: trusted.why }
     if (vet.ok) { out.copy.push(job); continue }
-    const own = fs.existsSync(job.to) ? await vetFile(job.rel, job.to, opts) : { ok: false, why: 'it is missing from the game copy' }
-    if (own.ok) out.keep.push({ ...job, why: vet.why })
+    const exists = fs.existsSync(job.to)
+    if (tolerateData && vet.kind === 'data') {
+      if (exists) out.keep.push({ ...job, why: vet.why })
+      else { out.copy.push(job); out.warned.push({ ...job, why: vet.why }) }
+      continue
+    }
+    const own = exists ? await vetFile(job.rel, job.to, opts) : { ok: false, why: 'it is missing from the game copy' }
+    if (own.ok || (tolerateData && exists && own.kind === 'data')) out.keep.push({ ...job, why: vet.why })
     else if (job.optional) out.skipped.push({ ...job, why: `${vet.why}; ${own.why}` })
     else out.broken.push({ ...job, why: `${own.why}, and ${vet.why}` })
   }
   return out
+}
+
+/** The one warning naming the changed Data files the legacy copy took from the Skyrim folder anyway */
+function changedDataWarning(names) {
+  const list = [...new Set(names.map(n => path.basename(String(n).replace(/\\/g, '/'))))]
+  if (!list.length) return null
+  const named = list.length === 1 ? list[0] : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`
+  return `Your Steam copy has a changed ${named}; DragonBreak will use it until its own clean copy is available.`
 }
 
 /** The setup text: where the copy goes, about how big, and that the player's own Skyrim and other servers stay as they are */
@@ -237,6 +255,6 @@ const catalogAside = localAppData => { const p = catalogPaths(localAppData); ret
 module.exports = {
   MANAGED_IN_COPY, COPY_MARKER, KNOWN_FILES, FOREIGN_ROOT_DLLS, NO_COPY_ERROR, SPACE_MARGIN,
   manifestFor, copyMode, copyReady, gamePathFor, noGamePathError, versionGateDir, vetFile, trustSource,
-  legacyRepairPlan, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState, catalogPaths, moveCatalogAside,
+  legacyRepairPlan, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState, catalogPaths, moveCatalogAside,
   restoreCatalog, catalogAside, targetVersion, targetBuild,
 }

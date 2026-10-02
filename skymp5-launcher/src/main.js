@@ -1325,6 +1325,7 @@ async function createIsolatedImpl(baseDirOverride, force = false, { progress = n
       if (force || !gameCopyComplete(dst)) {
         const copy = await copyGameDir(src, dst)
         if (!copy.success) return copy
+        if (copy.warning) counts = { warning: copy.warning }
       } else {
         log('[isolated] reusing existing game copy at ' + dst)
       }
@@ -1517,19 +1518,30 @@ async function copyGameDir(src, dst) {
     return { success: false, error: 'Skyrim.esm not found in Data - is the Skyrim path correct?' }
   }
 
-  // Nothing whose content is known to be wrong goes in: the exe must be the target build and the files with a known
-  // 1.6.1170 sha256 must have it (isolation.vetFile). A wrong optional CC archive from a fallback folder is left out.
+  // The exe must be the target build (isolation.vetFile). A Data file whose known 1.6.1170 sha256 differs (a cleaned
+  // master, often) is still copied, as before: refusing would push the player into the in-place Steam downgrade, the
+  // very write isolation avoids. It is logged and named once in the warning; the verified copy (with the vanilla list)
+  // replaces it with a clean one. A wrong optional CC archive from a fallback folder is left out.
   send('isolated:progress', 'Checking the Skyrim files before copying…')
   const edition = mo2.detectEdition(src)
   const vetted = []
+  const changedData = []
   for (const job of jobs) {
     const v = await isolation.vetFile(path.join(job.sub, job.rel), jobSource(src, job), { edition })
     if (v.ok) { vetted.push(job); continue }
     if (job.from) { log(`[isolated] left out ${job.rel} from ${job.from}: ${v.why}`); continue }
+    if (v.kind === 'data') {
+      log(`[isolated] ${v.why}: copied anyway (legacy copy, until DragonBreak's own clean copy is available)`)
+      changedData.push(job.rel)
+      vetted.push(job)
+      continue
+    }
     showDowngradePanel()
     return { success: false, error: `The game copy was not made: in your Skyrim folder, ${v.why}. Downgrade it in the Skyrim Version panel, then try again.` }
   }
   jobs = vetted
+  const warning = isolation.changedDataWarning(changedData)
+  if (warning) send('isolated:progress', `⚠ ${warning}`)
 
   let copied = 0
   // Weighted by bytes for the progress bar: the archives dwarf the rest
@@ -1562,7 +1574,7 @@ async function copyGameDir(src, dst) {
       JSON.stringify({ files: copied, at: new Date().toISOString() }) + '\n')
   } catch { /* marker is an optimization; the masters check still applies */ }
   log(`[isolated] copied ${copied} vanilla file(s) to ${dst}`)
-  return { success: true, copied }
+  return { success: true, copied, warning }
 }
 
 // Verified copy (src/gamecopy.js): Steam's download_depot output as { depotId: folder }, in any of the four layouts
@@ -1703,10 +1715,10 @@ function vanillaMismatches(src, dir) {
 // Vanilla integrity gate, run on every install pass (so before every PLAY).
 //   verified copy  checked against its own record (size, mtime, file id; only what differs is hashed) and repaired
 //                  only from files whose sha256 matches: the record's source folder, then Steam's depot download
-//   legacy copy    compared by size with the Skyrim folder, as before, but a file is taken from that folder only when
-//                  its content is not known to be wrong (isolation.legacyRepairPlan): never an exe of another build,
-//                  never a master whose 1.6.1170 sha256 differs, nothing from a folder on another build. The copy's own
-//                  file stays when the folder is the one that changed.
+//   legacy copy    compared by size with the Skyrim folder, as before, but (isolation.legacyRepairPlan) never an exe
+//                  of another build and nothing from a folder on another build; the copy's own file stays when the
+//                  folder is the one that changed. A Data file whose known 1.6.1170 sha256 differs (a cleaned master)
+//                  never replaces the copy's existing file; a missing one is copied with a warning, as setup does.
 // When playing from the real install there is no clean source to copy from, so a failed check only warns.
 async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
   const portable = store.get('isolatedGame') && isolatedGameReady() && gamePath === isolatedGameDir()
@@ -1721,8 +1733,10 @@ async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
     if (bad.length === 0) return { ok: true, warning: null }
     const decided = await isolation.legacyRepairPlan(bad.map(job => ({
       rel: path.join(job.sub, job.rel), from: jobSource(original, job), to: path.join(gamePath, job.sub, job.rel), optional: !!job.from, job,
-    })), { srcDir: original, edition: mo2.detectEdition(original) })
+    })), { srcDir: original, edition: mo2.detectEdition(original), tolerateData: true })
     for (const k of decided.keep) log(`[integrity] kept the game copy's ${k.rel}: in the Skyrim folder, ${k.why}`)
+    for (const k of decided.warned) log(`[integrity] ${k.why}: copied anyway into the game copy, which had none (legacy copy)`)
+    const warning = isolation.changedDataWarning(decided.warned.map(k => k.rel))
     for (const k of decided.skipped) log(`[integrity] skipped ${k.rel}: ${k.why}`)
     if (decided.broken.length) {
       const list = decided.broken.map(b => `${b.rel} (${b.why})`).join('; ')
@@ -1731,7 +1745,7 @@ async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
         'Downgrade your Skyrim folder in Settings > Repair > Skyrim Version, then press Repair Game Copy.' }
     }
     const jobs = decided.copy.map(c => c.job)
-    if (!jobs.length) return { ok: true, warning: null }
+    if (!jobs.length) return { ok: true, warning }
     log(`[integrity] repairing ${jobs.length} vanilla file(s): ${jobs.map(j => j.rel).join(', ')}`)
     let done = 0
     for (const job of jobs) {
@@ -1746,7 +1760,7 @@ async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
       done++
       send('install:progress', { phase: 'download', file: `Repairing vanilla game files… ${done}/${jobs.length} (${job.rel})`, index: done, total: jobs.length, skipped: false })
     }
-    return { ok: true, warning: null, repaired: done }
+    return { ok: true, warning, repaired: done }
   }
   // Real install: the masters every SE edition ships must at least exist.
   const missing = [...VANILLA_MASTERS]

@@ -113,7 +113,9 @@ test('vetFile: the exe must be the target build; a file with a known sha256 must
   put(path.join(root, 'SkyrimSE.exe'), 'exe 1.6.1170.0')
   assert.deepStrictEqual(await iso.vetFile('SkyrimSE.exe', path.join(root, 'SkyrimSE.exe'), opts), { ok: true })
   put(path.join(root, 'SkyrimSE.exe'), 'exe 1.7.104.0')
-  assert.match((await iso.vetFile('SkyrimSE.exe', path.join(root, 'SkyrimSE.exe'), opts)).why, /1\.7\.104\.0, not 1\.6\.1170\.0/)
+  const exeVet = await iso.vetFile('SkyrimSE.exe', path.join(root, 'SkyrimSE.exe'), opts)
+  assert.match(exeVet.why, /1\.7\.104\.0, not 1\.6\.1170\.0/)
+  assert.strictEqual(exeVet.kind, 'exe')
   put(path.join(root, 'SkyrimSE.exe'), 'not a PE')
   assert.match((await iso.vetFile('SkyrimSE.exe', path.join(root, 'SkyrimSE.exe'), opts)).why, /unreadable/)
   put(path.join(root, 'SkyrimSE.exe'), 'exe 1.6.1179.0')
@@ -124,7 +126,8 @@ test('vetFile: the exe must be the target build; a file with a known sha256 must
   const cleaned = Buffer.from(good)
   cleaned[0] = 'X'.charCodeAt(0)
   put(path.join(root, 'Data', 'Skyrim.esm'), cleaned)
-  assert.match((await iso.vetFile('Data/Skyrim.esm', path.join(root, 'Data', 'Skyrim.esm'), opts)).why, /sha256/)
+  const dataVet = await iso.vetFile('Data/Skyrim.esm', path.join(root, 'Data', 'Skyrim.esm'), opts)
+  assert.deepStrictEqual([dataVet.kind, /sha256/.test(dataVet.why)], ['data', true])
   put(path.join(root, 'Data', 'Skyrim.esm'), 'short')
   assert.match((await iso.vetFile('Data/Skyrim.esm', path.join(root, 'Data', 'Skyrim.esm'), opts)).why, /size/)
   // GOG's 1.6.1179 files are not listed: only the exe is checked there
@@ -178,6 +181,44 @@ test('legacy repair: a trusted folder gives its files; an updated one gives noth
   put(path.join(steam, 'SkyrimSE.exe'), 'exe 1.6.1170.0')
   sized(path.join(steam, 'Data', 'Skyrim.esm'), 1000)
   assert.match(iso.trustSource(steam, 'Steam', { readVersion: readExe }).why, /newer game data/)
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('legacy copy, no list yet: a cleaned master is tolerated, but never replaces the copy\'s file; the exe stays strict', async () => {
+  const root = tmp()
+  const good = Buffer.from('TES4 dawnguard master 1170')
+  const known = new Map([['data/dawnguard.esm', { path: 'Data/Dawnguard.esm', size: good.length, sha256: sha(good) }]])
+  const steam = skyrimFolder(path.join(root, 'Steam'))
+  const copy = path.join(root, 'copy')
+  put(path.join(copy, 'SkyrimSE.exe'), 'exe 1.6.1170.0')
+  const cleaned = Buffer.from('TES4 dawnguard cleaned by SSEEdit')
+  put(path.join(steam, 'Data', 'Dawnguard.esm'), cleaned)
+  const job = rel => ({ rel, from: at(steam, rel), to: at(copy, rel) })
+  const opts = { srcDir: steam, edition: 'Steam', readVersion: readExe, known, tolerateData: true }
+
+  // Missing from the copy: copied from Steam as before, with the warning naming it
+  let r = await iso.legacyRepairPlan([job('Data/Dawnguard.esm')], opts)
+  assert.deepStrictEqual([r.copy.map(j => j.rel), r.warned.map(j => j.rel), r.broken], [['Data/Dawnguard.esm'], ['Data/Dawnguard.esm'], []])
+  assert.strictEqual(iso.changedDataWarning(r.warned.map(j => j.rel)),
+    'Your Steam copy has a changed Dawnguard.esm; DragonBreak will use it until its own clean copy is available.')
+  // The copy has its own file (right, or itself a cleaned one from setup): never replaced by Steam's known-wrong one
+  put(path.join(copy, 'Data', 'Dawnguard.esm'), 'TES4 the copy\'s own, other size')
+  r = await iso.legacyRepairPlan([job('Data/Dawnguard.esm')], opts)
+  assert.deepStrictEqual([r.copy, r.keep.map(k => k.rel), r.broken], [[], ['Data/Dawnguard.esm'], []])
+  // Strict without the tolerance (what the verified path would do): that missing file is broken, not copied
+  fs.rmSync(path.join(copy, 'Data', 'Dawnguard.esm'))
+  r = await iso.legacyRepairPlan([job('Data/Dawnguard.esm')], { ...opts, tolerateData: false })
+  assert.deepStrictEqual([r.copy, r.broken.map(b => b.rel)], [[], ['Data/Dawnguard.esm']])
+  // Steam's exe on another build: nothing comes from that folder; a cleaned master already in the copy stays, but a
+  // missing exe has no source and is broken
+  put(path.join(steam, 'SkyrimSE.exe'), 'exe 1.6.640.0')
+  put(path.join(copy, 'Data', 'Dawnguard.esm'), cleaned)
+  fs.rmSync(path.join(copy, 'SkyrimSE.exe'))
+  r = await iso.legacyRepairPlan([job('SkyrimSE.exe'), job('Data/Dawnguard.esm')], opts)
+  assert.deepStrictEqual([r.copy, r.keep.map(k => k.rel), r.broken.map(b => b.rel)], [[], ['Data/Dawnguard.esm'], ['SkyrimSE.exe']])
+  // Several files are named once each in one sentence
+  assert.match(iso.changedDataWarning(['Data\\Update.esm', 'Data/Dawnguard.esm', 'Data/Update.esm']), /a changed Update\.esm and Dawnguard\.esm;/)
+  assert.strictEqual(iso.changedDataWarning([]), null)
   fs.rmSync(root, { recursive: true, force: true })
 })
 

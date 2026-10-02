@@ -767,6 +767,7 @@ async function repairGameCopy() {
   // The base may have been nested under \DragonBreak - reflect what was used.
   if (result.dir) fieldBaseDir.value = result.dir
   installLog('Game copy ready ✓')
+  if (result.warning) installLog(`⚠ ${result.warning}`)
   fieldIsolated.checked = true
   await window.electronAPI.saveSettings({ isolatedGame: true })
   refreshIsolatedStatus()
@@ -1426,6 +1427,8 @@ btnConnect.addEventListener('click', async () => {
     clearWarning()
 
     // 0. First run: create the game copy + MO2 at the default install location instead of bouncing the player into Settings.
+    // A changed Data file the legacy copy took from Steam anyway: named once, with the launch's other warnings
+    let copyWarning = null
     if (needsGameCopy) {
       // Said before anything is copied: where the copy goes, about how big, that the player's own Skyrim and other
       // servers stay as they are, and whether the drive has room
@@ -1449,6 +1452,7 @@ btnConnect.addEventListener('click', async () => {
       refreshIsolatedStatus()
       isoReady = true
       clearWarning()
+      if (created.warning) { copyWarning = created.warning; installLog(`\u26A0 ${created.warning}`) }
     }
 
     // 1. Make sure client files are present and current (fast no-op when up
@@ -1458,7 +1462,8 @@ btnConnect.addEventListener('click', async () => {
       showWarning(install.error || 'Update failed.')
       return
     }
-    if (install.warning) showWarning(`\u26A0 ${install.warning}`)
+    const early = [copyWarning, install.warning].filter(Boolean)
+    if (early.length) showWarning(`\u26A0 ${early.join(' ')}`)
 
     // Updated but not launchable yet (e.g. no Discord login): say why and stop.
     if (blockers.length > 0) {
@@ -1485,7 +1490,7 @@ btnConnect.addEventListener('click', async () => {
       return
     }
 
-    const warnings = [install.warning, result.warning].filter(Boolean)
+    const warnings = [copyWarning, install.warning, result.warning].filter(Boolean)
     if (warnings.length > 0) showWarning(`\u26A0 ${warnings.join(' ')}`)
     else clearWarning()
     startLaunchWatch()
