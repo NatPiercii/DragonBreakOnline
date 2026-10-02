@@ -5643,12 +5643,6 @@ try {
   require(MOVETRACE_JS)({ mp, log, personal, display, registerChatCommand, onlineActors, every });
 } catch (e) { log('movetrace.js failed to load:', e.stack || e.message); }
 
-// ---- One-off (1 Oct 2026, Jake): take back a GM's mistaken admin-panel gift (server\revert-gm-gift-1001.js); remove after it ran
-try {
-  const REVERT_1001_JS = path.resolve('revert-gm-gift-1001.js');
-  delete require.cache[REVERT_1001_JS];
-  require(REVERT_1001_JS)({ mp, log, audit, personal, every, stopTimer, onlineActors });
-} catch (e) { log('revert-gm-gift-1001.js failed to load:', e.stack || e.message); }
 
 
 
