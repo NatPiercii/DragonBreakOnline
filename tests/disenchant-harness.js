@@ -19,7 +19,7 @@ const descOf = (id) => `${(id & 0xffffff).toString(16)}:${NAMES_OF[id >>> 24] ||
 
 // The two daggers of the report, a plain sword, a soul gem, and the furniture
 const BLAZE = idOf('be190:Skyrim.esm'), SPARKS = idOf('d30df:BSHeartland.esm'), SWORD = idOf('12eb7:Skyrim.esm'), GEM = idOf('2e4e3:Skyrim.esm');
-const AMULET = idOf('8b5ab:Skyrim.esm');
+const AMULET = idOf('8b5ab:Skyrim.esm'), UNIQUE = idOf('f0001:Skyrim.esm');
 const ENCHANTER_BASE = idOf('bad0d:Skyrim.esm'), FORGE_BASE = idOf('bad0e:Skyrim.esm'), LAB_BASE = idOf('bad0c:Skyrim.esm');
 const ENCHANTER = 0x080651cb, FORGE = 0x5001, LAB = 0x5002;
 const wbdt = (type) => ({ type: 'WBDT', data: new Uint8Array([type, 0]) });
@@ -28,6 +28,8 @@ const RECORDS = {
   [SPARKS]: { type: 'WEAP', editorId: 'CYREnchAyleidDaggerShock01', fields: [{ type: 'EITM', data: new Uint8Array(4) }] },
   [AMULET]: { type: 'ARMO', editorId: 'EnchNecklaceStamina05', fields: [{ type: 'EITM', data: new Uint8Array(4) }] },
   [SWORD]: { type: 'WEAP', editorId: 'IronSword', fields: [] },
+  // An enchanted item the game never lets you disenchant (keyword MagicDisallowEnchanting, c27bd:Skyrim.esm)
+  [UNIQUE]: { type: 'WEAP', editorId: 'StandInUniqueWeapon', fields: [{ type: 'EITM', data: new Uint8Array(4) }, { type: 'KWDA', data: new Uint8Array([0x24, 0x00, 0x00, 0x00, 0xbd, 0x27, 0x0c, 0x00]) }] },
   [GEM]: { type: 'SLGM', editorId: 'SoulGemGrandFilled', fields: [] },
   [ENCHANTER_BASE]: { type: 'FURN', editorId: 'CraftingEnchantingWorkbench', fields: [wbdt(3)] },
   [FORGE_BASE]: { type: 'FURN', editorId: 'CraftingBlacksmithForge', fields: [wbdt(1)] },
@@ -40,8 +42,11 @@ const props = new Map();
 const put = (id, p, v) => props.set(id + '|' + p, v);
 const inv = (a) => (props.get(a + '|inventory') || { entries: [] }).entries;
 const count = (a, baseId) => inv(a).filter((e) => e.baseId === baseId).reduce((n, e) => n + e.count, 0);
+let clock = 1_790_000_000_000;
+Date.now = () => clock;
 const logs = [], said = [], audits = [];
 const reset = (entries) => {
+  clock += 11 * 60 * 1000;
   props.clear(); logs.length = 0; said.length = 0; audits.length = 0;
   put(PLAYER, 'inventory', { entries: entries.map((e) => Object.assign({}, e)) });
   put(PLAYER, 'worldOrCellDesc', '651c0:BSHeartland.esm'); put(PLAYER, 'pos', [100, 100, 0]);
@@ -96,6 +101,30 @@ ok(inv(PLAYER).length === 1 && inv(PLAYER)[0].worn === true, 'the unworn copy is
 reset([{ baseId: BLAZE, count: 1, worn: true }]);
 report(ENCHANTER, BLAZE, [BLAZE]);
 ok(count(PLAYER, BLAZE) === 1 && logs.some((l) => /not taken/.test(l)), 'only a worn copy: it stays, and that is logged', logs);
+ok(audits.some((t) => /^DISENCHANT .* holds only a worn copy; not taken$/.test(t)), '...and audited', audits);
+
+// Release-1031 review: a report counts one copy per base item, and a repeat within ten minutes takes nothing
+reset([{ baseId: BLAZE, count: 3 }]);
+mp.onCraftUnmatched(PLAYER, ENCHANTER, BLAZE, { entries: [{ baseId: BLAZE, count: 2 }, { baseId: BLAZE, count: 1 }] });
+ok(count(PLAYER, BLAZE) === 2, 'a report naming one dagger three times takes one', inv(PLAYER));
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(count(PLAYER, BLAZE) === 2 && logs.some((l) => /again within 10 min; ignored/.test(l)), 'the same dagger reported again at once takes nothing (vanilla never offers a known enchantment)', logs);
+clock += 10 * 60 * 1000;
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(count(PLAYER, BLAZE) === 1, '...and ten minutes later it counts again', inv(PLAYER));
+
+// An item the game never disenchants (MagicDisallowEnchanting) is never taken
+reset([{ baseId: UNIQUE, count: 1 }]);
+report(ENCHANTER, UNIQUE, [UNIQUE]);
+ok(count(PLAYER, UNIQUE) === 1 && !said.length, 'an item with MagicDisallowEnchanting is left alone', inv(PLAYER));
+
+// The plain copy goes first: a tempered or poisoned one, then a named or player-enchanted one, are kept
+reset([{ baseId: BLAZE, count: 1, name: 'Mine' }, { baseId: BLAZE, count: 1, health: 1.2 }, { baseId: BLAZE, count: 1, poisonId: 0x73f34, poisonCount: 2 }, { baseId: BLAZE, count: 1 }]);
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(inv(PLAYER).length === 3 && inv(PLAYER).every((e) => e.name || e.health || e.poisonId), 'the plain copy is taken before tempered, poisoned or named ones', inv(PLAYER));
+reset([{ baseId: BLAZE, count: 1, name: 'Mine' }, { baseId: BLAZE, count: 1, health: 1.2 }]);
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(inv(PLAYER).length === 1 && inv(PLAYER)[0].name === 'Mine', '...and a tempered one before a named one', inv(PLAYER));
 
 // Not at the enchanter, or not an enchanter: nothing taken
 reset([{ baseId: BLAZE, count: 1 }]);

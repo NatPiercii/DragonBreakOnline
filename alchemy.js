@@ -243,16 +243,31 @@ module.exports = (api) => {
     const wbdt = (lr.record.fields || []).find((f) => f.type === 'WBDT');
     return !!wbdt && wbdt.data instanceof Uint8Array && wbdt.data.byteLength > 0 && BENCH_ENCHANTING.has(wbdt.data[0]);
   };
+  const DISALLOW_ENCHANTING = 0x000c27bd; // MagicDisallowEnchanting (Skyrim.esm): such an item is never disenchanted
   const enchantedByRecord = (id) => {
     const lr = id < 0xff000000 ? lookup(id) : null;
-    return !!lr && /^(WEAP|ARMO)$/.test(String(lr.record.type)) && (lr.record.fields || []).some((f) => f.type === 'EITM');
+    if (!lr || !/^(WEAP|ARMO)$/.test(String(lr.record.type)) || !(lr.record.fields || []).some((f) => f.type === 'EITM')) return false;
+    const kwda = (lr.record.fields || []).find((f) => f.type === 'KWDA');
+    const n = kwda && kwda.data instanceof Uint8Array ? Math.floor(kwda.data.byteLength / 4) : 0;
+    for (let i = 0; i < n; i++) { try { if ((lr.toGlobalRecordId(u32(kwda, i * 4)) >>> 0) === DISALLOW_ENCHANTING) return false; } catch (e) { /* unmapped */ } }
+    return true;
   };
+  // Vanilla never offers an enchantment the player already knows, so one base disenchanted twice within this is a repeat
+  const RETAKE_MS = 10 * 60 * 1000;
+  const TAKEN = globalThis.__dboDisenchantTaken || (globalThis.__dboDisenchantTaken = new Map()); // `${actor}|${base}` -> when
+  // Plain copies first: player-named or player-enchanted, then tempered or poisoned ones, are the last taken
+  const keepScore = (e) => (e.name || e.enchantmentId ? 2 : 0) + ((Number(e.health) || 1) > 1 || e.poisonId ? 1 : 0);
   const disenchant = (a, workbenchId, inputs) => {
     const reported = inputs && Array.isArray(inputs.entries) ? inputs.entries : [];
+    // One copy per base item per report, whatever the count says
     const wanted = new Map();
+    const now = Date.now();
+    for (const [k, at] of TAKEN) if (now - at >= RETAKE_MS) TAKEN.delete(k);
     for (const e of reported) {
       const id = Number(e.baseId) >>> 0;
-      if (enchantedByRecord(id)) wanted.set(id, (wanted.get(id) || 0) + Math.max(1, Number(e.count) || 1));
+      if (wanted.has(id) || !enchantedByRecord(id)) continue;
+      if (TAKEN.has(`${a}|${id}`)) { log(`disenchant: ${display(a)} reported ${ingredientName(id)} again within ${RETAKE_MS / 60000} min; ignored`); continue; }
+      wanted.set(id, 1);
     }
     if (!wanted.size) return;   // enchanting (a plain item and a soul gem): craftedExtras records that
     if (!atLab(a, workbenchId)) return log(`disenchant: ${display(a)} reported a disenchant at ${workbenchId.toString(16)} while not at it; ignored`);
@@ -261,11 +276,14 @@ module.exports = (api) => {
     for (const [id, n] of wanted) {
       // Unworn copies only, one the player made nothing of first; a worn one is left and logged
       const copies = entries.filter((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0)
-        .sort((x, y) => (x.name || x.enchantmentId ? 1 : 0) - (y.name || y.enchantmentId ? 1 : 0));
+        .sort((x, y) => keepScore(x) - keepScore(y));
       let left = n;
       for (const e of copies) { if (left <= 0) break; const k = Math.min(left, Number(e.count) || 0); e.count = (Number(e.count) || 0) - k; left -= k; }
-      if (n - left > 0) taken.push([id, n - left]);
-      if (left > 0) log(`disenchant: ${display(a)} disenchanted ${ingredientName(id)} x${n} but holds only ${n - left} unworn; ${left} not taken`);
+      if (n - left > 0) { taken.push([id, n - left]); TAKEN.set(`${a}|${id}`, now); }
+      if (left > 0) {
+        log(`disenchant: ${display(a)} disenchanted ${ingredientName(id)} x${n} but holds only ${n - left} unworn; ${left} not taken`);
+        if (entries.some((e) => (Number(e.baseId) >>> 0) === id && (e.worn || e.wornLeft))) audit(`DISENCHANT ${who(a)} disenchanted ${ingredientName(id)} but holds only a worn copy; not taken`);
+      }
     }
     if (!taken.length) return;
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`disenchant: inventory write failed for ${display(a)}: ${e.message}`); return; }
