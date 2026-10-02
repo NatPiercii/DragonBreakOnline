@@ -1,5 +1,6 @@
 // Locked dungeon chests (Jake, 2 Oct, "Systems not working ASAP": players could not pick locks or gain Lockpicking).
-// Anyone with a pick may try a Novice lock; the levels above need a Lockpicker of that tier. An untrained win fires the
+// Anyone with a pick may try a Novice or Apprentice lock (dungeons.untrainedMaxLock, default 1); the levels above need
+// a Lockpicker of that tier. An untrained win fires the
 // 'lock' mastery event, which masterySystem banks until it offers the skill. Real dungeons.js and Rielle's chests.
 //   node tests/chest-lock-untrained-harness.js   (from server/)
 'use strict';
@@ -96,15 +97,20 @@ if (begun[0]) begun[0].onSuccess(A);
 check('a win unlocks the chest for the party', lease.unlocked.has(CH) && saidTo(A).some((t) => /Novice lock gives way/.test(t)), saidTo(A).slice(-1));
 check('...and the next use opens it', open(A, CH) === null);
 
-// 2. Untrained, a harder lock: refused, pointed at the skill
-lease.locked.set(CH2, 2); said.length = 0; begun.length = 0;
-check('an untrained player is refused an Adept lock, and told how to go further', open(A, CH2) === false && begun.length === 0 && saidTo(A).some((t) => /locked \(Adept\)\. An untrained hand can only try Novice locks\. Picking them builds toward Lockpicking, which your skills \(K\) will then offer/.test(t)), saidTo(A));
+// 2. Untrained: an Apprentice lock may be tried too; Adept is refused, pointed at the skill
+lease.locked.set(CH2, 1); lease.unlocked.delete(CH2); said.length = 0; begun.length = 0;
+check('an untrained player may try an Apprentice lock too', open(A, CH2) === false && begun.length === 1 && begun[0].level === 1, { begun, said: saidTo(A) });
+lease.locked.set(CH2, 2); said.length = 0; begun.length = 0; now += 60000;
+check('an untrained player is refused an Adept lock, and told how to go further', open(A, CH2) === false && begun.length === 0 && saidTo(A).some((t) => /locked \(Adept\)\. Without Lockpicking you can only try Novice and Apprentice locks\. Picking them builds toward Lockpicking, which your skills \(K\) will then offer/.test(t)), saidTo(A));
 
 // 3. A Lockpicker below the lock's tier is refused as before; at or above it, may try
 asLockpicker(A, 1); said.length = 0; now += 60000;   // deny() says a line once a while
 check('a tier-2 Lockpicker is refused an Adept lock (tier 3 needed)', open(A, CH2) === false && begun.length === 0 && saidTo(A).some((t) => /not yet up to it \(tier 3 needed\)/.test(t)), saidTo(A));
 asLockpicker(A, 2);
 check('a tier-3 Lockpicker may try it', open(A, CH2) === false && begun.length === 1 && begun[0].level === 2);
+asLockpicker(A, 0); lease.locked.set(CH2, 1); begun.length = 0;
+check('a new (tier-1) Lockpicker is never worse off than the untrained: may try Apprentice', open(A, CH2) === false && begun.length === 1 && begun[0].level === 1);
+lease.locked.set(CH2, 2);
 
 // 4. The fallback roll (lockpick.js not loaded): an untrained Novice win fires the 'lock' mastery event
 globalThis.__dboLockpick = null; untrained(A); lease.locked.set(CH2, 0); lease.unlocked.delete(CH2); said.length = 0; now += 60000;
@@ -119,6 +125,14 @@ check('without lockpick.js an untrained Novice pick can still win, and is credit
 props.delete(`${B}|private.mastery`); lease.members.delete(2); lease.locked.set(CH, 0); lease.unlocked.delete(CH); said.length = 0;
 globalThis.__dboLockpick = lockpickStub; begun.length = 0;
 check('someone outside the claiming party still cannot touch its chests', open(B, CH) === false && begun.length === 0 && saidTo(B).some((t) => /belongs to the party that claimed/.test(t)), saidTo(B));
+
+// 6. The switch: untrainedMaxLock 0 is Novice only; a bad value falls back to 1, never opening every lock
+load({ entryStagger: { enabled: false }, untrainedMaxLock: 0 }); lease = claim(RIELLE); globalThis.__dboLockpick = lockpickStub;
+untrained(A); lease.locked.set(CH, 1); begun.length = 0; said.length = 0; now += 60000;
+check('untrainedMaxLock 0: an untrained player is refused an Apprentice lock', open(A, CH) === false && begun.length === 0 && saidTo(A).some((t) => /only try Novice locks/.test(t)), saidTo(A));
+load({ entryStagger: { enabled: false }, untrainedMaxLock: 'lots' }); lease = claim(RIELLE); globalThis.__dboLockpick = lockpickStub;
+untrained(A); lease.locked.set(CH, 4); begun.length = 0; said.length = 0; now += 60000;
+check('a bad untrainedMaxLock falls back to Apprentice: a Master lock stays refused', open(A, CH) === false && begun.length === 0, saidTo(A));
 
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);

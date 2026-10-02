@@ -57,6 +57,21 @@
     ]
   },
   {
+    "title": "Apprentice locks for everyone too",
+    "date": "2026-10-02",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Lockpicking",
+        "items": [
+          "Anyone with a lockpick can now try Apprentice locks as well as Novice ones on dungeon chests, so you will meet far more locks you can work on. Adept, Expert and Master locks still need Lockpicking at that tier.",
+          "Every lock you pick works you toward Lockpicking; do it often enough and you will be offered the skill in your skills menu (K)."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Anyone can try a Novice lock",
     "date": "2026-10-02",
     "version": "Server update",

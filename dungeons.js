@@ -15,7 +15,7 @@
 // dungeon again.
 //
 // gamemode-config.json "dungeons": { enabled, leaseMinutes, cooldownMinutes, warnMinutes,
-//   graceMinutes, partyMax, lockedShare: {story, normal, hard, nightmare},
+//   graceMinutes, partyMax, lockedShare: {story, normal, hard, nightmare}, untrainedMaxLock (0-4, default 1),
 //   crashLoop: {enabled, withinMinutes, lateSeconds, keepClaimMinutes},
 //   entryStagger: {enabled, seconds, ids} }
 'use strict';
@@ -1406,12 +1406,16 @@ module.exports = (api) => {
       if (!lease.locked.has(targetId) || lease.unlocked.has(targetId)) { opened(); return null; }
       const level = lease.locked.get(targetId);
       const tier = lockpickingTier(casterId);
-      // Anyone with a pick may try a Novice lock, at lockpick.js's untrained odds; the levels above need a Lockpicker of
-      // that tier. Untrained picks are how Lockpicking is found: masterySystem banks them and offers the skill (K) once
-      // there is a level's worth. Refusing everyone outside it meant no lock was ever picked and nobody could take it up
-      // (2 Oct: 0 of 49 characters had it, 290 refusals; Jake's "Systems not working ASAP")
-      if (tier < 0 && level > 0) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). An untrained hand can only try Novice locks. Picking them builds toward Lockpicking, which your skills (K) will then offer; harder locks need it at that tier.`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, not a Lockpicker`);
-      if (tier >= 0 && tier < level) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Your Lockpicking is not yet up to it (tier ${level + 1} needed).`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, tier ${tier} below ${level}`);
+      // Anyone with a pick may try a lock up to dungeons.untrainedMaxLock (default 1, Apprentice), at lockpick.js's odds
+      // for their tier; the levels above need a Lockpicker of that tier. Untrained picks are how Lockpicking is found:
+      // masterySystem banks them and offers the skill (K) once there is a level's worth. Refusing everyone outside it
+      // meant no lock was ever picked and nobody could take it up (2 Oct: 0 of 49 characters had it, 290 refusals;
+      // Jake's "Systems not working ASAP"), and Novice-only was not enough: the first 7 locks met after release-1029
+      // were Apprentice to Expert
+      const rawOpen = Number(C.untrainedMaxLock ?? 1);
+      const OPEN = Number.isFinite(rawOpen) ? Math.max(0, Math.min(LOCK_LEVELS.length - 1, Math.floor(rawOpen))) : 1;
+      if (tier < 0 && level > OPEN) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Without Lockpicking you can only try ${LOCK_LEVELS.slice(0, OPEN + 1).join(' and ')} locks. Picking them builds toward Lockpicking, which your skills (K) will then offer; harder locks need it at that tier.`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, not a Lockpicker`);
+      if (tier >= 0 && level > Math.max(OPEN, tier)) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Your Lockpicking is not yet up to it (tier ${level + 1} needed).`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, tier ${tier} below ${level}`);
       // Oblivion-style tumblers (lockpick.js); the old roll below is the fallback if that module failed to load
       const lock = globalThis.__dboLockpick;
       if (lock) {
