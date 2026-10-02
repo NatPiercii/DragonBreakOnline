@@ -1,0 +1,7 @@
+{
+  "note": "PLACEHOLDER. The full Skyrim SE 1.6.1170 (Steam app 489830) file list for src/gamecopy.js: every file of depots 489831, 489832 and 489833 at the manifests in downgrade-1.6.1170.json, with its path in the game folder, size, sha256 and depot. It is generated on a PC by tools/depot-reference.js from a fresh download_depot output (steps at the top of that file) and replaces this file. Until then files is empty and gamecopy.bundledManifest('steam').ready is false. No game file is shipped, only these numbers.",
+  "build": "1.6.1170.0",
+  "platform": "steam",
+  "generatedAt": null,
+  "files": []
+}
