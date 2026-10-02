@@ -57,7 +57,7 @@
     ]
   },
   {
-    "title": "Ruin stairs open for the whole party",
+    "title": "Raising a ruin stair again",
     "date": "2026-10-02",
     "version": "Server update",
     "tag": "Fix",
@@ -65,7 +65,7 @@
       {
         "heading": "Dungeons",
         "items": [
-          "When someone presses the button that raises a hidden stair in an Ayleid ruin like Rielle, everyone in the ruin now sees it open, not only the players close to it. If you still see it closed, press the button again and it opens for you."
+          "If an Ayleid ruin's hidden stair has been raised but looks closed to you, for example after you come back from another part of the ruin, press its button again and it rises for you."
         ]
       }
     ]

@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, who, cfg, sendPacket, onlineActors } = api;
+  const { mp, log, personal, audit, who, cfg, sendPacket } = api;
   const C = Object.assign({ enabled: true }, cfg.ruinButtons || {});
   let DATA = { ruins: [] };
   try { DATA = JSON.parse(fs.readFileSync(path.resolve('ruin-buttons.json'), 'utf8')); } catch (e) { log('ruinbuttons: ruin-buttons.json unreadable:', e.message); }
@@ -34,6 +34,8 @@ module.exports = (api) => {
   // Open groups (survive hot reloads): group -> { ruinId, targets }
   const S = globalThis.__dboRuinButtons || (globalThis.__dboRuinButtons = { open: new Map() });
   if (!S.told) S.told = new Map();      // group -> actors already told it is open (this lease)
+  if (!S.replayed) S.replayed = new Map();   // `${group}|${actor}` -> when an open stair was last replayed for them
+  const REPLAY_MS = 30000;
 
   // A target plays through its behaviour graph (PlayAnimation, the default: what default2StateActivator calls) or, with
   // "call": "gamebryo" in ruin-buttons.json, as a NIF controller sequence (PlayGamebryoAnimation(name, startOver, easeIn);
@@ -67,32 +69,10 @@ module.exports = (api) => {
       const refId = idOf(t.ref); if (!refId) continue;
       for (const v of [t].concat(Array.isArray(t.also) ? t.also : [])) {
         if (v.call !== 'gamebryo' || !v.open) continue;
-        try { sendPacket(actor, { customPacketType: 'dboRefAnim', refId, name: v.open, gamebryo: true }); sent++; } catch (e) { /* gone offline */ }
+        try { if (sendPacket(actor, { customPacketType: 'dboRefAnim', refId, name: v.open, gamebryo: true })) sent++; } catch (e) { /* gone offline */ }
       }
     }
     return sent;
-  };
-
-  // The engine sends PlayGamebryoAnimation only to the stair's listeners, the players in its 4096-unit grid square or
-  // the next one (WorldState grid neighbours), and keeps no lastAnimation for it, so in a big ruin a party member
-  // further in never saw it open (#bugs, Rielle stairs, 1 Oct). Everyone else in the presser's cell gets it as
-  // dboRefAnim; a player nearer than 4096 units on both axes is certainly a listener and is left alone. Players told.
-  const GRID = 4096;
-  const sendToFar = (targets, casterId) => {
-    if (typeof onlineActors !== 'function' || typeof sendPacket !== 'function') return 0;
-    const where = (id) => { try { return { cell: String(mp.get(id, 'worldOrCellDesc') || '').toLowerCase(), pos: mp.get(id, 'pos') }; } catch (e) { return { cell: '', pos: null }; } };
-    const cell = where(casterId).cell; if (!cell) return 0;
-    const spots = targets.filter((t) => [t].concat(Array.isArray(t.also) ? t.also : []).some((v) => v.call === 'gamebryo' && v.open))
-      .map((t) => { const id = idOf(t.ref); const w = id ? where(id) : { pos: null }; return { t, pos: Array.isArray(w.pos) ? w.pos : null }; });
-    if (!spots.length) return 0;
-    let players = 0;
-    for (const a of onlineActors()) {
-      if ((a >>> 0) === (casterId >>> 0)) continue;
-      const w = where(a); if (w.cell !== cell) continue;
-      const far = spots.filter((s) => !s.pos || !Array.isArray(w.pos) || Math.abs(w.pos[0] - s.pos[0]) >= GRID || Math.abs(w.pos[1] - s.pos[1]) >= GRID);
-      if (far.length && sendOpened(a, far.map((s) => s.t))) players++;
-    }
-    return players;
   };
 
   // true: ours, and the engine's own activation (its toggling chain) is blocked
@@ -102,8 +82,11 @@ module.exports = (api) => {
     if (!hit) return false;
     const { ruin, button, group } = hit;
     if (S.open.has(group)) {
-      // Pressed again by someone whose game never showed it open: it is played for them now
-      sendOpened(casterId, S.open.get(group).targets || []);
+      // Pressed again by someone whose game shows it closed (an interior keeps no gamebryo sequence, so leaving the
+      // stair's cell and coming back shows it shut): it is played for them. It restarts the rise for someone who sees it
+      // open, so at most once per REPLAY_MS per player and stair
+      const k = `${group}|${casterId >>> 0}`, at = Date.now();
+      if (!(at - (S.replayed.get(k) || 0) < REPLAY_MS)) { S.replayed.set(k, at); sendOpened(casterId, S.open.get(group).targets || []); }
       // Once per player per lease: a player pressing again and again saw the line fill the chat (Nate, 2026-09-28)
       const told = S.told.get(group) || new Set();
       if (!told.has(casterId >>> 0)) { told.add(casterId >>> 0); S.told.set(group, told); personal(casterId, button.again || 'The button gives, but nothing more stirs.'); }
@@ -115,8 +98,6 @@ module.exports = (api) => {
     // Nothing reached: not recorded as open, so the next press tries again
     if (!opened) { personal(casterId, 'The button gives, but nothing stirs. Try it again in a moment.'); return true; }
     S.open.set(group, { ruinId: ruin.id, targets: button.targets || [] });
-    const far = sendToFar(button.targets || [], casterId);
-    if (far) log(`ruinbuttons: ${far} player(s) further into ${ruin.name} sent the opened sequence(s)`);
     personal(casterId, button.say || 'Somewhere nearby, stone grinds open.');
     return true;
   };
@@ -128,6 +109,7 @@ module.exports = (api) => {
       let closed = 0;
       for (const t of o.targets) if (play(t, 'close')) closed++;
       S.open.delete(group); S.told.delete(group);
+      for (const k of [...S.replayed.keys()]) if (k.startsWith(`${group}|`)) S.replayed.delete(k);
       log(`ruinbuttons: ${ruinId} lease over, ${closed} of ${o.targets.length} closed for the next party`);
     }
   };
