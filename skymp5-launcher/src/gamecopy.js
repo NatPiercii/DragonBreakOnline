@@ -566,8 +566,8 @@ async function setAsideDlls(destDir, names, now = new Date()) {
  * Puts the copy right again after drift. Every changed, missing or linked file is copied from the first source whose
  * file has the right sha256 (checked while copying): sources is a list of { dir, kind: 'source' | 'depot' }, by
  * default the record's own source then its depot folder. A file no source has right stays unresolved; nothing
- * unverified is ever written. Unknown root DLLs are set aside (setAside: false keeps them). The record is updated
- * for the repaired and touched files and written back.
+ * unverified is ever written. Unknown root DLLs are set aside: setAside true takes every one drift listed, a list of
+ * names only those, false none. The record is updated for the repaired and touched files and written back.
  */
 async function repair(destDir, driftResult, sources, {
   record, manifest = null, signal, onProgress = () => {}, chunkSize = CHUNK, setAside = true, now = new Date(),
@@ -596,7 +596,10 @@ async function repair(destDir, driftResult, sources, {
   }
   const res = await run(jobs, root, { onProgress, signal, chunkSize })
   for (const f of res.failed) unresolved.push({ path: f.path, size: f.size, depot: f.depot, why: f.tried.join('; ') })
-  const setAsideDone = setAside ? await setAsideDlls(root, driftResult.extraRootDlls || [], now) : []
+  const extra = driftResult.extraRootDlls || []
+  const pick = Array.isArray(setAside) ? new Set(setAside.map(n => n.toLowerCase())) : null
+  const names = setAside === true ? extra : pick ? extra.filter(n => pick.has(n.toLowerCase())) : []
+  const setAsideDone = await setAsideDlls(root, names, now)
   const files = new Map(record.files.map(f => [keyOf(f.path), f]))
   for (const f of [...res.written, ...(driftResult.touched || [])]) files.set(keyOf(f.path), normRecordFile(f))
   const updated = { ...record, updatedAt: now.toISOString(), files: [...files.values()].sort(byPath) }
@@ -632,6 +635,66 @@ async function bytesNeeded(jobs, destDir) {
   return { bytes, largest, files: jobs.length }
 }
 
+/**
+ * A quick estimate for the setup screen, without hashing: the bytes of listed files the copy does not yet hold at the
+ * right size, less those a depot folder on the copy's drive holds (they are moved in, not copied).
+ */
+async function estimateBytes(manifest, destDir, { depotDir = null } = {}) {
+  const dest = await deviceOf(destDir)
+  let bytes = 0
+  for (const e of manifest.files.values()) {
+    const have = await fileInfo(safeJoin(destDir, e.path))
+    if (have && have.isFile && have.size === e.size) continue
+    const d = depotDir ? await depotFile(depotDir, e) : null
+    if (d && d.size === e.size && dest !== null && (await deviceOf(d.abs)) === dest) continue
+    bytes += e.size
+  }
+  return { bytes, total: manifest.bytes }
+}
+
+/**
+ * Builds or completes the copy in one go. Listed files already in destDir with the right sha256 stay (a resumed run,
+ * or a copy an older launcher made by file name); the rest come from srcDir (sizes first, the sha256 checked while
+ * copying) or from the depot output. Nothing is copied while a file is unresolved, so the player hears about the
+ * downloads first, or while checkSpace(need) returns a refusal text. A file whose source turns out wrong while copying
+ * ends up in failed, with the depots that hold it. On success the record is written.
+ * Returns { ok, kept, written, unresolved, failed, depotsNeeded, need, error?, record? }.
+ */
+async function build(srcDir, destDir, {
+  manifest, depotDir = null, move = true, checkSpace = null, signal, onProgress = () => {}, now = new Date(),
+} = {}) {
+  if (!manifest || !manifest.ready) throw new Error('There is no game file list to build the copy from.')
+  const have = (await fileInfo(destDir))
+    ? await classify(destDir, manifest, { signal, onProgress: p => onProgress({ ...p, step: 'check' }) })
+    : { files: [] }
+  const keep = have.files.filter(f => f.state === 'match')
+  const kept = new Set(keep.map(f => f.key))
+  const restFiles = new Map([...manifest.files].filter(([k]) => !kept.has(k)))
+  const rest = { ...manifest, files: restFiles, bytes: [...restFiles.values()].reduce((n, f) => n + f.size, 0) }
+  const fromSource = !!(srcDir && (await fileInfo(srcDir)))
+  const cls = fromSource
+    ? await classify(srcDir, rest, { hash: false, signal })
+    : { files: [...restFiles.values()].map(e => ({ ...e, state: 'missing', reason: null, verified: false, from: null, mtimeMs: null, ino: null })) }
+  const p = await plan(cls, { depotDir, hash: false, move, signal })
+  const out = { ok: false, kept: keep.length, written: 0, unresolved: p.unresolved, failed: [], depotsNeeded: p.depotsNeeded, need: null }
+  if (p.unresolved.length) return out
+  out.need = await bytesNeeded(p.jobs, destDir)
+  if (checkSpace) {
+    const refusal = await checkSpace(out.need)
+    if (refusal) return { ...out, error: refusal }
+  }
+  const res = await run(p.jobs, destDir, { signal, onProgress })
+  out.written = res.written.length
+  if (res.failed.length) {
+    return { ...out, failed: res.failed, depotsNeeded: [...new Set(res.failed.map(f => f.depot).filter(Boolean))].sort() }
+  }
+  const record = makeRecord({
+    manifest, files: [...keep, ...res.written], source: fromSource ? path.resolve(srcDir) : null, depotDir, now,
+  })
+  await writeRecord(destDir, record)
+  return { ...out, ok: true, record }
+}
+
 // Free bytes on the drive holding dir (or its nearest existing parent), or null where the platform cannot tell
 async function freeBytes(dir) {
   if (!fsp.statfs) return null
@@ -647,5 +710,5 @@ async function freeBytes(dir) {
 module.exports = {
   RECORD_FILE, RECORD_FORMAT, TEMP_SUFFIX, SET_ASIDE_DIR,
   normRel, safeJoin, loadManifest, bundledManifest, hashFile, classify, plan, run,
-  makeRecord, writeRecord, readRecord, drift, repair, setAsideDlls, bytesNeeded, freeBytes,
+  makeRecord, writeRecord, readRecord, drift, repair, setAsideDlls, bytesNeeded, estimateBytes, freeBytes, build,
 }
