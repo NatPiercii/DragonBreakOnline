@@ -34,7 +34,7 @@
     "BYOHFoodFlour": "common",
     "BYOHFoodMilk": "common"
   },
-  "recipes": {},
+  "recipes": {"_falchion": "CYRIronFalchion's model is untextured in Beyond Skyrim Bruma (#bugs \"Iron Falchion Missing Textures\", 1 Oct 2026): it is out of loot (loot-overrides.json) and not forged either until the model is fixed.", "CYRRecipeWeaponIronFalchion": "none"},
   "tomes": { "ISS_SpellTomeConjureSkeleton": ["skyrim"] },
   "places": { "RealmofLorkhan": "none", "130040:DragonBreak Online Edits.esp": "cyrodiil" }
 }
