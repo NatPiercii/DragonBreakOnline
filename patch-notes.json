@@ -57,6 +57,21 @@
     ]
   },
   {
+    "title": "Anyone can try a Novice lock",
+    "date": "2026-10-02",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Lockpicking",
+        "items": [
+          "Locked dungeon chests were refusing everyone who had not already chosen Lockpicking, so nobody could pick a lock or learn the skill. Now anyone with a lockpick can try a Novice lock.",
+          "Picking locks works you toward Lockpicking: do it often enough and you will be offered the skill in your skills menu (K). Harder locks (Apprentice and up) need Lockpicking at that tier."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Raising a ruin stair again",
     "date": "2026-10-02",
     "version": "Server update",
