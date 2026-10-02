@@ -31,18 +31,27 @@ test('the folders live in %TEMP%\\Skyrim Platform', () => {
   assert.strictEqual(cefTempRoot('C:\\T'), path.join('C:\\T', 'Skyrim Platform'))
 })
 
-test('old CEFTemp folders are removed, a recent one and anything else stay', () => {
+test('only the debug logs of old CEFTemp folders go: every folder and cache stays (other servers share this root)', () => {
   const { tmp, root } = scratch()
   folder(root, 'CEFTemp111', 9 * DAY, 'x'.repeat(4096))
   folder(root, 'CEFTemp222', 4 * DAY)
   folder(root, 'CEFTemp333', 1 * DAY)
   folder(root, 'NotCef', 30 * DAY)
   fs.writeFileSync(path.join(root, 'CEFTemp444'), 'a file, not a folder')
+  fs.writeFileSync(path.join(root, 'CEFTemp111', 'cef_debug.log.1'), 'rotated')
+  fs.writeFileSync(path.join(root, 'CEFTemp111', 'Cookies'), 'another server\'s session')
+  const old = new Date(NOW - 9 * DAY)
+  for (const f of ['cef_debug.log.1', 'Cookies', '']) fs.utimesSync(path.join(root, 'CEFTemp111', f), old, old)
   const said = []
   const r = cleanCefTemp({ root, now: NOW, log: l => said.push(l) })
   assert.deepStrictEqual(r.removed.sort(), ['CEFTemp111', 'CEFTemp222'])
-  assert.deepStrictEqual(fs.readdirSync(root).sort(), ['CEFTemp333', 'CEFTemp444', 'NotCef'])
-  assert.ok(said.some(l => /removed 2 stale browser cache folder/.test(l)))
+  assert.deepStrictEqual(fs.readdirSync(root).sort(), ['CEFTemp111', 'CEFTemp222', 'CEFTemp333', 'CEFTemp444', 'NotCef'])
+  assert.deepStrictEqual(fs.readdirSync(path.join(root, 'CEFTemp111')).sort(), ['Cache', 'Cookies'])
+  assert.deepStrictEqual(fs.readdirSync(path.join(root, 'CEFTemp222')), ['Cache'])
+  assert.ok(fs.existsSync(path.join(root, 'CEFTemp333', 'cef_debug.log')), 'a recent folder keeps its log')
+  assert.ok(fs.existsSync(path.join(root, 'NotCef', 'cef_debug.log')), 'a folder not named CEFTemp is never touched')
+  assert.ok(r.bytes >= 4096)
+  assert.ok(said.some(l => /removed the stale browser debug log in 2 folder/.test(l)))
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
@@ -65,7 +74,7 @@ test('the threshold is three days', () => {
 
 test('no Skyrim Platform folder at all is fine', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ceftemp-test-'))
-  assert.deepStrictEqual(cleanCefTemp({ root: cefTempRoot(tmp), now: NOW }), { removed: [], failed: [] })
+  assert.deepStrictEqual(cleanCefTemp({ root: cefTempRoot(tmp), now: NOW }), { removed: [], failed: [], bytes: 0 })
   fs.rmSync(tmp, { recursive: true, force: true })
 })
 
