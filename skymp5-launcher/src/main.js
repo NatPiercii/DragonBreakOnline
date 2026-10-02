@@ -184,10 +184,12 @@ const noGamePathError = () => isolation.noGamePathError(!!store.get('isolatedGam
 
 // The bundled vanilla list for the Skyrim folder's edition: null for Epic and Microsoft Store, ready false while the
 // file in src is still the placeholder (or, for GOG, until a GOG list ships)
+// and the language Steam installed it in (isolation.steamLanguage): a language without its own list stays legacy
 const copyManifests = new Map()
-function copyManifest(edition = mo2.detectEdition(store.get('skyrimPath'))) {
-  if (!copyManifests.has(edition)) copyManifests.set(edition, isolation.manifestFor(edition))
-  return copyManifests.get(edition)
+function copyManifest(edition = mo2.detectEdition(store.get('skyrimPath')), language = isolation.steamLanguage(store.get('skyrimPath'))) {
+  const key = `${edition}|${language}`
+  if (!copyManifests.has(key)) copyManifests.set(key, isolation.manifestFor(edition, undefined, { language }))
+  return copyManifests.get(key)
 }
 
 // 'verified' (only hash-checked files, the rest from Steam's depot download) once the list for the player's edition
@@ -877,19 +879,8 @@ function applyForcedServerDefaults(gamePath) {
   } catch (err) {
     log('[defaults] could not clear the Creations cache:', err.message)
   }
-  // The catalog itself lives outside the game folder, in %LOCALAPPDATA%, so emptying Creations above never reached
-  // it. A CSV2_<uuid> entry in there makes the engine stoull a uuid and throw the same "invalid stoull argument"
-  // (Leerod, 2026-09-22 17:16, still on 2.1.26). It is a Bethesda.net cache this copy never reads, and a machine
-  // with no catalog at all launches fine, so it is moved aside rather than parsed. Kept, not deleted: it belongs to
-  // the player's own Skyrim, so it goes back once our game has closed (restoreCatalogAfterGame). An earlier one still
-  // aside is never overwritten (isolation.moveCatalogAside).
-  try {
-    const moved = isolation.moveCatalogAside(process.env.LOCALAPPDATA)
-    if (moved === 'moved') log('[defaults] moved the Creations content catalog aside (kept as ContentCatalog.txt.dbo-disabled)')
-    else if (moved === 'session') log('[defaults] moved a new Creations content catalog aside; the player\'s own is still kept as .dbo-disabled')
-  } catch (err) {
-    log('[defaults] could not move the Creations content catalog aside:', err.message)
-  }
+  // The Creations catalog in %LOCALAPPDATA% is moved aside right before a launch instead (moveCatalogForLaunch), so an
+  // install pass that does not launch leaves the player's catalog where it is.
   // Profile ini: kill the Bethesda.net platform, which drives the "AE content available for download" prompt and the CC news.
   try {
     const dest = path.join(mo2.getProfileDir(), 'skyrim.ini')
@@ -1248,12 +1239,33 @@ async function createIsolatedImpl(baseDirOverride, force = false, { progress = n
   // Skyrim folder, which therefore has to be the right build.
   const verified = isolation.copyMode({ isolated: true, manifest: copyManifest(edition) }) === 'verified'
 
+  // Install target: the Install Location field, else the stored/default base dir, nested under \DragonBreak. Worked
+  // out first, because the gates below need to know whether a working copy is already there.
+  const base = isolation.resolveBase({ override: baseDirOverride, stored: store.get('baseDirPath'), fallback: DEFAULT_BASE_DIR })
+  const dst = path.join(base, 'skyrim')
+
+  // Nothing is ever written through a link inside the copy (a Data junction into the Steam folder)
+  const linkProblem = isolation.copyLinkProblem(dst)
+  if (linkProblem) return { success: false, error: linkProblem }
+
   if (!verified) {
-    // Never copy a wrong-version exe into the portable install
-    const gv = gameversion.checkGameVersion(src, edition)
-    if (!gv.ok) {
-      showDowngradePanel()
-      return { success: false, error: `Skyrim ${gv.version} found; downgrade to ${gv.required} before installing the game copy.` }
+    // The legacy copy is made by name from the Skyrim folder, so that folder has to be the right build, exe and data:
+    // Steam's 1.7.99 data shipped with the 1.6.1170 exe (isolation.trustSource). Checked before anything is deleted
+    // or copied, so a working copy is left exactly as it is.
+    const trust = isolation.trustSource(src, edition)
+    if (!trust.ok) {
+      const have = gameCopyComplete(dst)
+      let error
+      if (trust.unreadable) {
+        error = `The game copy was not ${have ? 'repaired' : 'made'}: ${trust.why}. Check that no antivirus holds the file, then try again.`
+      } else if (have) {
+        error = `Repair Game Copy takes the game files from your Skyrim folder, and ${trust.why}. The game copy was left as it is and keeps working.`
+      } else {
+        showDowngradePanel()
+        error = `The game copy is made from your Skyrim folder, and ${trust.why}. Downgrade it in the Skyrim Version panel first, then try again.`
+      }
+      log(`[isolated] ${error}`)
+      return { success: false, error }
     }
   }
 
@@ -1262,11 +1274,6 @@ async function createIsolatedImpl(baseDirOverride, force = false, { progress = n
   }
 
   // No clean-install check needed: only vanilla files are copied, so a modded source is fine.
-
-  // Install target: the Install Location field, else the stored/default base dir, nested under \DragonBreak
-  const base = isolation.resolveBase({ override: baseDirOverride, stored: store.get('baseDirPath'), fallback: DEFAULT_BASE_DIR })
-
-  const dst = path.join(base, 'skyrim')
 
   // Dummy protection for those trying to install it on their base directory
   if (pathsOverlap(src, dst) || pathsOverlap(src, base)) {
@@ -1536,6 +1543,7 @@ async function copyGameDir(src, dst) {
       vetted.push(job)
       continue
     }
+    if (v.unreadable) return { success: false, error: `The game copy was not made: in your Skyrim folder, ${v.why}. Check that no antivirus holds the file, then try again.` }
     showDowngradePanel()
     return { success: false, error: `The game copy was not made: in your Skyrim folder, ${v.why}. Downgrade it in the Skyrim Version panel, then try again.` }
   }
@@ -1612,7 +1620,7 @@ const depotNames = ids => ids.map(id => (downgrade.DEPOTS.find(d => d.id === id)
  * than copied again. When the Skyrim folder lacks right copies of some files the player is sent to the Skyrim Version
  * panel to download them; they then go into the copy, and the Steam folder is never written.
  */
-async function buildVerifiedCopy(src, dst, { force = false, progress = null, signal } = {}) {
+async function buildVerifiedCopy(src, dst, { force = false, progress = null, signal, quiet = false } = {}) {
   const manifest = copyManifest(mo2.detectEdition(src))
   if (!manifest || !manifest.ready) return { success: false, error: 'This launcher has no Skyrim file list for your edition.' }
   if (force) {
@@ -1638,9 +1646,9 @@ async function buildVerifiedCopy(src, dst, { force = false, progress = null, sig
     const files = [...res.unresolved.map(u => u.path), ...res.failed.map(f => f.path)]
     store.set('copyNeedsDepots', { files: files.slice(0, 50), count: files.length, depots: res.depotsNeeded, at: Date.now() })
     log(`[isolated] verified copy needs ${files.length} file(s) from depot(s) ${res.depotsNeeded.join(', ') || '?'}: ${files.slice(0, 20).join(', ')}`)
-    showDowngradePanel()
+    if (!quiet) showDowngradePanel()
     return {
-      success: false, needDepots: true,
+      success: false, needDepots: true, files,
       error: `${files.length} Skyrim file(s) in your Skyrim folder are not the ${isolation.targetBuild(mo2.detectEdition(src))} files ` +
         `(${files.slice(0, 4).join(', ')}${files.length > 4 ? ', …' : ''}). Download them with Steam's own download in the Skyrim Version ` +
         `panel (the download${res.depotsNeeded.length > 1 ? 's' : ''} for ${depotNames(res.depotsNeeded)}); they go into DragonBreak's copy, and your Steam Skyrim is not changed.`,
@@ -1661,15 +1669,26 @@ async function verifiedIntegrity(gamePath, { signal } = {}) {
   try {
     const record = await gamecopy.readRecord(gamePath)
     if (!record) {
-      // A copy made by launcher 2.1.36 or older (by file name): checked once by hash, wrong files replaced
+      // A copy made by launcher 2.1.36 or older (by file name): checked once by hash, wrong files replaced. One that
+      // played until now (cleaned masters, say) keeps playing with a warning while the clean files are not downloaded
       log('[integrity] the game copy has no record yet: checking it against the 1.6.1170 file list')
-      const built = await buildVerifiedCopy(src, gamePath, { signal })
-      return built.success ? { ok: true, warning: null, repaired: built.copied } : { ok: false, error: built.error }
+      // While a previous check is still waiting for downloads that are not there yet, the copy is not hashed again on
+      // every pass (15 GB): it keeps playing with the same warning. Repair Game Copy, or the downloads, run it again
+      const pending = store.get('copyNeedsDepots')
+      if (pending && gameCopyComplete(gamePath) && !Object.keys(depotDirMap(src)).length) {
+        return isolation.migrationResult({ success: false, needDepots: true, files: pending.files || [] }, { playable: true })
+      }
+      const built = await buildVerifiedCopy(src, gamePath, { signal, quiet: true })
+      return isolation.migrationResult(built, { playable: gameCopyComplete(gamePath) })
     }
-    const manifest = copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam')
+    const manifest = copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam', record.language || 'english')
     if (!manifest || !manifest.ready) return { ok: true, warning: null }
     const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath), signal })
-    const foreign = isolation.dllsToSetAside(d.extraRootDlls)
+    // Until the client package has been unpacked once by this launcher, its own root DLLs are not known: nothing is
+    // set aside then, it is only logged (store clientRootDlls, written by extractClientZip)
+    const clientKnown = Array.isArray(store.get('clientRootDlls'))
+    const foreign = clientKnown ? isolation.dllsToSetAside(d.extraRootDlls) : []
+    if (!clientKnown && d.extraRootDlls.length) log(`[integrity] root DLLs left in place until the client files are next unpacked: ${d.extraRootDlls.join(', ')}`)
     const others = d.extraRootDlls.filter(n => !foreign.includes(n))
     if (others.length) log(`[integrity] other DLLs in the game copy's root, left alone: ${others.join(', ')}`)
     if (!d.changed.length && !d.missing.length && !d.linked.length && !foreign.length && !d.touched.length) {
@@ -1722,6 +1741,9 @@ function vanillaMismatches(src, dir) {
 // When playing from the real install there is no clean source to copy from, so a failed check only warns.
 async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
   const portable = store.get('isolatedGame') && isolatedGameReady() && gamePath === isolatedGameDir()
+  // Every install pass writes into the copy's Data next: never through a link into another install
+  const linkProblem = portable ? isolation.copyLinkProblem(gamePath) : null
+  if (linkProblem) return { ok: false, error: linkProblem }
   if (portable && copyMode() === 'verified') return verifiedIntegrity(gamePath, { signal })
   if (portable) {
     const original = store.get('skyrimPath')
@@ -1973,20 +1995,47 @@ function stepAsideForGame() {
   setTimeout(tick, 1500)
 }
 
-// The player's Creations catalog goes back once our game has closed: the game is polled until it has come and gone
-// (or never started within five minutes). The launcher's own start puts back one left aside by a session that
-// ended while the launcher was closed. Not while the game runs: that catalog crashed it (applyForcedServerDefaults).
-let catalogWatch = null
-function putBackCatalog(when) {
+// The Creations catalog, %LOCALAPPDATA%\Skyrim Special Edition\ContentCatalog.txt, lives outside the game folder, so
+// emptying Creations never reached it. A CSV2_<uuid> entry in there makes the engine stoull a uuid and throw "invalid
+// stoull argument" (Leerod, 2026-09-22 17:16, still on 2.1.26). It is a Bethesda.net cache our copy never reads, and a
+// machine with no catalog launches fine, so it is moved aside right before each launch and put back once the game has
+// closed: it belongs to the player's own Skyrim. The store keeps a mark of the file we moved (catalogAside), and only
+// that one is put back, never a .dbo-disabled left by launcher 2.1.36 over a newer catalog (isolation.js).
+function moveCatalogForLaunch() {
   try {
-    if (isolation.restoreCatalog(process.env.LOCALAPPDATA)) log(`[defaults] put the Creations content catalog back (${when})`)
+    const r = isolation.moveCatalogAside(process.env.LOCALAPPDATA, store.get('catalogAside') || null)
+    if (r.moved === 'moved') {
+      store.set('catalogAside', r.mark)
+      log('[defaults] moved the Creations content catalog aside for this launch (kept as ContentCatalog.txt.dbo-disabled)')
+    } else if (r.moved === 'session') {
+      log('[defaults] moved a new Creations content catalog aside; the player\'s own is still kept as .dbo-disabled')
+    }
+  } catch (err) {
+    log('[defaults] could not move the Creations content catalog aside:', err.message)
+  }
+  restoreCatalogAfterGame()
+}
+function putBackCatalog(when) {
+  const mark = store.get('catalogAside')
+  if (!mark) return
+  try {
+    const r = isolation.restoreCatalog(process.env.LOCALAPPDATA, mark)
+    if (r === 'restored') log(`[defaults] put the Creations content catalog back (${when})`)
+    else if (r === 'stale') log('[defaults] the catalog kept aside is not the one this launcher moved; left as it is')
+    if (r) store.delete('catalogAside')
   } catch (err) {
     log(`[defaults] could not put the Creations content catalog back: ${err.message}`)
   }
 }
-const skyrimRunning = async () => (await isProcessRunning('SkyrimSE.exe')) || (await isProcessRunning('skse64_loader.exe'))
+// MO2 starts the game for us, so it counts as the game running too
+const skyrimRunning = async () => (await isProcessRunning('SkyrimSE.exe')) || (await isProcessRunning('skse64_loader.exe')) ||
+  (await isProcessRunning('ModOrganizer.exe'))
+// Polls until the game has come and gone (or never started within five minutes), then puts the catalog back. Every
+// launch starts the watch afresh, so a quick second PLAY cannot inherit a watch that already saw the first game end.
+let catalogWatch = null
 function restoreCatalogAfterGame() {
-  if (process.platform !== 'win32' || catalogWatch || !isolation.catalogAside(process.env.LOCALAPPDATA)) return
+  if (catalogWatch) { clearTimeout(catalogWatch); catalogWatch = null }
+  if (process.platform !== 'win32' || !isolation.catalogAside(process.env.LOCALAPPDATA, store.get('catalogAside'))) return
   const started = Date.now()
   let seen = false
   const tick = async () => {
@@ -1998,17 +2047,21 @@ function restoreCatalogAfterGame() {
   }
   catalogWatch = setTimeout(tick, 10_000)
 }
+// The launcher's start puts back one left aside by a session that ended while the launcher was closed
 async function putBackCatalogAtStart() {
-  if (process.platform !== 'win32' || !isolation.catalogAside(process.env.LOCALAPPDATA)) return
+  if (process.platform !== 'win32') return
   if (await skyrimRunning()) { restoreCatalogAfterGame(); return }
-  putBackCatalog('at launcher start')
+  if (store.get('catalogAside')) { putBackCatalog('at launcher start'); return }
+  // One launcher 2.1.36 left aside goes back only when the player has no catalog now (nothing newer is replaced)
+  try {
+    if (isolation.restoreOrphanCatalog(process.env.LOCALAPPDATA)) log('[defaults] put back the Creations content catalog an older launcher had moved aside')
+  } catch (err) { log(`[defaults] could not put the older Creations catalog back: ${err.message}`) }
 }
 
 // After a launch, watch the game and tell the server how it closed (src/crashWatch.js). One watcher at a time; it
 // only speaks for a signed-in player, and a failure here never touches the game.
 let gameWatchRunning = false
 function watchGameExit() {
-  restoreCatalogAfterGame()
   if (process.platform !== 'win32' || gameWatchRunning) return
   const session = store.get('gameSession')
   if (!session) return
@@ -2611,7 +2664,8 @@ ipcMain.handle('downgrade:status', async () => {
     mode, isolated: !!store.get('isolatedGame'), copyReady: isolatedGameReady(), steam: a,
     copy: copy ? downgrade.assess(copy, mo2.detectEdition(copy)) : null, needs: mode === 'verified' ? store.get('copyNeedsDepots') : null,
   })
-  if (mode === 'verified') acf = null   // the Steam folder is not downgraded, so its update setting does not matter
+  // The Steam folder is not downgraded (verified) or not needed (a right copy), so its update setting does not matter
+  if (mode === 'verified' || panel.copyOwn) acf = null
   return {
     ok: true,
     busy: downgradeBusy,
@@ -2776,6 +2830,8 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   // effectiveGamePath()), never Steam's folder, so another launcher's change to Steam does not block a good copy.
   // The Skyrim Version panel opens and PLAY stops here.
   const ownCopy = !!store.get('isolatedGame') && skyrimPath === isolatedGameDir()
+  const linkProblem = ownCopy ? isolation.copyLinkProblem(skyrimPath) : null
+  if (linkProblem) return { success: false, error: linkProblem }
   const copyFix = () => {
     // The legacy copy is rebuilt from the Skyrim folder, which then has to be on 1.6.1170 itself
     const steam = downgradeTarget()
@@ -2934,7 +2990,9 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
     }
   }
 
-  // SKSE, client files, plugins, and Discord auth were all confirmed by the staging gate above.
+  // SKSE, client files, plugins, and Discord auth were all confirmed by the staging gate above. Last step before the
+  // game starts: the player's Creations catalog goes aside, and comes back once the game has closed
+  moveCatalogForLaunch()
   return { success: true, loadOrderFixed, ...(warning ? { warning } : {}) }
 }
 
@@ -3240,7 +3298,7 @@ async function checkFilesImpl() {
     } else if (copyMode() === 'verified') {
       // Against the copy's own record, never the Steam folder (reads nothing but the copy; changes nothing)
       const record = await gamecopy.readRecord(gamePath)
-      const manifest = record && copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam')
+      const manifest = record && copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam', record.language || 'english')
       if (!record || !manifest || !manifest.ready) {
         add('missing', `${show(path.join(gamePath, gamecopy.RECORD_FILE))} (the next PLAY checks the game copy by hash)`, 'game')
       } else {

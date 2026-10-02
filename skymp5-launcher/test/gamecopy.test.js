@@ -377,3 +377,65 @@ test('the shipped list is a placeholder until a PC generates it, and loads empty
   // omit drops files the launcher manages itself
   assert.strictEqual(gc.loadManifest(MANIFEST, { omit: ['skyrim_default.ini'] }).files.has('skyrim_default.ini'), false)
 })
+
+test('review junction.js: a copy whose Data is a junction into Steam is refused, nothing is written through it', async () => {
+  const root = tmp()
+  const steam = steamFolder(root)
+  const dest = path.join(root, 'DragonBreak', 'skyrim')
+  put(at(dest, 'SkyrimSE.exe'), VANILLA['SkyrimSE.exe'][1])
+  fs.symlinkSync(path.join(steam, 'Data'), path.join(dest, 'Data'), 'dir')
+  const m = gc.loadManifest(MANIFEST)
+  await assert.rejects(gc.build(steam, dest, { manifest: m }), /Data in the game copy is a link to another folder/)
+  assert.strictEqual(await gc.readRecord(dest), null, 'no record: the copy is not taken as complete')
+  assert.deepStrictEqual(await gc.linkedFolders(dest, PATHS), ['Data'])
+  // Walking the copy never follows the link: its files are not the copy's
+  const cls = await gc.classify(dest, m, { followLinks: false, confine: true })
+  assert.deepStrictEqual(cls.counts, { match: 1, changed: 0, missing: PATHS.length - 1 })
+  assert.ok(!fs.readdirSync(path.join(steam, 'Data')).some(n => n.endsWith(gc.TEMP_SUFFIX)), 'nothing written into Steam')
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('review junction.js: a Data junction made after the record shows in drift as linked', async () => {
+  const root = tmp()
+  const { steam, dest, m, rec } = await freshCopy(root)
+  fs.rmSync(path.join(dest, 'Data'), { recursive: true })
+  fs.symlinkSync(path.join(steam, 'Data'), path.join(dest, 'Data'), 'dir')
+  const d = await gc.drift(dest, rec, m)
+  assert.strictEqual(d.ok, false)
+  assert.deepStrictEqual(d.linked.sort(), PATHS.filter(p => p.startsWith('Data/')).sort())
+  await assert.rejects(gc.repair(dest, d, [], { record: rec, manifest: m }), /is a link or a file/)
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('review junction.js: a depot file moved in when the launcher closed (left as .dbpart) is kept on the next build', async () => {
+  const root = tmp()
+  const depot = depotTree(root, PATHS)
+  const dest = path.join(root, 'copy')
+  fs.mkdirSync(path.join(dest, 'Data'), { recursive: true })
+  fs.renameSync(at(depot, 'depot_489831/Data/Skyrim.esm'), at(dest, 'Data/Skyrim.esm' + gc.TEMP_SUFFIX))
+  // A half-written copy of another file is no use and goes
+  put(at(dest, 'Data/Update.esm' + gc.TEMP_SUFFIX), 'TES4 Upd')
+  const m = gc.loadManifest(MANIFEST)
+  const r = await gc.build(null, dest, { manifest: m, depotDir: depot })
+  assert.strictEqual(r.ok, true, JSON.stringify(r.unresolved))
+  assert.strictEqual(r.kept, 1)
+  for (const p of PATHS) assert.deepStrictEqual(read(at(dest, p)), VANILLA[p][1], p)
+  assert.ok(!listAll(dest).some(f => f.endsWith(gc.TEMP_SUFFIX)))
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('a language list lies over the base list: its files replace the base ones at the same path', () => {
+  const base = { build: '1.6.1170.0', platform: 'steam', files: [
+    { path: 'Data/Skyrim - Interface.bsa', size: 1, sha256: 'a'.repeat(64), depot: '489832' },
+    { path: 'SkyrimSE.exe', size: 2, sha256: 'b'.repeat(64), depot: '489833' }] }
+  const fr = { language: 'french', files: [
+    { path: 'data/skyrim - interface.bsa', size: 3, sha256: 'c'.repeat(64), depot: '489834' },
+    { path: 'Data/Skyrim - Voices_fr0.bsa', size: 4, sha256: 'd'.repeat(64), depot: '489834' }] }
+  const m = gc.loadManifest(gc.mergeLists(base, fr))
+  assert.strictEqual(m.language, 'french')
+  assert.strictEqual(m.files.size, 3)
+  assert.deepStrictEqual([m.files.get('data/skyrim - interface.bsa').depot, m.files.get('skyrimse.exe').depot], ['489834', '489833'])
+  // The shipped Steam list without a language list for it is not ready (that player stays on the legacy copy)
+  assert.strictEqual(gc.bundledManifest('steam', { language: 'french' }).ready, false)
+  assert.strictEqual(gc.bundledManifest('steam', { language: 'english' }).language, null)
+})

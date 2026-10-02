@@ -24,6 +24,18 @@
  *   It also prints to stdout, as before, each depot's file list (path and size) and SkyrimSE.exe's sha256 for the
  *   "depots[].files" and "files" entries of downgrade-1.6.1170.json.
  *
+ * OTHER STEAM LANGUAGES (gives src/vanilla-1.6.1170-<language>.json; English needs nothing more)
+ *   Steam installs a language depot on top of the three base depots for French (489834), Italian (489835), German
+ *   (489836), Spanish (489837), Russian (489838), Polish (489839), Traditional Chinese (544860) and Japanese (544861)
+ *   (Steam's app info for 489830; listed in downgrade-1.6.1170.json "languageDepots"). Its files replace the base
+ *   ones at the same path. Until a language's list exists, players of that language stay on the legacy copy.
+ *   1. Find the depot's 1.6.1170 manifest id: SteamDB, https://steamdb.info/depot/<id>/manifests/, the manifest from
+ *      the same update as depot 489833's 1914580699073641964 (SkyrimSE.exe 1.6.1170). Put it in downgrade-1.6.1170.json
+ *      under languageDepots.<language>.manifest.
+ *   2. In Steam's console:  download_depot 489830 <id> <manifest>
+ *   3. node tools/depot-reference.js --language <language> "<Steam>\steamapps\content\app_489830"
+ *      Writes vanilla-1.6.1170-<language>.json; copy it to skymp5-launcher/src/ on the server and commit it.
+ *
  * GOG 1.6.1179 (gives src/vanilla-1.6.1179-gog.json)
  *   1. Install Skyrim Special Edition from GOG Galaxy and use Galaxy's rollback to get 1.6.1179, with no mods and
  *      nothing else run on that folder (a fresh install is best).
@@ -45,6 +57,7 @@ const REF = require('../src/downgrade-1.6.1170.json')
 
 const USAGE = [
   'usage: node tools/depot-reference.js <Steam>\\steamapps\\content\\app_489830 [--out <file>]',
+  '       node tools/depot-reference.js --language <language> <Steam>\\steamapps\\content\\app_489830 [--out <file>]',
   '       node tools/depot-reference.js --gog <GOG Skyrim folder> [--out <file>]',
 ].join('\n')
 
@@ -55,13 +68,15 @@ const MOD_TRACES = [/^skse64_/i, /^(dinput8|d3d11|dxgi|d3d9|d3dx9_42|enbseries)\
   /^reshade/i, /^data\/skse\//i, /\.esp$/i]
 
 function parseArgs(argv) {
-  const out = { gog: false, dir: null, out: null }
+  const out = { gog: false, language: null, dir: null, out: null }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--gog') out.gog = true
+    else if (argv[i] === '--language') out.language = String(argv[++i] || '').toLowerCase()
     else if (argv[i] === '--out') out.out = argv[++i]
     else if (!out.dir) out.dir = argv[i]
     else return null
   }
+  if (out.language !== null && (out.gog || !(REF.languageDepots || {})[out.language])) return null
   return out.dir && (out.out === null || out.out) ? out : null
 }
 
@@ -151,6 +166,31 @@ async function steam(appDir, outFile) {
   return []
 }
 
+// One language depot's files: they lie over the base depots' at the same path (gamecopy.mergeLists)
+async function language(appDir, lang, outFile) {
+  const problems = []
+  const d = REF.languageDepots[lang]
+  const dir = path.join(appDir, `depot_${d.id}`)
+  if (!fs.existsSync(dir)) return [`depot_${d.id} is missing (run: download_depot ${REF.app} ${d.id} <its 1.6.1170 manifest>)`]
+  const files = sortByPath(listDir(dir, problems).map(f => ({ ...f, depot: d.id })))
+  if (!files.length) problems.push(`depot_${d.id} is empty`)
+  if (problems.length) return problems
+  await hashAll(files)
+  for (const f of files) if (REF.files[f.path]) console.error(`note: ${f.path} is also in the base list; the ${lang} one replaces it`)
+  writeList(outFile, {
+    note: `The ${lang} files of Skyrim SE 1.6.1170 on Steam (app 489830, language depot ${d.id}${d.manifest ? `, manifest ${d.manifest}` : ''}): ` +
+      'path in the game folder, size, sha256 and depot, laid over vanilla-1.6.1170.json. Written by tools/depot-reference.js --language.',
+    build: REF.exeVersion,
+    platform: 'steam',
+    language: lang,
+    app: REF.app,
+    depots: [{ id: d.id, manifest: d.manifest || null }],
+    generatedAt: new Date().toISOString(),
+    files: files.map(entry),
+  })
+  return []
+}
+
 async function gog(gameDir, outFile) {
   const problems = []
   const all = listDir(gameDir, problems)
@@ -185,10 +225,11 @@ async function main() {
   if (!args) { console.error(USAGE); process.exit(2) }
   const dir = path.resolve(args.dir)
   if (!fs.existsSync(dir)) { console.error(`${dir} does not exist.\n${USAGE}`); process.exit(2) }
-  const outFile = path.resolve(args.out || (args.gog ? 'vanilla-1.6.1179-gog.json' : 'vanilla-1.6.1170.json'))
-  const problems = args.gog ? await gog(dir, outFile) : await steam(dir, outFile)
+  const outFile = path.resolve(args.out || (args.gog ? 'vanilla-1.6.1179-gog.json'
+    : args.language ? `vanilla-1.6.1170-${args.language}.json` : 'vanilla-1.6.1170.json'))
+  const problems = args.gog ? await gog(dir, outFile) : args.language ? await language(dir, args.language, outFile) : await steam(dir, outFile)
   if (problems.length) {
-    console.error(`\nNot written - not a clean ${args.gog ? 'GOG 1.6.1179 folder' : '1.6.1170 download'}:\n  ${problems.join('\n  ')}`)
+    console.error(`\nNot written - not a clean ${args.gog ? 'GOG 1.6.1179 folder' : args.language ? `${args.language} 1.6.1170 download` : '1.6.1170 download'}:\n  ${problems.join('\n  ')}`)
     process.exit(1)
   }
 }

@@ -39,6 +39,7 @@ const WIN_DEVICE = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\.|$)/i
 const BUNDLED = { steam: './vanilla-1.6.1170.json', gog: './vanilla-1.6.1179-gog.json' }
 
 const keyOf = rel => rel.toLowerCase()
+const isInside = (root, p) => { const r = path.relative(root, p); return !!r && r !== '..' && !r.startsWith(`..${path.sep}`) && !path.isAbsolute(r) }
 const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
 const isAbort = (err, signal) => !!(signal && signal.aborted) || (err && err.name === 'AbortError')
 const checkAbort = signal => { if (signal) signal.throwIfAborted() }
@@ -96,15 +97,43 @@ function loadManifest(json, { omit = [] } = {}) {
   }
   for (const k of skip) files.delete(k)
   const bytes = [...files.values()].reduce((n, f) => n + f.size, 0)
-  return { build: m.build || null, platform: m.platform || null, generatedAt: m.generatedAt || null, files, bytes, ready: files.size > 0 }
+  return {
+    build: m.build || null, platform: m.platform || null, language: m.language || null, generatedAt: m.generatedAt || null,
+    files, bytes, ready: files.size > 0,
+  }
 }
 
-// The list shipped in src for 'steam' or 'gog', or null when that file is not there; ready is false for a placeholder
-function bundledManifest(platform = 'steam', opts) {
+/**
+ * A base list with a language's list laid over it: Steam installs a language depot (French 489834, German 489836...)
+ * on top of the three base depots, and its file replaces the base one at the same path. Paths compare without case.
+ */
+function mergeLists(base, overlay) {
+  const byKey = new Map()
+  for (const f of base.files || []) byKey.set(String(f.path).replace(/\\/g, '/').toLowerCase(), f)
+  for (const f of overlay.files || []) byKey.set(String(f.path).replace(/\\/g, '/').toLowerCase(), f)
+  return { ...base, language: overlay.language || null, files: [...byKey.values()] }
+}
+
+/**
+ * The list shipped in src for 'steam' or 'gog', or null when that file is not there; ready is false for a placeholder.
+ * opts.language (Steam): English is the base depots alone; another language needs its own list
+ * (vanilla-1.6.1170-<language>.json, from tools/depot-reference.js --language), and without it the list is not ready,
+ * so that player stays on the legacy copy rather than getting English files.
+ */
+function bundledManifest(platform = 'steam', opts = {}) {
   const file = BUNDLED[platform]
   if (!file) return null
   let json
   try { json = require(file) } catch { return null }
+  const language = String(opts.language || 'english').toLowerCase()
+  if (platform === 'steam' && language !== 'english') {
+    let overlay = null
+    if (/^[a-z]+$/.test(language)) { try { overlay = require(`./vanilla-1.6.1170-${language}.json`) } catch { /* not generated yet */ } }
+    if (!overlay || !Array.isArray(overlay.files) || !overlay.files.length) {
+      return { ...loadManifest({ ...json, files: [] }, opts), language, ready: false, missingLanguage: language }
+    }
+    json = mergeLists(json, { ...overlay, language })
+  }
   return loadManifest(json, opts)
 }
 
@@ -182,8 +211,9 @@ async function copyHashed(from, to, { signal, onBytes, chunkSize = CHUNK } = {})
 }
 
 // Every file below root by lower-case relative path. Links in a source folder are followed (a Data folder moved to
-// another drive with a junction), each real folder once
-async function walkFiles(root) {
+// another drive with a junction), each real folder once. followLinks false (the copy itself): a link, to a folder or
+// a file, is never followed, so a junction from the copy into the Steam folder cannot pass for the copy's own files
+async function walkFiles(root, { followLinks = true } = {}) {
   const out = new Map()
   const seen = new Set()
   const visit = async (dir, prefix) => {
@@ -200,6 +230,7 @@ async function walkFiles(root) {
       let isDir = e.isDirectory()
       let isFile = e.isFile()
       if (e.isSymbolicLink()) {
+        if (!followLinks) continue
         const info = await fileInfo(abs)
         if (!info) continue
         isDir = info.isDir
@@ -263,9 +294,17 @@ async function depotFile(depotDir, e) {
  * when its size is right. hash: false compares sizes only (verified: false), leaving the sha256 to run, which reads
  * each file once while copying; a wrong one then falls back to the depot.
  */
-async function classify(srcDir, manifest, { hash = hashFile, signal, onProgress = () => {} } = {}) {
+async function classify(srcDir, manifest, { hash = hashFile, signal, onProgress = () => {}, followLinks = true, confine = false } = {}) {
   const root = path.resolve(srcDir)
-  const found = await walkFiles(root)
+  const found = await walkFiles(root, { followLinks })
+  // confine (the copy itself): a file whose real path is not under the folder's real path counts as missing
+  const realRoot = confine ? await fsp.realpath(root).catch(() => root) : null
+  if (realRoot) {
+    for (const [k, v] of [...found]) {
+      const real = await fsp.realpath(v.abs).catch(() => null)
+      if (!real || !isInside(realRoot, real)) found.delete(k)
+    }
+  }
   const files = []
   const counts = { match: 0, changed: 0, missing: 0 }
   const total = manifest.files.size
@@ -474,6 +513,7 @@ function makeRecord({ manifest, files, source = null, depotDir = null, now = new
     format: RECORD_FORMAT,
     build: manifest.build,
     platform: manifest.platform,
+    language: manifest.language || null,
     source: { dir: source, depotDir: typeof depotDir === 'string' ? depotDir : null },
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -516,6 +556,7 @@ async function drift(destDir, record, manifest = null, { allowRootDlls = [], has
     ? [...manifest.files.values()]
     : [...rec.values()].map(f => ({ path: f.path, key: keyOf(f.path), size: f.size, sha256: f.sha256 }))
   const out = { ok: true, changed: [], missing: [], linked: [], extraRootDlls: [], touched: [], checked: 0, rehashed: 0 }
+  const realRoot = await fsp.realpath(root).catch(() => root)
   for (const [i, e] of expected.entries()) {
     checkAbort(signal)
     out.checked++
@@ -524,6 +565,9 @@ async function drift(destDir, record, manifest = null, { allowRootDlls = [], has
     const r = rec.get(e.key)
     if (!info || !(info.isFile || info.isLink)) { out.missing.push(e.path); continue }
     if (info.isLink || info.nlink > 1) { out.linked.push(e.path); continue }
+    // A folder above it that is a link (a junction from the copy's Data into the Steam folder) shows in the real path
+    const real = await fsp.realpath(file).catch(() => null)
+    if (!real || !isInside(realRoot, real)) { out.linked.push(e.path); continue }
     if (info.size !== e.size) { out.changed.push(e.path); continue }
     if (r && r.sha256 === e.sha256 && r.size === info.size && r.mtimeMs === info.mtimeMs &&
         (!r.ino || !info.ino || r.ino === info.ino)) continue
@@ -664,10 +708,21 @@ async function build(srcDir, destDir, {
   manifest, depotDir = null, move = true, checkSpace = null, signal, onProgress = () => {}, now = new Date(),
 } = {}) {
   if (!manifest || !manifest.ready) throw new Error('There is no game file list to build the copy from.')
-  const have = (await fileInfo(destDir))
-    ? await classify(destDir, manifest, { signal, onProgress: p => onProgress({ ...p, step: 'check' }) })
+  const destExists = !!(await fileInfo(destDir))
+  if (destExists) {
+    const linked = await linkedFolders(destDir, [...manifest.files.values()].map(e => e.path))
+    if (linked.length) throw new Error(`${linked[0]} in the game copy is a link to another folder; nothing is read or written through it. Remove the link, then try again.`)
+  }
+  const have = destExists
+    ? await classify(destDir, manifest, { signal, onProgress: p => onProgress({ ...p, step: 'check' }), followLinks: false, confine: true })
     : { files: [] }
   const keep = have.files.filter(f => f.state === 'match')
+  // A file moved in from the depot output whose run stopped (the launcher closed) is left as <name>.dbpart: kept if
+  // it is the right file, since the depot no longer has it
+  for (const e of have.files.filter(f => f.state !== 'match')) {
+    const adopted = await adoptPart(destDir, e, { signal })
+    if (adopted) keep.push(adopted)
+  }
   const kept = new Set(keep.map(f => f.key))
   const restFiles = new Map([...manifest.files].filter(([k]) => !kept.has(k)))
   const rest = { ...manifest, files: restFiles, bytes: [...restFiles.values()].reduce((n, f) => n + f.size, 0) }
@@ -695,6 +750,33 @@ async function build(srcDir, destDir, {
   return { ...out, ok: true, record }
 }
 
+// Folders on the listed paths that exist in the copy as links (junctions, symlinks), relative, or none
+async function linkedFolders(destDir, rels) {
+  const dirs = new Set()
+  for (const rel of rels) {
+    const parts = normRel(rel).split('/')
+    for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join('/'))
+  }
+  const out = []
+  for (const d of [...dirs].sort()) {
+    const info = await fileInfo(safeJoin(destDir, d), { lstat: true })
+    if (info && (info.isLink || !info.isDir)) out.push(d)
+  }
+  return out
+}
+
+// <listed file>.dbpart with the listed size and sha256 becomes the file; returns the kept entry, or null
+async function adoptPart(destDir, e, { signal } = {}) {
+  const to = safeJoin(destDir, e.path)
+  const tmp = to + TEMP_SUFFIX
+  const info = await fileInfo(tmp, { lstat: true })
+  if (!info || !info.isFile || info.size !== e.size) return null
+  if ((await hashFile(tmp, { signal })) !== e.sha256) return null
+  await replaceFile(tmp, to)
+  const now = await fileInfo(to)
+  return { ...e, state: 'match', verified: true, from: to, mtimeMs: now.mtimeMs, ino: now.ino }
+}
+
 // Free bytes on the drive holding dir (or its nearest existing parent), or null where the platform cannot tell
 async function freeBytes(dir) {
   if (!fsp.statfs) return null
@@ -709,6 +791,6 @@ async function freeBytes(dir) {
 
 module.exports = {
   RECORD_FILE, RECORD_FORMAT, TEMP_SUFFIX, SET_ASIDE_DIR,
-  normRel, safeJoin, loadManifest, bundledManifest, hashFile, classify, plan, run,
+  normRel, safeJoin, loadManifest, mergeLists, bundledManifest, hashFile, classify, plan, run, linkedFolders,
   makeRecord, writeRecord, readRecord, drift, repair, setAsideDlls, bytesNeeded, estimateBytes, freeBytes, build,
 }

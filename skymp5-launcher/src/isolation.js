@@ -36,11 +36,42 @@ const gb = n => `${(n / 1024 ** 3).toFixed(1)} GB`
 const targetVersion = edition => (edition === 'GOG' ? gameversion.GAME_VERSION_GOG : gameversion.GAME_VERSION_REQUIRED)
 const targetBuild = edition => targetVersion(edition).split('.').slice(0, 3).join('.')
 
-/** The bundled vanilla list for an edition (mo2.detectEdition), or null: Epic and Microsoft Store have none */
-function manifestFor(edition, load = gamecopy.bundledManifest) {
+/**
+ * The bundled vanilla list for an edition (mo2.detectEdition) and Steam language (steamLanguage), or null: Epic and
+ * Microsoft Store have none. A language without its own list is not ready (gamecopy.bundledManifest)
+ */
+function manifestFor(edition, load = gamecopy.bundledManifest, { language = 'english' } = {}) {
   const platform = edition === 'Steam' ? 'steam' : edition === 'GOG' ? 'gog' : null
   if (!platform) return null
-  try { return load(platform, { omit: MANAGED_IN_COPY }) } catch { return null }
+  try { return load(platform, { omit: MANAGED_IN_COPY, language }) } catch { return null }
+}
+
+// Steam's language codes in the voice archives' names (Skyrim - Voices_<code>0.bsa)
+const VOICE_LANGUAGES = { en: 'english', fr: 'french', de: 'german', it: 'italian', es: 'spanish', pl: 'polish', ru: 'russian', ja: 'japanese' }
+
+/**
+ * The language Steam installed Skyrim in, the way the files themselves show it: the appmanifest's MountedConfig (else
+ * UserConfig) language, else the voice archive in Data (a localized install has its own besides the English one), else
+ * English. It decides which language list the verified copy uses, as the loose Strings the legacy copy takes from the
+ * folder follow the installed language.
+ */
+function steamLanguage(gameDir, { readText = f => fs.readFileSync(f, 'utf8') } = {}) {
+  if (!gameDir) return 'english'
+  const common = path.dirname(path.resolve(gameDir))
+  const acf = path.join(path.dirname(common), `appmanifest_${REF.app}.acf`)
+  try {
+    const text = readText(acf)
+    for (const block of ['MountedConfig', 'UserConfig']) {
+      const m = new RegExp(`"${block}"\\s*\\{([^}]*)\\}`).exec(text)
+      const lang = m && /"language"\s+"([a-z]+)"/i.exec(m[1])
+      if (lang) return lang[1].toLowerCase()
+    }
+  } catch { /* not a Steam library folder, or no appmanifest */ }
+  try {
+    const voices = fs.readdirSync(path.join(gameDir, 'Data'))
+      .map(n => /^skyrim - voices_([a-z]{2})0\.bsa$/i.exec(n)).filter(Boolean).map(m => VOICE_LANGUAGES[m[1].toLowerCase()]).filter(Boolean)
+    return voices.find(l => l !== 'english') || 'english'
+  } catch { return 'english' }
 }
 
 /** 'verified' when isolation is on and the list for the edition has files; 'legacy' otherwise (empty list, GOG today) */
@@ -94,7 +125,9 @@ async function vetFile(rel, file, {
   if (key === 'skyrimse.exe') {
     const want = targetVersion(edition)
     const v = readVersion(file)
-    return v === want ? { ok: true } : { ok: false, kind: 'exe', why: `its SkyrimSE.exe is ${v || 'unreadable'}, not ${want}` }
+    if (v === want) return { ok: true }
+    if (!v) return { ok: false, kind: 'exe', unreadable: true, why: 'its SkyrimSE.exe could not be read (an antivirus holding it, or no permission to read it)' }
+    return { ok: false, kind: 'exe', why: `its SkyrimSE.exe is ${v}, not ${want}` }
   }
   const k = edition === 'GOG' ? null : known.get(key)
   if (!k) return { ok: true }
@@ -113,7 +146,8 @@ function trustSource(dir, edition, { readVersion = gameversion.readPeFileVersion
   if (!dir) return { ok: false, why: 'no Skyrim folder is set' }
   const want = targetVersion(edition)
   const v = readVersion(path.join(dir, 'SkyrimSE.exe'))
-  if (v !== want) return { ok: false, why: `the Skyrim folder's SkyrimSE.exe is ${v || 'unreadable'}, not ${want}` }
+  if (!v) return { ok: false, unreadable: true, why: 'the Skyrim folder\'s SkyrimSE.exe could not be read (an antivirus holding it, or no permission to read it)' }
+  if (v !== want) return { ok: false, why: `the Skyrim folder's SkyrimSE.exe is ${v}, not ${want}` }
   const data = gameversion.checkGameData(dir, edition)
   if (data.verdict === gameversion.NEWER_DATA) return { ok: false, why: `the Skyrim folder has newer game data (${data.differ.join(', ')})` }
   return { ok: true }
@@ -127,6 +161,9 @@ function trustSource(dir, edition, { readVersion = gameversion.readPeFileVersion
  * tolerateData (the legacy copy, while there is no vanilla list): a known Data file with other bytes (a cleaned
  * master) is not an error. The copy's existing file is still never replaced by it, but a missing one is copied with a
  * warning (warned), as setup does. The exe and a folder on another build stay strict.
+ * With an untrusted folder (another launcher changed it), a file the copy lacks is skipped unless the game needs it
+ * (SkyrimSE.exe, or a master marked required): a new video or BSA there says nothing about our copy. The copy's own
+ * exe is kept when its version cannot be read, as gameversion.checkGameVersion and downgrade.assess accept it.
  * Returns { copy, keep, broken, skipped, warned, trusted }, keep/broken/skipped/warned entries with why.
  */
 async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, known, tolerateData = false } = {}) {
@@ -143,11 +180,36 @@ async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, know
       continue
     }
     const own = exists ? await vetFile(job.rel, job.to, opts) : { ok: false, why: 'it is missing from the game copy' }
-    if (own.ok || (tolerateData && exists && own.kind === 'data')) out.keep.push({ ...job, why: vet.why })
-    else if (job.optional) out.skipped.push({ ...job, why: `${vet.why}; ${own.why}` })
+    if (own.ok || (exists && own.unreadable) || (tolerateData && exists && own.kind === 'data')) out.keep.push({ ...job, why: vet.why })
+    else if (job.optional || (!exists && !trusted.ok && !requiredFile(job.rel))) out.skipped.push({ ...job, why: `${vet.why}; ${own.why}` })
     else out.broken.push({ ...job, why: `${own.why}, and ${vet.why}` })
   }
   return out
+}
+
+// Files the game cannot start without: the exe and the masters downgrade-1.6.1170.json marks required
+function requiredFile(rel) {
+  const key = relKey(rel)
+  return key === 'skyrimse.exe' || !!(KNOWN_FILES.get(key) || {}).required
+}
+
+/**
+ * What a verified build over a copy made by launcher 2.1.36 or older (no record yet) means for the install pass: a
+ * copy that played until now keeps playing, with a warning, while the clean files it lacks are not downloaded; it is
+ * never blocked for that. built: buildVerifiedCopy's result; playable: the copy was complete (marker or masters).
+ */
+function migrationResult(built, { playable }) {
+  if (built.success) return { ok: true, warning: null, repaired: built.copied }
+  if (built.needDepots && playable) {
+    const files = built.files || []
+    const some = files.slice(0, 3).map(f => path.basename(String(f))).join(', ') + (files.length > 3 ? ', …' : '')
+    return {
+      ok: true,
+      warning: `DragonBreak's game copy still has ${files.length} changed Skyrim file(s) (${some}). It keeps playing with them; ` +
+        'download the clean ones in Settings > Repair > Skyrim Version when you can. Your Steam Skyrim is not changed.',
+    }
+  }
+  return { ok: false, error: built.error }
 }
 
 /** The one warning naming the changed Data files the legacy copy took from the Skyrim folder anyway */
@@ -197,8 +259,8 @@ function dllsToSetAside(extraRootDlls) {
 /**
  * What the Skyrim Version panel offers, from the Skyrim folder's assessment (downgrade.assess), the copy's own
  * assessment and the files a verified build last found no right copy of (needs):
- *   legacy    as before: the Skyrim folder is downgraded in place. copyWrong when the folder is fine but the ready
- *             copy is on another build (Repair Game Copy rebuilds it)
+ *   legacy    as before: the Skyrim folder is downgraded in place, but only while there is no ready, right copy (then
+ *             'none' with copyOwn). copyWrong when the folder is fine but the ready copy is on another build
  *   verified  the panel fills DragonBreak's copy from Steam's download instead of changing the Steam folder. The depot
  *             steps (action 'downgrade', copyBuild) show while a build or repair is short of files, or before the copy
  *             exists when the Skyrim folder is on another build; once the copy is ready, action 'none' with copyOwn
@@ -207,6 +269,11 @@ function dllsToSetAside(extraRootDlls) {
 function panelState({ mode, isolated, copyReady: ready, steam, copy, needs }) {
   const base = { action: steam.action, blocking: steam.blocking, copyOwn: false, copyBuild: null, copyWrong: false }
   if (mode !== 'verified') {
+    // A ready copy that is right needs nothing from the Skyrim folder, whatever another launcher did to it: no
+    // in-place downgrade is offered
+    if (isolated && ready && copy && copy.action === 'none' && steam.action !== 'none') {
+      return { ...base, action: 'none', blocking: false, copyOwn: true }
+    }
     return { ...base, copyWrong: !!(isolated && ready && copy && copy.action !== 'none' && steam.action === 'none') }
   }
   if (needs) return { ...base, action: 'downgrade', blocking: true, copyBuild: { files: needs.files || [], count: needs.count || 0 } }
@@ -216,33 +283,51 @@ function panelState({ mode, isolated, copyReady: ready, steam, copy, needs }) {
 }
 
 // %LOCALAPPDATA%\Skyrim Special Edition\ContentCatalog.txt: the Creations cache shared by every Skyrim on the PC.
-// Moved aside before our game starts (a CSV2_<uuid> entry crashed it) and put back after, since it is the player's.
+// Moved aside right before our game starts (a CSV2_<uuid> entry crashed it) and put back after, since it is the
+// player's. The launcher keeps a mark (size and mtime) of the file it moved, and only that file is ever put back: a
+// .dbo-disabled left by launcher 2.1.36, which moved it on every pass, is older than the catalog the player has now.
 function catalogPaths(localAppData) {
   if (!localAppData) return null
   const catalog = path.join(localAppData, 'Skyrim Special Edition', 'ContentCatalog.txt')
-  return { catalog, kept: `${catalog}.dbo-disabled`, session: `${catalog}.dbo-session` }
+  return { catalog, kept: `${catalog}.dbo-disabled`, session: `${catalog}.dbo-session`, old: `${catalog}.dbo-old` }
 }
 
-const fileSize = p => { try { return fs.statSync(p).size } catch { return -1 } }
+const statOf = p => { try { const st = fs.statSync(p); return { size: st.size, mtimeMs: Math.trunc(st.mtimeMs) } } catch { return null } }
+const sameMark = (a, b) => !!a && !!b && a.size === b.size && a.mtimeMs === b.mtimeMs
 
 /**
- * Moves the player's catalog aside: 'moved', or 'session' when an earlier one is still aside (that one is the
- * player's and is never overwritten; the new one is a cache our game wrote), or null when there is nothing to move
+ * Moves the player's catalog aside before a launch. mark: the launcher's mark of the file it moved last, if any.
+ * Returns { moved, mark }: moved 'moved' (mark is the new one to keep), 'session' when our own earlier one is still
+ * aside (it is the player's and stays; the new one is a cache our game wrote), or null when there is nothing to move.
+ * A .dbo-disabled that is not ours (2.1.36's) is kept as .dbo-old and never put back.
  */
-function moveCatalogAside(localAppData) {
+function moveCatalogAside(localAppData, mark = null) {
   const p = catalogPaths(localAppData)
-  if (!p || fileSize(p.catalog) <= 0) return null
-  if (fileSize(p.kept) < 0) { fs.renameSync(p.catalog, p.kept); return 'moved' }
-  fs.rmSync(p.session, { force: true })
-  fs.renameSync(p.catalog, p.session)
-  return 'session'
+  const cur = p && statOf(p.catalog)
+  if (!cur || cur.size <= 0) return { moved: null, mark }
+  const kept = statOf(p.kept)
+  if (kept && sameMark(kept, mark)) {
+    fs.rmSync(p.session, { force: true })
+    fs.renameSync(p.catalog, p.session)
+    return { moved: 'session', mark }
+  }
+  if (kept) { fs.rmSync(p.old, { force: true }); fs.renameSync(p.kept, p.old) }
+  fs.renameSync(p.catalog, p.kept)
+  return { moved: 'moved', mark: statOf(p.kept) }
 }
 
-/** Puts the player's catalog back if we moved it ('restored'), keeping any one our game wrote meanwhile as .dbo-session */
-function restoreCatalog(localAppData) {
+/**
+ * Puts back the catalog the launcher moved (mark), keeping any one our game wrote meanwhile as .dbo-session.
+ * 'restored'; 'stale' when the file aside is not the one we moved (left alone); 'gone' when there is none; null
+ * without a mark.
+ */
+function restoreCatalog(localAppData, mark) {
   const p = catalogPaths(localAppData)
-  if (!p || fileSize(p.kept) < 0) return null
-  if (fileSize(p.catalog) >= 0) {
+  if (!p || !mark) return null
+  const kept = statOf(p.kept)
+  if (!kept) return 'gone'
+  if (!sameMark(kept, mark)) return 'stale'
+  if (statOf(p.catalog)) {
     fs.rmSync(p.session, { force: true })
     fs.renameSync(p.catalog, p.session)
   }
@@ -250,11 +335,47 @@ function restoreCatalog(localAppData) {
   return 'restored'
 }
 
-const catalogAside = localAppData => { const p = catalogPaths(localAppData); return !!p && fileSize(p.kept) >= 0 }
+/**
+ * A .dbo-disabled the launcher has no mark for (launcher 2.1.36 moved the catalog on every pass and never put it
+ * back): put back only when the player has no catalog now, so nothing newer is ever replaced. 'restored' or null.
+ */
+function restoreOrphanCatalog(localAppData) {
+  const p = catalogPaths(localAppData)
+  if (!p || !statOf(p.kept) || statOf(p.catalog)) return null
+  fs.renameSync(p.kept, p.catalog)
+  return 'restored'
+}
+
+const catalogAside = (localAppData, mark) => { const p = catalogPaths(localAppData); return !!p && sameMark(statOf(p.kept), mark) }
+
+// Folders the launcher writes into below the copy; none may be a link (a junction into the Steam folder, say)
+const WRITTEN_FOLDERS = ['Data', 'Data/Platform', 'Data/Platform/Plugins', 'Data/Platform/PluginsNoLoad', 'Data/SKSE',
+  'Data/SKSE/Plugins', 'Data/Interface', 'Data/Interface/Controls', 'Data/Interface/Controls/PC', 'Data/Scripts',
+  'Data/Video', 'Data/Strings']
+
+/** Why the launcher must not write into this copy (a folder in it is a link to elsewhere), or null */
+function copyLinkProblem(dir) {
+  if (!dir || !fs.existsSync(dir)) return null
+  for (const rel of WRITTEN_FOLDERS) {
+    let st
+    try { st = fs.lstatSync(path.join(dir, ...rel.split('/'))) } catch { continue }
+    if (st.isSymbolicLink()) {
+      return `${rel.replace(/\//g, '\\')} in the DragonBreak game copy (${dir}) is a link to another folder, so the launcher ` +
+        'writes nothing through it. Remove the link, then press Settings > Repair > Repair Game Copy.'
+    }
+  }
+  try {
+    const root = fs.realpathSync(dir)
+    const data = fs.realpathSync(path.join(dir, 'Data'))
+    const r = path.relative(root, data)
+    if (!r || r.startsWith('..') || path.isAbsolute(r)) return `The game copy's Data folder resolves outside ${dir}; the launcher writes nothing through it.`
+  } catch { /* no Data yet */ }
+  return null
+}
 
 module.exports = {
   MANAGED_IN_COPY, COPY_MARKER, KNOWN_FILES, FOREIGN_ROOT_DLLS, NO_COPY_ERROR, SPACE_MARGIN,
-  manifestFor, copyMode, copyReady, gamePathFor, noGamePathError, versionGateDir, vetFile, trustSource,
-  legacyRepairPlan, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState, catalogPaths, moveCatalogAside,
-  restoreCatalog, catalogAside, targetVersion, targetBuild,
+  manifestFor, steamLanguage, copyMode, copyReady, gamePathFor, noGamePathError, versionGateDir, vetFile, trustSource,
+  legacyRepairPlan, requiredFile, migrationResult, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState,
+  catalogPaths, moveCatalogAside, restoreCatalog, restoreOrphanCatalog, catalogAside, copyLinkProblem, targetVersion, targetBuild,
 }

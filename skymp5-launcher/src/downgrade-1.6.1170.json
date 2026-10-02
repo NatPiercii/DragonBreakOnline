@@ -22,6 +22,41 @@
       "files": null
     }
   ],
+  "languageDepotsNote": "Steam installs these on top of depots 489831-489833 for a non-English language (Steam's app info for 489830, read 2026-10-02: they carry config.language; 489831-489833 have none, so English is the base depots alone). The 1.6.1170 manifest of each is not known yet: look it up on the PC (SteamDB, the depot's manifest list, the one dated with depot 489833's 1914580699073641964), then download it and run tools/depot-reference.js --language <name>.",
+  "languageDepots": {
+    "french": {
+      "id": "489834",
+      "manifest": null
+    },
+    "italian": {
+      "id": "489835",
+      "manifest": null
+    },
+    "german": {
+      "id": "489836",
+      "manifest": null
+    },
+    "spanish": {
+      "id": "489837",
+      "manifest": null
+    },
+    "russian": {
+      "id": "489838",
+      "manifest": null
+    },
+    "polish": {
+      "id": "489839",
+      "manifest": null
+    },
+    "tchinese": {
+      "id": "544860",
+      "manifest": null
+    },
+    "japanese": {
+      "id": "544861",
+      "manifest": null
+    }
+  },
   "files": {
     "Data/Skyrim.esm": {
       "size": 249753412,
