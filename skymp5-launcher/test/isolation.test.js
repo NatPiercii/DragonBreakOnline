@@ -342,6 +342,57 @@ test('migration: a 2.1.36 copy with cleaned masters keeps playing with a warning
   assert.deepStrictEqual(iso.migrationResult({ success: true, copied: 3 }, { playable: true }), { ok: true, warning: null, repaired: 3 })
 })
 
+test('review policy.js: a Steam folder moved to another drive with a link is still recognised behind the copy\'s Data link', () => {
+  const root = tmp()
+  const real = path.join(root, 'D', 'Steam')
+  fs.mkdirSync(path.join(real, 'steamapps', 'common', 'Skyrim Special Edition', 'Data'), { recursive: true })
+  const link = path.join(root, 'C', 'Steam')
+  fs.mkdirSync(path.dirname(link), { recursive: true })
+  fs.symlinkSync(real, link, 'dir')
+  const skyrim = path.join(link, 'steamapps', 'common', 'Skyrim Special Edition')
+  const copy = path.join(root, 'DB', 'skyrim')
+  fs.mkdirSync(copy, { recursive: true })
+  fs.symlinkSync(path.join(skyrim, 'Data'), path.join(copy, 'Data'), 'dir')
+  assert.match(iso.copyLinkProblem(copy, { forbidden: [skyrim, link] }), /is a link into .*part of your Skyrim or Steam folders/)
+  assert.strictEqual(iso.linkPolicy([skyrim, link])(fs.realpathSync(path.join(copy, 'Data'))), false)
+  // A root that cannot be resolved (not there) is kept as given, and never throws
+  assert.strictEqual(iso.linkPolicy([path.join(root, 'nowhere')])(path.join(root, 'nowhere', 'x')), false)
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('required archives are the fixed 1.6.1170 list; voices only for a language the copy has', async () => {
+  assert.strictEqual(iso.requiredFile('Data/Skyrim - Textures8.bsa'), true)
+  assert.strictEqual(iso.requiredFile('Data\\Skyrim - Shaders.bsa'), true)
+  assert.strictEqual(iso.requiredFile('Data/Skyrim - Textures9.bsa'), false, 'an archive a newer Steam build adds')
+  assert.strictEqual(iso.requiredFile('Data/Skyrim - Patch.bsa'), false, 'gone since the Anniversary update')
+  assert.strictEqual(iso.requiredFile('Data/Update.bsa'), false)
+  assert.strictEqual(iso.requiredFile('Data/Skyrim - Voices_en0.bsa'), false)
+  assert.strictEqual(iso.requiredFile('Data/Skyrim - Voices_en0.bsa', { voices: new Set(['en']) }), true)
+  const root = tmp()
+  const steam = path.join(root, 'steam')
+  const copy = path.join(root, 'copy')
+  put(path.join(copy, 'Data', 'Skyrim - Voices_en0.bsa'), 'v')
+  assert.deepStrictEqual([...iso.copyVoices(copy)], ['en'])
+  const rels = ['Data/Skyrim - Voices_en1.bsa', 'Data/Skyrim - Voices_de0.bsa', 'Data/Skyrim - Textures9.bsa', 'Data/Skyrim - Textures8.bsa']
+  for (const r of rels) put(at(steam, r), 'x')
+  put(path.join(steam, 'SkyrimSE.exe'), 'x')
+  const jobs = rels.map(r => ({ rel: r, from: at(steam, r), to: at(copy, r), optional: false }))
+  const r = await iso.legacyRepairPlan(jobs, { srcDir: steam, edition: 'Steam', readVersion: () => '1.7.104.0', tolerateData: true, copyDir: copy })
+  assert.deepStrictEqual(r.broken.map(b => b.rel).sort(), ['Data/Skyrim - Textures8.bsa', 'Data/Skyrim - Voices_en1.bsa'])
+  assert.deepStrictEqual(r.skipped.map(b => b.rel).sort(), ['Data/Skyrim - Textures9.bsa', 'Data/Skyrim - Voices_de0.bsa'])
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('after a failed check of a 2.1.36 copy, it is checked again only on Repair Game Copy or once the space is there', () => {
+  const GB = 1024 ** 3
+  assert.strictEqual(iso.migrationRetry(null), true, 'nothing remembered: check')
+  assert.strictEqual(iso.migrationRetry({ error: 'EBUSY: resource busy or locked', needBytes: null }, { free: 500 * GB }), false)
+  const space = { error: 'Not enough free space', needBytes: 10 * GB }
+  assert.strictEqual(iso.migrationRetry(space, { free: 9 * GB }), false)
+  assert.strictEqual(iso.migrationRetry(space, { free: null }), false)
+  assert.strictEqual(iso.migrationRetry(space, { free: 11 * GB }), true, 'the player freed up space')
+})
+
 // ---------------------------------------------------------------------------------------------- what the player sees
 
 test('the setup text and the free-space check', () => {

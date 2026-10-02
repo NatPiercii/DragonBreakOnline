@@ -166,9 +166,10 @@ function trustSource(dir, edition, { readVersion = gameversion.readPeFileVersion
  * exe is kept when its version cannot be read, as gameversion.checkGameVersion and downgrade.assess accept it.
  * Returns { copy, keep, broken, skipped, warned, trusted }, keep/broken/skipped/warned entries with why.
  */
-async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, known, tolerateData = false } = {}) {
+async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, known, tolerateData = false, copyDir = null } = {}) {
   const opts = { edition, readVersion, hash, known }
   const trusted = trustSource(srcDir, edition, { readVersion })
+  const voices = copyDir ? copyVoices(copyDir) : new Set()
   const out = { copy: [], keep: [], broken: [], skipped: [], warned: [], trusted }
   for (const job of jobs) {
     const vet = trusted.ok ? await vetFile(job.rel, job.from, opts) : { ok: false, kind: 'source', why: trusted.why }
@@ -181,19 +182,37 @@ async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, know
     }
     const own = exists ? await vetFile(job.rel, job.to, opts) : { ok: false, why: 'it is missing from the game copy' }
     if (own.ok || (exists && own.unreadable) || (tolerateData && exists && own.kind === 'data')) out.keep.push({ ...job, why: vet.why })
-    else if (job.optional || (!exists && !trusted.ok && !requiredFile(job.rel))) out.skipped.push({ ...job, why: `${vet.why}; ${own.why}` })
+    else if (job.optional || (!exists && !trusted.ok && !requiredFile(job.rel, { voices }))) out.skipped.push({ ...job, why: `${vet.why}; ${own.why}` })
     else out.broken.push({ ...job, why: `${own.why}, and ${vet.why}` })
   }
   return out
 }
 
-// Files the game cannot run without: the exe, the masters downgrade-1.6.1170.json marks required, and the base and
-// DLC archives (Skyrim - *.bsa, Dawnguard/HearthFires/Dragonborn/Update .bsa): without one the game crashes or loses
-// meshes and textures, so a missing one is refused rather than skipped
-const REQUIRED_ARCHIVE = /^data\/(skyrim - [^/]+|dawnguard|hearthfires|dragonborn|update)\.bsa$/
-function requiredFile(rel) {
+// The base and DLC archives of 1.6.1170, by name: without one the game crashes or loses meshes and textures. A fixed
+// list, so an archive a newer Steam build adds is not required. 1.6 has no Update.bsa, and the Anniversary update
+// folded Skyrim - Patch.bsa into the others (STEP's SE game files guide). Voice archives depend on the language.
+const REQUIRED_ARCHIVES = new Set([
+  'Skyrim - Animations', 'Skyrim - Interface', 'Skyrim - Meshes0', 'Skyrim - Meshes1', 'Skyrim - Misc',
+  'Skyrim - Shaders', 'Skyrim - Sounds', ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(n => `Skyrim - Textures${n}`),
+  'Dawnguard', 'HearthFires', 'Dragonborn',
+].map(n => `data/${n.toLowerCase()}.bsa`))
+const VOICE_ARCHIVE = /^data\/skyrim - voices_([a-z]{2})\d+\.bsa$/
+
+// The voice languages a copy has (Skyrim - Voices_<code>N.bsa in its Data), as codes
+function copyVoices(copyDir) {
+  try {
+    return new Set(fs.readdirSync(path.join(copyDir, 'Data')).map(n => VOICE_ARCHIVE.exec(`data/${n.toLowerCase()}`)).filter(Boolean).map(m => m[1]))
+  } catch { return new Set() }
+}
+
+// Files the game cannot run without: the exe, the masters downgrade-1.6.1170.json marks required, the 1.6.1170 base and
+// DLC archives, and the voice archives of a language the copy already has (voices: copyVoices). A missing one is
+// refused rather than skipped
+function requiredFile(rel, { voices = new Set() } = {}) {
   const key = relKey(rel)
-  return key === 'skyrimse.exe' || !!(KNOWN_FILES.get(key) || {}).required || REQUIRED_ARCHIVE.test(key)
+  if (key === 'skyrimse.exe' || !!(KNOWN_FILES.get(key) || {}).required || REQUIRED_ARCHIVES.has(key)) return true
+  const v = VOICE_ARCHIVE.exec(key)
+  return !!v && voices.has(v[1])
 }
 
 /**
@@ -221,6 +240,16 @@ function migrationResult(built, { playable }) {
     }
   }
   return { ok: false, error: built.error }
+}
+
+/**
+ * Whether the install pass should check a 2.1.36 copy against the list again after a failed check (failed: what was
+ * remembered, { error, needBytes }): not on every PLAY (that hashes about 15 GB and fails the same way), only once
+ * the free space has grown past what was needed. Repair Game Copy clears the memory and always checks.
+ */
+function migrationRetry(failed, { free = null, margin = SPACE_MARGIN } = {}) {
+  if (!failed) return true
+  return !!failed.needBytes && free !== null && free >= failed.needBytes + margin
 }
 
 /** The one warning naming the changed Data files the legacy copy took from the Skyrim folder anyway */
@@ -379,7 +408,13 @@ function overlaps(a, b) {
  * Returns a predicate on a link's real path.
  */
 function linkPolicy(forbidden = []) {
-  const roots = forbidden.filter(Boolean)
+  // Each root as given and as it really is: a Steam folder moved to another drive with a link is reached through
+  // its real path. A root whose real path cannot be read stays as given
+  const roots = []
+  for (const r of forbidden.filter(Boolean)) {
+    roots.push(r)
+    try { roots.push(fs.realpathSync(r)) } catch { /* not there, or real paths unreadable here */ }
+  }
   return real => !roots.some(r => overlaps(real, r))
 }
 
@@ -415,7 +450,7 @@ function copyLinkProblem(dir, { forbidden = [] } = {}) {
 module.exports = {
   MANAGED_IN_COPY, COPY_MARKER, KNOWN_FILES, FOREIGN_ROOT_DLLS, NO_COPY_ERROR, SPACE_MARGIN,
   manifestFor, steamLanguage, copyMode, copyReady, gamePathFor, noGamePathError, versionGateDir, vetFile, trustSource,
-  legacyRepairPlan, requiredFile, migrationResult, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState,
+  legacyRepairPlan, requiredFile, copyVoices, migrationResult, migrationRetry, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState,
   catalogPaths, moveCatalogAside, restoreCatalog, restoreOrphanCatalog, catalogAside, copyLinkProblem, copyLinks, linkPolicy,
   overlaps, targetVersion, targetBuild,
 }

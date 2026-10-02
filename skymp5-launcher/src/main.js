@@ -1316,6 +1316,8 @@ async function createIsolatedImpl(baseDirOverride, force = false, { progress = n
     if (force && pathsOverlap(src, dst)) return { success: false, error: 'The game copy folder resolves into your original Skyrim install - remove the link before repairing.' }
     let counts = {}
     if (verified) {
+      // Repair Game Copy (and the panel's Install) always checks again, whatever an earlier pass remembered
+      store.delete('copyCheckFailed')
       const copy = await buildVerifiedCopy(src, dst, { force, progress })
       if (!copy.success) return copy
       counts = { copied: copy.copied, kept: copy.kept }
@@ -1662,7 +1664,7 @@ async function buildVerifiedCopy(src, dst, { force = false, progress = null, sig
     },
   })
   if (!res.ok) {
-    if (res.error) return { success: false, error: res.error }
+    if (res.error) return { success: false, error: res.error, needBytes: res.need ? res.need.bytes + res.need.largest : null }
     const files = [...res.unresolved.map(u => u.path), ...res.failed.map(f => f.path)]
     store.set('copyNeedsDepots', { files: files.slice(0, 50), count: files.length, depots: res.depotsNeeded, at: Date.now() })
     log(`[isolated] verified copy needs ${files.length} file(s) from depot(s) ${res.depotsNeeded.join(', ') || '?'}: ${files.slice(0, 20).join(', ')}`)
@@ -1675,6 +1677,7 @@ async function buildVerifiedCopy(src, dst, { force = false, progress = null, sig
     }
   }
   store.delete('copyNeedsDepots')
+  store.delete('copyCheckFailed')
   // AE popup fix, as in copyGameDir: the launcher keeps Skyrim.ccc empty (it is left out of the list for that reason)
   try { fs.writeFileSync(path.join(dst, 'Skyrim.ccc'), '') } catch { /* re-applied by applyForcedServerDefaults */ }
   try { fs.rmSync(path.join(dst, isolation.COPY_MARKER), { force: true }) } catch { /* the record replaces it */ }
@@ -1698,13 +1701,26 @@ async function verifiedIntegrity(gamePath, { signal } = {}) {
       if (pending && gameCopyComplete(gamePath) && !Object.keys(depotDirMap(src)).length) {
         return isolation.migrationResult({ success: false, needDepots: true, files: pending.files || [] }, { playable: true })
       }
+      // After a failed check (space, a file held open, an antivirus...) it is not run again on every PLAY: only after
+      // Repair Game Copy, or once the free space has grown past what it needed (isolation.migrationRetry)
+      const failed = store.get('copyCheckFailed')
+      if (failed && gameCopyComplete(gamePath)) {
+        if (!isolation.migrationRetry(failed, { free: await gamecopy.freeBytes(gamePath) })) {
+          return isolation.migrationResult({ success: false, error: failed.error }, { playable: true })
+        }
+        store.delete('copyCheckFailed')
+      }
       let built
       try { built = await buildVerifiedCopy(src, gamePath, { signal, quiet: true }) } catch (err) {
         if (signal && signal.aborted) throw err
         log(`[integrity] checking the old game copy failed: ${err.message}`)
         built = { success: false, error: err.message }
       }
-      return isolation.migrationResult(built, { playable: gameCopyComplete(gamePath) })
+      const playable = gameCopyComplete(gamePath)
+      if (!built.success && !built.needDepots && playable) {
+        store.set('copyCheckFailed', { error: built.error, needBytes: built.needBytes || null, at: Date.now() })
+      }
+      return isolation.migrationResult(built, { playable })
     }
     const manifest = copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam', record.language || 'english')
     if (!manifest || !manifest.ready) return { ok: true, warning: null }
@@ -1780,7 +1796,7 @@ async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
     if (bad.length === 0) return { ok: true, warning: null }
     const decided = await isolation.legacyRepairPlan(bad.map(job => ({
       rel: path.join(job.sub, job.rel), from: jobSource(original, job), to: path.join(gamePath, job.sub, job.rel), optional: !!job.from, job,
-    })), { srcDir: original, edition: mo2.detectEdition(original), tolerateData: true })
+    })), { srcDir: original, edition: mo2.detectEdition(original), tolerateData: true, copyDir: gamePath })
     for (const k of decided.keep) log(`[integrity] kept the game copy's ${k.rel}: in the Skyrim folder, ${k.why}`)
     for (const k of decided.warned) log(`[integrity] ${k.why}: copied anyway into the game copy, which had none (legacy copy)`)
     const warning = isolation.changedDataWarning(decided.warned.map(k => k.rel))
