@@ -188,13 +188,12 @@ async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, know
   return out
 }
 
-// The base and DLC archives of 1.6.1170, by name: without one the game crashes or loses meshes and textures. A fixed
+// The base archives of 1.6.1170, by name (SE packs the DLC into these; it has no Dawnguard/HearthFires/Dragonborn .bsa): without one the game crashes or loses meshes and textures. A fixed
 // list, so an archive a newer Steam build adds is not required. 1.6 has no Update.bsa, and the Anniversary update
 // folded Skyrim - Patch.bsa into the others (STEP's SE game files guide). Voice archives depend on the language.
 const REQUIRED_ARCHIVES = new Set([
   'Skyrim - Animations', 'Skyrim - Interface', 'Skyrim - Meshes0', 'Skyrim - Meshes1', 'Skyrim - Misc',
   'Skyrim - Shaders', 'Skyrim - Sounds', ...[0, 1, 2, 3, 4, 5, 6, 7, 8].map(n => `Skyrim - Textures${n}`),
-  'Dawnguard', 'HearthFires', 'Dragonborn',
 ].map(n => `data/${n.toLowerCase()}.bsa`))
 const VOICE_ARCHIVE = /^data\/skyrim - voices_([a-z]{2})\d+\.bsa$/
 
@@ -227,7 +226,7 @@ function migrationResult(built, { playable }) {
     return {
       ok: true,
       warning: `DragonBreak's game copy could not be checked against the clean Skyrim file list yet (${built.error || 'unknown error'}). ` +
-        'It keeps playing as it is, and is checked again on the next PLAY.',
+        'It keeps playing as it is. Press Repair Game Copy to check it again.',
     }
   }
   if (built.needDepots && playable) {

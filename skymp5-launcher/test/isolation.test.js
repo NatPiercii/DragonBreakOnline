@@ -284,7 +284,7 @@ test('a copy\'s Data may be a link to another drive, but never into the Skyrim f
   fs.rmSync(root, { recursive: true, force: true })
 })
 
-test('untrusted Skyrim folder: a base or DLC archive the copy lacks is refused, not skipped', async () => {
+test('untrusted Skyrim folder: a base archive the copy lacks is refused, not skipped (SE has no DLC .bsa: a name like Dawnguard.bsa is not required)', async () => {
   const root = tmp()
   const steam = path.join(root, 'steam')
   const copy = path.join(root, 'copy')
@@ -295,9 +295,9 @@ test('untrusted Skyrim folder: a base or DLC archive the copy lacks is refused, 
   put(path.join(steam, 'SkyrimSE.exe'), 'x')
   const jobs = rels.map(r => ({ rel: path.join(...r.split('/')), from: at(steam, r), to: at(copy, r), optional: false }))
   const r = await iso.legacyRepairPlan(jobs, { srcDir: steam, edition: 'Steam', readVersion: () => '1.6.640.0', tolerateData: true })
-  assert.deepStrictEqual(r.broken.map(b => path.basename(b.rel)).sort(),
-    ['Dawnguard.bsa', 'Dragonborn.bsa', 'HearthFires.bsa', 'Skyrim - Animations.bsa', 'Skyrim - Textures0.bsa'])
-  assert.deepStrictEqual(r.skipped.map(b => path.basename(b.rel)).sort(), ['NewIntro.bik', 'ccBGSSSE001-Fish.bsa'])
+  assert.deepStrictEqual(r.broken.map(b => path.basename(b.rel)).sort(), ['Skyrim - Animations.bsa', 'Skyrim - Textures0.bsa'])
+  assert.deepStrictEqual(r.skipped.map(b => path.basename(b.rel)).sort(),
+    ['Dawnguard.bsa', 'Dragonborn.bsa', 'HearthFires.bsa', 'NewIntro.bik', 'ccBGSSSE001-Fish.bsa'])
   fs.rmSync(root, { recursive: true, force: true })
 })
 
