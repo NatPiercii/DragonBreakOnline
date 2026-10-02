@@ -31,11 +31,11 @@ function install() {
 }
 
 test('which files count as rewritten config', () => {
-  for (const rel of ['SKSE/Plugins/ActorLimitFix.json', 'SKSE/Plugins/EngineFixes_SNCT.ini', 'skse\\plugins\\EngineFixes.toml',
+  for (const rel of ['SKSE/Plugins/ActorLimitFix.json', 'SKSE/Plugins/ActorLimitFix.log', 'SKSE/Plugins/EngineFixes_SNCT.ini', 'skse\\plugins\\EngineFixes.toml',
     'MCM/Config/TrueDirectionalMovement/settings.ini', 'MCM/Settings/TrueDirectionalMovement.ini', 'SKSE/Plugins/x/y.yaml']) {
     assert.ok(mo2.isRewrittenConfig(rel), rel)
   }
-  for (const rel of ['SKSE/Plugins/ActorLimitFix.dll', 'ActorLimitFix.bsa', 'ActorLimitFix.esp', 'DPA_DISTR.ini',
+  for (const rel of ['SKSE/Plugins/ActorLimitFix.dll', 'SKSE/Plugins/ActorLimitFix.pdb', 'ActorLimitFix.log', 'ActorLimitFix.bsa', 'ActorLimitFix.esp', 'DPA_DISTR.ini',
     'meshes/actors/x.nif', 'MapMarkers/BSAssets.json', 'Interface/Translations/x_ENGLISH.txt']) {
     assert.ok(!mo2.isRewrittenConfig(rel), rel)
   }
@@ -45,6 +45,7 @@ test('a plugin rewriting its JSON does not make the mod look damaged', () => {
   install()
   put('SKSE/Plugins/ActorLimitFix.json', 861 + 331)
   put('MCM/Settings/ActorLimitFix.ini', 120)          // MCM saved the player's settings
+  put('SKSE/Plugins/ActorLimitFix.log', 333)          // the plugin's own runtime log (Jake's PC, 2 Oct): not damage
   const check = mo2.modSizeCheck(MOD)
   assert.strictEqual(check.actual, check.expected)
   assert.strictEqual(check.expected, 5637 + 4000)
