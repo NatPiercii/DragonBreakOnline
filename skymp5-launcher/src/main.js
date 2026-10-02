@@ -4043,7 +4043,11 @@ async function runMO2Install(opts = {}) {
       sendInstallState()
     }
 
-    installStep('finish')
+    // Finishing has four pieces of real work; counting them moves the bar 98 -> 100 instead of parking it on 98
+    const FINISH_STEPS = 4
+    let finishDone = 0
+    const finishTick = () => installStep('finish', { index: ++finishDone, total: FINISH_STEPS })
+    installStep('finish', { index: 0, total: FINISH_STEPS })
     if (needsRoot && manifest.root && manifest.root.length > 0) {
       const ids = [...new Set(manifest.root.filter(f => f.archive).map(f => f.archive))]
       try {
@@ -4054,8 +4058,10 @@ async function runMO2Install(opts = {}) {
       }
       release(ids)
     }
+    finishTick()
 
     mo2.clearCache()
+    finishTick()
 
     if (failed.length > 0) return fail(`${failed.length} item(s) failed to install: ${failed.join('; ')}`)
 
@@ -4065,9 +4071,11 @@ async function runMO2Install(opts = {}) {
       try { await installSkseIntoRoot(skyrimPath) }
       catch (err) { return fail(`SKSE install failed: ${err.message}`) }
     }
+    finishTick()
 
     // 5. Match MO2 priority + plugin order, record the installed version
     finishOrder()
+    finishTick()
 
     store.set('modpackState', 'ready')
     send('install:complete', {
