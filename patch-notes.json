@@ -57,6 +57,35 @@
     ]
   },
   {
+    "title": "Safer ruin entries and contract fixes",
+    "date": "2026-10-02",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Parties now enter Niryastare, Bawn and Rielle one at a time, 30 seconds apart. Loading into these ruins together was crashing players. You are told when it is your turn; if you have walked away by then, use the entrance to join your party.",
+          "If your game crashes inside a claimed dungeon, you log back in at its entrance instead of in the middle of the same fight. The claim is held for 10 minutes so you can go back in.",
+          "Joining your party in an Ayleid ruin after they opened its hidden stair now shows the stair open for you too."
+        ]
+      },
+      {
+        "heading": "Contracts",
+        "items": [
+          "Hunting contracts now count the creature you actually killed. Rats no longer count toward a wolf contract."
+        ]
+      },
+      {
+        "heading": "Roleplay",
+        "items": [
+          "Vampire feeding messages now name people the way you know them: someone you have not met shows as Stranger.",
+          "Pressing H now says the mask it puts on is borrowed and is handed back when you press H again."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Two friends at one cave mouth",
     "date": "2026-10-01",
     "version": "Server update",
