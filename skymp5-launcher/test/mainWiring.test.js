@@ -116,11 +116,28 @@ test('a copy whose Data is a link into Steam is refused by setup and by launch, 
 
   const repaired = await call('game:createIsolated', base, { force: true })
   assert.strictEqual(repaired.success, false)
-  assert.match(repaired.error, /^Data in the DragonBreak game copy .* is a link to another folder/)
+  assert.match(repaired.error, /^Data in the DragonBreak game copy .* is a link into .*part of your Skyrim or Steam folders/)
   const launched = await call('launch:viaMO2')
   assert.strictEqual(launched.success, false)
-  assert.match(launched.error, /is a link to another folder/)
+  assert.match(launched.error, /is a link into .*part of your Skyrim or Steam folders/)
   assert.deepStrictEqual(tree(path.join(steam, 'Data')), steamData, 'nothing written into Steam\'s Data')
+})
+
+test('a copy whose Data was moved to another drive with a junction (2.1.36 played so) keeps working', async () => {
+  const steam = steamFolder('lib5')
+  const base = path.join(root, 'DB5', 'DragonBreak')
+  await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
+  assert.strictEqual((await call('game:createIsolated', base)).success, true)
+  const copy = path.join(base, 'skyrim')
+  const otherDrive = path.join(root, 'D', 'SkyrimCopyData')
+  fs.mkdirSync(path.dirname(otherDrive), { recursive: true })
+  fs.renameSync(path.join(copy, 'Data'), otherDrive)
+  fs.symlinkSync(otherDrive, path.join(copy, 'Data'), 'dir')
+  const repaired = await call('game:createIsolated', base, { force: true })
+  assert.strictEqual(repaired.success, true, repaired.error)
+  assert.ok(fs.existsSync(path.join(otherDrive, 'Skyrim.esm')), 'repaired through the allowed link')
+  const launched = await call('launch:viaMO2')
+  assert.doesNotMatch(String(launched.error), /is a link/, 'PLAY is not refused for the link')
 })
 
 test('with no ready copy nothing falls back to the Steam folder', async () => {

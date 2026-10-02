@@ -374,3 +374,37 @@ test('after the downgrade: SKSE\'s 1.6.1170 runtime and the Address Library tabl
   assert.deepStrictEqual(dg.runtimeChecks(runDir, { modsDir: mods, mods: [] }), { skse: true, addressLibrary: false })
   fs.rmSync(root, { recursive: true, force: true })
 })
+
+test('a language install: its depot is searched for beside the base three, offered once its 1.6.1170 manifest is known', () => {
+  const root = tmp()
+  fs.mkdirSync(path.join(root, 'steamapps', 'content', 'app_489830', 'depot_489836'), { recursive: true })
+  const de = dg.findDepots([root], { language: 'german' })
+  assert.deepStrictEqual(de.map(d => d.id), ['489831', '489832', '489833', '489836'])
+  const german = de[3]
+  assert.strictEqual(german.dir, path.join(root, 'steamapps', 'content', 'app_489830', 'depot_489836'))
+  assert.strictEqual(german.command, null, 'no manifest id yet: searched for, not offered')
+  assert.strictEqual(german.holds, 'the german language files')
+  assert.deepStrictEqual(dg.findDepots([root], { language: 'english' }).map(d => d.id), ['489831', '489832', '489833'])
+  assert.strictEqual(dg.languageDepot('english'), null)
+  assert.strictEqual(dg.languageDepot('japanese').id, '544861')
+  // Once the manifest is known it gets its command
+  REF.languageDepots.german.manifest = '1234567890'
+  try { assert.strictEqual(dg.languageDepot('german').command, 'download_depot 489830 489836 1234567890') } finally { REF.languageDepots.german.manifest = null }
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('a copy with a verified record is not judged by the English archive sizes', () => {
+  const root = tmp()
+  const gameversion = require('../src/gameversion')
+  sized(path.join(root, 'Data', 'Skyrim - Interface.bsa'), 123)   // a French interface archive, say
+  for (const [n, size] of gameversion.DATA_SIZES_1170) if (n !== 'Skyrim - Interface.bsa') sized(path.join(root, 'Data', n), size)
+  assert.strictEqual(gameversion.checkGameData(root, 'Steam').verdict, gameversion.NEWER_DATA)
+  fs.writeFileSync(path.join(root, 'dragonbreak-game.json'), JSON.stringify({ format: 1, files: [{ path: 'SkyrimSE.exe', size: 1, sha256: 'a'.repeat(64) }] }))
+  assert.strictEqual(gameversion.checkGameData(root, 'Steam').verdict, gameversion.VERIFIED_DATA)
+  fs.writeFileSync(path.join(root, 'SkyrimSE.exe'), 'exe 1.6.1170.0')
+  assert.strictEqual(dg.assess(root, 'Steam', () => '1.6.1170.0').blocking, false)
+  // A broken or empty record does not count
+  fs.writeFileSync(path.join(root, 'dragonbreak-game.json'), '{"format":1,"files":[]}')
+  assert.strictEqual(gameversion.checkGameData(root, 'Steam').verdict, gameversion.NEWER_DATA)
+  fs.rmSync(root, { recursive: true, force: true })
+})

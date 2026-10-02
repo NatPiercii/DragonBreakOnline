@@ -86,7 +86,18 @@ const DATA_SIZES_1170 = [
  */
 const NEWER_DATA = 'newer data (1.7.99+)'
 
+// A copy the launcher built from hash-checked files (src/gamecopy.js) keeps a record; its files were checked against the
+// list for its own language, whose archives are not the English sizes below
+const VERIFIED_DATA = '1.6.1170 data (checked against the copy\'s own record)'
+function verifiedRecord(gameDir) {
+  try {
+    const rec = JSON.parse(fs.readFileSync(path.join(gameDir, 'dragonbreak-game.json'), 'utf8'))
+    return !!rec && rec.format === 1 && Array.isArray(rec.files) && rec.files.length > 0
+  } catch { return false }
+}
+
 function checkGameData(gameDir, edition) {
+  if (gameDir && verifiedRecord(gameDir)) return { verdict: VERIFIED_DATA, differ: [], missing: [], text: VERIFIED_DATA }
   const differ = []
   const missing = []
   const parts = []
@@ -117,6 +128,6 @@ function checkGameVersion(gameDir, edition) {
 }
 
 module.exports = {
-  GAME_VERSION_REQUIRED, GAME_VERSION_GOG, GAME_DOWNGRADE_URL, DATA_SIZES_1170, NEWER_DATA, readPeFileVersion, checkGameVersion,
+  GAME_VERSION_REQUIRED, GAME_VERSION_GOG, GAME_DOWNGRADE_URL, DATA_SIZES_1170, NEWER_DATA, VERIFIED_DATA, readPeFileVersion, checkGameVersion,
   checkGameData,
 }

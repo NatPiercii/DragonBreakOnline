@@ -252,21 +252,52 @@ test('review legacy.js: an untrusted folder\'s extra file is skipped unless the 
   fs.rmSync(root, { recursive: true, force: true })
 })
 
-test('a copy whose Data (or a folder the launcher writes into) is a link is refused', () => {
+test('a copy\'s Data may be a link to another drive, but never into the Skyrim folder or a Steam library', () => {
   const root = tmp()
   const copy = path.join(root, 'copy')
-  const steamData = path.join(root, 'steam', 'Data')
-  fs.mkdirSync(steamData, { recursive: true })
-  fs.mkdirSync(copy, { recursive: true })
-  assert.strictEqual(iso.copyLinkProblem(copy), null)
-  assert.strictEqual(iso.copyLinkProblem(path.join(root, 'nothing')), null)
+  const library = path.join(root, 'SteamLibrary')
+  const steamData = path.join(library, 'steamapps', 'common', 'Skyrim Special Edition', 'Data')
+  const otherDrive = path.join(root, 'D', 'SkyrimCopyData')
+  for (const d of [steamData, otherDrive, copy]) fs.mkdirSync(d, { recursive: true })
+  const forbidden = [path.dirname(steamData), library]
+  assert.strictEqual(iso.copyLinkProblem(copy, { forbidden }), null)
+  assert.strictEqual(iso.copyLinkProblem(path.join(root, 'nothing'), { forbidden }), null)
+  // A player who moved the copy's Data to another drive (launcher 2.1.36 played that way): allowed, listed for the log
+  fs.symlinkSync(otherDrive, path.join(copy, 'Data'), 'dir')
+  assert.strictEqual(iso.copyLinkProblem(copy, { forbidden }), null)
+  assert.deepStrictEqual(iso.copyLinks(copy).map(l => [l.rel, l.real]), [['Data', fs.realpathSync(otherDrive)]])
+  // Into Steam's Skyrim folder: refused
+  fs.rmSync(path.join(copy, 'Data'))
   fs.symlinkSync(steamData, path.join(copy, 'Data'), 'dir')
-  assert.match(iso.copyLinkProblem(copy), /^Data in the DragonBreak game copy .* is a link to another folder/)
+  assert.match(iso.copyLinkProblem(copy, { forbidden }), /^Data in the DragonBreak game copy .* is a link into .*part of your Skyrim or Steam folders/)
+  // A deeper folder into a Steam library, and a link whose target is gone: refused
   fs.rmSync(path.join(copy, 'Data'))
   fs.mkdirSync(path.join(copy, 'Data'))
-  fs.mkdirSync(path.join(root, 'elsewhere'))
-  fs.symlinkSync(path.join(root, 'elsewhere'), path.join(copy, 'Data', 'Platform'), 'dir')
-  assert.match(iso.copyLinkProblem(copy), /^Data\\Platform in the DragonBreak game copy/)
+  fs.symlinkSync(path.join(library, 'steamapps'), path.join(copy, 'Data', 'Platform'), 'dir')
+  assert.match(iso.copyLinkProblem(copy, { forbidden }), /^Data\\Platform in the DragonBreak game copy/)
+  fs.rmSync(path.join(copy, 'Data', 'Platform'))
+  fs.symlinkSync(path.join(root, 'gone'), path.join(copy, 'Data', 'Platform'), 'dir')
+  assert.match(iso.copyLinkProblem(copy, { forbidden }), /whose target is gone/)
+  // The policy itself: a folder that holds a Steam library counts too
+  const allowed = iso.linkPolicy(forbidden)
+  assert.deepStrictEqual([allowed(otherDrive), allowed(steamData), allowed(root)], [true, false, false])
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('untrusted Skyrim folder: a base or DLC archive the copy lacks is refused, not skipped', async () => {
+  const root = tmp()
+  const steam = path.join(root, 'steam')
+  const copy = path.join(root, 'copy')
+  fs.mkdirSync(path.join(copy, 'Data'), { recursive: true })
+  const rels = ['Data/Skyrim - Textures0.bsa', 'Data/Skyrim - Animations.bsa', 'Data/Dawnguard.bsa', 'Data/HearthFires.bsa',
+    'Data/Dragonborn.bsa', 'Data/Video/NewIntro.bik', 'Data/ccBGSSSE001-Fish.bsa']
+  for (const r of rels) put(at(steam, r), 'x')
+  put(path.join(steam, 'SkyrimSE.exe'), 'x')
+  const jobs = rels.map(r => ({ rel: path.join(...r.split('/')), from: at(steam, r), to: at(copy, r), optional: false }))
+  const r = await iso.legacyRepairPlan(jobs, { srcDir: steam, edition: 'Steam', readVersion: () => '1.6.640.0', tolerateData: true })
+  assert.deepStrictEqual(r.broken.map(b => path.basename(b.rel)).sort(),
+    ['Dawnguard.bsa', 'Dragonborn.bsa', 'HearthFires.bsa', 'Skyrim - Animations.bsa', 'Skyrim - Textures0.bsa'])
+  assert.deepStrictEqual(r.skipped.map(b => path.basename(b.rel)).sort(), ['NewIntro.bik', 'ccBGSSSE001-Fish.bsa'])
   fs.rmSync(root, { recursive: true, force: true })
 })
 
@@ -301,7 +332,13 @@ test('migration: a 2.1.36 copy with cleaned masters keeps playing with a warning
   assert.match(r.warning, /still has 2 changed Skyrim file\(s\) \(Update\.esm, Dawnguard\.esm\)\. It keeps playing with them/)
   // A copy that never played (incomplete) is not let through, and other failures still stop the pass
   assert.deepStrictEqual(iso.migrationResult(pending, { playable: false }), { ok: false, error: 'download them' })
-  assert.strictEqual(iso.migrationResult({ success: false, error: 'Not enough free space' }, { playable: true }).ok, false)
+  // Any other failure on a copy that played keeps it playing too (space, a file held open, an antivirus, a write error)
+  for (const error of ['Not enough free space: 15.0 GB needed', 'EBUSY: resource busy or locked', 'EPERM: operation not permitted']) {
+    const r2 = iso.migrationResult({ success: false, error }, { playable: true })
+    assert.strictEqual(r2.ok, true, error)
+    assert.match(r2.warning, /keeps playing as it is/)
+  }
+  assert.strictEqual(iso.migrationResult({ success: false, error: 'EBUSY' }, { playable: false }).ok, false)
   assert.deepStrictEqual(iso.migrationResult({ success: true, copied: 3 }, { playable: true }), { ok: true, warning: null, repaired: 3 })
 })
 

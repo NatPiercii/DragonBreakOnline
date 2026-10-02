@@ -439,3 +439,54 @@ test('a language list lies over the base list: its files replace the base ones a
   assert.strictEqual(gc.bundledManifest('steam', { language: 'french' }).ready, false)
   assert.strictEqual(gc.bundledManifest('steam', { language: 'english' }).language, null)
 })
+
+test('a copy whose Data was moved to another drive with a junction is built, checked and repaired through it', async () => {
+  const root = tmp()
+  const steam = steamFolder(root)
+  const dest = path.join(root, 'DragonBreak', 'skyrim')
+  const otherDrive = path.join(root, 'D', 'SkyrimCopyData')
+  fs.mkdirSync(otherDrive, { recursive: true })
+  fs.mkdirSync(dest, { recursive: true })
+  fs.symlinkSync(otherDrive, path.join(dest, 'Data'), 'dir')
+  const m = gc.loadManifest(MANIFEST)
+  // The policy main.js passes: anything but the Skyrim folder and the Steam libraries
+  const allowLink = real => !fs.realpathSync(real).startsWith(fs.realpathSync(path.join(root, 'Steam')))
+  const r = await gc.build(steam, dest, { manifest: m, allowLink })
+  assert.strictEqual(r.ok, true)
+  assert.deepStrictEqual(read(path.join(otherDrive, 'Skyrim.esm')), VANILLA['Data/Skyrim.esm'][1], 'written through the allowed link')
+  const rec = await gc.readRecord(dest)
+  let d = await gc.drift(dest, rec, m, { allowLink })
+  assert.strictEqual(d.ok, true)
+  put(path.join(otherDrive, 'Update.esm'), Buffer.alloc(VANILLA['Data/Update.esm'][1].length, 1))
+  d = await gc.drift(dest, rec, m, { allowLink })
+  assert.deepStrictEqual(d.changed, ['Data/Update.esm'])
+  const rep = await gc.repair(dest, d, [], { record: rec, manifest: m, allowLink })
+  assert.strictEqual(rep.ok, true)
+  assert.deepStrictEqual(read(path.join(otherDrive, 'Update.esm')), VANILLA['Data/Update.esm'][1])
+  // Without the policy the same copy is refused, as a link into Steam always is
+  await assert.rejects(gc.build(steam, dest, { manifest: m }), /link to another folder/)
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('where real paths cannot be read (RAM disks, some virtual volumes) the copy is not taken as linked or missing', async () => {
+  const root = tmp()
+  const { steam, dest, m, rec } = await freshCopy(root)
+  const realpath = fs.promises.realpath
+  fs.promises.realpath = async () => { throw Object.assign(new Error('EISDIR: illegal operation on a directory, realpath'), { code: 'EISDIR' }) }
+  try {
+    const d = await gc.drift(dest, rec, m)
+    assert.deepStrictEqual([d.ok, d.linked, d.missing], [true, [], []])
+    const cls = await gc.classify(dest, m, { followLinks: false, confine: true })
+    assert.deepStrictEqual(cls.counts, { match: PATHS.length, changed: 0, missing: 0 })
+    const r = await gc.build(steam, dest, { manifest: m })
+    assert.deepStrictEqual([r.ok, r.kept, r.written], [true, PATHS.length, 0], 'nothing copied again')
+    // The lstat check still catches a real junction
+    fs.rmSync(path.join(dest, 'Data'), { recursive: true })
+    fs.symlinkSync(path.join(steam, 'Data'), path.join(dest, 'Data'), 'dir')
+    const d2 = await gc.drift(dest, rec, m)
+    assert.ok(d2.linked.length > 0)
+  } finally {
+    fs.promises.realpath = realpath
+  }
+  fs.rmSync(root, { recursive: true, force: true })
+})

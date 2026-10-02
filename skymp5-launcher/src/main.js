@@ -1245,7 +1245,7 @@ async function createIsolatedImpl(baseDirOverride, force = false, { progress = n
   const dst = path.join(base, 'skyrim')
 
   // Nothing is ever written through a link inside the copy (a Data junction into the Steam folder)
-  const linkProblem = isolation.copyLinkProblem(dst)
+  const linkProblem = isolation.copyLinkProblem(dst, { forbidden: linkForbiddenRoots() })
   if (linkProblem) return { success: false, error: linkProblem }
 
   if (!verified) {
@@ -1585,9 +1585,26 @@ async function copyGameDir(src, dst) {
   return { success: true, copied, warning }
 }
 
+// The copy's link policy (isolation.linkPolicy): a folder in the copy may be a link (a player moved Data to another
+// drive), but never into the Skyrim folder or a Steam library, which writing through it would change
+function linkForbiddenRoots() {
+  const skyrim = store.get('skyrimPath') || null
+  return [skyrim, ...downgrade.steamRoots({ clientRoots: steamClientRoots(), gameDir: skyrim })].filter(Boolean)
+}
+const copyLinkAllowed = () => isolation.linkPolicy(linkForbiddenRoots())
+// copyLinkProblem with that policy; the links it allows are logged once per launcher run
+const loggedCopyLinks = new Set()
+function copyLinkCheck(dir) {
+  for (const l of isolation.copyLinks(dir)) {
+    const key = `${l.rel}>${l.real}`
+    if (!loggedCopyLinks.has(key)) { loggedCopyLinks.add(key); log(`[isolated] ${l.rel} in the game copy is a link to ${l.real || '(missing)'}`) }
+  }
+  return isolation.copyLinkProblem(dir, { forbidden: linkForbiddenRoots() })
+}
+
 // Verified copy (src/gamecopy.js): Steam's download_depot output as { depotId: folder }, in any of the four layouts
 function depotDirMap(gameDir) {
-  return Object.fromEntries(downgradeDepots(gameDir).filter(d => d.dir).map(d => [d.id, d.dir]))
+  return Object.fromEntries(downgradeDepots(gameDir, { all: true }).filter(d => d.dir).map(d => [d.id, d.dir]))
 }
 
 // Root DLLs in the copy that are ours: SKSE's, the Engine Fixes preloader's and those the client package put there
@@ -1612,7 +1629,10 @@ function copyProgressLine(sink) {
   }
 }
 
-const depotNames = ids => ids.map(id => (downgrade.DEPOTS.find(d => d.id === id) || { holds: id }).holds).join(', ')
+const depotNames = ids => {
+  const known = downgradeDepots(store.get('skyrimPath'), { all: true })
+  return ids.map(id => (known.find(d => d.id === id) || { holds: `depot ${id}` }).holds).join(', ')
+}
 
 /**
  * The verified copy: built from files whose sha256 matches the bundled list (gamecopy.build). Files the copy already
@@ -1634,7 +1654,7 @@ async function buildVerifiedCopy(src, dst, { force = false, progress = null, sig
     if (ownBar && p.step === 'copy') { installTrack.step('copy', { index: p.doneBytes || 0, total: p.totalBytes || 0 }); sendInstallState() }
   })
   const res = await gamecopy.build(src, dst, {
-    manifest, depotDir: depotDirMap(src), signal,
+    manifest, depotDir: depotDirMap(src), signal, allowLink: copyLinkAllowed(),
     onProgress: p => { line(p); if (progress) progress(p) },
     checkSpace: async need => {
       const c = isolation.spaceCheck({ needed: need.bytes + need.largest, free: await gamecopy.freeBytes(dst) })
@@ -1678,12 +1698,17 @@ async function verifiedIntegrity(gamePath, { signal } = {}) {
       if (pending && gameCopyComplete(gamePath) && !Object.keys(depotDirMap(src)).length) {
         return isolation.migrationResult({ success: false, needDepots: true, files: pending.files || [] }, { playable: true })
       }
-      const built = await buildVerifiedCopy(src, gamePath, { signal, quiet: true })
+      let built
+      try { built = await buildVerifiedCopy(src, gamePath, { signal, quiet: true }) } catch (err) {
+        if (signal && signal.aborted) throw err
+        log(`[integrity] checking the old game copy failed: ${err.message}`)
+        built = { success: false, error: err.message }
+      }
       return isolation.migrationResult(built, { playable: gameCopyComplete(gamePath) })
     }
     const manifest = copyManifest(record.platform === 'gog' ? 'GOG' : 'Steam', record.language || 'english')
     if (!manifest || !manifest.ready) return { ok: true, warning: null }
-    const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath), signal })
+    const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath), signal, allowLink: copyLinkAllowed() })
     // Until the client package has been unpacked once by this launcher, its own root DLLs are not known: nothing is
     // set aside then, it is only logged (store clientRootDlls, written by extractClientZip)
     const clientKnown = Array.isArray(store.get('clientRootDlls'))
@@ -1698,7 +1723,7 @@ async function verifiedIntegrity(gamePath, { signal } = {}) {
     const r = await gamecopy.repair(gamePath, d, [
       { dir: record.source && record.source.dir, kind: 'source' },
       { dir: depotDirMap(src), kind: 'depot' },
-    ], { record, manifest, signal, setAside: foreign, onProgress: sink })
+    ], { record, manifest, signal, setAside: foreign, onProgress: sink, allowLink: copyLinkAllowed() })
     if (!r.ok) {
       const files = r.unresolved.map(u => u.path)
       const depots = [...new Set(r.unresolved.map(u => u.depot).filter(Boolean))].sort()
@@ -1742,7 +1767,7 @@ function vanillaMismatches(src, dir) {
 async function ensureVanillaIntegrity(gamePath, { signal } = {}) {
   const portable = store.get('isolatedGame') && isolatedGameReady() && gamePath === isolatedGameDir()
   // Every install pass writes into the copy's Data next: never through a link into another install
-  const linkProblem = portable ? isolation.copyLinkProblem(gamePath) : null
+  const linkProblem = portable ? copyLinkCheck(gamePath) : null
   if (linkProblem) return { ok: false, error: linkProblem }
   if (portable && copyMode() === 'verified') return verifiedIntegrity(gamePath, { signal })
   if (portable) {
@@ -2636,8 +2661,12 @@ function freeBytes(dir) {
 
 const gb = n => `${(n / 1024 ** 3).toFixed(1)} GB`
 
-function downgradeDepots(gameDir) {
-  return downgrade.findDepots(downgrade.steamRoots({ clientRoots: steamClientRoots(), gameDir }))
+// The three base depots plus the install's language depot (downgrade.languageDepot). all: also a language depot whose
+// 1.6.1170 manifest is not known yet (the verified copy looks for its files and checks them by hash); otherwise only
+// depots with a command, which the panel offers and the in-place downgrade uses
+function downgradeDepots(gameDir, { all = false } = {}) {
+  const depots = downgrade.findDepots(downgrade.steamRoots({ clientRoots: steamClientRoots(), gameDir }), { language: isolation.steamLanguage(gameDir) })
+  return all ? depots : depots.filter(d => d.command)
 }
 
 ipcMain.handle('downgrade:status', async () => {
@@ -2830,7 +2859,7 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   // effectiveGamePath()), never Steam's folder, so another launcher's change to Steam does not block a good copy.
   // The Skyrim Version panel opens and PLAY stops here.
   const ownCopy = !!store.get('isolatedGame') && skyrimPath === isolatedGameDir()
-  const linkProblem = ownCopy ? isolation.copyLinkProblem(skyrimPath) : null
+  const linkProblem = ownCopy ? copyLinkCheck(skyrimPath) : null
   if (linkProblem) return { success: false, error: linkProblem }
   const copyFix = () => {
     // The legacy copy is rebuilt from the Skyrim folder, which then has to be on 1.6.1170 itself
@@ -3302,7 +3331,7 @@ async function checkFilesImpl() {
       if (!record || !manifest || !manifest.ready) {
         add('missing', `${show(path.join(gamePath, gamecopy.RECORD_FILE))} (the next PLAY checks the game copy by hash)`, 'game')
       } else {
-        const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath) })
+        const d = await gamecopy.drift(gamePath, record, manifest, { allowRootDlls: rootDllAllow(gamePath), allowLink: copyLinkAllowed() })
         for (const rel of d.missing) add('missing', show(gamecopy.safeJoin(gamePath, rel)), 'game')
         for (const rel of d.changed) add('corrupt', show(gamecopy.safeJoin(gamePath, rel)), 'game')
         for (const rel of d.linked) add('corrupt', `${show(gamecopy.safeJoin(gamePath, rel))} (linked to another install)`, 'game')

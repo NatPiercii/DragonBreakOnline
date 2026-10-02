@@ -36,6 +36,22 @@ const isTarget = v => !!v && (v === REF.exeVersion || v.startsWith(`${TARGET}.`)
 
 const DEPOTS = REF.depots.map(d => ({ ...d, command: `download_depot ${APP_ID} ${d.id} ${d.manifest}` }))
 
+/**
+ * The language depot Steam lays over the base depots for a non-English install (French 489834 ... Japanese 544861,
+ * downgrade-1.6.1170.json languageDepots), or null for English or an unknown language. command is null while its
+ * 1.6.1170 manifest id is not known: then it is searched for on disk (the verified copy checks every file by hash)
+ * but not offered in the panel, and the in-place downgrade does not use it.
+ */
+function languageDepot(language) {
+  const lang = String(language || 'english').toLowerCase()
+  const d = (REF.languageDepots || {})[lang]
+  if (!d) return null
+  return {
+    id: d.id, manifest: d.manifest || null, language: lang, holds: `the ${lang} language files`,
+    command: d.manifest ? `download_depot ${APP_ID} ${d.id} ${d.manifest}` : null,
+  }
+}
+
 // "path" entries of Steam's libraryfolders.vdf
 function parseLibraryFolders(text) {
   const out = []
@@ -85,9 +101,11 @@ function resolveDepot(contentDir, depotId) {
   return null
 }
 
-// Each depot with its command and the folder it was downloaded to (dir null while it has not been)
-function findDepots(roots) {
-  return DEPOTS.map(d => {
+// Each depot with its command and the folder it was downloaded to (dir null while it has not been); with a language,
+// its language depot too (languageDepot)
+function findDepots(roots, { language = null } = {}) {
+  const lang = languageDepot(language)
+  return [...DEPOTS, ...(lang ? [lang] : [])].map(d => {
     for (const root of roots) {
       const dir = resolveDepot(path.join(root, 'steamapps', 'content'), d.id)
       if (dir) return { ...d, dir }
@@ -433,7 +451,7 @@ function runtimeChecks(runDir, { modsDir = null, mods = [] } = {}) {
 
 module.exports = {
   APP_ID, TARGET, DEPOTS, BACKUP_DIR, STABLE_MS, STALLED_MS, SKSE_RUNTIME_DLL, ADDRESS_LIBRARY_BIN,
-  parseLibraryFolders, steamLibraryOf, acfPathFor, steamRoots, resolveDepot, findDepots, listFiles, depotState,
+  parseLibraryFolders, steamLibraryOf, acfPathFor, steamRoots, resolveDepot, languageDepot, findDepots, listFiles, depotState,
   safeRelative, stampOf, planInstall, verifyPlan, runPlan, latestBackup, planRestore, runRestore,
   readAutoUpdate, setAutoUpdateOnLaunch, assess, enabledMods, runtimeChecks, sha256File,
 }

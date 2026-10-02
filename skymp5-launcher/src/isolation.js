@@ -187,19 +187,30 @@ async function legacyRepairPlan(jobs, { srcDir, edition, readVersion, hash, know
   return out
 }
 
-// Files the game cannot start without: the exe and the masters downgrade-1.6.1170.json marks required
+// Files the game cannot run without: the exe, the masters downgrade-1.6.1170.json marks required, and the base and
+// DLC archives (Skyrim - *.bsa, Dawnguard/HearthFires/Dragonborn/Update .bsa): without one the game crashes or loses
+// meshes and textures, so a missing one is refused rather than skipped
+const REQUIRED_ARCHIVE = /^data\/(skyrim - [^/]+|dawnguard|hearthfires|dragonborn|update)\.bsa$/
 function requiredFile(rel) {
   const key = relKey(rel)
-  return key === 'skyrimse.exe' || !!(KNOWN_FILES.get(key) || {}).required
+  return key === 'skyrimse.exe' || !!(KNOWN_FILES.get(key) || {}).required || REQUIRED_ARCHIVE.test(key)
 }
 
 /**
  * What a verified build over a copy made by launcher 2.1.36 or older (no record yet) means for the install pass: a
- * copy that played until now keeps playing, with a warning, while the clean files it lacks are not downloaded; it is
- * never blocked for that. built: buildVerifiedCopy's result; playable: the copy was complete (marker or masters).
+ * copy that played until now keeps playing, with a warning, whatever kept the check from finishing (clean files not
+ * downloaded yet, too little space, a file held open, an antivirus, a write error). It is never blocked for that.
+ * built: buildVerifiedCopy's result (or { success: false, error } for a thrown error); playable: the copy was complete.
  */
 function migrationResult(built, { playable }) {
   if (built.success) return { ok: true, warning: null, repaired: built.copied }
+  if (playable && !built.needDepots) {
+    return {
+      ok: true,
+      warning: `DragonBreak's game copy could not be checked against the clean Skyrim file list yet (${built.error || 'unknown error'}). ` +
+        'It keeps playing as it is, and is checked again on the next PLAY.',
+    }
+  }
   if (built.needDepots && playable) {
     const files = built.files || []
     const some = files.slice(0, 3).map(f => path.basename(String(f))).join(', ') + (files.length > 3 ? ', …' : '')
@@ -348,28 +359,56 @@ function restoreOrphanCatalog(localAppData) {
 
 const catalogAside = (localAppData, mark) => { const p = catalogPaths(localAppData); return !!p && sameMark(statOf(p.kept), mark) }
 
-// Folders the launcher writes into below the copy; none may be a link (a junction into the Steam folder, say)
+// Folders the launcher writes into below the copy
 const WRITTEN_FOLDERS = ['Data', 'Data/Platform', 'Data/Platform/Plugins', 'Data/Platform/PluginsNoLoad', 'Data/SKSE',
   'Data/SKSE/Plugins', 'Data/Interface', 'Data/Interface/Controls', 'Data/Interface/Controls/PC', 'Data/Scripts',
   'Data/Video', 'Data/Strings']
 
-/** Why the launcher must not write into this copy (a folder in it is a link to elsewhere), or null */
-function copyLinkProblem(dir) {
-  if (!dir || !fs.existsSync(dir)) return null
+const norm = p => { const r = path.resolve(p).replace(/[\\/]+$/, ''); return process.platform === 'win32' ? r.toLowerCase() : r }
+// True when a and b are the same folder or one is inside the other
+function overlaps(a, b) {
+  const na = norm(a) + path.sep
+  const nb = norm(b) + path.sep
+  return na.startsWith(nb) || nb.startsWith(na)
+}
+
+/**
+ * The link policy for the copy: a folder in it may be a link (a player moved Data to another drive with a junction,
+ * which launcher 2.1.36 played with), but never one that reaches the Skyrim folder or any Steam library, since
+ * writing through it would change another install. forbidden: those folders (skyrimPath, downgrade.steamRoots).
+ * Returns a predicate on a link's real path.
+ */
+function linkPolicy(forbidden = []) {
+  const roots = forbidden.filter(Boolean)
+  return real => !roots.some(r => overlaps(real, r))
+}
+
+/** The folders of the copy the launcher writes into that are links, with their real paths (for the log) */
+function copyLinks(dir) {
+  const out = []
+  if (!dir || !fs.existsSync(dir)) return out
   for (const rel of WRITTEN_FOLDERS) {
     let st
     try { st = fs.lstatSync(path.join(dir, ...rel.split('/'))) } catch { continue }
-    if (st.isSymbolicLink()) {
-      return `${rel.replace(/\//g, '\\')} in the DragonBreak game copy (${dir}) is a link to another folder, so the launcher ` +
-        'writes nothing through it. Remove the link, then press Settings > Repair > Repair Game Copy.'
-    }
+    if (!st.isSymbolicLink()) continue
+    let real = null
+    try { real = fs.realpathSync(path.join(dir, ...rel.split('/'))) } catch { /* a broken link */ }
+    out.push({ rel, real })
   }
-  try {
-    const root = fs.realpathSync(dir)
-    const data = fs.realpathSync(path.join(dir, 'Data'))
-    const r = path.relative(root, data)
-    if (!r || r.startsWith('..') || path.isAbsolute(r)) return `The game copy's Data folder resolves outside ${dir}; the launcher writes nothing through it.`
-  } catch { /* no Data yet */ }
+  return out
+}
+
+/**
+ * Why the launcher must not write into this copy, or null: a folder in it that is a link into the Skyrim folder or a
+ * Steam library (forbidden), or a broken link. Any other link is allowed (copyLinks lists them for the log).
+ */
+function copyLinkProblem(dir, { forbidden = [] } = {}) {
+  const allowed = linkPolicy(forbidden)
+  for (const { rel, real } of copyLinks(dir)) {
+    if (real && allowed(real)) continue
+    return `${rel.replace(/\//g, '\\')} in the DragonBreak game copy (${dir}) is a link ${real ? `into ${real}, which is part of your Skyrim or Steam folders` : 'whose target is gone'}, ` +
+      'so the launcher writes nothing through it. Remove the link, then press Settings > Repair > Repair Game Copy.'
+  }
   return null
 }
 
@@ -377,5 +416,6 @@ module.exports = {
   MANAGED_IN_COPY, COPY_MARKER, KNOWN_FILES, FOREIGN_ROOT_DLLS, NO_COPY_ERROR, SPACE_MARGIN,
   manifestFor, steamLanguage, copyMode, copyReady, gamePathFor, noGamePathError, versionGateDir, vetFile, trustSource,
   legacyRepairPlan, requiredFile, migrationResult, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState,
-  catalogPaths, moveCatalogAside, restoreCatalog, restoreOrphanCatalog, catalogAside, copyLinkProblem, targetVersion, targetBuild,
+  catalogPaths, moveCatalogAside, restoreCatalog, restoreOrphanCatalog, catalogAside, copyLinkProblem, copyLinks, linkPolicy,
+  overlaps, targetVersion, targetBuild,
 }

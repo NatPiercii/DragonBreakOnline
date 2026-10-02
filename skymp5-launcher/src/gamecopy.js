@@ -39,6 +39,8 @@ const WIN_DEVICE = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\.|$)/i
 const BUNDLED = { steam: './vanilla-1.6.1170.json', gog: './vanilla-1.6.1179-gog.json' }
 
 const keyOf = rel => rel.toLowerCase()
+// The default link policy for the copy: no link is followed or written through
+const noLinks = () => false
 const isInside = (root, p) => { const r = path.relative(root, p); return !!r && r !== '..' && !r.startsWith(`..${path.sep}`) && !path.isAbsolute(r) }
 const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
 const isAbort = (err, signal) => !!(signal && signal.aborted) || (err && err.name === 'AbortError')
@@ -212,13 +214,14 @@ async function copyHashed(from, to, { signal, onBytes, chunkSize = CHUNK } = {})
 
 // Every file below root by lower-case relative path. Links in a source folder are followed (a Data folder moved to
 // another drive with a junction), each real folder once. followLinks false (the copy itself): a link, to a folder or
-// a file, is never followed, so a junction from the copy into the Steam folder cannot pass for the copy's own files
-async function walkFiles(root, { followLinks = true } = {}) {
+// a file, is followed only when allowLink(its real path) says so (main.js: anything but the Skyrim folder and the
+// Steam libraries), so a junction from the copy into the Steam folder cannot pass for the copy's own files
+async function walkFiles(root, { followLinks = true, allowLink = noLinks } = {}) {
   const out = new Map()
   const seen = new Set()
   const visit = async (dir, prefix) => {
-    let real
-    try { real = await fsp.realpath(dir) } catch { return }
+    // Each real folder once (a link loop ends); where real paths cannot be read, the path itself stands in
+    const real = await fsp.realpath(dir).catch(() => path.resolve(dir))
     const rk = process.platform === 'win32' ? real.toLowerCase() : real
     if (seen.has(rk)) return
     seen.add(rk)
@@ -230,7 +233,10 @@ async function walkFiles(root, { followLinks = true } = {}) {
       let isDir = e.isDirectory()
       let isFile = e.isFile()
       if (e.isSymbolicLink()) {
-        if (!followLinks) continue
+        if (!followLinks) {
+          const real = await fsp.realpath(abs).catch(() => null)
+          if (!real || !allowLink(real)) continue
+        }
         const info = await fileInfo(abs)
         if (!info) continue
         isDir = info.isDir
@@ -294,15 +300,19 @@ async function depotFile(depotDir, e) {
  * when its size is right. hash: false compares sizes only (verified: false), leaving the sha256 to run, which reads
  * each file once while copying; a wrong one then falls back to the depot.
  */
-async function classify(srcDir, manifest, { hash = hashFile, signal, onProgress = () => {}, followLinks = true, confine = false } = {}) {
+async function classify(srcDir, manifest, {
+  hash = hashFile, signal, onProgress = () => {}, followLinks = true, confine = false, allowLink = noLinks,
+} = {}) {
   const root = path.resolve(srcDir)
-  const found = await walkFiles(root, { followLinks })
-  // confine (the copy itself): a file whose real path is not under the folder's real path counts as missing
-  const realRoot = confine ? await fsp.realpath(root).catch(() => root) : null
+  const found = await walkFiles(root, { followLinks, allowLink })
+  // confine (the copy itself): a file whose real path is neither under the folder's real path nor an allowed link
+  // target counts as missing. A real path that cannot be worked out (RAM disks, some virtual volumes) is not held
+  // against the file: the walk already left out links, and build checks every listed folder with lstat
+  const realRoot = confine ? await fsp.realpath(root).catch(() => null) : null
   if (realRoot) {
     for (const [k, v] of [...found]) {
       const real = await fsp.realpath(v.abs).catch(() => null)
-      if (!real || !isInside(realRoot, real)) found.delete(k)
+      if (real && !isInside(realRoot, real) && !allowLink(real)) found.delete(k)
     }
   }
   const files = []
@@ -365,14 +375,15 @@ async function plan(classification, { depotDir = null, hash = hashFile, move = t
   return { jobs, unresolved, depotsNeeded, bytes: jobs.reduce((n, j) => n + j.size, 0) }
 }
 
-// The real path of the copy's root, made if needed
+// The real path of the copy's root, made if needed (the path itself where real paths cannot be read)
 async function openRoot(destDir) {
   await fsp.mkdir(destDir, { recursive: true })
-  return fsp.realpath(destDir)
+  return fsp.realpath(destDir).catch(() => path.resolve(destDir))
 }
 
-// rel's full path in the copy, its folders made one by one; a folder that is a link or a file is refused
-async function targetIn(root, rel, okDirs) {
+// rel's full path in the copy, its folders made one by one; a folder that is a file, or a link whose real path the
+// policy does not allow, is refused
+async function targetIn(root, rel, okDirs, allowLink = noLinks) {
   const parts = normRel(rel).split('/')
   let cur = root
   let sub = ''
@@ -385,9 +396,13 @@ async function targetIn(root, rel, okDirs) {
       try { await fsp.mkdir(cur) } catch (err) { if (err.code !== 'EEXIST') throw err }
       info = await fileInfo(cur, { lstat: true })
     }
-    if (!info || info.isLink || !info.isDir) {
-      throw new Error(`${sub} in the game copy is a link or a file, not a folder; nothing is written through it.`)
+    let ok = !!info && info.isDir && !info.isLink
+    if (info && info.isLink) {
+      const real = await fsp.realpath(cur).catch(() => null)
+      const target = real ? await fileInfo(real) : null
+      ok = !!real && !!target && target.isDir && allowLink(real)
     }
+    if (!ok) throw new Error(`${sub} in the game copy is a link or a file, not a folder; nothing is written through it.`)
     okDirs.add(sub)
   }
   return safeJoin(root, parts.join('/'))
@@ -449,7 +464,7 @@ async function unplace(src, tmp, how) {
  * run and throws, with no temporary file left and a moved depot file put back.
  * onProgress({ step: 'copy', index, total, file, fileBytes, fileSize, doneBytes, totalBytes }).
  */
-async function run(jobs, destDir, { onProgress = () => {}, signal, chunkSize = CHUNK } = {}) {
+async function run(jobs, destDir, { onProgress = () => {}, signal, chunkSize = CHUNK, allowLink = noLinks } = {}) {
   for (const j of jobs) normRel(j.path)
   const root = await openRoot(destDir)
   const okDirs = new Set()
@@ -460,7 +475,7 @@ async function run(jobs, destDir, { onProgress = () => {}, signal, chunkSize = C
   for (const [i, job] of jobs.entries()) {
     checkAbort(signal)
     const rel = normRel(job.path)
-    const to = await targetIn(root, rel, okDirs)
+    const to = await targetIn(root, rel, okDirs, allowLink)
     const tmp = to + TEMP_SUFFIX
     await rmFile(tmp)
     const report = fileBytes => onProgress({
@@ -549,14 +564,19 @@ async function readRecord(destDir) {
  *   touched        files hashed again and still right (new mtime or id): repair updates their record entries
  * The list compared against is the manifest when it has files, else the record itself.
  */
-async function drift(destDir, record, manifest = null, { allowRootDlls = [], hash = hashFile, signal, onProgress = () => {} } = {}) {
+async function drift(destDir, record, manifest = null, {
+  allowRootDlls = [], hash = hashFile, signal, onProgress = () => {}, allowLink = noLinks,
+} = {}) {
   const root = path.resolve(destDir)
   const rec = new Map(((record && record.files) || []).map(f => [keyOf(f.path), f]))
   const expected = manifest && manifest.files.size
     ? [...manifest.files.values()]
     : [...rec.values()].map(f => ({ path: f.path, key: keyOf(f.path), size: f.size, sha256: f.sha256 }))
   const out = { ok: true, changed: [], missing: [], linked: [], extraRootDlls: [], touched: [], checked: 0, rehashed: 0 }
-  const realRoot = await fsp.realpath(root).catch(() => root)
+  // Folders on the listed paths that are links the policy refuses, by lstat: works where real paths cannot be read
+  const badDirs = await linkedFolders(root, expected.map(e => e.path), { allowLink })
+  const underBadDir = rel => badDirs.some(d => keyOf(rel).startsWith(`${keyOf(d)}/`))
+  const realRoot = await fsp.realpath(root).catch(() => null)
   for (const [i, e] of expected.entries()) {
     checkAbort(signal)
     out.checked++
@@ -565,9 +585,12 @@ async function drift(destDir, record, manifest = null, { allowRootDlls = [], has
     const r = rec.get(e.key)
     if (!info || !(info.isFile || info.isLink)) { out.missing.push(e.path); continue }
     if (info.isLink || info.nlink > 1) { out.linked.push(e.path); continue }
-    // A folder above it that is a link (a junction from the copy's Data into the Steam folder) shows in the real path
-    const real = await fsp.realpath(file).catch(() => null)
-    if (!real || !isInside(realRoot, real)) { out.linked.push(e.path); continue }
+    // A folder above it that is a link (a junction from the copy's Data into the Steam folder) shows in lstat and in
+    // the real path. A real path that cannot be worked out (RAM disks, some virtual volumes) counts as unknown, not
+    // as linked, so such a copy is not copied again on every PLAY
+    if (underBadDir(e.path)) { out.linked.push(e.path); continue }
+    const real = realRoot ? await fsp.realpath(file).catch(() => null) : null
+    if (real && !isInside(realRoot, real) && !allowLink(real)) { out.linked.push(e.path); continue }
     if (info.size !== e.size) { out.changed.push(e.path); continue }
     if (r && r.sha256 === e.sha256 && r.size === info.size && r.mtimeMs === info.mtimeMs &&
         (!r.ino || !info.ino || r.ino === info.ino)) continue
@@ -614,7 +637,7 @@ async function setAsideDlls(destDir, names, now = new Date()) {
  * names only those, false none. The record is updated for the repaired and touched files and written back.
  */
 async function repair(destDir, driftResult, sources, {
-  record, manifest = null, signal, onProgress = () => {}, chunkSize = CHUNK, setAside = true, now = new Date(),
+  record, manifest = null, signal, onProgress = () => {}, chunkSize = CHUNK, setAside = true, now = new Date(), allowLink = noLinks,
 } = {}) {
   if (!record) throw new Error('repair needs the copy\'s record')
   const root = path.resolve(destDir)
@@ -638,7 +661,7 @@ async function repair(destDir, driftResult, sources, {
     if (srcs.length) jobs.push({ path: e.path, size: e.size, sha256: e.sha256, depot: e.depot || null, sources: srcs })
     else unresolved.push({ path: e.path, size: e.size, depot: e.depot || null, why: 'no source has this file at the right size' })
   }
-  const res = await run(jobs, root, { onProgress, signal, chunkSize })
+  const res = await run(jobs, root, { onProgress, signal, chunkSize, allowLink })
   for (const f of res.failed) unresolved.push({ path: f.path, size: f.size, depot: f.depot, why: f.tried.join('; ') })
   const extra = driftResult.extraRootDlls || []
   const pick = Array.isArray(setAside) ? new Set(setAside.map(n => n.toLowerCase())) : null
@@ -705,16 +728,16 @@ async function estimateBytes(manifest, destDir, { depotDir = null } = {}) {
  * Returns { ok, kept, written, unresolved, failed, depotsNeeded, need, error?, record? }.
  */
 async function build(srcDir, destDir, {
-  manifest, depotDir = null, move = true, checkSpace = null, signal, onProgress = () => {}, now = new Date(),
+  manifest, depotDir = null, move = true, checkSpace = null, signal, onProgress = () => {}, now = new Date(), allowLink = noLinks,
 } = {}) {
   if (!manifest || !manifest.ready) throw new Error('There is no game file list to build the copy from.')
   const destExists = !!(await fileInfo(destDir))
   if (destExists) {
-    const linked = await linkedFolders(destDir, [...manifest.files.values()].map(e => e.path))
+    const linked = await linkedFolders(destDir, [...manifest.files.values()].map(e => e.path), { allowLink })
     if (linked.length) throw new Error(`${linked[0]} in the game copy is a link to another folder; nothing is read or written through it. Remove the link, then try again.`)
   }
   const have = destExists
-    ? await classify(destDir, manifest, { signal, onProgress: p => onProgress({ ...p, step: 'check' }), followLinks: false, confine: true })
+    ? await classify(destDir, manifest, { signal, onProgress: p => onProgress({ ...p, step: 'check' }), followLinks: false, confine: true, allowLink })
     : { files: [] }
   const keep = have.files.filter(f => f.state === 'match')
   // A file moved in from the depot output whose run stopped (the launcher closed) is left as <name>.dbpart: kept if
@@ -738,7 +761,7 @@ async function build(srcDir, destDir, {
     const refusal = await checkSpace(out.need)
     if (refusal) return { ...out, error: refusal }
   }
-  const res = await run(p.jobs, destDir, { signal, onProgress })
+  const res = await run(p.jobs, destDir, { signal, onProgress, allowLink })
   out.written = res.written.length
   if (res.failed.length) {
     return { ...out, failed: res.failed, depotsNeeded: [...new Set(res.failed.map(f => f.depot).filter(Boolean))].sort() }
@@ -751,7 +774,7 @@ async function build(srcDir, destDir, {
 }
 
 // Folders on the listed paths that exist in the copy as links (junctions, symlinks), relative, or none
-async function linkedFolders(destDir, rels) {
+async function linkedFolders(destDir, rels, { allowLink = noLinks } = {}) {
   const dirs = new Set()
   for (const rel of rels) {
     const parts = normRel(rel).split('/')
@@ -759,8 +782,15 @@ async function linkedFolders(destDir, rels) {
   }
   const out = []
   for (const d of [...dirs].sort()) {
-    const info = await fileInfo(safeJoin(destDir, d), { lstat: true })
-    if (info && (info.isLink || !info.isDir)) out.push(d)
+    const abs = safeJoin(destDir, d)
+    const info = await fileInfo(abs, { lstat: true })
+    if (!info) continue
+    if (info.isLink) {
+      const real = await fsp.realpath(abs).catch(() => null)
+      const target = real ? await fileInfo(real) : null
+      if (real && target && target.isDir && allowLink(real)) continue
+      out.push(d)
+    } else if (!info.isDir) out.push(d)
   }
   return out
 }
