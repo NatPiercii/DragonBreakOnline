@@ -33,15 +33,21 @@ function skyrimFolder(root, exe = '1.6.1170.0') {
 
 // ---------------------------------------------------------------------------------------------------- the gate
 
-test('the gate: verified only with isolation on and a list that has files; GOG, Epic and the placeholder stay legacy', () => {
+test('the gate: verified only with isolation on and a list that has files; GOG, Epic, other languages and an empty list stay legacy', () => {
   const ready = { ready: true, files: new Map([['a', {}]]) }
   assert.strictEqual(iso.copyMode({ isolated: true, manifest: ready }), 'verified')
   assert.strictEqual(iso.copyMode({ isolated: false, manifest: ready }), 'legacy')
   assert.strictEqual(iso.copyMode({ isolated: true, manifest: null }), 'legacy')
-  // The shipped Steam list is still the placeholder: legacy, as today
-  const steam = iso.manifestFor('Steam')
-  assert.strictEqual(steam.ready, false)
-  assert.strictEqual(iso.copyMode({ isolated: true, manifest: steam }), 'legacy')
+  // An empty Steam list (the placeholder before the PC run): legacy, as before
+  const empty = (platform, opts) => gc.loadManifest({ build: '1.6.1170.0', platform, files: [] }, opts)
+  assert.strictEqual(iso.copyMode({ isolated: true, manifest: iso.manifestFor('Steam', empty) }), 'legacy')
+  // The real shipped list turns it on for English Steam players, and only for them: a language without its own list
+  // stays legacy rather than getting English files
+  assert.strictEqual(iso.copyMode({ isolated: true, manifest: iso.manifestFor('Steam') }), 'verified')
+  assert.strictEqual(iso.copyMode({ isolated: true, manifest: iso.manifestFor('Steam', undefined, { language: 'english' }) }), 'verified')
+  for (const language of ['french', 'german', 'italian', 'spanish', 'polish', 'russian', 'japanese', 'tchinese']) {
+    assert.strictEqual(iso.copyMode({ isolated: true, manifest: iso.manifestFor('Steam', undefined, { language }) }), 'legacy', language)
+  }
   // No GOG list ships yet; Epic and the Microsoft Store never have one
   assert.strictEqual(iso.manifestFor('GOG'), null)
   assert.strictEqual(iso.manifestFor('Epic Games'), null)

@@ -46,6 +46,12 @@ const mo2 = require('../src/mo2')
 mo2.ensureInstalled = async () => {}
 mo2.isInstalled = () => true
 require('../src/isolation').KNOWN_FILES.clear()   // the fake masters cannot have the real 1.6.1170 hashes
+// The lists main.js sees: an empty one for the legacy cases (as before the real list shipped), a small fake with the
+// real list's shape for the verified ones (useVerifiedList)
+const gamecopy = require('../src/gamecopy')
+const EMPTY_LIST = { build: '1.6.1170.0', platform: 'steam', files: [] }
+const useLegacy = () => gamecopy.useBundledLists({ steam: EMPTY_LIST })
+useLegacy()
 
 require('../src/main')
 const call = async (ch, ...a) => handlers[ch]({}, ...a)
@@ -77,6 +83,7 @@ function steamFolder(name, { data = '1.6.1170' } = {}) {
 }
 
 test('legacy Repair Game Copy with Steam on 1.7.99 data leaves the working copy exactly as it is', async () => {
+  useLegacy()
   const steam = steamFolder('lib1')
   await call('settings:save', { skyrimPath: steam, baseDirPath: path.join(root, 'DB1', 'DragonBreak'), isolatedGame: true })
   assert.strictEqual((await call('game:isolatedStatus')).dir, path.join(root, 'DB1', 'DragonBreak', 'skyrim'))
@@ -95,6 +102,7 @@ test('legacy Repair Game Copy with Steam on 1.7.99 data leaves the working copy 
 })
 
 test('first setup on a Steam folder with 1.7.99 data refuses before copying anything', async () => {
+  useLegacy()
   const steam = steamFolder('lib2', { data: '1.7.99' })
   const base = path.join(root, 'DB2', 'DragonBreak')
   await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
@@ -105,6 +113,7 @@ test('first setup on a Steam folder with 1.7.99 data refuses before copying anyt
 })
 
 test('a copy whose Data is a link into Steam is refused by setup and by launch, and nothing lands in Steam', async () => {
+  useLegacy()
   const steam = steamFolder('lib3')
   const base = path.join(root, 'DB3', 'DragonBreak')
   await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
@@ -124,6 +133,7 @@ test('a copy whose Data is a link into Steam is refused by setup and by launch, 
 })
 
 test('a copy whose Data was moved to another drive with a junction (2.1.36 played so) keeps working', async () => {
+  useLegacy()
   const steam = steamFolder('lib5')
   const base = path.join(root, 'DB5', 'DragonBreak')
   await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
@@ -141,6 +151,7 @@ test('a copy whose Data was moved to another drive with a junction (2.1.36 playe
 })
 
 test('with no ready copy nothing falls back to the Steam folder', async () => {
+  useLegacy()
   const steam = steamFolder('lib4')
   await call('settings:save', { skyrimPath: steam, baseDirPath: path.join(root, 'DB4', 'DragonBreak'), isolatedGame: true })
   const saved = await call('hotkeys:save', { freeCursor: 5 })
@@ -151,4 +162,72 @@ test('with no ready copy nothing falls back to the Steam folder', async () => {
   assert.match(launched.error, /game copy is not set up yet/)
 })
 
-test.after(() => fs.rmSync(root, { recursive: true, force: true }))
+// ------------------------------------------------------------------------------------- verified mode (a real-shaped list)
+
+// A list over a clean fake Steam folder, shaped like src/vanilla-1.6.1170.json: build, platform, files with depots,
+// Skyrim.ccc in it (the launcher leaves it out and keeps the copy's empty)
+function useVerifiedList(steam) {
+  put(path.join(steam, 'Skyrim.ccc'), 'ccc list')
+  const files = []
+  const walk = sub => {
+    for (const e of fs.readdirSync(path.join(steam, sub), { withFileTypes: true })) {
+      const rel = sub ? `${sub}/${e.name}` : e.name
+      if (e.isDirectory()) walk(rel)
+      else files.push({ path: rel, size: fs.statSync(path.join(steam, rel)).size, sha256: sha(path.join(steam, rel)), depot: rel === 'SkyrimSE.exe' ? '489833' : '489831' })
+    }
+  }
+  walk('')
+  gamecopy.useBundledLists({ steam: { build: '1.6.1170.0', platform: 'steam', generatedAt: '2026-10-02T22:39:00Z', files } })
+  return files
+}
+
+test('verified: a Steam folder whose files match the list makes the copy from Steam alone, no depot needed', async () => {
+  const steam = steamFolder('lib6')
+  const listed = useVerifiedList(steam)
+  const base = path.join(root, 'DB6', 'DragonBreak')
+  await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
+  const pv = await call('game:copyPreview', base)
+  assert.strictEqual(pv.mode, 'verified')
+  const made = await call('game:createIsolated', base)
+  assert.strictEqual(made.success, true, made.error)
+  assert.deepStrictEqual([made.copied, made.kept], [listed.length - 1, 0], 'every listed file but Skyrim.ccc, from Steam')
+  const copy = path.join(base, 'skyrim')
+  const record = JSON.parse(fs.readFileSync(path.join(copy, 'dragonbreak-game.json'), 'utf8'))
+  assert.deepStrictEqual([record.platform, record.files.length, record.source.dir], ['steam', listed.length - 1, steam])
+  assert.strictEqual(fs.readFileSync(path.join(copy, 'Skyrim.ccc'), 'utf8'), '', 'the launcher\'s empty Skyrim.ccc')
+  assert.ok(!fs.existsSync(path.join(copy, 'vanilla-copy-complete.json')), 'the record replaces the legacy marker')
+  assert.ok(!fs.existsSync(path.join(root, 'lib6', 'steamapps', 'content')), 'no depot was downloaded or needed')
+  assert.strictEqual((await call('game:isolatedStatus')).ready, true)
+})
+
+test('verified: a Steam exe of another build is not copied; the copy waits for the depot and Steam is untouched', async () => {
+  const steam = steamFolder('lib7')
+  useVerifiedList(steam)
+  put(path.join(steam, 'SkyrimSE.exe'), 'exe 1.7.104.0 updated by Steam, other size')
+  const base = path.join(root, 'DB7', 'DragonBreak')
+  await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
+  const made = await call('game:createIsolated', base)
+  assert.deepStrictEqual([made.success, made.needDepots, made.files], [false, true, ['SkyrimSE.exe']])
+  assert.match(made.error, /Download them with Steam's own download in the Skyrim Version panel.*your Steam Skyrim is not changed/)
+  assert.ok(!fs.existsSync(path.join(base, 'skyrim', 'SkyrimSE.exe')), 'nothing copied before the download')
+  assert.strictEqual(fs.readFileSync(path.join(steam, 'SkyrimSE.exe'), 'utf8'), 'exe 1.7.104.0 updated by Steam, other size')
+  const panel = await call('downgrade:status')
+  assert.deepStrictEqual([panel.action, panel.copyBuild.files, panel.acf], ['downgrade', ['SkyrimSE.exe'], null])
+})
+
+test('verified list for English only: a German Steam install stays on the legacy copy', async () => {
+  const steam = steamFolder('lib8')
+  useVerifiedList(steam)
+  put(path.join(root, 'lib8', 'steamapps', 'appmanifest_489830.acf'),
+    '"AppState"\n{\n\t"MountedConfig"\n\t{\n\t\t"language"\t\t"german"\n\t}\n}\n')
+  const base = path.join(root, 'DB8', 'DragonBreak')
+  await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
+  assert.strictEqual((await call('game:copyPreview', base)).mode, 'legacy')
+  const made = await call('game:createIsolated', base)
+  assert.strictEqual(made.success, true, made.error)
+  const copy = path.join(base, 'skyrim')
+  assert.ok(fs.existsSync(path.join(copy, 'vanilla-copy-complete.json')) && !fs.existsSync(path.join(copy, 'dragonbreak-game.json')),
+    'made the legacy way, never with English files from the list')
+})
+
+test.after(() => { gamecopy.useBundledLists(null); fs.rmSync(root, { recursive: true, force: true }) })

@@ -125,12 +125,16 @@ function mergeLists(base, overlay) {
 function bundledManifest(platform = 'steam', opts = {}) {
   const file = BUNDLED[platform]
   if (!file) return null
-  let json
-  try { json = require(file) } catch { return null }
+  const shipped = name => {
+    if (listOverride) return Object.prototype.hasOwnProperty.call(listOverride, name) ? listOverride[name] : null
+    try { return require(name === platform ? file : `./vanilla-1.6.1170-${name.split(':')[1]}.json`) } catch { return null }
+  }
+  let json = shipped(platform)
+  if (!json) return null
   const language = String(opts.language || 'english').toLowerCase()
   if (platform === 'steam' && language !== 'english') {
     let overlay = null
-    if (/^[a-z]+$/.test(language)) { try { overlay = require(`./vanilla-1.6.1170-${language}.json`) } catch { /* not generated yet */ } }
+    if (/^[a-z]+$/.test(language)) overlay = shipped(`steam:${language}`)
     if (!overlay || !Array.isArray(overlay.files) || !overlay.files.length) {
       return { ...loadManifest({ ...json, files: [] }, opts), language, ready: false, missingLanguage: language }
     }
@@ -138,6 +142,13 @@ function bundledManifest(platform = 'steam', opts = {}) {
   }
   return loadManifest(json, opts)
 }
+
+/**
+ * Tests only: the lists bundledManifest serves instead of the files in src, as { steam, gog, 'steam:<language>' }
+ * (a missing key is a list that does not exist); null goes back to the shipped files. The launcher never calls it.
+ */
+let listOverride = null
+function useBundledLists(lists) { listOverride = lists || null }
 
 // size, mtime, file id and link count; null when there is nothing to read. lstat: a link is reported, not followed
 async function fileInfo(p, { lstat = false } = {}) {
@@ -821,6 +832,6 @@ async function freeBytes(dir) {
 
 module.exports = {
   RECORD_FILE, RECORD_FORMAT, TEMP_SUFFIX, SET_ASIDE_DIR,
-  normRel, safeJoin, loadManifest, mergeLists, bundledManifest, hashFile, classify, plan, run, linkedFolders,
+  normRel, safeJoin, loadManifest, mergeLists, bundledManifest, useBundledLists, hashFile, classify, plan, run, linkedFolders,
   makeRecord, writeRecord, readRecord, drift, repair, setAsideDlls, bytesNeeded, estimateBytes, freeBytes, build,
 }

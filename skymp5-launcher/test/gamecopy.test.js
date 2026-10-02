@@ -368,14 +368,46 @@ test('an abort mid-file leaves no half-written file under its real name, and a m
   fs.rmSync(root, { recursive: true, force: true })
 })
 
-test('the shipped list is a placeholder until a PC generates it, and loads empty', () => {
-  const m = gc.bundledManifest('steam')
-  assert.strictEqual(m.ready, false)
-  assert.strictEqual(m.files.size, 0)
-  assert.strictEqual(m.build, '1.6.1170.0')
-  assert.match(require('../src/vanilla-1.6.1170.json').note, /tools\/depot-reference\.js/)
+test('the shipped 1.6.1170 list: 45 entries without Skyrim.ccc, the masters and the exe at their known sizes, no unsafe path', () => {
+  const json = require('../src/vanilla-1.6.1170.json')
+  const REF = require('../src/downgrade-1.6.1170.json')
+  assert.deepStrictEqual([json.build, json.platform], ['1.6.1170.0', 'steam'])
+  assert.strictEqual(json.files.length, 46)
+  // Every path is safe (loadManifest throws on any that is not) and listed once, from the three base depots
+  for (const f of json.files) assert.strictEqual(gc.normRel(f.path), f.path)
+  assert.ok(json.files.every(f => ['489831', '489832', '489833'].includes(String(f.depot))))
+  const m = gc.bundledManifest('steam', { omit: ['Skyrim.ccc'] })
+  assert.deepStrictEqual([m.ready, m.files.size, m.language], [true, 45, null])
+  assert.strictEqual(m.files.has('skyrim.ccc'), false)
+  for (const master of ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm', 'HearthFires.esm', 'Dragonborn.esm']) {
+    const e = m.files.get(`data/${master.toLowerCase()}`)
+    assert.ok(e, master)
+    assert.deepStrictEqual([e.size, e.sha256], [REF.files[`Data/${master}`].size, REF.files[`Data/${master}`].sha256], master)
+  }
+  // Every file with a known 1.6.1170 hash has it in the list too
+  for (const [p, want] of Object.entries(REF.files)) {
+    const e = m.files.get(p.toLowerCase())
+    if (e) assert.deepStrictEqual([e.size, e.sha256], [want.size, want.sha256], p)
+  }
+  const exe = m.files.get('skyrimse.exe')
+  assert.ok(exe && exe.size > 1000000 && exe.depot === '489833')
+  assert.ok(m.bytes > 15e9 && m.bytes < 17e9, `about 16 GB (${m.bytes})`)
   // omit drops files the launcher manages itself
   assert.strictEqual(gc.loadManifest(MANIFEST, { omit: ['skyrim_default.ini'] }).files.has('skyrim_default.ini'), false)
+})
+
+test('useBundledLists stands in for the shipped lists (tests only): an empty list is not ready, a missing one is null', () => {
+  try {
+    gc.useBundledLists({ steam: { build: '1.6.1170.0', platform: 'steam', files: [] } })
+    assert.deepStrictEqual([gc.bundledManifest('steam').ready, gc.bundledManifest('gog')], [false, null])
+    gc.useBundledLists({ steam: MANIFEST, 'steam:german': { language: 'german', files: [{ path: 'Data/Skyrim - Voices_de0.bsa', size: 3, sha256: 'd'.repeat(64), depot: '489836' }] } })
+    assert.strictEqual(gc.bundledManifest('steam').files.size, PATHS.length)
+    assert.strictEqual(gc.bundledManifest('steam', { language: 'german' }).files.size, PATHS.length + 1)
+    assert.strictEqual(gc.bundledManifest('steam', { language: 'french' }).ready, false)
+  } finally {
+    gc.useBundledLists(null)
+  }
+  assert.strictEqual(gc.bundledManifest('steam').ready, true, 'back to the shipped list')
 })
 
 test('review junction.js: a copy whose Data is a junction into Steam is refused, nothing is written through it', async () => {

@@ -185,12 +185,10 @@ const noGamePathError = () => isolation.noGamePathError(!!store.get('isolatedGam
 
 // The bundled vanilla list for the Skyrim folder's edition: null for Epic and Microsoft Store, ready false while the
 // file in src is still the placeholder (or, for GOG, until a GOG list ships)
-// and the language Steam installed it in (isolation.steamLanguage): a language without its own list stays legacy
-const copyManifests = new Map()
+// and the language Steam installed it in (isolation.steamLanguage): a language without its own list stays legacy.
+// Loaded on each call (46 entries, microseconds), so nothing goes stale when the list or the Skyrim folder changes.
 function copyManifest(edition = mo2.detectEdition(store.get('skyrimPath')), language = isolation.steamLanguage(store.get('skyrimPath'))) {
-  const key = `${edition}|${language}`
-  if (!copyManifests.has(key)) copyManifests.set(key, isolation.manifestFor(edition, undefined, { language }))
-  return copyManifests.get(key)
+  return isolation.manifestFor(edition, undefined, { language })
 }
 
 // 'verified' (only hash-checked files, the rest from Steam's depot download) once the list for the player's edition
