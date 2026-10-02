@@ -54,23 +54,23 @@ const GROUPS: EmoteGroup[] = [
       { anim: 'IdleApplaud5', label: 'Clapping Overhead' },
       { anim: 'IdleLaugh', label: 'Laugh' },
       { anim: 'IdleSurrender', label: 'Surrender' },
-      { anim: 'IdleCowerEnter', label: 'Scared' },
+      { anim: 'IdleCowerEnter', label: 'Scared', exit: 'IdleChairExitStart' },
       { anim: 'IdleWipeBrow', label: 'Wipe Brow' },
-      { anim: 'IdleWounded_02', label: 'Wounded' },
+      { anim: 'IdleWounded_02', label: 'Wounded', exit: 'IdleChairExitStart' },
     ],
   },
   {
     id: 'stances',
     label: 'Stances',
     emotes: [
-      { anim: 'IdleLayDown', label: 'Lay Down' },
+      { anim: 'IdleLayDownEnter', label: 'Lay Down', exit: 'IdleChairExitStart' },
       { anim: 'IdleWarmHandsStanding', label: 'Warm Hands' },
       { anim: 'IdleWarmHandsCrouched', label: 'Warm Hands (Sit)' },
       { anim: 'IdleGrave_01', label: 'Pray' },
       { anim: 'IdlePray', label: 'Worship' },
-      { anim: 'IdleSitCrossLeggedEnter', label: 'Sit Crossed' },
-      { anim: 'IdleKneelingEnter', label: 'Kneel' },
-      { anim: 'IdleWounded_03', label: 'Sit Lazy' },
+      { anim: 'IdleSitCrossLeggedEnter', label: 'Sit Crossed', exit: 'IdleChairExitStart' },
+      { anim: 'IdleKneelingEnter', label: 'Kneel', exit: 'IdleChairExitStart' },
+      { anim: 'IdleWounded_03', label: 'Sit Lazy', exit: 'IdleChairExitStart' },
     ],
   },
   {
@@ -395,7 +395,9 @@ export class EmoteService extends ClientListener {
     // overlay and a state idle needs the previous emote exited first, and the
     // exit event must go out alone so the single-slot animation sync relays it.
     // Prop idles are exited first too, otherwise the next idle keeps the prop.
-    if (previous && ((previous.indexOf("Offset") === 0) !== (anim.indexOf("Offset") === 0) || this.propAnims.has(previous))) {
+    // Ground poses hold the sit state, which refuses every other idle until it is left.
+    const pose = this.exitEvents.get(previous) === "IdleChairExitStart";
+    if (previous && ((previous.indexOf("Offset") === 0) !== (anim.indexOf("Offset") === 0) || this.propAnims.has(previous) || pose)) {
       this.exitEmote(previous, () => this.sendEmote(anim));
       return;
     }
