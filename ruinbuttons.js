@@ -24,11 +24,15 @@ module.exports = (api) => {
 
   // button refId -> { ruin, button, group }; a group is the set of targets, so two buttons for one stair share it
   const byButton = new Map();
+  // group -> the cell its targets stand in: each stair stands in its button's cell (BSHeartland.esm, all four)
+  const groupCell = new Map();
   for (const ruin of DATA.ruins || []) {
     for (const button of ruin.buttons || []) {
       const id = idOf(button.ref);
       if (!id) { log(`ruinbuttons: ${button.ref} in ${ruin.name} not found`); continue; }
-      byButton.set(id, { ruin, button, group: (button.targets || []).map((t) => t.ref).sort().join(' ') });
+      const group = (button.targets || []).map((t) => t.ref).sort().join(' ');
+      byButton.set(id, { ruin, button, group });
+      if (button.cell) groupCell.set(group, idOf(button.cell));
     }
   }
   // Open groups (survive hot reloads): group -> { ruinId, targets }
@@ -125,6 +129,30 @@ module.exports = (api) => {
     for (const o of S.open.values()) if (o.ruinId === ruinId) sent += sendOpened(actor, o.targets);
     if (sent) log(`ruinbuttons: ${who(actor)} arrived in ${ruinId}, ${sent} opened sequence(s) played for them`);
     return sent;
+  };
+
+  // A player who leaves a stair's cell for another cell of the ruin and comes back through an inner door sees it shut:
+  // an interior keeps no gamebryo sequence once its 3D unloads. gamemode.js calls this on every allowed activation; a
+  // door's teleport moves the player as soon as the hook returns, so the cell is compared on the next tick
+  const cellDesc = (actor) => { try { return String(mp.get(actor, 'worldOrCellDesc') || ''); } catch (e) { return ''; } };
+  globalThis.__dboRuinDoorUsed = (casterId) => {
+    if (!C.enabled || !S.open.size || typeof sendPacket !== 'function') return false;
+    const actor = casterId >>> 0, from = idOf(cellDesc(actor));
+    setTimeout(() => {
+      try {
+        const desc = cellDesc(actor), cell = idOf(desc);
+        if (!cell || cell === from) return;
+        let sent = 0;
+        for (const [group, o] of S.open) {
+          if (groupCell.get(group) !== cell) continue;
+          const n = sendOpened(actor, o.targets || []);
+          // A press straight after arriving would restart the rise they are watching
+          if (n) { S.replayed.set(`${group}|${actor}`, Date.now()); sent += n; }
+        }
+        if (sent) log(`ruinbuttons: ${who(actor)} came into ${desc} through a door, ${sent} opened sequence(s) played for them`);
+      } catch (e) { log(`ruinbuttons: door replay failed: ${e.message}`); }
+    }, 0);
+    return true;
   };
 
   log(`ruinbuttons ${C.enabled ? 'on' : 'off'}: ${byButton.size} buttons in ${(DATA.ruins || []).length} ruins, ${S.open.size} open`);
