@@ -654,6 +654,8 @@ module.exports = (api) => {
     noteEntry(lease, d);
     system(a, arrivalLine(d, lease, diff));
     glowLease(a, lease, d);
+    // What the party opened before they came (a ruin's stair) is shown to them too (ruinbuttons.js)
+    try { if (globalThis.__dboRuinArrived) globalThis.__dboRuinArrived(d.id, a); } catch (e) { log('ruin arrival failed', e.message); }
     return true;
   };
   // A queued member goes in at their turn, unless the claim ended, they logged out, left the party or the entrance
@@ -662,8 +664,9 @@ module.exports = (api) => {
     lease.entryAt.delete(pid);
     if (ST.leases.get(d.id) !== lease) return;
     const a = actorByProfile(pid);
-    if (!a || !partyMembers(lease.leader).includes(pid)) return;
-    if (!atEntrance(a, entrance)) { system(a, `Your turn to enter ${d.name} has come: use the entrance to join your party.`); return; }
+    if (!a) return;
+    // Off the party or away from the entrance, they are told and the door decides (offerGate)
+    if (!lease.members.has(pid) || !partyMembers(lease.leader).includes(pid) || !atEntrance(a, entrance)) { system(a, `Your turn to enter ${d.name} has come: use the entrance to join your party.`); return; }
     if (goIn(a, lease, d, diff, entrance)) log(`dungeon ${d.id}: ${display(a)} went in at their turn`);
   };
   const queueEntry = (a, lease, d, diff, entrance, pid) => {
@@ -734,8 +737,10 @@ module.exports = (api) => {
     if (ST.crashMoved.has(key) || loginAt - t > CL.withinMinutes * 60000 || t - loginAt > CL.lateSeconds * 1000) return null;
     return { n, key };
   };
+  // Spared only while nothing in the claim was looted: a crash after looting keeps the rest, so a reclaim can't refill the chests
   const crashSpared = (lease, pid) => {
     if (!CL.enabled) return false;
+    if (lease.looted instanceof Set && lease.looted.size > 0) return false;
     if (lease.crashMoved instanceof Set && lease.crashMoved.has(pid)) return true;
     const n = lastNote(pid);
     return !!(n && n.outcome === 'crash' && Date.now() - noteTime(n) <= CL.withinMinutes * 60000);
@@ -1354,7 +1359,11 @@ module.exports = (api) => {
           if (wait > 0) return deny(casterId, `Your party is entering ${d.name} one at a time: you go in ${Math.ceil(wait / 1000)} s.`, `${d.id} entries are spaced, ${Math.ceil(wait / 1000)} s to wait`);
           noteEntry(lease, d);
           glowLease(casterId, lease, d);
-          if (!entrance.expedition) return true;
+          if (!entrance.expedition) {
+            // The engine carries them through the door; a ruin's opened stair is played for them once it has loaded
+            try { if (globalThis.__dboRuinArrived) globalThis.__dboRuinArrived(d.id, casterId); } catch (e) { log('ruin arrival failed', e.message); }
+            return true;
+          }
           teleport(casterId, entrance.insideCell, entrance.insidePos, entrance.insideRot || [0, 0, 0]);
           system(casterId, `You set out to join your party in ${d.name}.`);
           // What the party opened before they came (a ruin's stair) is shown to them too (ruinbuttons.js)

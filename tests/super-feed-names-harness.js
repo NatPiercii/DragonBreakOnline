@@ -58,6 +58,7 @@ ok(globalThis.__dboSuperMenuAction(VAMP, 'super:feed', VICTIM, nameFor) === true
 ok(to(VICTIM).includes('Stranger sinks their teeth into your neck.'), 'the victim, who never met the vampire, sees Stranger', to(VICTIM));
 ok(to(FRIEND).includes(`You see Known${VAMP.toString(16)} feed on Known${VICTIM.toString(16)}.`), 'an onlooker who knows both sees both names', to(FRIEND));
 ok(to(STRANGER).includes('You see Stranger feed on Stranger.'), 'an onlooker who knows neither sees Stranger twice', to(STRANGER));
+ok(!to(VICTIM).some((t) => /^You see /.test(t)), 'the one bitten gets only their own line, not the onlookers\' one', to(VICTIM));
 ok(leaked().length === 0, 'no one but the vampire is told the real name', leaked());
 
 // The feed ends: the victim's line names the vampire the same way

@@ -59,6 +59,9 @@ const load = (extra) => {
   ST.parties.set(1, { leader: 1, leaderName: 'P', members: new Set([1, 2, 3]) });
   for (const m of [1, 2, 3]) ST.memberOf.set(m, 1);
 };
+const arrived = [];   // ruinbuttons.js plays a ruin's opened stair for each late entrant
+globalThis.__dboRuinArrived = (id, a) => { arrived.push([id, a]); return 1; };
+const arrivedIn = (a, d) => arrived.some(([id, x]) => id === d.id && x === a);
 const fire = (n, a, args) => (ui.get(n) || []).forEach((f) => f(a, args, 0));
 const claim = (d) => {
   for (const a of [A, B, C]) { home(a, d); props.delete(`${a}|locationalData`); }
@@ -85,6 +88,7 @@ advance(1000);
 check('at 30 s the second member goes in', inside(B, RIELLE) && !inside(C, RIELLE));
 advance(30000);
 check('at 60 s the third goes in', inside(C, RIELLE));
+check('each member let in at their turn is shown what the party already opened', arrivedIn(B, RIELLE) && arrivedIn(C, RIELLE), arrived);
 
 // 2. A queued member who logs out, leaves the party, or whose claim ends is not moved
 load(); lease = claim(RIELLE);
@@ -95,7 +99,7 @@ online = [A, B, C];
 load(); lease = claim(RIELLE);
 ST.parties.get(1).members.delete(2); ST.memberOf.delete(2);
 advance(31000);
-check('a queued member who left the party is not moved in', !inside(B, RIELLE));
+check('a queued member who left the party is not moved in, and is told the door decides', !inside(B, RIELLE) && saidTo(B).some((t) => /Your turn to enter Rielle has come/.test(t)), saidTo(B).slice(-1));
 load(); lease = claim(RIELLE);
 ST.leases.delete(RIELLE.id);
 advance(61000);
@@ -110,7 +114,9 @@ advance(30000);   // C goes in at their turn
 home(B, RIELLE);
 check('...the door still makes them wait 30 s after that entry', door(B, RIELLE) === false && saidTo(B).some((t) => /you go in 30 s/.test(t)), saidTo(B).slice(-1));
 advance(30000);
+arrived.length = 0;
 check('...and then lets them in', door(B, RIELLE) === true);
+check('...showing them what the party already opened', arrivedIn(B, RIELLE), arrived);
 
 // 4. A dungeon the stagger does not cover: everyone goes in together, as before
 load(); said.length = 0;

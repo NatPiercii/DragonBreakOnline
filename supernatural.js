@@ -176,7 +176,7 @@ module.exports = (api) => {
     return 'Someone';
   };
   // text may be a function of the viewer, so each onlooker sees the names they know
-  const quietNear = (a, text, reach) => { for (const o of onlineActors()) if (o !== a && distance(a, o) <= (reach || 3000)) personal(o, typeof text === 'function' ? text(o) : text); };
+  const quietNear = (a, text, reach) => { for (const o of onlineActors()) if (o !== a && distance(a, o) <= (reach || 3000)) { const s = typeof text === 'function' ? text(o) : text; if (s) personal(o, s); } };
   // gamemode's needs system sets health and stamina recovery and asks __dboSuperRateMult (below) for a vampire's share
   const refreshRates = (a) => { try { if (typeof globalThis.__dboNeedsRefresh === 'function') globalThis.__dboNeedsRefresh(a); } catch (e) { /* no needs system */ } };
   // Plays an idle on a player's own client, as downed.js plays its poses; watchers see it through the animation sync
@@ -1222,7 +1222,7 @@ module.exports = (api) => {
     try { sendPacket(a, { customPacketType: 'dboBanner', text: o.long ? 'Feeding deeply...' : 'Feeding...', seconds: Math.ceil(seconds) }); } catch (e) { /* old client */ }
     if (!o.onCorpse) personal(t, o.willing ? `${nameTo(t, a)} drinks from your neck.` : `${nameTo(t, a)} sinks their teeth into your neck.`);
     else if (lying) personal(t, `${nameTo(t, a)} bends over you and drinks.`);
-    quietNear(a, (v) => (o.onCorpse ? `You see ${nameTo(v, a)} feed on the fallen.` : `You see ${nameTo(v, a)} feed on ${nameTo(v, t)}.`), 1500);
+    quietNear(a, (v) => (v === t ? '' : o.onCorpse ? `You see ${nameTo(v, a)} feed on the fallen.` : `You see ${nameTo(v, a)} feed on ${nameTo(v, t)}.`), 1500);
     log(`supernatural: ${display(a)} started ${o.long ? 'a deep feed' : 'feeding'} on ${display(t)} (${seconds} s${ev ? `, ${ev}` : ''})`);
     return true;
   };

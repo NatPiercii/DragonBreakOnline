@@ -115,6 +115,16 @@ const rest = globalThis.__dboDungeonAccountRest;
 ok(!rest.has(`${PID2}:${RUIN.id}`), 'the member who crashed inside pays no rest', [...rest.keys()]);
 ok(rest.has(`${PID1}:${RUIN.id}`), 'the member who just left pays the usual hour', [...rest.keys()]);
 
+// Once anything in the claim was looted the crashed member pays the rest too, so a reclaim can't refill the chests
+load();
+reset();
+const L2 = claim();
+L2.crashMoved = new Set([PID2]); L2.crashKeepUntil = now + 10 * 60000; L2.lastInsideAt = now; L2.looted.add(0xabc);
+where.set(P1, OUTSIDE_CELL); where.set(P2, OUTSIDE_CELL);
+now += 11 * 60000; tick();
+const rest2 = globalThis.__dboDungeonAccountRest;
+ok(!claim() && rest2.has(`${PID2}:${RUIN.id}`), 'after looting, the member who crashed inside pays the usual rest', [...rest2.keys()]);
+
 // The switch: crashLoop.enabled false leaves everything as it was
 load({ dungeons: { crashLoop: { enabled: false } } });
 reset();
