@@ -174,7 +174,8 @@ module.exports = (api) => {
     const place = provinceAt(a);
     if (isCommon(r.p)) return { ok: true, place, p: r.p, why: 'common' };
     if (place.province !== 'none' && r.p.includes(place.province)) return { ok: true, place, p: r.p, why: 'province' };
-    const race = raceStyle(a, r.entry);
+    // A recipe overridden to 'none' is made by no people either
+    const race = r.p.length ? raceStyle(a, r.entry) : null;
     if (race) return { ok: true, place, p: r.p, why: `race:${race}` };
     if (bypass(a)) return { ok: true, place, p: r.p, why: 'admin' };
     return { ok: false, place, p: r.p, entry: r.entry };

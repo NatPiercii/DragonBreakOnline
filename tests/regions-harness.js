@@ -258,6 +258,14 @@ at(SMITH, BRUMA_WORLD); const ingots = count(SMITH, FALCHION[2][0][0]); stock(SM
 check('the Iron Falchion is not forged in Bruma, and the smith keeps the materials', craft(SMITH, FALCHION) === false && count(SMITH, FALCHION[1]) === 0 && count(SMITH, FALCHION[2][0][0]) === ingots + 1 && /^Iron Falchion cannot be made anywhere\. Your materials return/.test(said(SMITH)), said(SMITH));
 check('...nor in Skyrim or on Solstheim', [TAMRIEL_WORLD, SOLSTHEIM_WORLD].every((w) => (at(SMITH, w), !R().recipeOk(SMITH, idOf(FALCHION[1]), idOf(FALCHION[0])).ok)));
 take(SMITH, FALCHION[2][0][0], 1);
+// An Imperial's own style (gamemode-config raceStyles: imperial, family cyrodiil) matches the falchion, but 'none' wins
+regionsCfg = Object.assign({}, regionsCfg, { raceStyles: JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).regions.raceStyles }); load();
+put(SMITH, 'appearance', { raceId: 0x13744 }); at(SMITH, TAMRIEL_WORLD);
+check('...nor by an Imperial in Skyrim, whose race style would otherwise allow it', !R().recipeOk(SMITH, idOf(FALCHION[1]), idOf(FALCHION[0])).ok, R().recipeOk(SMITH, idOf(FALCHION[1]), idOf(FALCHION[0])));
+const CLUB = ['cc298:BSHeartland.esm', '81dfa:BSHeartland.esm']; // CYRRecipeWeaponIronClub, the falchion's Cyrodiil neighbour
+check('...while an Imperial still makes the Iron Club in Skyrim by race', R().recipeOk(SMITH, idOf(CLUB[1]), idOf(CLUB[0])).why === 'race:imperial', R().recipeOk(SMITH, idOf(CLUB[1]), idOf(CLUB[0])));
+props.delete(SMITH + '|appearance');
+regionsCfg = Object.assign({}, regionsCfg, { raceStyles: undefined }); load();
 at(ADMIN, BRUMA_WORLD);
 check('...while an admin may still forge one', R().recipeOk(ADMIN, idOf(FALCHION[1]), idOf(FALCHION[0])).ok);
 
