@@ -938,7 +938,9 @@ function readModHash(modName) {
 // Config files a plugin or MCM rewrites by itself: a plugin fills in its defaults at startup (Actor Limit Fix's JSON
 // grew by ~330 bytes on every run, 2026-09-28) and MCM saves the player's settings. An edited copy is the mod working,
 // not a damaged install, so the size gate and the verify leave them out; binaries and assets keep both checks.
-const REWRITTEN_CONFIG_RE = /^(skse\/plugins|mcm\/config|mcm\/settings)\/.+\.(ini|json|toml|ya?ml)$/i
+// .log belongs here for the same reason: Actor Limit Fix writes SKSE/Plugins/ActorLimitFix.log while the game runs,
+// which is never in the manifest, so every launch saw the folder 333 bytes over and repaired a mod that was fine.
+const REWRITTEN_CONFIG_RE = /^(skse\/plugins|mcm\/config|mcm\/settings)\/.+\.(ini|json|toml|ya?ml|log)$/i
 
 function isRewrittenConfig(rel) {
   return REWRITTEN_CONFIG_RE.test(String(rel).replace(/\\/g, '/'))
