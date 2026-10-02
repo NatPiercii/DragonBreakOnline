@@ -58,6 +58,9 @@ module.exports = (api) => {
     incubationDays: 3,
     sunPerStage: 0.006, sunFloor: 0.05,
     fireWeaknessPerStage: 0.25, silverWeakness: 0.5,
+    // A silver weapon strikes a vampire this much harder (#bugs, 1 Oct: vampires could not wear silver, yet it did them
+    // no harm). Flat, half the werewolf's, since fire is the vampire's real bane; 0 turns it off
+    vampireSilverWeakness: 0.25,
     forcedChangeChance: 0.10, beastChangesPerDay: 1,
     beastFeedSeconds: 30, corpseFreshMinutes: 10,
     // A restrained living player gives blood this often, in game days
@@ -988,7 +991,7 @@ module.exports = (api) => {
   };
   const beastForm = (a) => { try { const b = mp.get(a, 'private.beast'); return b && b.form ? b.form : null; } catch (e) { return null; } };
 
-  // Extra damage multiplier for the target of a hit (fire on vampires, silver on werewolves)
+  // Extra damage multiplier for the target of a hit (fire and silver on vampires, silver on werewolves)
   const MAGIC_TYPES = new Set(['SPEL', 'ENCH', 'SCRL', 'ALCH', 'INGR', 'EXPL', 'HAZD']);
   const clawLogged = new Set();
   // A beast holds no weapon, so any non-magic hit it lands is its claws
@@ -1008,6 +1011,8 @@ module.exports = (api) => {
     if (!s || !s.kind) return beast;
     if (s.kind === 'vampire' && isFireSource(src)) return beast * (1 + C.fireWeaknessPerStage * Math.max(1, s.stage) * (s.pure ? 0.5 : 1));
     if (s.kind === 'werewolf' && isSilverSource(src)) return beast * (1 + C.silverWeakness);
+    const vSilver = Math.max(0, Number(C.vampireSilverWeakness) || 0);
+    if (s.kind === 'vampire' && vSilver > 0 && isSilverSource(src)) return beast * (1 + vSilver);
     return beast;
   };
   // An accepted hit may carry a curse
@@ -1523,7 +1528,11 @@ module.exports = (api) => {
         label: 'The sun', value: `${Math.round(C.sunCoverMax * coverOf(a) * 100)}% shielded`,
         hint: `The sun burns you outdoors by day, more at each stage${s.pure ? ', half as much for a pure-blood' : ''}. Cover your head, body, hands and feet.`,
       },
-      { label: 'Fire', value: `${Math.round(C.fireWeaknessPerStage * stage * (s.pure ? 0.5 : 1) * 100)}% worse`, hint: 'Fire burns you more at each stage of thirst. Silver you can neither wear nor wield.' },
+      { label: 'Fire', value: `${Math.round(C.fireWeaknessPerStage * stage * (s.pure ? 0.5 : 1) * 100)}% worse`, hint: 'Fire burns you more at each stage of thirst.' },
+      {
+        label: 'Silver', value: Number(C.vampireSilverWeakness) > 0 ? `${Math.round(Number(C.vampireSilverWeakness) * 100)}% worse` : 'Shunned',
+        hint: `${Number(C.vampireSilverWeakness) > 0 ? `Silver strikes you ${Math.round(Number(C.vampireSilverWeakness) * 100)}% harder, and you` : 'You'} can neither wear it nor wield it.`,
+      },
       {
         label: 'Bloodline', value: s.pure ? 'Pure-blood' : 'Turned',
         hint: s.pure ? "Molag Bal's own Embrace made you." : 'Sanguinare Vampiris turned you. A pure-blood is made by Molag Bal\'s Embrace at his shrine.',
