@@ -5,7 +5,7 @@
 // onCraftUnmatched for such a craft, and this module honours it the way Nat chose: the effect is worked out here from
 // the ingredient records (never taken from the client), and the player gets the nearest vanilla potion or poison
 // (alchemy-potions.json, weakest to strongest), its strength set by their Alchemist rank. One of each ingredient used
-// is taken, as in vanilla.
+// is taken, as in vanilla. The arcane enchanter's reports come here too: a disenchanted item is taken (disenchant below).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -226,9 +226,60 @@ module.exports = (api) => {
     if (S.panels.has(a)) showBrewable(a);
   };
 
+  // ---- disenchanting at an arcane enchanter (/bug 2026-10-01 "disassembleenchantedweapon") ------------------------
+  // Vanilla destroys the item it teaches the enchantment of. The game does that on the client and tells the server
+  // nothing, so the server kept every disenchanted weapon and the next inventory sync handed it back: the enchantment
+  // learned, the weapon kept, free to trade on and disenchant again. What the client does send is its craft report from
+  // the enchanter: every item that left the pack while seated there, closed by the next one to arrive (usually the
+  // weapon handed back). No recipe matches it, so it ends here. An item enchanted by its own record (EITM, "Elven
+  // Dagger of the Blaze") in it was disenchanted: vanilla's enchanter takes nothing else of the kind (it never enchants
+  // an enchanted item; enchanting takes a plain one and a soul gem, which craftedExtras records). So one unworn copy per
+  // reported one is taken, as vanilla takes it.
+  const BENCH_ENCHANTING = new Set([3, 4]); // FURN WBDT bench type: Enchanting, EnchantingExperiment
+  const isEnchanter = (workbenchId) => {
+    let base = 0; try { base = mp.getIdFromDesc(String(mp.get(workbenchId >>> 0, 'baseDesc'))) >>> 0; } catch (e) { return false; }
+    const lr = lookup(base);
+    if (!lr || String(lr.record.type) !== 'FURN') return false;
+    const wbdt = (lr.record.fields || []).find((f) => f.type === 'WBDT');
+    return !!wbdt && wbdt.data instanceof Uint8Array && wbdt.data.byteLength > 0 && BENCH_ENCHANTING.has(wbdt.data[0]);
+  };
+  const enchantedByRecord = (id) => {
+    const lr = id < 0xff000000 ? lookup(id) : null;
+    return !!lr && /^(WEAP|ARMO)$/.test(String(lr.record.type)) && (lr.record.fields || []).some((f) => f.type === 'EITM');
+  };
+  const disenchant = (a, workbenchId, inputs) => {
+    const reported = inputs && Array.isArray(inputs.entries) ? inputs.entries : [];
+    const wanted = new Map();
+    for (const e of reported) {
+      const id = Number(e.baseId) >>> 0;
+      if (enchantedByRecord(id)) wanted.set(id, (wanted.get(id) || 0) + Math.max(1, Number(e.count) || 1));
+    }
+    if (!wanted.size) return;   // enchanting (a plain item and a soul gem): craftedExtras records that
+    if (!atLab(a, workbenchId)) return log(`disenchant: ${display(a)} reported a disenchant at ${workbenchId.toString(16)} while not at it; ignored`);
+    const entries = invOf(a);
+    const taken = [];
+    for (const [id, n] of wanted) {
+      // Unworn copies only, one the player made nothing of first; a worn one is left and logged
+      const copies = entries.filter((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0)
+        .sort((x, y) => (x.name || x.enchantmentId ? 1 : 0) - (y.name || y.enchantmentId ? 1 : 0));
+      let left = n;
+      for (const e of copies) { if (left <= 0) break; const k = Math.min(left, Number(e.count) || 0); e.count = (Number(e.count) || 0) - k; left -= k; }
+      if (n - left > 0) taken.push([id, n - left]);
+      if (left > 0) log(`disenchant: ${display(a)} disenchanted ${ingredientName(id)} x${n} but holds only ${n - left} unworn; ${left} not taken`);
+    }
+    if (!taken.length) return;
+    try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`disenchant: inventory write failed for ${display(a)}: ${e.message}`); return; }
+    const what = taken.map(([id, k]) => `${ingredientName(id)}${k > 1 ? ` x${k}` : ''}`).join(', ');
+    log(`disenchant: ${display(a)} disenchanted ${what} at ${workbenchId.toString(16)}; taken`);
+    audit(`DISENCHANT ${who(a)} used up ${what}`);
+    tell(a, `Disenchanting uses up the item: ${what} ${taken.length > 1 || taken[0][1] > 1 ? 'are' : 'is'} gone.`);
+  };
+
   // CustomEvent prepends the actor: (actor, workbench, result, inputs)
   mp.onCraftUnmatched = (actorId, workbenchId, resultId, inputs) => {
-    try { brew(Number(actorId) >>> 0, Number(workbenchId) >>> 0, inputs); } catch (e) { log(`alchemy: brew failed: ${e.message}`); }
+    const a = Number(actorId) >>> 0, wb = Number(workbenchId) >>> 0;
+    try { if (isEnchanter(wb)) { disenchant(a, wb, inputs); return true; } } catch (e) { log(`disenchant: failed: ${e.message}`); return true; }
+    try { brew(a, wb, inputs); } catch (e) { log(`alchemy: brew failed: ${e.message}`); }
     return true;
   };
 
