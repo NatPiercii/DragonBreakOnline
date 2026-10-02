@@ -15,7 +15,8 @@ let fails = 0, checks = 0;
 const ok = (label, cond, got) => { checks++; console.log(`${cond ? 'ok  ' : 'FAIL'} ${label}${!cond && got !== undefined ? `: got ${JSON.stringify(got)}` : ''}`); if (!cond) fails++; };
 
 ok('config: the playtester boost is off', CONFIG.playtesterBoost && CONFIG.playtesterBoost.enabled === false);
-ok('patch note: it ended early, near the top', NOTES.slice(0, 4).some((n) => JSON.stringify(n).includes('The playtester double-progress boost has ended early while we rebalance how fast skills grow.')));
+// Found by its date, not its place: newer notes push it down the list (release-1027's put it 5th)
+ok('patch note: it ended early, dated 1 Oct', NOTES.some((n) => n.date === '2026-10-01' && JSON.stringify(n).includes('The playtester double-progress boost has ended early while we rebalance how fast skills grow.')));
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-boostend-'));
 process.chdir(tmp);
