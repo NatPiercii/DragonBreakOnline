@@ -215,6 +215,24 @@ test('verified: a Steam exe of another build is not copied; the copy waits for t
   assert.deepStrictEqual([panel.action, panel.copyBuild.files, panel.acf], ['downgrade', ['SkyrimSE.exe'], null])
 })
 
+test('verified: an intro-skip BGS_Logo.bik and a renamed SkyrimSELauncher.exe in Steam ask for no depot', async () => {
+  const steam = steamFolder('lib9')
+  put(path.join(steam, 'Data', 'Video', 'BGS_Logo.bik'), 'the vanilla intro video')
+  put(path.join(steam, 'SkyrimSELauncher.exe'), 'MZ SkyrimSELauncher 1.6.1170')
+  useVerifiedList(steam)
+  // Vortex deploys over both
+  put(path.join(steam, 'Data', 'Video', 'BGS_Logo.bik'), 'skip')
+  put(path.join(steam, 'SkyrimSELauncher.exe'), 'skse64_loader.exe, renamed')
+  const base = path.join(root, 'DB9', 'DragonBreak')
+  await call('settings:save', { skyrimPath: steam, baseDirPath: base, isolatedGame: true })
+  const made = await call('game:createIsolated', base)
+  assert.strictEqual(made.success, true, made.error)
+  assert.ok(!made.needDepots)
+  const copy = path.join(base, 'skyrim')
+  assert.ok(!fs.existsSync(path.join(copy, 'SkyrimSELauncher.exe')) && !fs.existsSync(path.join(copy, 'Data', 'Video', 'BGS_Logo.bik')))
+  assert.ok(fs.existsSync(path.join(copy, 'dragonbreak-game.json')))
+})
+
 test('verified list for English only: a German Steam install stays on the legacy copy', async () => {
   const steam = steamFolder('lib8')
   useVerifiedList(steam)

@@ -522,3 +522,64 @@ test('where real paths cannot be read (RAM disks, some virtual volumes) the copy
   }
   fs.rmSync(root, { recursive: true, force: true })
 })
+
+// Listed files a mod manager often deploys over (isolation.OPTIONAL_IN_COPY passes the same list in the launcher)
+const OPTIONAL = ['Data/Video/BGS_Logo.bik', 'SkyrimSELauncher.exe', 'installscript.vdf', 'Low.ini', 'Medium.ini', 'High.ini',
+  'Ultra.ini', 'Skyrim_Default.ini', 'Skyrim.ini', 'Skyrim/SkyrimPrefs.ini']
+const LAUNCHER = Buffer.from('MZ SkyrimSELauncher 1.6.1170')
+const withLauncher = () => gc.loadManifest({ ...MANIFEST, files: [...MANIFEST.files,
+  { path: 'SkyrimSELauncher.exe', size: LAUNCHER.length, sha256: sha(LAUNCHER), depot: '489832' }] }, { optional: OPTIONAL })
+
+test('an intro-skip BGS_Logo.bik in an old copy and in Steam is kept as it is: no depot, no drift', async () => {
+  const root = tmp()
+  const steam = steamFolder(root)
+  put(at(steam, 'SkyrimSELauncher.exe'), LAUNCHER)
+  const introSkip = Buffer.from('tiny intro-skip bik')
+  put(at(steam, 'Data/Video/BGS_Logo.bik'), introSkip)
+  // A copy launcher 2.1.36 made by name: the same intro-skip video
+  const dest = path.join(root, 'copy')
+  for (const p of PATHS) put(at(dest, p), VANILLA[p][1])
+  put(at(dest, 'SkyrimSELauncher.exe'), LAUNCHER)
+  put(at(dest, 'Data/Video/BGS_Logo.bik'), introSkip)
+  const m = withLauncher()
+  assert.strictEqual(m.files.get('data/video/bgs_logo.bik').optional, true)
+  assert.strictEqual(m.files.get('skyrimse.exe').optional, false)
+  const r = await gc.build(steam, dest, { manifest: m })
+  assert.strictEqual(r.ok, true, JSON.stringify(r.unresolved))
+  assert.deepStrictEqual([r.depotsNeeded, r.optionalKept, r.written], [[], ['Data/Video/BGS_Logo.bik'], 0])
+  assert.deepStrictEqual(read(at(dest, 'Data/Video/BGS_Logo.bik')), introSkip, 'the copy keeps its own')
+  const d = await gc.drift(dest, await gc.readRecord(dest), m)
+  assert.strictEqual(d.ok, true, 'never drift worth a warning')
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('skse64_loader renamed to SkyrimSELauncher.exe in Steam: left out quietly, never a depot; strict files stay strict', async () => {
+  const root = tmp()
+  const steam = steamFolder(root)
+  put(at(steam, 'SkyrimSELauncher.exe'), 'skse64_loader.exe renamed by a mod manager')
+  const dest = path.join(root, 'copy')
+  const m = withLauncher()
+  let r = await gc.build(steam, dest, { manifest: m })
+  assert.strictEqual(r.ok, true)
+  assert.deepStrictEqual(r.depotsNeeded, [])
+  assert.deepStrictEqual(r.optionalSkipped.map(o => o.path), ['SkyrimSELauncher.exe'])
+  assert.ok(!fs.existsSync(at(dest, 'SkyrimSELauncher.exe')))
+  // Same size, other bytes: found while copying, still skipped rather than failed
+  fs.rmSync(dest, { recursive: true, force: true })
+  const same = Buffer.from(LAUNCHER)
+  same[0] = 'X'.charCodeAt(0)
+  put(at(steam, 'SkyrimSELauncher.exe'), same)
+  r = await gc.build(steam, dest, { manifest: m })
+  assert.deepStrictEqual([r.ok, r.failed, r.optionalSkipped.map(o => o.path)], [true, [], ['SkyrimSELauncher.exe']])
+  // A matching one is copied when the copy lacks it
+  fs.rmSync(dest, { recursive: true, force: true })
+  put(at(steam, 'SkyrimSELauncher.exe'), LAUNCHER)
+  r = await gc.build(steam, dest, { manifest: m })
+  assert.deepStrictEqual(read(at(dest, 'SkyrimSELauncher.exe')), LAUNCHER)
+  // A strict file (steam_api64.dll) with other bytes still asks for its depot
+  fs.rmSync(dest, { recursive: true, force: true })
+  put(at(steam, 'steam_api64.dll'), 'a modded steam api, other size')
+  r = await gc.build(steam, dest, { manifest: m })
+  assert.deepStrictEqual([r.ok, r.unresolved.map(u => u.path), r.depotsNeeded], [false, ['steam_api64.dll'], ['489831']])
+  fs.rmSync(root, { recursive: true, force: true })
+})

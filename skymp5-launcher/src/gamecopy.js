@@ -87,15 +87,16 @@ function checkEntry(f, what) {
  * text) as a Map keyed by lower-case path, so lookups ignore case the way Windows does. omit drops paths the launcher
  * manages itself (Skyrim.ccc, which it empties). Throws on an unsafe path, a path listed twice or a bad size or hash.
  */
-function loadManifest(json, { omit = [] } = {}) {
+function loadManifest(json, { omit = [], optional = [] } = {}) {
   const m = typeof json === 'string' ? JSON.parse(json) : json
   if (!m || !Array.isArray(m.files)) throw new Error('Not a game file list (it has no files array).')
   const skip = new Set(omit.map(p => keyOf(normRel(p))))
+  const loose = new Set(optional.map(p => keyOf(normRel(p))))
   const files = new Map()
   for (const f of m.files) {
     const { rel, key, sha256 } = checkEntry(f, 'game file list')
     if (files.has(key)) throw new Error(`Listed twice in the game file list: ${rel}`)
-    files.set(key, { path: rel, key, size: f.size, sha256, depot: f.depot == null ? null : String(f.depot) })
+    files.set(key, { path: rel, key, size: f.size, sha256, depot: f.depot == null ? null : String(f.depot), optional: loose.has(key) })
   }
   for (const k of skip) files.delete(k)
   const bytes = [...files.values()].reduce((n, f) => n + f.size, 0)
@@ -364,11 +365,19 @@ async function classify(srcDir, manifest, {
 async function plan(classification, { depotDir = null, hash = hashFile, move = true, signal, onProgress = () => {} } = {}) {
   const jobs = []
   const unresolved = []
+  const optionalSkipped = []
   const total = classification.files.length
   for (const [i, f] of classification.files.entries()) {
     checkAbort(signal)
     const sources = []
     if (f.state === 'match') sources.push({ kind: 'source', from: f.from, move: false })
+    // An optional file (an intro video, the Steam launcher, preset inis) comes from a matching source or not at all:
+    // no depot is ever asked for or used for it
+    if (f.optional) {
+      if (sources.length) jobs.push({ path: f.path, key: f.key, size: f.size, sha256: f.sha256, depot: f.depot, optional: true, sources })
+      else optionalSkipped.push({ path: f.path, why: f.state === 'missing' ? 'not in the Skyrim folder' : 'the Skyrim folder\'s copy is not the listed file' })
+      continue
+    }
     const cand = depotDir ? await depotFile(depotDir, f) : null
     let depotState = cand ? 'ok' : 'absent'
     if (cand && cand.size !== f.size) depotState = 'wrong'
@@ -383,7 +392,7 @@ async function plan(classification, { depotDir = null, hash = hashFile, move = t
     else unresolved.push({ path: f.path, size: f.size, depot: f.depot, state: f.state, depotFile: depotState })
   }
   const depotsNeeded = [...new Set(unresolved.map(u => u.depot).filter(Boolean))].sort()
-  return { jobs, unresolved, depotsNeeded, bytes: jobs.reduce((n, j) => n + j.size, 0) }
+  return { jobs, unresolved, depotsNeeded, optionalSkipped, bytes: jobs.reduce((n, j) => n + j.size, 0) }
 }
 
 // The real path of the copy's root, made if needed (the path itself where real paths cannot be read)
@@ -580,9 +589,11 @@ async function drift(destDir, record, manifest = null, {
 } = {}) {
   const root = path.resolve(destDir)
   const rec = new Map(((record && record.files) || []).map(f => [keyOf(f.path), f]))
-  const expected = manifest && manifest.files.size
+  const listed = manifest && manifest.files.size
     ? [...manifest.files.values()]
     : [...rec.values()].map(f => ({ path: f.path, key: keyOf(f.path), size: f.size, sha256: f.sha256 }))
+  // Optional files (an intro video, the Steam launcher, preset inis) are the copy's own business: never drift
+  const expected = listed.filter(e => !e.optional)
   const out = { ok: true, changed: [], missing: [], linked: [], extraRootDlls: [], touched: [], checked: 0, rehashed: 0 }
   // Folders on the listed paths that are links the policy refuses, by lstat: works where real paths cannot be read
   const badDirs = await linkedFolders(root, expected.map(e => e.path), { allowLink })
@@ -612,7 +623,7 @@ async function drift(destDir, record, manifest = null, {
     if (sha === e.sha256) out.touched.push({ path: e.path, size: info.size, mtimeMs: info.mtimeMs, ino: info.ino, sha256: sha })
     else out.changed.push(e.path)
   }
-  const known = new Set(expected.map(e => e.key))
+  const known = new Set(listed.map(e => e.key))
   const allow = new Set(allowRootDlls.map(n => n.toLowerCase()))
   let entries = []
   try { entries = await fsp.readdir(root, { withFileTypes: true }) } catch { /* no copy */ }
@@ -757,7 +768,10 @@ async function build(srcDir, destDir, {
     const adopted = await adoptPart(destDir, e, { signal })
     if (adopted) keep.push(adopted)
   }
-  const kept = new Set(keep.map(f => f.key))
+  // An optional file the copy already has stays as it is, whatever its content (an intro-skip video, a launcher a mod
+  // manager put in place): it is never replaced, recorded or asked for
+  const optionalKept = have.files.filter(f => f.optional && f.state === 'changed' && !keep.some(k => k.key === f.key))
+  const kept = new Set([...keep, ...optionalKept].map(f => f.key))
   const restFiles = new Map([...manifest.files].filter(([k]) => !kept.has(k)))
   const rest = { ...manifest, files: restFiles, bytes: [...restFiles.values()].reduce((n, f) => n + f.size, 0) }
   const fromSource = !!(srcDir && (await fileInfo(srcDir)))
@@ -765,7 +779,10 @@ async function build(srcDir, destDir, {
     ? await classify(srcDir, rest, { hash: false, signal })
     : { files: [...restFiles.values()].map(e => ({ ...e, state: 'missing', reason: null, verified: false, from: null, mtimeMs: null, ino: null })) }
   const p = await plan(cls, { depotDir, hash: false, move, signal })
-  const out = { ok: false, kept: keep.length, written: 0, unresolved: p.unresolved, failed: [], depotsNeeded: p.depotsNeeded, need: null }
+  const out = {
+    ok: false, kept: keep.length, written: 0, unresolved: p.unresolved, failed: [], depotsNeeded: p.depotsNeeded, need: null,
+    optionalKept: optionalKept.map(f => f.path), optionalSkipped: p.optionalSkipped,
+  }
   if (p.unresolved.length) return out
   out.need = await bytesNeeded(p.jobs, destDir)
   if (checkSpace) {
@@ -774,8 +791,12 @@ async function build(srcDir, destDir, {
   }
   const res = await run(p.jobs, destDir, { signal, onProgress, allowLink })
   out.written = res.written.length
-  if (res.failed.length) {
-    return { ...out, failed: res.failed, depotsNeeded: [...new Set(res.failed.map(f => f.depot).filter(Boolean))].sort() }
+  // An optional file whose source turned out wrong while copying is skipped quietly, never failed
+  const isOptional = f => !!(manifest.files.get(keyOf(f.path)) || {}).optional
+  for (const f of res.failed.filter(isOptional)) out.optionalSkipped.push({ path: f.path, why: f.tried.join('; ') || 'no source' })
+  const failed = res.failed.filter(f => !isOptional(f))
+  if (failed.length) {
+    return { ...out, failed, depotsNeeded: [...new Set(failed.map(f => f.depot).filter(Boolean))].sort() }
   }
   const record = makeRecord({
     manifest, files: [...keep, ...res.written], source: fromSource ? path.resolve(srcDir) : null, depotDir, now,

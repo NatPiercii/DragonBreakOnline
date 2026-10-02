@@ -1677,6 +1677,8 @@ async function buildVerifiedCopy(src, dst, { force = false, progress = null, sig
   }
   store.delete('copyNeedsDepots')
   store.delete('copyCheckFailed')
+  for (const p of res.optionalKept || []) log(`[isolated] kept the game copy's own ${p} (optional; not the listed file)`)
+  for (const o of res.optionalSkipped || []) log(`[isolated] left out ${o.path} (optional): ${o.why}`)
   // AE popup fix, as in copyGameDir: the launcher keeps Skyrim.ccc empty (it is left out of the list for that reason)
   try { fs.writeFileSync(path.join(dst, 'Skyrim.ccc'), '') } catch { /* re-applied by applyForcedServerDefaults */ }
   try { fs.rmSync(path.join(dst, isolation.COPY_MARKER), { force: true }) } catch { /* the record replaces it */ }

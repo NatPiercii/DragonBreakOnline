@@ -19,6 +19,12 @@ const REF = require('./downgrade-1.6.1170.json')
 
 // Files the launcher itself rewrites in the copy, so never compared with the vanilla list: Skyrim.ccc is kept empty
 const MANAGED_IN_COPY = ['Skyrim.ccc']
+// Listed files a mod manager often deploys over (an intro-skip BGS_Logo.bik, skse64_loader renamed to
+// SkyrimSELauncher.exe) and that the game runs without: the verified copy keeps whatever it has, copies them from the
+// Skyrim folder only when the copy lacks them and that folder's file matches the list, and never counts them as
+// drift or asks for a depot over them. Everything else on the list stays strict
+const OPTIONAL_IN_COPY = ['Data/Video/BGS_Logo.bik', 'SkyrimSELauncher.exe', 'installscript.vdf', 'Low.ini', 'Medium.ini',
+  'High.ini', 'Ultra.ini', 'Skyrim_Default.ini', 'Skyrim.ini', 'Skyrim/SkyrimPrefs.ini']
 // The legacy copy's completion marker (main.js copyGameDir)
 const COPY_MARKER = 'vanilla-copy-complete.json'
 // The 1.6.1170 files whose size and sha256 are known without the full list (downgrade-1.6.1170.json)
@@ -43,7 +49,7 @@ const targetBuild = edition => targetVersion(edition).split('.').slice(0, 3).joi
 function manifestFor(edition, load = gamecopy.bundledManifest, { language = 'english' } = {}) {
   const platform = edition === 'Steam' ? 'steam' : edition === 'GOG' ? 'gog' : null
   if (!platform) return null
-  try { return load(platform, { omit: MANAGED_IN_COPY, language }) } catch { return null }
+  try { return load(platform, { omit: MANAGED_IN_COPY, optional: OPTIONAL_IN_COPY, language }) } catch { return null }
 }
 
 // Steam's language codes in the voice archives' names (Skyrim - Voices_<code>0.bsa)
@@ -447,7 +453,7 @@ function copyLinkProblem(dir, { forbidden = [] } = {}) {
 }
 
 module.exports = {
-  MANAGED_IN_COPY, COPY_MARKER, KNOWN_FILES, FOREIGN_ROOT_DLLS, NO_COPY_ERROR, SPACE_MARGIN,
+  MANAGED_IN_COPY, OPTIONAL_IN_COPY, COPY_MARKER, KNOWN_FILES, FOREIGN_ROOT_DLLS, NO_COPY_ERROR, SPACE_MARGIN,
   manifestFor, steamLanguage, copyMode, copyReady, gamePathFor, noGamePathError, versionGateDir, vetFile, trustSource,
   legacyRepairPlan, requiredFile, copyVoices, migrationResult, migrationRetry, changedDataWarning, setupText, spaceCheck, resolveBase, dllsToSetAside, panelState,
   catalogPaths, moveCatalogAside, restoreCatalog, restoreOrphanCatalog, catalogAside, copyLinkProblem, copyLinks, linkPolicy,

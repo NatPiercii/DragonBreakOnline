@@ -61,6 +61,15 @@ test('the gate: verified only with isolation on and a list that has files; GOG, 
   assert.strictEqual(iso.copyMode({ isolated: true, manifest: m }), 'verified')
 })
 
+test('the shipped list marks the mod-manager files optional, and nothing else', () => {
+  const m = iso.manifestFor('Steam')
+  const optional = [...m.files.values()].filter(e => e.optional).map(e => e.path).sort()
+  assert.deepStrictEqual(optional, ['Data/Video/BGS_Logo.bik', 'High.ini', 'Low.ini', 'Medium.ini', 'Skyrim/SkyrimPrefs.ini',
+    'SkyrimSELauncher.exe', 'Skyrim_Default.ini', 'Ultra.ini', 'installscript.vdf'])
+  for (const strict of ['SkyrimSE.exe', 'bink2w64.dll', 'steam_api64.dll', 'Data/Skyrim.esm', 'Data/Skyrim - Textures0.bsa',
+    'Data/ccBGSSSE001-Fish.esm', 'Data/_ResourcePack.bsa']) assert.strictEqual(m.files.get(strict.toLowerCase()).optional, false, strict)
+})
+
 test('a copy is ready with its record, the legacy marker or both masters; an interrupted one (exe only) is not', () => {
   const root = tmp()
   assert.strictEqual(iso.copyReady(null), false)
