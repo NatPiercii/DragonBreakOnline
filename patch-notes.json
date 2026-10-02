@@ -65,7 +65,7 @@
       {
         "heading": "Lockpicking",
         "items": [
-          "Locked dungeon chests were refusing everyone who had not already chosen Lockpicking, so nobody could pick a lock or learn the skill. Now anyone with a lockpick can try a Novice lock.",
+          "Locked dungeon chests were refusing everyone who had not already chosen Lockpicking, so nobody could pick a lock or learn the skill. Now anyone with a lockpick can try a Novice lock. Novice locks turn up on the Adept and Expert difficulties.",
           "Picking locks works you toward Lockpicking: do it often enough and you will be offered the skill in your skills menu (K). Harder locks (Apprentice and up) need Lockpicking at that tier."
         ]
       }

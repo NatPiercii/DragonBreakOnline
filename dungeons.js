@@ -45,7 +45,8 @@ module.exports = (api) => {
     { id: 'nightmare', label: 'Master',    blurb: 'The strongest, half again as many, most chests locked. The best loot.',                                      pick: 'high', mult: 1.6,  gear: 3000, potionTier: 3, gold: [20, 80], soulgem: 0.1,  soulTier: 3, ench: 0.08, bossEnch: 0.4  },
   ];
   const LOCK_LEVELS = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
-  const LOCK_BY_DIFF = { normal: [0, 1], hard: [1, 2, 3], nightmare: [2, 3, 4] };
+  // Novice locks on normal and hard, so the untrained, who can try only those, meet them (2 Oct)
+  const LOCK_BY_DIFF = { normal: [0, 1], hard: [0, 1, 2, 3], nightmare: [2, 3, 4] };
   const TYPE_NAMES = { nordic: 'Nordic ruin', dwemer: 'Dwemer ruin', cave: 'Cave', ice: 'Ice cave', fort: 'Fort', camp: 'Camp', ayleid: 'Ayleid ruin' };
 
   const normDesc = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
@@ -1241,6 +1242,7 @@ module.exports = (api) => {
     return false;
   };
   const lockpickingTier = (a) => { try { const r = mp.get(a, 'private.mastery'); if (!r || !Array.isArray(r.order) || !r.order.includes('lockpicking')) return -1; return Math.max(0, Number((r.skills && r.skills.lockpicking || {}).rank) || 0); } catch (e) { return -1; } };
+  const hasLockpick = (a) => { try { return ((mp.get(a, 'inventory') || {}).entries || []).some((e) => e && (Number(e.baseId) >>> 0) === LOCKPICK_BASE && Number(e.count) > 0); } catch (e) { return false; } };
   const takeLockpick = (a) => {
     try {
       const inv = mp.get(a, 'inventory') || { entries: [] };
@@ -1408,7 +1410,7 @@ module.exports = (api) => {
       // that tier. Untrained picks are how Lockpicking is found: masterySystem banks them and offers the skill (K) once
       // there is a level's worth. Refusing everyone outside it meant no lock was ever picked and nobody could take it up
       // (2 Oct: 0 of 49 characters had it, 290 refusals; Jake's "Systems not working ASAP")
-      if (tier < 0 && level > 0) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). An untrained hand can only try Novice locks: take up Lockpicking in your skills (K) to try harder ones.`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, not a Lockpicker`);
+      if (tier < 0 && level > 0) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). An untrained hand can only try Novice locks. Picking them builds toward Lockpicking, which your skills (K) will then offer; harder locks need it at that tier.`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, not a Lockpicker`);
       if (tier >= 0 && tier < level) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). Your Lockpicking is not yet up to it (tier ${level + 1} needed).`, `${chest.d.id} ${LOCK_LEVELS[level]} chest, tier ${tier} below ${level}`);
       // Oblivion-style tumblers (lockpick.js); the old roll below is the fallback if that module failed to load
       const lock = globalThis.__dboLockpick;
@@ -1423,6 +1425,8 @@ module.exports = (api) => {
         });
         return false;
       }
+      // The fallback roll (lockpick.js not loaded) needs a pick too, as lockpick.js and jail.js do
+      if (!hasLockpick(casterId)) return deny(casterId, `The chest is locked (${LOCK_LEVELS[level]}). You would need a lockpick.`, `${chest.d.id} ${LOCK_LEVELS[level]} lock, no lockpick`);
       const chance = Math.min(0.95, 0.55 + 0.15 * (tier - level));
       if (Math.random() < chance) {
         lease.unlocked.add(targetId);

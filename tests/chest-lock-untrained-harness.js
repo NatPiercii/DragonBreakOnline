@@ -98,7 +98,7 @@ check('...and the next use opens it', open(A, CH) === null);
 
 // 2. Untrained, a harder lock: refused, pointed at the skill
 lease.locked.set(CH2, 2); said.length = 0; begun.length = 0;
-check('an untrained player is refused an Adept lock, and told how to go further', open(A, CH2) === false && begun.length === 0 && saidTo(A).some((t) => /locked \(Adept\)\. An untrained hand can only try Novice locks: take up Lockpicking in your skills \(K\)/.test(t)), saidTo(A));
+check('an untrained player is refused an Adept lock, and told how to go further', open(A, CH2) === false && begun.length === 0 && saidTo(A).some((t) => /locked \(Adept\)\. An untrained hand can only try Novice locks\. Picking them builds toward Lockpicking, which your skills \(K\) will then offer/.test(t)), saidTo(A));
 
 // 3. A Lockpicker below the lock's tier is refused as before; at or above it, may try
 asLockpicker(A, 1); said.length = 0; now += 60000;   // deny() says a line once a while
@@ -107,7 +107,9 @@ asLockpicker(A, 2);
 check('a tier-3 Lockpicker may try it', open(A, CH2) === false && begun.length === 1 && begun[0].level === 2);
 
 // 4. The fallback roll (lockpick.js not loaded): an untrained Novice win fires the 'lock' mastery event
-globalThis.__dboLockpick = null; untrained(A); lease.locked.set(CH2, 0); lease.unlocked.delete(CH2); said.length = 0;
+globalThis.__dboLockpick = null; untrained(A); lease.locked.set(CH2, 0); lease.unlocked.delete(CH2); said.length = 0; now += 60000;
+check('without lockpick.js and without a pick, the roll is refused', open(A, CH2) === false && !lease.unlocked.has(CH2) && saidTo(A).some((t) => /You would need a lockpick/.test(t)), saidTo(A));
+props.set(`${A}|inventory`, { entries: [{ baseId: 0xa, count: 3 }] });
 const rnd = Math.random; Math.random = () => 0;
 const r = open(A, CH2);
 Math.random = rnd;
