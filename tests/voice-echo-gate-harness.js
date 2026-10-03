@@ -28,6 +28,24 @@ const PARTS_2_3 = 41; // checks in parts 2 and 3
 const why = !src ? 'FORK is not set' : !fs.existsSync(path.join(FORK, 'skymp5-front/src/utils/voiceEchoGate.js')) ? `${FORK} has no voiceEchoGate.js`
   : !esbuild || !fs.existsSync(esbuild) ? 'no esbuild in FORK_SERVER' : '';
 let skipped = 0;
+// The skip below finishes at once, so the flag finish() sets must exist before it (it threw "Cannot access 'finished'")
+let finished = false;
+
+// ---- 2a. No automatic gain control on the mic (#bugs 2 Oct: the voice chat raised a headset's input gain to max) ----
+if (src && fs.existsSync(src)) {
+  const vmSrc = fs.readFileSync(src, 'utf8');
+  if (!/MIC_CAPTURE/.test(vmSrc)) {
+    require('./expect')('voice-no-agc', `${FORK} has no MIC_CAPTURE`);
+    console.log(`SKIP  the automatic gain control checks: ${FORK} has no MIC_CAPTURE`);
+  } else {
+    check('MIC_CAPTURE turns automatic gain control off (echo cancellation and noise suppression stay on)',
+      /export const MIC_CAPTURE = Object\.freeze\(\{ echoCancellation: true, noiseSuppression: true, autoGainControl: false \}\);/.test(vmSrc));
+    check('our own getUserMedia capture uses it', /getUserMedia\(\{\s*audio: Object\.assign\(\{\}, MIC_CAPTURE, deviceId \? \{ deviceId: \{ exact: deviceId \} \} : \{\}\)/.test(vmSrc));
+    check("LiveKit's own capture (setMicrophoneEnabled) uses it through the room's audioCaptureDefaults", /new Room\(\{[^}]*audioCaptureDefaults: \{ \.\.\.MIC_CAPTURE \}/.test(vmSrc));
+    check('no capture in the file asks for automatic gain control', !/autoGainControl: true/.test(vmSrc));
+  }
+}
+
 if (why) {
   require('./expect')('voice-echo-gate', `parts 2-3 cannot run: ${why}`);
   skipped = PARTS_2_3;
@@ -180,7 +198,6 @@ if (why) {
 if (why) finish();
 
 // A promise that never settles empties the event loop and would end the run silently with exit 0
-let finished = false;
 process.on('beforeExit', () => { if (!finished) { console.log('FAIL  the run stalled on a promise that never settled'); failures++; finish(); } });
 
 function finish() {
