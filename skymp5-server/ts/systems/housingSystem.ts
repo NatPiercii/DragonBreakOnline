@@ -190,6 +190,8 @@ export class HousingSystem implements System {
       primaryOf: (ref: unknown) => primary(ref),
       recordOf: (ref: unknown) => { const p = primary(ref); return p ? this.read(ctx, p) : null; },
       holdOf: (ref: unknown) => { const p = primary(ref); return p ? this.holdOf(ctx, p) : ""; },
+      // What a load door's prompt should call it, or "" to keep the destination's name (gamemode.js dboDoorName)
+      doorName: (ref: unknown): string => { try { return this.doorName(ctx, Number(ref) >>> 0); } catch { return ""; } },
       isManager: (actorId: unknown, ref: unknown) => { const p = primary(ref); return !!p && this.isManager(ctx, Number(actorId) >>> 0, p); },
       grant: (ref: unknown, actorId: unknown): string => {
         const p = primary(ref); if (!p) return "That is not a property.";
@@ -466,9 +468,10 @@ export class HousingSystem implements System {
     const hadKeys = !!(rec.issued && rec.issued.length);
     rec.name = name;
     if (!this.commit(ctx, userId, primary, rec)) return;
-    this.notice(ctx, userId, hadKeys
+    const doors = rec.place ? this.membersOf(ctx, primary).filter((m) => !!m.rec.partner).length + 1 : 0;
+    this.notice(ctx, userId, (hadKeys
       ? `Now called ${name}. Keys already cut still open it; new ones will carry the new name.`
-      : `Now called ${name}.`);
+      : `Now called ${name}.`) + (doors > 1 ? ` All ${doors} of its doors show it.` : ""));
     const actorId = this.actorOf(ctx, userId);
     if (actorId) this.sendMenu(ctx, userId, actorId, primary);
   }
@@ -1118,14 +1121,40 @@ export class HousingSystem implements System {
     this.sendDecor(ctx, userId, this.decorRefs(ctx));
   }
 
-  // A locked claim is locked for every viewer, so one list serves everyone
+  // A locked claim is locked for every viewer, so one list serves everyone. A member of a place carries the place's name, so
+  // a rename shows on every door pair of it (Nate, 3 Oct)
   private decorRefs(ctx: SystemContext): Array<Record<string, unknown>> {
     const refs: Array<Record<string, unknown>> = [];
-    for (const { primary, rec } of this.liveClaims(ctx)) {
-      refs.push({ refId: primary, name: rec.name, locked: rec.locked });
-      if (rec.partner) refs.push({ refId: rec.partner, name: rec.name, locked: rec.locked });
+    const live = this.liveClaims(ctx);
+    const names = new Map<number, string | null>(live.map((c) => [c.primary, c.rec.name]));
+    for (const { primary, rec } of live) {
+      const name = this.shownName(rec, names);
+      refs.push({ refId: primary, name, locked: rec.locked });
+      if (rec.partner) refs.push({ refId: rec.partner, name, locked: rec.locked });
     }
     return refs;
+  }
+
+  // The name a claim shows: its place's when it is a member of a named one, else its own
+  private shownName(rec: PropertyRecord, rootNames: Map<number, string | null>): string | null {
+    if (rec.memberOf) { const n = rootNames.get(rec.memberOf); if (n) return n; }
+    return rec.name;
+  }
+
+  // The interaction prompt's name for a load door (gamemode.js dboDoorName): the property's name on the side of its door
+  // that stands in the world and leads in, so a house reads as what its owner called it; "" elsewhere (the door out, a
+  // door between two interiors, an unnamed or unowned claim), where the prompt keeps the destination's name
+  private doorName(ctx: SystemContext, refrId: number): string {
+    const primary = this.primaryOf(ctx, refrId);
+    if (!primary) return "";
+    const rec = this.read(ctx, primary);
+    if (!rec || rec.owner === 0) return "";
+    const root = rec.memberOf ? this.read(ctx, rec.memberOf) : null;
+    const name = (root && root.owner !== 0 && root.name) || rec.name;
+    if (!name) return "";
+    const far = this.partnerOf(ctx, refrId);
+    if (!far) return "";
+    return this.isWorldDesc(ctx, this.cellDescOf(ctx, refrId)) && !this.isWorldDesc(ctx, this.cellDescOf(ctx, far)) ? name : "";
   }
 
   // The registry drops an entry only when its record says the claim is over (an ownerless stub). An entry that reads
