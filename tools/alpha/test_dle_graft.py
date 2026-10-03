@@ -41,20 +41,24 @@ def refr(fid, x, flags=0, base=0x00000F00):
 CELL_A, CELL_B, CELL_C, WRLD = 0x00000100, 0x00000200, 0x00000300, 0x0000003C
 
 
-def plugin(path, cells, next_id):
-    """cells: {cell id: {group type: [record bytes]}} in one exterior block of world 3C"""
+def plugin(path, cells, next_id, masters=('Skyrim.esm',), stats=()):
+    """cells: {cell id: {group type: [record bytes]}} in one exterior block of world 3C; stats: STAT ids in a top group"""
     kids = []
     for cid, groups in cells.items():
         kids.append(rec(b'CELL', cid, sub(b'DATA', b'\x02\x00')))
         kids.append(grp(cid, 6, *[grp(cid, t, *rs) for t, rs in sorted(groups.items())]))
     world = grp(0x4C525757, 0, rec(b'WRLD', WRLD, sub(b'EDID', b'W\0')), grp(WRLD, 1, grp(0, 4, grp(0, 5, *kids))))
+    if stats:
+        world = grp(0x54415453, 0, *[rec(b'STAT', x, sub(b'EDID', b'S\0')) for x in stats]) + world
     n = 0
     i = 0
     while i < len(world):                                       # count records and groups the honest way
         size = struct.unpack_from('<I', world, i + 4)[0]
         n += 1
         i += 24 if world[i:i + 4] == b'GRUP' else 24 + size
-    head = sub(b'HEDR', struct.pack('<fiI', 1.7, n, next_id)) + sub(b'MAST', b'Skyrim.esm\0') + sub(b'DATA', b'\0' * 8)
+    head = sub(b'HEDR', struct.pack('<fiI', 1.7, n, next_id))
+    for m in masters:
+        head += sub(b'MAST', m.encode() + b'\0') + sub(b'DATA', b'\0' * 8)
     with open(path, 'wb') as fh:
         fh.write(rec(b'TES4', 0, head) + world)
 
@@ -64,8 +68,8 @@ def run(*args):
     return r.returncode, r.stdout + r.stderr
 
 
-def check(base, src, out, n):
-    r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), base, src, out, '--expect', str(n)],
+def check(base, src, out, n, *extra):
+    r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), base, src, out, '--expect', str(n), *extra],
                        capture_output=True, text=True)
     return r.returncode, r.stdout
 
@@ -130,6 +134,48 @@ try:
     rc, text = run(base, src4, os.path.join(tmp, 'x.esp'))
     ok(rc == 1 and 'not in the output' in text and not os.path.exists(os.path.join(tmp, 'x.esp')),
        'a ref naming a base object of its own that the output lacks is refused, and nothing is written', text)
+
+    # --disable-deleted: base masters Skyrim, Extra, Update. The Skyrim ref 901 is overridden by Update (moved, its base
+    # object Update's own F01, which is index 1 in Update and index 2 in the base); the source deletes it
+    data = os.path.join(tmp, 'Data')
+    os.mkdir(data)
+    xs = sub(b'XSCL', struct.pack('<f', 1.5))
+    def ref(fid, x, base_, extra=b''):
+        return rec(b'REFR', fid, sub(b'NAME', struct.pack('<I', base_)) + sub(b'DATA', struct.pack('<6f', x, 0, 0, 0, 0, 0)) + extra)
+    plugin(os.path.join(data, 'Skyrim.esm'), {CELL_A: {9: [ref(0x00000901, 6.0, 0x00000F00), ref(0x00000902, 6.5, 0x00000F00, sub(b'VMAD', b'\0' * 8))]}},
+           0x000903, masters=(), stats=(0x00000F00,))
+    plugin(os.path.join(data, 'Extra.esm'), {}, 0x000800, masters=('Skyrim.esm',))
+    plugin(os.path.join(data, 'Update.esm'), {CELL_A: {9: [ref(0x00000901, 60.0, 0x01000F01, xs)]}}, 0x000F02,
+           masters=('Skyrim.esm',), stats=(0x01000F01,))
+    M3 = ('Skyrim.esm', 'Extra.esm', 'Update.esm')
+    base3, src3 = os.path.join(tmp, 'base3.esp'), os.path.join(tmp, 'src3d.esp')
+    plugin(base3, {CELL_A: {9: [refr(0x03000800, 1.0)]}}, 0x000801, masters=M3)
+    plugin(src3, {CELL_A: {9: [refr(0x03000800, 1.0), refr(0x03000801, 2.0),
+                               rec(b'REFR', 0x00000901, sub(b'NAME', struct.pack('<I', 0x02000F01)), D.DELETED),
+                               rec(b'REFR', 0x00000902, sub(b'NAME', struct.pack('<I', 0x00000F00)), D.DELETED)]}},
+           0x000802, masters=M3)
+    out3 = os.path.join(tmp, 'out3.esp')
+    rc, text = run(base3, src3, out3, '--overrides', '--disable-deleted', '--data', data, '--only', '03000801,00000901')
+    ok(rc == 0, '--disable-deleted writes the graft', text)
+    O3 = D.Plugin(out3) if rc == 0 else None
+    r901 = next((r for r in O3.records if r[0] == 0x00000901), None) if O3 else None
+    if r901:
+        body = dict(D.subrecords(O3.bytes_of(r901)))
+        ok(r901[2] == D.DISABLED, 'the override is Initially Disabled and not Deleted', hex(r901[2]))
+        ok(struct.unpack('<f', body[b'DATA'][:4])[0] == 60.0 and body.get(b'XSCL') == struct.pack('<f', 1.5),
+           "it is the winning master's record (Update.esm's, moved and scaled), in place", body)
+        ok(struct.unpack('<I', body[b'NAME'])[0] == 0x02000F01, "its base object is mapped from Update.esm's numbering to the base's",
+           hex(struct.unpack('<I', body[b'NAME'])[0]))
+    else:
+        ok(False, 'the disabled override is in the output')
+    rc, text = check(base3, src3, out3, 2, '--expect-disabled', '1', '--data', data)
+    ok(rc == 0 and 'disabled: 1' in text and "'update.esm': 1" in text, 'dle_graft_check proves it against the master', text)
+    rc, text = check(base3, src3, out3, 2, '--data', data)
+    ok(rc == 1 and 'expected 0' in text, 'dle_graft_check fails it when no disabled override is expected', text)
+    rc, text = run(base3, src3, os.path.join(tmp, 'x.esp'), '--overrides', '--disable-deleted', '--data', data, '--only', '00000902')
+    ok(rc != 0 and 'VMAD' in text and 'graft refused' in text, 'a master record with a subrecord it cannot map is refused', text)
+    rc, text = run(base3, src3, os.path.join(tmp, 'x.esp'), '--overrides', '--disable-deleted')
+    ok(rc != 0 and 'needs --overrides and --data' in text, '--disable-deleted without --data is refused')
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

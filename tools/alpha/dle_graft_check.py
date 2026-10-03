@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Proof for a graft made by dle_graft.py, read with ck-mcp's esplib and a group walker of its own (not dle_graft's).
 
-    python3 tools/alpha/dle_graft_check.py <base esp> <source esp> <grafted esp> --expect <n> [--data <dir>]
+    python3 tools/alpha/dle_graft_check.py <base esp> <source esp> <grafted esp> --expect <n> [--expect-disabled <d>]
+                                           [--data <dir>]
 
 Exit 0 with "ok" lines, or 1 with one line per failure. It checks that the grafted file is the base plus exactly <n>
 references and nothing else:
@@ -9,6 +10,10 @@ references and nothing else:
   records   against the base, by form id (the masters are the same list, so ids compare as they are): none removed, none
             changed in flags or bytes, and exactly <n> added, every one a REFR or ACHR byte-identical to the source's
             and in the same world, cell and group type
+  disabled  with --expect-disabled (and --data), exactly <d> of the <n> are overrides the source flagged Deleted, written
+            instead as the winning master record (the last of the base's masters holding it): Initially Disabled and
+            not Deleted, the master's other flags, the same subrecords in the same order, every one byte-identical but
+            the base object, which names the same record through this file's masters (so the position is the master's)
   navi      every NAVI record (the navmesh info map) byte-identical to the base's
   groups    every group's size is its header plus its contents, to the byte, up to the end of the file; HEDR's count is
             records plus groups; a cell's child groups come in type order (persistent, temporary, distant); the base's
@@ -79,6 +84,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('base'); ap.add_argument('source'); ap.add_argument('out')
     ap.add_argument('--expect', type=int, required=True, help='the number of references the graft should add')
+    ap.add_argument('--expect-disabled', type=int, default=0, help='how many of them are Deleted overrides written disabled')
     ap.add_argument('--data', help='a Data folder with the masters, to resolve each added reference\'s base object')
     a = ap.parse_args()
     fails, oks = [], []
@@ -114,18 +120,68 @@ def main():
         fails.append(f'{len(changed)} base record(s) changed, e.g. {changed[0]:08X}')
     if len(added) != a.expect or set(bytype) - {'REFR', 'ACHR'}:
         fails.append(f'added {len(added)} record(s) {dict(bytype)}, expected {a.expect} references')
-    bad = [f for f in added if f not in src or src[f][:3] != out[f][:3] or src[f][3] != out[f][3]]
+    own = len(op.masters)
+    disabled = [f for f in added if f in src and src[f][1] & 0x20 and f >> 24 != own and out[f][1] != src[f][1]]
+    bad = [f for f in added if f not in disabled and (f not in src or src[f][:3] != out[f][:3] or src[f][3] != out[f][3])]
+    bad += [f for f in disabled if src[f][3] != out[f][3]]
     if bad:
         fails.append(f'{len(bad)} added record(s) differ from the source or sit elsewhere, e.g. {bad[0]:08X}')
     moved = [f for f in base if f in out and base[f][3] != out[f][3]]
     if moved:
         fails.append(f'{len(moved)} base record(s) now sit in another group, e.g. {moved[0]:08X}')
+    if len(disabled) != a.expect_disabled:
+        fails.append(f'{len(disabled)} added record(s) are Deleted overrides written differently, expected {a.expect_disabled}')
+    if disabled and not a.data:
+        fails.append('--data is needed to check the disabled overrides against their masters')
+    elif disabled:
+        files = {n.lower(): os.path.join(a.data, n) for n in os.listdir(a.data)}
+        loaded = {}
+        def plug(name):
+            if name not in loaded:
+                q = esplib.Plugin(files[name])
+                with open(q.path, 'rb') as fh:
+                    loaded[name] = (q, {fid: (fl, q.data_at(fh, off, sz, fl)) for t, fid, fl, off, sz, ctx in q.index})
+            return loaded[name]
+        wrong, winners = [], collections.Counter()
+        for f in disabled:
+            owner, loc, win = op.masters[f >> 24].lower(), f & 0xFFFFFF, None
+            for m in [x.lower() for x in op.masters]:
+                if m != owner:
+                    with open(files[m], 'rb') as fh:     # the TES4 header is enough to know whether m can hold it
+                        hd = fh.read(24); hb = fh.read(struct.unpack_from('<I', hd, 4)[0])
+                    if owner.encode('cp1252') + b'\0' not in hb.lower():
+                        continue
+                q, by = plug(m)
+                ms = [x.lower() for x in q.masters]
+                idx = len(ms) if m == owner else (ms.index(owner) if owner in ms else None)
+                if idx is not None and (idx << 24 | loc) in by:
+                    win = (m, q, by[idx << 24 | loc])
+            if not win:
+                wrong.append((f, 'no master holds it')); continue
+            m, q, (mfl, mdata) = win
+            winners[m] += 1
+            if out[f][1] != ((mfl & ~(0x20 | CMP)) | 0x800):
+                wrong.append((f, f'flags {out[f][1]:X}, master {mfl:X}')); continue
+            ms_, os_ = list(esplib.subrecords(mdata)), list(esplib.subrecords(out[f][2]))
+            if [x[0] for x in ms_] != [x[0] for x in os_]:
+                wrong.append((f, 'subrecords differ from the master')); continue
+            for (sig, mv), (_, ov) in zip(ms_, os_):
+                if sig == b'NAME':
+                    if q.modindex_source(struct.unpack_from('<I', mv, 0)[0]) != op.modindex_source(struct.unpack_from('<I', ov, 0)[0]) \
+                            or mv[4:] != ov[4:]:
+                        wrong.append((f, 'NAME names another record')); break
+                elif mv != ov:
+                    wrong.append((f, f'{sig.decode()} differs from the master')); break
+        if wrong:
+            fails.append(f'{len(wrong)} disabled override(s) wrong, e.g. {wrong[0][0]:08X}: {wrong[0][1]}')
+        else:
+            oks.append(f'disabled: {len(disabled)} Deleted override(s) written as the winning master record '
+                       f'({dict(winners)}), Initially Disabled, not Deleted, every subrecord as the master\'s, in place')
     if not (removed or changed or bad or moved) and len(added) == a.expect:
-        own = len(op.masters)
         cells = collections.Counter(out[f][3][1] for f in added)
         oks.append(f'records: {len(base)} -> {len(out)}; +{len(added)} {dict(bytype)} ({sum(1 for f in added if f >> 24 == own)} new, '
                    f'{sum(1 for f in added if f >> 24 != own)} override(s) of a master), 0 removed, 0 changed; every added one '
-                   f'byte-identical to the source, by cell ' + ', '.join(f'{c:08X} x{n}' for c, n in sorted(cells.items())))
+                   f'byte-identical to the source{" except the disabled overrides" if disabled else ""}, by cell ' + ', '.join(f'{c:08X} x{n}' for c, n in sorted(cells.items())))
     flagged = [f for f in added if out[f][1] & 0x20]
     if flagged:
         oks.append(f'note: {len(flagged)} added reference(s) flagged Deleted')
