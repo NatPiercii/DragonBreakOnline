@@ -172,8 +172,8 @@ check('gamemode: the needs chain answers __dboNeedsRateMult', /globalThis\.__dbo
 const dg = fs.readFileSync(path.join(SERVER, 'dungeons.js'), 'utf8');
 const wl = fs.readFileSync(path.join(SERVER, 'wildlife.js'), 'utf8');
 const ct = fs.readFileSync(path.join(SERVER, 'contracts.js'), 'utf8');
-check('dungeons: a body\'s coin, a share of it, a chest\'s coin (keyed per chest and lease)',
-  /raceGold\(casterId, kept, master/.test(dg) && /raceGold\(m, share, 'a share of loot'\)/.test(dg) && /raceGold\(actorId, count - handed, 'a chest', chestKey\(actorId\)\)/.test(dg) && /raceGold\(actorId, count, 'a chest', chestKey\(actorId\)\)/.test(dg));
+check('dungeons: a body\'s coin, a share of it, and a chest\'s rolled coin only (racial-gold-harness drives the chest)',
+  /raceGold\(casterId, kept, master/.test(dg) && /raceGold\(m, share, 'a share of loot'\)/.test(dg) && /luck\(actorId, count - handed, 'a chest'\)/.test(dg) && /luck\(actorId, count, 'a chest'\)/.test(dg) && /const lucky = Math\.min\(count, rolled\)/.test(dg));
 check('wildlife: a camp chest\'s coin', /__dboRaceGold\(casterId, it\.count, 'a camp chest'\)/.test(wl));
 check('contracts: the pay, as new coin', /__dboRaceGold\(killerId, paid, 'contract pay'\)/.test(ct));
 const others = fs.readdirSync(SERVER).filter((f) => f.endsWith('.js') && !['racial.js', 'dungeons.js', 'wildlife.js', 'contracts.js'].includes(f));

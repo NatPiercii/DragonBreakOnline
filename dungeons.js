@@ -612,6 +612,8 @@ module.exports = (api) => {
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     if (lease) lease.stocked = new Set();
+    // The coin each chest was rolled with: Imperial Luck (racial.js) pays only on that, never on gold a player put in
+    if (lease) lease.rolledGold = new Map();
     const ok = lootOk(lease);
     const ayleid = ayleidLootHere(d);
     const bossRefs = bossChestRefs(d);
@@ -626,6 +628,7 @@ module.exports = (api) => {
         const entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k, row)) : smallLoot(diff, ch.edid, ok, k);
         mp.set(id, 'inventory', { entries }); filled++;
         if (lease && entries.length) lease.stocked.add(id);
+        if (lease) { const g = entries.reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD_BASE ? Number(e.count) || 0 : 0), 0); if (g > 0) lease.rolledGold.set(id >>> 0, g); }
       } catch (e) { log('chest fill failed', ch.ref, e.message); }
     }
     return filled;
@@ -1730,20 +1733,24 @@ module.exports = (api) => {
     const here = dungeonAround(actorId); if (!here || here.id !== lease.id) return;
     const d = byId.get(lease.id); if (!d) return;
     if (!chestRefs.has(sourceId >>> 0)) return;
-    // Imperial Luck on what each one keeps, once per chest of this lease for each of them
-    const chestKey = (m) => `${lease.id}:${lease.startedAt}:${(sourceId >>> 0).toString(16)}:${m}`;
+    // Imperial Luck counts only the chest's own rolled coin still in it: the part of this pile the chest was rolled with,
+    // used up as it is taken, so gold a player put in and took back out pays nothing (G's review of racial-passives)
+    const rolled = lease.rolledGold instanceof Map ? Number(lease.rolledGold.get(sourceId >>> 0)) || 0 : 0;
+    const lucky = Math.min(count, rolled);
+    if (lease.rolledGold instanceof Map && rolled > 0) { if (rolled - lucky > 0) lease.rolledGold.set(sourceId >>> 0, rolled - lucky); else lease.rolledGold.delete(sourceId >>> 0); }
+    const luck = (m, n, why) => { const share = lucky > 0 ? Math.floor(n * lucky / count) : 0; if (share > 0) raceGold(m, share, why); };
     const others = [...lease.members].map((pid) => actorByProfile(pid)).filter((m) => m && m !== actorId && (dungeonAround(m) || {}).id === lease.id);
     const share = others.length ? Math.floor(count / (others.length + 1)) : 0;
-    if (share < 1) { raceGold(actorId, count, 'a chest', chestKey(actorId)); return; }
+    if (share < 1) { luck(actorId, count, 'a chest'); return; }
     try {
       const removed = removeGold(actorId, Math.min(share * others.length, goldHeld(actorId)));
       const each = Math.floor(removed / others.length);
       let handed = 0;
-      if (each > 0) for (const m of others) { if (giveItem(m, GOLD_BASE, each)) { handed += each; personal(m, `${nameOf(actorId)} found ${count} gold; your share is ${each}.`); raceGold(m, each, 'a share of a chest', chestKey(m)); } }
+      if (each > 0) for (const m of others) { if (giveItem(m, GOLD_BASE, each)) { handed += each; personal(m, `${nameOf(actorId)} found ${count} gold; your share is ${each}.`); luck(m, each, 'a share of a chest'); } }
       // Whatever could not be handed on (a failed give, the odd coin of a split) goes back to the finder
       if (removed > handed) giveItem(actorId, GOLD_BASE, removed - handed);
       if (handed) personal(actorId, `${count} gold, shared with your party: ${handed} went to them.`);
-      raceGold(actorId, count - handed, 'a chest', chestKey(actorId));
+      luck(actorId, count - handed, 'a chest');
     } catch (e) { log('gold split failed', e.message); }
   };
 
