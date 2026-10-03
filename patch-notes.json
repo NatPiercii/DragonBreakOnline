@@ -180,6 +180,20 @@
     ]
   },
   {
+    "title": "Your pack, set right",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Items",
+        "items": [
+          "Items that only appeared to be in your pack after a dropped or harvested item are now corrected straight away."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Apprentice locks for everyone too",
     "date": "2026-10-02",
     "version": "Server update",
@@ -276,20 +290,6 @@
         "heading": "Skills",
         "items": [
           "The playtester double-progress boost has ended early while we rebalance how fast skills grow."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "Your pack, set right",
-    "date": "2026-10-01",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Items",
-        "items": [
-          "Items that only appeared to be in your pack after a dropped or harvested item are now corrected straight away."
         ]
       }
     ]
