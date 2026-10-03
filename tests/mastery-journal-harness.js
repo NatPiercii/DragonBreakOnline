@@ -45,7 +45,7 @@ sys.rules = {};
 mp.set(PLAYER, 'private.mastery', { v: 2, order: ['defense'], skills: { defense: { level: 30, xp: 0, rank: 1, granted: [], lastPointAt: 0, lock: 'raise' },
   oneHanded: { level: 0, xp: 0, rank: 0, granted: [], offered: true, shadow: 2 } } });
 const saved = {};
-for (const k of ['__alduinakMasteryMenu', '__alduinakMasteryAction', '__dboJournalOpenTab']) saved[k] = globalThis[k];
+for (const k of ['__alduinakMasteryMenu', '__alduinakMasteryAction', '__dboJournalOpenTab', '__dboJournalIsOpen', '__dboJournalLimited', '__dboJournalSections']) saved[k] = globalThis[k];
 sys.registerJournalHooks(ctx);
 
 // ---- the menu object --------------------------------------------------------------------------------------------
@@ -82,25 +82,34 @@ ok('after an action, notices reach the client again', (() => { packets = []; sys
 
 // ---- K with preferJournal ---------------------------------------------------------------------------------------
 const opened = [];
-globalThis.__dboJournalOpenTab = (a, tab) => { opened.push([a >>> 0, tab]); return true; };
-packets = [];
-sys.customPacket(USER, 'masteryInfoRequest', { customPacketType: 'masteryInfoRequest', preferJournal: true }, ctx);
-ok('preferJournal + a journal that takes it: { journal: true } and the Skills tab opens', packets.length === 1 && packets[0].customPacketType === 'masteryMenu' && packets[0].journal === true && !packets[0].skills && opened.length === 1 && opened[0][1] === 'skills', [packets, opened]);
-packets = [];
-sys.customPacket(USER, 'masteryInfoRequest', { customPacketType: 'masteryInfoRequest' }, ctx);
-ok('an old client (no flag): the full menu, the journal is not asked', packets.length === 1 && Array.isArray(packets[0].skills) && !packets[0].journal && opened.length === 1, [packets, opened]);
+let isOpen = true;
+const shell = () => {
+  globalThis.__dboJournalOpenTab = (a, tab) => { opened.push([a >>> 0, tab]); return true; };
+  globalThis.__dboJournalIsOpen = () => isOpen;
+  globalThis.__dboJournalLimited = () => {};
+  globalThis.__dboJournalSections = { skills: { visible: () => true, view: () => ({}) } };
+};
+const ask = (flag) => { packets = []; sys.customPacket(USER, 'masteryInfoRequest', Object.assign({ customPacketType: 'masteryInfoRequest' }, flag ? { preferJournal: true } : {}), ctx); return packets; };
+const full = (p) => p.length === 1 && Array.isArray(p[0].skills) && !p[0].journal;
+shell();
+let out = ask(true);
+ok('preferJournal + the hub shell with a Skills tab: { journal: true } and the Skills tab opens', out.length === 1 && out[0].customPacketType === 'masteryMenu' && out[0].journal === true && !out[0].skills && opened.length === 1 && opened[0][1] === 'skills', [out, opened]);
+ok('an old client (no flag): the full menu, the journal is not asked', full(ask(false)) && opened.length === 1, opened);
+isOpen = false;
+ok('the journal refuses (in a fight, it stays shut): the full menu, so widget 25 opens', full(ask(true)) && opened.length === 2, packets);
+isOpen = true;
+delete globalThis.__dboJournalLimited;
+ok('today\'s journal (no shell: it would open Profile for any tab): the full menu, the journal is not asked', full(ask(true)) && opened.length === 2, opened);
+shell();
+delete globalThis.__dboJournalSections.skills;
+ok('the shell without journalskills.js: the full menu', full(ask(true)) && opened.length === 2, opened);
+shell();
 globalThis.__dboJournalOpenTab = () => false;
-packets = [];
-sys.customPacket(USER, 'masteryInfoRequest', { customPacketType: 'masteryInfoRequest', preferJournal: true }, ctx);
-ok('preferJournal but the journal declines (old front): the full menu', packets.length === 1 && Array.isArray(packets[0].skills) && !packets[0].journal, packets);
+ok('preferJournal but the journal declines (a front without the Skills tab): the full menu', full(ask(true)));
 globalThis.__dboJournalOpenTab = () => { throw new Error('boom'); };
-packets = [];
-sys.customPacket(USER, 'masteryInfoRequest', { customPacketType: 'masteryInfoRequest', preferJournal: true }, ctx);
-ok('a journal that throws: the full menu', packets.length === 1 && Array.isArray(packets[0].skills), packets);
-delete globalThis.__dboJournalOpenTab;
-packets = [];
-sys.customPacket(USER, 'masteryInfoRequest', { customPacketType: 'masteryInfoRequest', preferJournal: true }, ctx);
-ok('no journal module: the full menu', packets.length === 1 && Array.isArray(packets[0].skills), packets);
+ok('a journal that throws: the full menu', full(ask(true)));
+for (const k of ['__dboJournalOpenTab', '__dboJournalIsOpen', '__dboJournalLimited', '__dboJournalSections']) delete globalThis[k];
+ok('no journal module: the full menu', full(ask(true)));
 
 for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
 console.log(fails ? `${fails} FAILED` : 'all passed');

@@ -44,7 +44,7 @@ const zones = [
 ];
 const TITLES = { count: 'Count', steward: 'Steward', captain: 'Guard Captain', courtmage: 'Court Mage', guard: 'Guard', jarl: 'Jarl', commander: 'Hold Commander', guardcaptain: 'Guard Captain', chieftain: 'Chieftain', bane: 'Bane', shaman: 'Shaman', wisewoman: 'Wise-Woman', strongholdcommander: 'Stronghold Guard Commander', strongholdguard: 'Stronghold Guard' };
 let officials = {};
-const told = [], audits = [], props = new Map();
+const told = [], audits = [], props = new Map(), said = [];
 const online = () => [...chars.entries()].filter(([, c]) => c.online).map(([id]) => id);
 const byName = (q) => [...chars.entries()].filter(([, c]) => c.name.toLowerCase() === q.toLowerCase()).map(([id]) => id);
 const byTag = (q) => [...chars.entries()].filter(([, c]) => c.tag.toLowerCase() === q.toLowerCase()).map(([id]) => id);
@@ -79,7 +79,7 @@ const ranksOf = (pid) => { const out = []; for (const z of zones) for (const r o
 const handlers = {};
 const onUi = (ev, fn) => { (handlers[ev] = handlers[ev] || []).push(fn); };
 const base = {
-  mp, log: () => {}, personal: () => {}, system: (a, text) => told.push({ a, text }), audit: (t) => audits.push(t), cfg: {},
+  mp, log: () => {}, personal: (a, t) => said.push(t), system: (a, text) => told.push({ a, text }), audit: (t) => audits.push(t), cfg: {},
   isAdmin, isLeadStaff: isAdmin, tierOf, profileOf, nameOf, tagOf, display, who, findByName, findAnyByName, onUi,
   onlineActors: online, userOf: (a) => (chars.has(a) && chars.get(a).online ? 1 : -1), seen: new Map(),
   zoneList, zoneById, ranksOf, rankTitle: (r) => TITLES[r] || r,
@@ -159,11 +159,20 @@ ok('the second finds the one seat taken', r.kind === 'refused' && /already has 1
 r = ev('courtMove', COUNT, 'N', 'bruma', 12, 'guard');
 ok('a ruler moves a serving Steward to Guard without an offer', seated('bruma', 'guard').includes(12) && !seated('bruma', 'steward').includes(12) && r.kind === 'ok', [r, officials]);
 ok('the household follows: Guard', hhTitle(ALDO) === 'Guard', hhTitle(ALDO));
+// A re-seat by staff from one office straight into another gives up the old office's household rank (R-f3b 3)
+ev('courtAppoint', ADMIN, 'N', 'bruma', 'Cyrus Fane', 'courtmage');
+ok('staff re-seat: the Guard Captain becomes Court Mage and leaves the Guard Captain rank', seated('bruma', 'courtmage').includes(14) && !seated('bruma', 'captain').includes(14) && hhTitle(CAPT) === 'Battlemage', [officials.bruma, hhTitle(CAPT)]);
+ev('courtMove', ADMIN, 'N', 'bruma', 14, 'captain');
+ok('...and moved back, Guard Captain again', seated('bruma', 'captain').includes(14) && hhTitle(CAPT) === 'Guard Captain', hhTitle(CAPT));
 ok('moving someone with no office is refused', ev('courtMove', COUNT, 'N', 'bruma', 15, 'guard').kind === 'refused');
 r = ev('courtDismiss', COUNT, 'N', 'bruma', 12);
 ok('dismissing a Guard drops them to Citizen', !seated('bruma', 'guard').includes(12) && hhTitle(ALDO) === 'Citizen' && r.kind === 'ok', [r, hhTitle(ALDO)]);
 
 // ---- the household's own actions -------------------------------------------------------------------------------------
+r = ev('courtRank', ADMIN, 'N', 'bruma', ALDO, 0);
+ok('the household head follows the office: courtRank cannot make a second Count, staff included', r.kind === 'refused' && /follows the court's office/.test(r.text) && hhTitle(ALDO) !== 'Count' && hhTitle(COUNT) === 'Count', [r, hhTitle(ALDO), hhTitle(COUNT)]);
+r = ev('courtRank', ADMIN, 'N', 'bruma', COUNT, 8);
+ok('...nor take the Count\'s rank away', r.kind === 'refused' && hhTitle(COUNT) === 'Count', r);
 r = ev('courtRank', COUNT, 'N', 'bruma', ALDO, 2);
 ok('the Count sets a household rank (Knight)', hhTitle(ALDO) === 'Knight' && r.kind === 'ok', [r, hhTitle(ALDO)]);
 ok('a Citizen cannot', ev('courtRank', ALDO, 'N', 'bruma', COUNT, 8).kind === 'refused' && hhTitle(COUNT) === 'Count');
@@ -191,13 +200,39 @@ ok('nobody offers a post to themselves', /yourself/.test(ev('courtOffer', COUNT,
 ok('an unknown office is refused', ev('courtOffer', COUNT, 'N', 'bruma', 'Kesta', 'emperor').kind === 'refused');
 
 // ---- /appoint goes the same way ---------------------------------------------------------------------------------------
-const said = [];
 base.personal = (a, t) => said.push(t);
 const O2 = new Function(...Object.keys(base), section)(...Object.values(base));
 O2.appointFrom(COUNT, zoneById('bruma'), 'guard', O2.officialTarget('Bran Hollow'), false);
 ok('/appoint by a ruler is an offer too, offline targets included', !seated('bruma', 'guard').includes(13) && sec.view(COUNT).courts[0].outgoing.some((o) => o.name === 'Bran Hollow #BRN1' && o.title === 'Guard'), sec.view(COUNT).courts[0].outgoing);
 const out = O2.appointFrom(ADMIN, zoneById('bruma'), 'guard', O2.officialTarget('Kesta'), false);
 ok('/appoint by staff seats outright', seated('bruma', 'guard').includes(16) && /is now Guard of Bruma/.test(out.text) && hhTitle(KNIGHT) === 'Guard', [out, hhTitle(KNIGHT)]);
+
+// ---- an offer redraws an open Court tab; /court answers in chat for today's journal (R-f3b 6) ---------------------------
+const redrawn = [];
+globalThis.__dboJournalTabOf = (a) => (a === KNIGHT ? 'court' : a === OUT ? 'profile' : '');
+globalThis.__dboJournalRedraw = (a, tab) => { redrawn.push([a, tab]); return true; };
+ev('courtOffer', COUNT, 'N', 'bruma', 'Kesta', 'steward');
+ev('courtOffer', COUNT, 'N', 'bruma', 'Outsider', 'steward');
+ok('an offer redraws the target\'s journal when it is open on Court, and only then', redrawn.length === 1 && redrawn[0][0] === KNIGHT && redrawn[0][1] === 'court', redrawn);
+ok('...the chat line names /court accept', told.some((t) => t.a === OUT && /\/court accept/.test(t.text)), told);
+delete globalThis.__dboJournalTabOf; delete globalThis.__dboJournalRedraw;
+const chat = (a, args) => { said.length = 0; commands.get('court')(a, args); return said.join(' | '); };
+let line = chat(OUT, 'offers');
+ok('/court offers lists the posts offered, numbered', /1\. Steward of Bruma, offered by Narina Carvain #CNT1/.test(line), line);
+line = chat(OUT, '');
+ok('/court alone answers in chat on today\'s journal (no hub shell): it never opens Profile', /Posts offered to you/.test(line), line);
+line = chat(OUT, 'accept');
+ok('/court accept takes the only offer', seated('bruma', 'steward').includes(15) && /You are now Steward of Bruma/.test(line), [line, officials.bruma]);
+line = chat(OUT, 'decline');
+ok('/court decline with nothing offered says so', /No post is offered to you/.test(line), line);
+ev('courtOffer', ADMIN, 'N', 'whiterun', 'Kesta', 'steward');
+ok('offers from two courts both stand', sec.view(KNIGHT).offers.length === 2, sec.view(KNIGHT).offers.map((o) => o.zone));
+ev('courtOffer', COUNT, 'N', 'bruma', 'Kesta', 'courtmage');
+ok('...a second offer from the same court replaces its first', sec.view(KNIGHT).offers.length === 2 && sec.view(KNIGHT).offers.some((o) => o.rank === 'courtmage') && !sec.view(KNIGHT).offers.some((o) => o.zone === 'bruma' && o.rank === 'steward'), sec.view(KNIGHT).offers.map((o) => o.rank));
+line = chat(KNIGHT, 'accept');
+ok('with two offers /court accept asks which', /Which one\?/.test(line) && !seated('bruma', 'steward').includes(16), line);
+line = chat(KNIGHT, 'decline 2');
+ok('/court decline <number> declines that one', /declined/.test(line) && sec.view(KNIGHT).offers.length === 1, [line, sec.view(KNIGHT).offers]);
 
 // ---- expiry -------------------------------------------------------------------------------------------------------------
 const realNow = Date.now;

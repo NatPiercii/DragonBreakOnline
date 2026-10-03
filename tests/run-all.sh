@@ -96,7 +96,7 @@ declare -A NEEDS=(
   [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
   [admin-panel-front]=front:skymp5-front/src/features/adminPanel/index.tsx
-  [journal-tabs-b]=front:skymp5-front/src/features/journal/index.tsx
+  [journal-tabs-b-front]=front:skymp5-front/src/features/journal/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}

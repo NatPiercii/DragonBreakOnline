@@ -76,7 +76,8 @@ ok('hold factions carry court: true', payload(LEAD).factions.find((f) => f.id ==
 const before = ranksNow();
 const renamed = before.map((r, i) => ({ title: i === 1 ? '  Shield-Brother  ' : r.title, role: r.role, from: i }));
 let wageRenamed = null;
-globalThis.__dboEconomyRankRenamed = (fid, from, to) => { wageRenamed = [fid, from, to]; return true; };
+globalThis.__dboEconomyRanksRenamed = (fid, pairs) => { wageRenamed = [fid].concat(pairs[0] || []); wagePairs.push(pairs); return true; };
+const wagePairs = [];
 payload(BOSS);
 p = send('factionRanksEdit', BOSS, FID, renamed);
 ok('the leader renames a title (trimmed)', p.resultKind === 'ok' && ranksNow()[1].title === 'Shield-Brother', [p && p.result, ranksNow()[1]]);
@@ -122,6 +123,55 @@ bad('more than twelve ranks are refused', base().concat(Array.from({ length: 12 
 bad('a role cap is kept (a second blacksmith-capped role over 3 is fine, a second leader role is not)', base().map((r, i) => (i === 1 ? Object.assign({}, r, { role: 'leader' }) : r)));
 ok('a stale nonce does nothing', (() => { drawn.length = 0; for (const f of handlers.factionRanksEdit) f(LEAD, ['stale', FID, []]); return drawn.length === 0; })());
 
+// ---- every rename reaches the wages at once (R-f3b 5), checked against economy.js's own hook ------------------------
+payload(BOSS);
+wagePairs.length = 0;
+const two = ranksNow().map((r, i) => ({ title: i === 1 ? ranksNow()[2].title : i === 2 ? ranksNow()[1].title : r.title, role: r.role, from: i }));
+p = send('factionRanksEdit', BOSS, FID, two);
+ok('a leader swaps two titles: one call with both renames', p.resultKind === 'ok' && wagePairs.length === 1 && wagePairs[0].length === 2, [p && p.result, wagePairs]);
+{
+  const ECON = path.join(ROOT, 'economy.js');
+  const src = fs.readFileSync(ECON, 'utf8');
+  const m = src.match(/globalThis\.__dboEconomyRanksRenamed = \(fid, pairs\) => \{[\s\S]*?\n  \};/);
+  ok('economy.js has the all-at-once wage rename', !!m);
+  if (m) {
+    const d = { wages: { g: { A: 10, B: 20, C: 30, D: 40 } } };
+    let saved = 0;
+    const fn = new Function('data', 'save', 'return ' + m[0].replace(/^globalThis\.__dboEconomyRanksRenamed = /, '').replace(/;$/, ''))(() => d, () => { saved++; });
+    fn('g', [['A', 'B'], ['B', 'A']]);
+    ok('...a swap keeps each wage with its rank', d.wages.g.A === 20 && d.wages.g.B === 10 && d.wages.g.C === 30, d.wages.g);
+    fn('g', [['B', 'C'], ['C', 'E']]);
+    ok('...a chain moves every wage once', d.wages.g.C === 10 && d.wages.g.E === 30 && !('B' in d.wages.g) && d.wages.g.D === 40, d.wages.g);
+    ok('...and saves', saved === 2, saved);
+  }
+}
+// A member stored at a rank the list no longer has (a stale index) lands on the lowest rank instead of nowhere
+payload(LEAD);
+globalThis.__dboGuildState.members[FID][String(NEW)] = { rank: 40, name: 'Newcomer', tag: 'T16', since: 1 };
+p = send('factionRanksEdit', LEAD, FID, ranksNow().map((r, i) => ({ title: r.title, role: r.role, from: i })).concat([{ title: 'Recruit', role: 'member', from: -1 }]));
+ok('a stale rank index is put on the new lowest rank', p.resultKind === 'ok' && roster()[String(NEW)].rank === ranksNow().length - 1, [p && p.result, roster()[String(NEW)]]);
+delete globalThis.__dboGuildState.members[FID][String(NEW)];
+send('factionRanksEdit', LEAD, FID, ranksNow().map((r, i) => ({ title: r.title, role: r.role, from: i })).filter((r) => r.title !== 'Recruit'));
+// The staff override on the player view is a Lead GM's (R-f3b 4)
+const gmv = payload(GM).factions.find((f) => f.id === FID);
+ok('a plain GM gets no invite, kick or set-rank flags', !gmv.canInvite && !gmv.canKick && !gmv.canSetRank, [gmv.canInvite, gmv.canKick, gmv.canSetRank]);
+const ldv = payload(LEAD).factions.find((f) => f.id === FID);
+ok('...a Lead GM gets all three', ldv.canInvite && ldv.canKick && ldv.canSetRank);
+// A hold's ranks a court office sets keep their title and stay (R-f3b 7)
+globalThis.__dboCourtTiedTitles = () => ['guard captain', 'guard', 'battlemage', 'court wizard'];
+const HOLD = 'county-bruma';
+const hranks = () => payload(LEAD).factions.find((f) => f.id === HOLD).ranks;
+const hold = (fn) => { const l = hranks().map((r, i) => ({ title: r.title, role: r.role, from: i })); return fn(l) || l; };
+p = send('factionRanksEdit', LEAD, HOLD, hold((l) => { l[1].title = 'Captain of the Watch'; }));
+ok('renaming a hold rank an office sets is refused', p.resultKind === 'refused' && /set by a court office/.test(p.result) && hranks()[1].title === 'Guard Captain', p && p.result);
+p = send('factionRanksEdit', LEAD, HOLD, hold((l) => l.filter((r) => r.title !== 'Battlemage')));
+ok('...and so is removing one', p.resultKind === 'refused' && hranks().some((r) => r.title === 'Battlemage'), p && p.result);
+p = send('factionRanksEdit', LEAD, HOLD, hold((l) => { l[2].title = 'Knight of the Dragon'; }));
+ok('...a rank no office sets can be renamed', p.resultKind === 'ok' && hranks()[2].title === 'Knight of the Dragon', p && p.result);
+p = send('factionRanksEdit', LEAD, HOLD, hold((l) => { l[0].title = 'Countess'; }));
+ok('...and the head\'s title too (the office maps to the leader by role)', p.resultKind === 'ok' && hranks()[0].title === 'Countess', p && p.result);
+delete globalThis.__dboCourtTiedTitles;
+
 // ---- the override store ------------------------------------------------------------------------------------------------
 const stored = JSON.parse(fs.readFileSync(path.join(dir, 'guild-overrides.json'), 'utf8'));
 ok('guild-overrides.json holds the edited ranks with who and when', stored[FID] && stored[FID].ranks.length === n0 && /Lead/.test(stored[FID].by) && stored[FID].at > 0, stored[FID] && stored[FID].ranks.length);
@@ -135,7 +185,7 @@ fs.writeFileSync(path.join(dir, 'guild-overrides.json'), JSON.stringify({ [FID]:
 load();
 ok('an override that cannot stand is ignored at load', ranksNow()[0].role === 'leader' && ranksNow().length > 1);
 
-delete globalThis.__dboEconomyRankRenamed;
+delete globalThis.__dboEconomyRanksRenamed;
 try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* temp */ }
 console.log(fails ? `${fails} FAILED` : 'all passed');
 process.exit(fails ? 1 : 0);
