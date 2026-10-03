@@ -187,7 +187,14 @@ export class HousingSystem implements System {
   // server/tenancy.js rents property out through these, under the same rules as the menu: the claim limit, re-keying
   // on a new owner, and the hold's managers. grant returns an error text, or "" when the property is theirs.
   private exposeTenancy(ctx: SystemContext): void {
-    const primary = (ref: unknown) => this.primaryOf(ctx, Number(ref) >>> 0);
+    // With the place rules on, any door or chest of a place stands for the whole place (a listing at its back door rents
+    // the house, not that door)
+    const primary = (ref: unknown) => {
+      const p = this.primaryOf(ctx, Number(ref) >>> 0);
+      if (!p || !this.placesOn()) return p;
+      const r = this.read(ctx, p);
+      return r && r.owner !== 0 && r.memberOf && r.memberOf !== p ? r.memberOf : p;
+    };
     (globalThis as any).__dboHousing = {
       primaryOf: (ref: unknown) => primary(ref),
       recordOf: (ref: unknown) => { const p = primary(ref); return p ? this.read(ctx, p) : null; },
@@ -1536,7 +1543,9 @@ export class HousingSystem implements System {
   private applyPlaces(ctx: SystemContext, places: PlannedPlace[]): void {
     const mp = ctx.svr as Mp;
     const hex = (n: number) => (n >>> 0).toString(16);
-    const todo = places.filter((p) => p.kind === "house").filter((p) => { const r = this.read(ctx, p.root); return !!r && !r.place; });
+    // A place already built (by an earlier boot, or by a claim since) is left alone, whichever of its doors the plan names
+    const built = (ref: number) => { const r = this.read(ctx, ref); return !r || !!r.place || !!r.memberOf; };
+    const todo = places.filter((p) => p.kind === "house").filter((p) => !built(p.root) && !p.members.some(built));
     if (!todo.length) { this.log(`[housing] place migration: nothing to apply`); return; }
     const backup: Record<string, unknown> = {};
     for (const p of todo) for (const ref of [p.root, ...p.members]) { try { backup[hex(ref)] = mp.get(ref, HOUSING_PROP); } catch { backup[hex(ref)] = null; } }
