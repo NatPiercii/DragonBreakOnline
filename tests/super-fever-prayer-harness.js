@@ -53,7 +53,7 @@ ok(wrong.length === 0, 'a prayer to a Prince leaves the fever, one to a Divine o
 fevered('vampire'); globalThis.__dboSuperPrayed(P, 'mehrunes');
 ok(hasFever(), 'Mehrunes Dagon (id "mehrunes") does not cure the fever');
 fevered('werewolf'); globalThis.__dboSuperPrayed(P, 'arkay');
-ok(!hasFever() && said.includes('The fever breaks.'), 'Arkay does, and the player is told');
+ok(!hasFever() && said.some((t) => /^Arkay hears your prayer, and the fever breaks/.test(t)), 'Arkay does, and the player is told who broke it');
 fevered('vampire'); globalThis.__dboSuperPrayed(P, 'nosuchgod');
 ok(!hasFever(), 'an id no faith has is not treated as a Prince');
 
