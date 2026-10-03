@@ -11,6 +11,7 @@ import {
   once,
   Utility,
   ObjectReference,
+  writeLogs,
 } from "skyrimPlatform";
 
 export interface Tint {
@@ -183,10 +184,23 @@ export const applyAppearanceToPlayer = (appearance: Appearance): void => {
     ActorBase.from((Game.getPlayer() as Actor).getBaseObject()) as ActorBase,
   );
   applyTints(null, appearance);
+  regeneratePlayerHead(appearance);
   (Game.getPlayer() as Actor).queueNiNodeUpdate();
   Utility.wait(0.0625).then(() => {
     once("update", () => {
       Game.getPlayer()?.startDeferredKill();
     });
   });
+};
+
+// The login save carries no face sliders and setFaceMorph only edits the base, so the player's head is rebuilt from it
+const regeneratePlayerHead = (appearance: Appearance): void => {
+  const player = Game.getPlayer() as Actor;
+  let ran = false;
+  try { player.regenerateHead(); ran = true; } catch { /* not on this platform build */ }
+  try {
+    const base = ActorBase.from(player.getBaseObject()) as ActorBase;
+    const matched = appearance.options.filter((v, i) => Math.abs(base.getFaceMorph(i) - v) < 1e-3).length;
+    writeLogs("dbo-diag", `face apply: regenerateHead ${ran ? "ran" : "unavailable"}, ${matched}/${appearance.options.length} sliders on the base match`);
+  } catch { /* no writeLogs on this platform build */ }
 };
