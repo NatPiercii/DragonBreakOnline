@@ -341,3 +341,26 @@ $trade-border: dbo-accent(0.42);
     }
   }
 }
+
+// ---- F3 hub, H11: categories, sort, totals and ledger rows ------------------------------------------------------
+.trade__chips, .trade__sort { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
+.trade__sort { align-items: center; font-size: 12px; color: $dbo-text-dim; span { margin-right: 4px; } }
+.trade__chip {
+  padding: 2px 8px;
+  background: rgba(58, 69, 72, 0.4);
+  border: 1px solid rgba(140, 154, 156, 0.3);
+  color: $dbo-text-dim;
+  font-family: $dbo-ui-font;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover { color: $dbo-text; border-color: dbo-accent(0.6); }
+  &--on { color: $dbo-silver; border-color: dbo-accent(0.9); background: dbo-accent(0.16); }
+}
+.trade__item-value { flex: none; min-width: 42px; margin-left: 10px; text-align: right; color: $dbo-gold; font-variant-numeric: tabular-nums; }
+.trade__totals { margin-top: 6px; padding-top: 4px; border-top: 1px solid dbo-accent(0.2); font-size: 13px; color: $dbo-text-dim; text-align: right; }
+// Ledger columns: the name takes the room, the count and the value sit at the right in fixed columns
+.trade__item-name { flex: 1 1 auto; min-width: 0; }
+.trade__item-count { flex: none; min-width: 34px; text-align: right; }
+.trade__item-count + .trade__item-value, .trade__item-name + .trade__item-value { margin-left: 10px; }
+.trade__item-name + .trade__item-value { margin-left: 44px; }
