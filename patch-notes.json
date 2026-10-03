@@ -57,6 +57,43 @@
     ]
   },
   {
+    "title": "Your race's gifts",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Every race has a gift",
+        "items": [
+          "Each race now has a gift of its own, always with you. The server applies it, so it counts in every fight.",
+          "Gifts are off while you're in werewolf or Vampire Lord form. A vampire keeps their race's gift.",
+          "Your Defense skill, a blessing and your race's resistance together never take more than three quarters off a hit."
+        ]
+      },
+      {
+        "heading": "The ten gifts",
+        "items": [
+          "High Elves, Aldmeri Blood: magicka comes back 25% faster.",
+          "Argonians, Hist-Blooded: poison spit and poison spells hurt half as much, and your wounds heal 50% faster while you're below 35% health.",
+          "Wood Elves, Green Pact Hunter: your bows hit 10% harder, and poison spit and poison spells hurt half as much.",
+          "Bretons, Mage-Blooded: spells, staves and scrolls used on you hurt 25% less.",
+          "Dark Elves, Ash-Born: fire hurts half as much.",
+          "Imperials, Imperial Luck: 10% more gold from chests and bodies in a dungeon you've claimed, from giant camp chests and from contract pay.",
+          "Khajiit, Claws of the Moons: your claws deal 8 more damage with every bare-handed blow.",
+          "Nords, Child of the Cold: frost hurts half as much, and stamina comes back 15% faster outdoors in Skyrim and in the Jerall Mountains around Bruma.",
+          "Orcs, Berserker Blood: below 30% health, your melee blows hit 20% harder and you take 20% less damage.",
+          "Redguards, Yokudan Endurance: stamina comes back 25% faster, and poison spit and poison spells hurt half as much."
+        ]
+      },
+      {
+        "heading": "The old racial powers",
+        "items": [
+          "All ten racial powers, Night Eye and Voice of the Emperor included, were already switched off on this server, and your gift takes their place. They may still be in your list of powers, but they do nothing."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dungeon loot rebalanced",
     "date": "SHIP_DATE",
     "version": "Server update",

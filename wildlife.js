@@ -216,6 +216,8 @@ module.exports = (api) => {
     try { mp.set(casterId, 'private.campLoot', loots); } catch (e) { log('campLoot save failed', e.message); }
     campGlow(casterId);
     const got = campLoot(provinceOf(casterId)).filter((it) => giveItem(casterId, it.id, it.count));
+    // Imperial Luck (racial.js) on the camp's coin; the chest's own cooldown keeps it to once a visit
+    for (const it of got) if (it.id === GOLD_BASE) { try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(casterId, it.count, 'a camp chest'); } catch (e) { log('racial gold failed', e.message); } }
     personal(casterId, `You rummage through the ${hit.camp.owners || 'giants'}' chest: ${got.map((it) => `${it.count} ${it.name.replace(/([a-z])([A-Z])/g, '$1 $2')}`).join(', ')}.`);
     audit(`CAMP ${who(casterId)} looted ${hit.camp.name}: ${got.map((it) => `${it.count}x ${it.name}`).join(', ')}`);
     return false;
