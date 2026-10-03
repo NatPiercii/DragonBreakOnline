@@ -829,5 +829,9 @@
   "nord": { "resistFrost": 0.5, "coldStaminaRegen": 1.15, "coldProvinces": ["skyrim"], "coldAreas": [{ "world": "a764b:BSHeartland.esm", "pos": [56000, 232000], "radius": 60000 }] },
   "orc": { "lowHealth": 0.3, "meleeDamage": 0.2, "damageTaken": 0.2 },
   "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 }
+ },
+ "housingPlaces": {
+  "_comment": "Places (N3, fork housingSystem.ts): staff profiles whose claims the place migration leaves exactly as they are and the one-place cap never counts (Nate, 3 Oct: storage lent to players). Read when the migration plan runs; no restart needed.",
+  "staffProfiles": [4]
  }
 }
