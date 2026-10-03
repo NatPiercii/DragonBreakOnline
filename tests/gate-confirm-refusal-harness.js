@@ -95,7 +95,7 @@ ok(!moves.length && said.some((t) => /You have wandered from the entrance/.test(
 // ---- Cancel is unchanged ------------------------------------------------------------------------------------------------
 reset();
 g = openGate();
-ui.get('dungeonCancel')(A, []);
+ui.get('dungeonCancel')(A, [g.nonce]);
 ok(putBackOk() && logs.some((l) => /Viggo #UFHK turned back at CYRFreezewindHollowLocation; put back at the entrance/.test(l)), 'Cancel puts the player back as it always did, with the same log line', { moves, logs });
 
 // ---- the door while a claim runs: the step back stays, the message says who can go in ---------------------------------
