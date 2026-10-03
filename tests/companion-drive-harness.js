@@ -63,6 +63,26 @@ calls.length = 0;
 for (let i = 0; i < 8; i++) { walker.pos = [walker.pos[0] - 100, 0, 0]; svc.unstick(walker, player, s3, now + 20000 + i * 1000); }
 ok(!calls.length && !s3.driven && s3.followResult === 'offset 0', 'a companion that keeps walking is left alone', [calls, s3]);
 
+// Sticky drive (follow-up to C's review): once driven, it is driven again as soon as it falls behind, no stand and no lift
+const sticky = /driveSticky/.test(fs.readFileSync(FILE, 'utf8'));
+if (sticky) {
+  ok(state.driveSticky === true, 'the stuck-again companion is marked to be driven from now on', state);
+  const s4 = Object.assign({}, state, { driven: false, following: false, followResult: '' });
+  const crab2 = Object.assign(Object.create(Object.getPrototypeOf(crab)), crab, { pos: [600, 0, 0], getCombatTarget: () => null, isInCombat: () => false });
+  player.pos = [0, 0, 0];
+  calls.length = 0;
+  svc.follow(crab2, player, s4);
+  ok(s4.driven === true && /behind at 600, driven again/.test(s4.followResult) && calls.includes('clearKeepOffset') && !calls.includes('moveTo'), 'behind again: driven at once, no stand and no lift', [s4, calls]);
+  const near = Object.assign({}, state, { driven: false, followResult: 'x' });
+  const crab3 = Object.assign(Object.create(Object.getPrototypeOf(crab)), crab, { pos: [100, 0, 0], getCombatTarget: () => null, isInCombat: () => false });
+  svc.nativeFollow = () => true;   // at heel the ordinary follow carries on
+  svc.follow(crab3, player, near);
+  ok(near.driven === false, 'at heel it is not driven', near);
+  const fresh = { stuckSince: 0, unstuckAt: 0, driven: false, following: false, followResult: '', fightingTarget: 0 };
+  svc.follow(crab2, player, fresh);
+  ok(fresh.driven === false, 'a companion never stuck is not driven when behind (the lift comes first, as before)', fresh);
+} else console.log('(no sticky drive in this companionService: those checks are not run)');
+
 const src = fs.readFileSync(FILE, 'utf8');
 ok(/state\.followResult = "no free follower alias";\s*return false;/.test(src) && /state\.aliasFailed = true;\s*state\.followResult = "alias " \+ slot \+ " not found";/.test(src), 'the alias follow reports both silent give-ups');
 fs.rmSync(tmp, { recursive: true, force: true });
