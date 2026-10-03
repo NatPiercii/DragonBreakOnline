@@ -90,6 +90,12 @@ public:
   // Drops what is kept per actor for a form that is being destroyed
   void ForgetForm(uint32_t formId);
 
+  // A caster that left or was destroyed: its scroll reads and last-read times go
+  void ForgetScrollReads(uint32_t casterId);
+
+  // Tests only: every scroll read of the caster, and its last-read times, move this far into the past
+  void BackdateScrollReads(uint32_t casterId, std::chrono::seconds by);
+
   // for CraftTest.cpp
   const std::shared_ptr<CraftService>& GetCraftService() noexcept
   {
@@ -192,6 +198,13 @@ private:
   static constexpr uint32_t kScrollGrantedSecondsPerTarget = 60;
   static constexpr size_t kScrollReadsPerCaster = 4;
   std::unordered_map<uint32_t, std::vector<ScrollRead>> scrollHits;
+  // When each caster last read each scroll, (caster << 32 | scroll), kept kScrollLastReadKept. The hit fallback in
+  // OnHit takes a scroll only with none read in that span, so a rune that goes off after kScrollHitWindow costs none
+  static constexpr std::chrono::minutes kScrollLastReadKept{ 10 };
+  static constexpr size_t kScrollLastReadMax = 4096;
+  std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>
+    scrollLastRead;
+  bool ScrollReadRecently(uint32_t casterId, uint32_t scrollId);
   void RecordScrollRead(uint32_t casterId, uint32_t scrollId);
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
   bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
