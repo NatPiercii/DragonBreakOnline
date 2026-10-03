@@ -65,8 +65,8 @@
       {
         "heading": "Breakdown",
         "items": [
-          "Novice smiths can now break down Steel and Elven gear (and every vanilla Elven piece works the same way).",
-          "About 1,300 more weapons and pieces of armour can now be broken down, among them Northern Iron and the Elven, Glass and other gear of the Cyrodiil lands.",
+          "Novice smiths can break down Steel and Elven gear, and about 1,300 more pieces of gear can now be broken down, among them Northern Iron.",
+          "Anything above steel gives steel ingots.",
           "Gear with any metal in it now breaks down at the smelter, so a steel helmet gives back its steel instead of only its leather strips."
         ]
       }
