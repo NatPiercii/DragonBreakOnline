@@ -96,10 +96,10 @@ try {
   check('a GM\'s swing at a friendly GM\'s follower lands nothing (no brawl between bands)', refuses(GM1, b1) === true);
   check('a GM striking their own follower is left to companionSystem', refuses(GM2, b1) === false);
   check('a player who is not staff can still hit a GM\'s follower', refuses(PLAYER, b1) === false);
-  check('a follower hitting another GM is not refused (only its own GM is spared)', refuses(a1, GM2) === false);
+  check('a follower spares a friendly GM too (the friendly GM\'s swings at it are refused, so its blows are)', refuses(a1, GM2) === true && refuses(b1, GM1ALT) === true);
   check('hits that touch no warband NPC are never refused', refuses(WOLF, PLAYER) === false && refuses(PLAYER, WOLF) === false && refuses(GM1, PLAYER) === false);
   check('a self hit is never refused', refuses(a1, a1) === false);
-  check('a refusal is logged once a minute per pair', logs.filter((l) => /refused a hit/.test(l)).length === 5 && (refuses(a1, GM1), logs.filter((l) => /refused a hit/.test(l)).length === 5), logs);
+  check('a refusal is logged once a minute per pair', logs.filter((l) => /refused a hit/.test(l)).length === 7 && (refuses(a1, GM1), logs.filter((l) => /refused a hit/.test(l)).length === 7), logs);
   // A follower raised before this code loaded: no record here, its own tags name its GM
   const OLD = 0xff000900;
   actor(OLD, { profileId: -1, 'private.dboCompanion': 'companion', ff_companionOf: GM2 });
@@ -109,7 +109,9 @@ try {
   check('a player\'s summon is not a warband NPC', refuses(SUMMON, GM1) === false && refuses(a1, SUMMON) === false);
 
   // ---- sides: a staged battle needs two GMs on two sides --------------------------------------------------------------
-  let r = run(GM1, 'side Legion');
+  let r = run(GM1, 'side');
+  check('/warband side says that defending against a raid with a band needs two sides', /on no side/.test(r) && /defending against another GM's raid with your own band, needs two GMs on two sides/.test(r), r);
+  r = run(GM1, 'side Legion');
   check('a GM picks a side', /fights for Legion/.test(r) && /No other GM is on another side yet/.test(r), r);
   check('one side alone changes nothing: the other GM is on none', refuses(a1, b1) === true);
   r = run(GM2, 'side Stormcloaks');
@@ -117,6 +119,7 @@ try {
   check('two sides: their NPCs harm each other', refuses(a1, b1) === false && refuses(b1, a1) === false);
   check('...and a GM may strike the other side\'s follower', refuses(GM1, b1) === false);
   check('...but an NPC still never harms its own GM', refuses(a1, GM1) === true && refuses(b1, GM2) === true);
+  check('...and a follower harms a GM of the enemy side', refuses(a1, GM2) === false && refuses(b1, GM1) === false);
   run(GM2, 'side legion');
   check('the same side, whatever the case, is friends again', refuses(a1, b1) === true);
   run(GM2, 'side Stormcloaks');
@@ -158,6 +161,7 @@ try {
   check('...but harms the players it was unleashed on', refuses(a1, PLAYER) === false);
   check('a raider is driven by anyone but its GM (npcdirector asks)', globalThis.__dboWarbandAvoidHost(a1) === GM1);
   check('another GM may strike a released raider (raids are fought by GMs as players too)', refuses(GM2, a1) === false);
+  check('...and a raider\'s blows land on that defending GM (only its own GM is spared)', refuses(a1, GM2) === false);
   run(GM2, 'side none');
   r = run(GM2, 'settle');
   check('settle keeps the band where it stands', /Your warband of 2 stays here/.test(r), r);

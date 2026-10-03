@@ -39,6 +39,8 @@ require(MODULE)({
     get: (id, k) => { if (destroyed.has(id)) throw new Error('gone'); if (k === 'pos') return [1000, 2000, 300]; if (k === 'angle') return [0, 0, 90]; if (k === 'isDead') return dead.has(id); return undefined; },
     getIdFromDesc: (d) => parseInt(d, 16),
     destroyActor: (id) => destroyed.add(id),
+    // Unaggressive records (AIDT 0), so settle settles them; warband-settle-harness tests the aggression rules
+    lookupEspmRecordById: () => ({ record: { type: 'NPC_', fields: [{ type: 'AIDT', data: new Uint8Array([0]) }] }, toGlobalRecordId: (x) => x }),
   },
   log: () => {}, personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => `#${a}`, isAdmin: (a) => a === GM,
   registerChatCommand: (n, fn) => { commands[n] = fn; }, findByName: (q) => (q === 'Target' ? TARGET : 0), cfg: {},

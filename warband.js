@@ -9,10 +9,12 @@
 //
 // Ownership and sides (Nate, 3 Oct: "another GM's warband spawns fight mine"; "a raid or garrison must never attack the GM
 // who set it"). Every NPC raised here remembers its GM, after it is unleashed or settled too:
-//   - it never harms its own GM (any character of the GM's profile);
+//   - it never harms its own GM (any character of the GM's profile, so a GM's non-staff alt is spared by that GM's raid
+//     too); a follower (not a raider or garrison) never harms a friendly GM either;
 //   - two GMs' NPCs never harm each other while the GMs are friends; a GM's own swing at a friend's follower lands nothing,
 //     so a stray blow does not set two bands on each other (companionSystem orders a band onto whatever its GM strikes);
-//   - GMs are friends unless both chose sides and the sides differ (/warband side <name>): a staged battle;
+//   - GMs are friends unless both chose sides and the sides differ (/warband side <name>): a staged battle, or defending
+//     against another GM's raid with a band (a GM may strike another GM's raiders in person either way);
 //   - a follower and a garrison carry the player faction in ff_factions (formView.applyFactions on every client), so on
 //     another GM's screen they are no enemy of that GM's band, and a garrison turns on nobody's character; an unleashed
 //     raider gets its own factions back. A band on a named side keeps its own factions, so two sides fight as their
@@ -173,10 +175,13 @@ module.exports = (api) => {
     if (!mine.length) return personal(a, 'You lead no warband.');
     S.charging.delete(a >>> 0);
     let done = 0;
-    const kept = [];
+    const kept = [], unread = [];
     const profile = profileOf(a);
     for (const c of mine) {
-      if (!hostile && (Number(aggressionOf(c.baseId)) || 0) > SETTLE_MAX_AGGRESSION) { kept.push(nameOfNpc(c.id)); continue; }
+      // An aggression that cannot be read (AI data from a leveled-list template, or no readable record) is not trusted
+      const ag = hostile ? 0 : aggressionOf(c.baseId);
+      if (!hostile && ag === null) { unread.push(nameOfNpc(c.id)); continue; }
+      if (!hostile && ag > SETTLE_MAX_AGGRESSION) { kept.push(nameOfNpc(c.id)); continue; }
       const id = c.id >>> 0;
       // A raider gets its own factions back, a garrison the player faction
       try { mp.set(id, 'ff_factions', hostile ? recordFactions(c.baseId) : FRIENDLY_FACTIONS); } catch (e) { log('warband: ff_factions failed', e.message); }
@@ -190,11 +195,13 @@ module.exports = (api) => {
       const names = [...new Set(kept)].join(', ');
       log(`warband: ${who(a)} kept ${kept.length} aggressive NPC(s) in the warband instead of settling them (${names})`);
     }
+    if (unread.length) log(`warband: ${who(a)} kept ${unread.length} NPC(s) whose aggression could not be read in the warband (${[...new Set(unread)].join(', ')})`);
     const bodies = Math.round(C.bodySeconds / 60);
     personal(a, hostile
       ? `Your warband of ${done} is unleashed. They are hostile NPCs now, but never to you; /raid shows who still stands, /raid clear removes yours. The dead are removed after ${bodies} min.`
       : `${done ? `Your warband of ${done} stays here as friendly NPCs until the next restart; /raid clear removes them sooner.` : 'Nobody was settled.'}`
-        + (kept.length ? ` ${kept.length} (${[...new Set(kept)].join(', ')}) are aggressive by nature and would turn on players once settled, so they stay in your warband: dismiss them, or unleash them as a raid.` : ''));
+        + (kept.length ? ` ${kept.length} (${[...new Set(kept)].join(', ')}) are aggressive by nature and would turn on players once settled, so they stay in your warband: dismiss them, or unleash them as a raid.` : '')
+        + (unread.length ? ` ${unread.length} (${[...new Set(unread)].join(', ')}) could not be checked (no readable AI data, as when it comes from a leveled list), so they stay in your warband too.` : ''));
   };
 
   // ---- sides and charges -------------------------------------------------------------------------------------------------
@@ -205,13 +212,13 @@ module.exports = (api) => {
     if (!rest.trim()) {
       return personal(a, sideOf(profile)
         ? `Your warband fights for ${sideOf(profile)}: NPCs of GMs on another side are its enemies. /warband side none makes you everyone's friend again.`
-        : 'Your warband is on no side: every other GM\'s warband is a friend. /warband side <name> picks one (a staged battle needs two GMs on two sides).');
+        : 'Your warband is on no side: every other GM\'s warband is a friend, and friends\' NPCs never harm each other. /warband side <name> picks one. A staged battle, or defending against another GM\'s raid with your own band, needs two GMs on two sides.');
     }
     if (/^(none|off|clear)$/i.test(want) || !want) {
       S.sides.delete(profile);
       S.charging.delete(a >>> 0);
       audit(`WARBAND ${who(a)} left their side`);
-      return personal(a, 'Your warband is on no side now: every other GM\'s warband is a friend. NPCs you raise from now are of the player faction on every screen.');
+      return personal(a, 'Your warband is on no side now: every other GM\'s warband is a friend, and friends\' NPCs never harm each other (defending against a friend\'s raid with your band needs two sides). NPCs you raise from now are of the player faction on every screen.');
     }
     S.sides.set(profile, want);
     audit(`WARBAND ${who(a)} fights for ${want}`);
@@ -381,6 +388,9 @@ module.exports = (api) => {
     if (!A && !T) return false;
     let why = '';
     if (A && tgtPlayer && profileOf(tgt) === A.profile) why = 'its own GM';
+    // A follower spares a friendly GM as it spares its own: the friendly GM's swings at it are refused below, so its blows
+    // must not land either. An unleashed raider is fair game both ways (a GM may defend against another GM's raid).
+    else if (A && !A.released && tgtPlayer && isAdmin(tgt) && friends(A.profile, profileOf(tgt))) why = 'a friendly GM';
     else if (A && T && A.profile !== T.profile && friends(A.profile, T.profile)) why = 'a friendly GM\'s NPC';
     else if (A && T && A.profile === T.profile && (A.released || T.released)) why = 'an NPC of the same GM';
     else if (T && !T.released && aggPlayer && profileOf(agg) !== T.profile && isAdmin(agg) && friends(profileOf(agg), T.profile)) why = 'a friendly GM\'s follower';

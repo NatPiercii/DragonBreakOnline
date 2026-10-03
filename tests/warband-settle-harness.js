@@ -12,10 +12,10 @@ const MODULE = path.resolve(__dirname, '..', 'warband.js');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-wbsettle-'));
 const home = process.cwd();
 process.chdir(dir);
-const TITAN = 0x843, BANDIT = 0x1e7e2, LVL = 0x500, TPL_AGGR = 0x501, FARMER = 0x600, OWN_AI = 0x700, OWN_AI_TPL = 0x701, BROKEN = 0x800;
+const TITAN = 0x843, BANDIT = 0x1e7e2, LVL = 0x500, TPL_AGGR = 0x501, FARMER = 0x600, OWN_AI = 0x700, OWN_AI_TPL = 0x701, BROKEN = 0x800, LVLN_AI = 0x900, LVLN = 0x901;
 fs.writeFileSync('admin-placeables.json', JSON.stringify({ categories: [{ id: 'npc', kind: 'npc', items: [
   ['843:Skyrim.esm', 'Daedroth Titan'], ['1e7e2:Skyrim.esm', 'Bandit'], ['500:Skyrim.esm', 'Templated Wolf'], ['600:Skyrim.esm', 'Farmer'],
-  ['700:Skyrim.esm', 'Own AI Villager'], ['800:Skyrim.esm', 'Broken Record'],
+  ['700:Skyrim.esm', 'Own AI Villager'], ['800:Skyrim.esm', 'Broken Record'], ['900:Skyrim.esm', 'Leveled Draugr'],
 ] }] }));
 const u8 = (bytes) => new Uint8Array(bytes);
 const acbs = (tflags) => { const b = new Uint8Array(24); new DataView(b.buffer).setUint16(18, tflags, true); return b; };
@@ -29,6 +29,8 @@ const records = {
   [FARMER]: NPC([['ACBS', acbs(0)], ['AIDT', u8([0, 1, 50])]]),
   [OWN_AI]: NPC([['ACBS', acbs(0x04)], ['TPLT', tplt(OWN_AI_TPL)], ['AIDT', u8([0])]]),  // template gives factions only
   [OWN_AI_TPL]: NPC([['ACBS', acbs(0)], ['AIDT', u8([2])]]),
+  [LVLN_AI]: NPC([['ACBS', acbs(0x10)], ['TPLT', tplt(LVLN)], ['AIDT', u8([0])]]),  // AI data from a leveled list: unknown
+  [LVLN]: { record: { type: 'LVLN', fields: [] }, toGlobalRecordId: (x) => x },
 };
 let next = 0xff000100;
 const companions = new Map();
@@ -53,8 +55,8 @@ const ok = (c, what, got) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${what}${!c 
 const GM = 1;
 const raised = (base) => [...companions.values()].filter((c) => c.baseId === base);
 try {
-  for (const n of ['Daedroth Titan', 'Bandit', 'Templated Wolf', 'Farmer', 'Own AI Villager', 'Broken Record']) commands.warband(GM, `raise ${n}`);
-  ok(companions.size === 6, 'six raised', companions.size);
+  for (const n of ['Daedroth Titan', 'Bandit', 'Templated Wolf', 'Farmer', 'Own AI Villager', 'Broken Record', 'Leveled Draugr']) commands.warband(GM, `raise ${n}`);
+  ok(companions.size === 7, 'seven raised', companions.size);
   said.length = 0;
   commands.warband(GM, 'settle');
   ok(raised(TITAN)[0].released !== true, 'a Daedroth Titan (very aggressive) is not settled');
@@ -63,10 +65,13 @@ try {
   ok(raised(LVL)[0].released !== true, 'aggression taken from the template when the ACBS flags pass AI data on (2: kept)');
   ok(raised(FARMER)[0].released === true && raised(FARMER)[0].hostile === false, 'an unaggressive farmer is settled as before');
   ok(raised(OWN_AI)[0].released === true, 'a template that passes on only factions: the record\'s own (unaggressive) AI decides');
-  ok(raised(BROKEN)[0].released === true, 'a record that cannot be read is settled as before');
+  ok(raised(BROKEN)[0].released !== true, 'a record that cannot be read is not settled (its aggression is unknown)');
+  ok(raised(LVLN_AI)[0].released !== true, 'AI data from a leveled-list template (TPLT to an LVLN, flag 0x10) is unknown: not settled');
   const msg = said.join(' ');
-  ok(/Your warband of 4 stays here as friendly NPCs/.test(msg), 'the GM is told who was settled', msg);
+  ok(/Your warband of 3 stays here as friendly NPCs/.test(msg), 'the GM is told who was settled', msg);
   ok(/2 \(Daedroth Titan, Templated Wolf\) are aggressive by nature/.test(msg) && /dismiss them, or unleash them as a raid/.test(msg), '...and who stays, and why', msg);
+  ok(/2 \(Broken Record, Leveled Draugr\) could not be checked/.test(msg), '...and who stays because their nature could not be read', msg);
+  ok(logs.some((l) => /kept 2 NPC\(s\) whose aggression could not be read/.test(l)), 'one log line for those', logs);
   ok(logs.some((l) => /kept 2 aggressive NPC\(s\)/.test(l)), 'one log line for the kept ones');
   said.length = 0;
   commands.warband(GM, 'settle');
