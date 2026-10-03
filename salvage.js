@@ -58,6 +58,20 @@ module.exports = (api) => {
     }
     return dragonSet;
   };
+  // The loot cap's metals (gear-swap.json "metals", which gearswap.js applies to packs and containers): what comes back is
+  // capped by the same list, so an Elven piece gives steel and the two can never drift. Re-read when the file changes.
+  let capMap = null, capMtime = -1;
+  const capped = () => {
+    const file = path.resolve('gear-swap.json');
+    try {
+      const m = fs.statSync(file).mtimeMs;
+      if (m !== capMtime) {
+        capMtime = m;
+        capMap = new Map(Object.entries(JSON.parse(fs.readFileSync(file, 'utf8')).metals || {}).filter(([, v]) => v && v.to).map(([k, v]) => [norm(k), String(v.to)]));
+      }
+    } catch (e) { if (capMap === null) log('salvage: gear-swap.json unreadable, metals not capped', e.message); capMap = capMap || new Map(); }
+    return capMap;
+  };
   const descOf = (id) => { try { return String(mp.getDescFromId(id >>> 0)); } catch (e) { return ''; } };
   const idOf = (d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } };
   const nameOf = (d) => itemName(d) || 'something';
@@ -139,8 +153,15 @@ module.exports = (api) => {
     // an ingot, and giving one back would double the metal on every craft (review A5-1). Never more than the item cost.
     // Dragon bone and scales never come back (dragon-materials.json): dragon gear gives only its other materials, counted
     // as before, so breaking it down is never a second source of what only a slain dragon gives
-    const out = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)])
+    const raw = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)])
       .filter(([d, n]) => n > 0 && !dragonMaterials().has(norm(d)));
+    // Above the cap becomes its capped metal, merged with any of it already there (moonstone and steel: all steel)
+    const out = [];
+    for (const [d, n] of raw) {
+      const to = capped().get(norm(d)) || d;
+      const have = out.find(([x]) => norm(x) === norm(to));
+      if (have) have[1] += n; else out.push([to, n]);
+    }
     return out.length ? out : null;
   };
 
