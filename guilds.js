@@ -18,6 +18,8 @@ module.exports = (api) => {
   const path = require('path');
   const { mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf,
     onlineActors, isAdmin, findByName, audit, who, cfg, profileOf } = api;
+  // Online first, then offline characters too (Add member); an older gamemode passes only findByName
+  const findAnyByName = typeof api.findAnyByName === 'function' ? api.findAnyByName : findByName;
   // A GM observes; the powers below are for a Lead GM and above (claude-jake's review A3). Fails closed with an old gamemode.
   const isLeadStaff = typeof api.isLeadStaff === 'function' ? api.isLeadStaff : () => false;
 
@@ -46,6 +48,35 @@ module.exports = (api) => {
     return true;
   };
   for (const f of (readJson(PLAYER_PATH, { factions: [] }).factions || [])) addPlayerFaction(f);
+
+  // ---- rank overrides: titles renamed and ranks added, moved or removed in game (F3 Faction tab, staff view) ---------
+  // guild-overrides.json (runtime, gitignored): { factionId: { ranks: [{ title, role }], by, at } }. A faction's ranks are
+  // replaced whole, never edited in place, since factions of one template share its rank array.
+  const OVR_PATH = path.resolve('guild-overrides.json');
+  const OVR = readJson(OVR_PATH, {});
+  const RANK_TITLE_MAX = 40;
+  const RANKS_MAX = 12;
+  const cleanTitle = (t) => String(t === undefined || t === null ? '' : t).replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, RANK_TITLE_MAX);
+  // An error string for a rank list that cannot stand, or null: one leader and it comes first, known roles, titles unique
+  const ranksProblem = (ranks) => {
+    if (!Array.isArray(ranks) || !ranks.length) return 'A faction needs at least one rank.';
+    if (ranks.length > RANKS_MAX) return `A faction has at most ${RANKS_MAX} ranks.`;
+    if (ranks.some((r) => !r || !r.title)) return 'Every rank needs a title.';
+    if (ranks.some((r) => !ROLES[r.role])) return 'Every rank needs one of the known roles.';
+    if (ranks[0].role !== 'leader' || ranks.filter((r) => r.role === 'leader').length !== 1) return 'The leader rank comes first, and there is only one.';
+    const seen = new Set();
+    for (const r of ranks) { const k = r.title.toLowerCase(); if (seen.has(k)) return `Two ranks are called ${r.title}.`; seen.add(k); }
+    return null;
+  };
+  for (const [fid, o] of Object.entries(OVR)) {
+    const f = FACTIONS.get(fid);
+    const ranks = o && Array.isArray(o.ranks) ? o.ranks.map((r) => ({ title: cleanTitle(r && r.title), role: String((r && r.role) || '') })) : null;
+    if (!f || !ranks) continue;
+    const bad = ranksProblem(ranks);
+    if (bad) { log(`guild-overrides.json: ${fid} kept its own ranks (${bad})`); continue; }
+    f.ranks = ranks;
+  }
+  const saveOverrides = () => { fs.writeFileSync(OVR_PATH + '.tmp', JSON.stringify(OVR, null, 1)); fs.renameSync(OVR_PATH + '.tmp', OVR_PATH); };
 
   // ---- membership state -------------------------------------------------------------------------
   // { factionId: { actorId: { rank, name, tag, since } } }
@@ -164,8 +195,13 @@ module.exports = (api) => {
     return {
       id: fid, name: f.name, kind: f.kind, secret: !!f.secret, prince: f.prince || '',
       myRank: e ? e.rank : -1, myTitle: e ? (f.ranks[e.rank] || {}).title : '',
-      canInvite: admin || can(fid, a, 'invite'), canKick: admin || can(fid, a, 'kick'), canSetRank: admin || can(fid, a, 'setRank'),
+      // The staff override is a Lead GM's, as the handlers check (a GM observes)
+      canInvite: isLeadStaff(a) || can(fid, a, 'invite'), canKick: isLeadStaff(a) || can(fid, a, 'kick'), canSetRank: isLeadStaff(a) || can(fid, a, 'setRank'),
       ranks: f.ranks.map((r) => ({ title: r.title, role: r.role })), members,
+      // The journal's Faction tab: holds and strongholds are shown on the Court tab instead (Nate, 3 Oct, Q3); a leader
+      // renames the titles, a Lead GM also adds, moves and removes ranks and adds members
+      court: f.kind === 'hold' || f.kind === 'stronghold', count: Object.keys(rosterOf(fid)).length, player: !!f.player,
+      canRename: isLeadStaff(a) || (rankOf(fid, a) || {}).role === 'leader', canEditRanks: isLeadStaff(a), canAdd: isLeadStaff(a),
     };
   };
   // The panel's content, also the Character Journal's Faction tab (journal.js); keepNonce: a journal redraw keeps the
@@ -181,7 +217,8 @@ module.exports = (api) => {
     const list = isAdmin(a) ? [...FACTIONS.keys()] : mine.concat([...FACTIONS.keys()].filter((fid) => !mine.includes(fid) && circles.has(circleOf(fid))));
     const invites = invitesOf(a).map((i) => ({ factionId: i.fid, name: FACTIONS.get(i.fid).name, from: display(i.from) }));
     return {
-      type: 'faction', id: WIDGET_ID, nonce, admin: isLeadStaff(a), self: a >>> 0,
+      type: 'faction', id: WIDGET_ID, nonce, admin: isLeadStaff(a), staff: isAdmin(a), self: a >>> 0,
+      roles: Object.keys(ROLES), rankTitleMax: RANK_TITLE_MAX, ranksMax: RANKS_MAX,
       factions: list.map((fid) => factionView(a, fid)), invites, selected: focusFid || mine[0] || list[0] || '',
       // The Realm and War tabs (realm.js): territories and their owners, wars, and what this character leads
       realm: typeof globalThis.__dboRealmView === 'function' ? globalThis.__dboRealmView(a >>> 0) : null,
@@ -302,35 +339,49 @@ module.exports = (api) => {
     const fid = String(args[1] || ''); ST.invites.set(a >>> 0, invitesOf(a).filter((i) => i.fid !== fid));
     reply(a, 'Invitation declined.', '', false);
   });
-  onUi('factionKick', (a, args) => {
-    if (!fresh(a, args)) return;
-    const fid = String(args[1] || ''); const t = Number(args[2]) >>> 0; const f = FACTIONS.get(fid);
-    if (!f || !entryOf(fid, t)) return reply(a, 'They are not in that faction.', fid, true);
-    if (!isLeadStaff(a) && !(can(fid, a, 'kick') && outranks(fid, a, t))) return reply(a, 'You cannot remove someone of equal or higher rank.', fid, true);
+  // Kick and set rank, shared by the faction panel and the Court tab's household (court.js): { error } or { text }
+  const kickMember = (a, fid, t) => {
+    const f = FACTIONS.get(fid);
+    if (!f || !entryOf(fid, t)) return { error: 'They are not in that faction.' };
+    if (!isLeadStaff(a) && !(can(fid, a, 'kick') && outranks(fid, a, t))) return { error: 'You cannot remove someone of equal or higher rank.' };
     const name = rosterOf(fid)[String(t)].name;
     removeMember(fid, t);
     if (isOnline(t)) system(t, `You have been removed from ${f.name}.`);
     audit(`FACTION ${who(a)} removed ${name} from ${f.name}`);
-    reply(a, `${name} is no longer in ${f.name}.`, fid, false);
-  });
-  onUi('factionSetRank', (a, args) => {
-    if (!fresh(a, args)) return;
-    const fid = String(args[1] || ''); const t = Number(args[2]) >>> 0; const rank = Math.floor(Number(args[3])); const f = FACTIONS.get(fid);
-    if (!f || !entryOf(fid, t) || !(rank >= 0 && rank < f.ranks.length)) return reply(a, 'That rank change is not possible.', fid, true);
+    return { text: `${name} is no longer in ${f.name}.` };
+  };
+  // court: a household's head follows the court's office (court.js), so its rank can be neither given nor taken here
+  const setRankOf = (a, fid, t, rank, court) => {
+    const f = FACTIONS.get(fid);
+    if (!f || !entryOf(fid, t) || !(rank >= 0 && rank < f.ranks.length)) return { error: 'That rank change is not possible.' };
     const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
+    if (court && (rank === leaderRank || entryOf(fid, t).rank === leaderRank)) return { error: `The ${f.ranks[leaderRank].title} of ${f.name} follows the court's office: appoint or dismiss the office instead.` };
     if (!isLeadStaff(a)) {
-      if (!can(fid, a, 'setRank')) return reply(a, 'Only the leader sets ranks.', fid, true);
-      if (t === (a >>> 0)) return reply(a, 'Pass leadership by naming someone else leader.', fid, true);
+      if (!can(fid, a, 'setRank')) return { error: 'Only the leader sets ranks.' };
+      if (t === (a >>> 0)) return { error: 'Pass leadership by naming someone else leader.' };
     }
     // Naming a new leader steps the old one down to the rank below, so a faction never has two
     if (rank === leaderRank) for (const [id, m] of Object.entries(rosterOf(fid))) if (m.rank === leaderRank && Number(id) !== t) { m.rank = Math.min(leaderRank + 1, lowestRank(fid)); if (isOnline(Number(id))) mirror(Number(id)); }
     const err = setMember(fid, t, rank);
-    if (err) return reply(a, err, fid, true);
+    if (err) return { error: err };
     const title = f.ranks[rank].title;
     if (isOnline(t)) system(t, `You are now ${title} of ${f.name}.`);
     audit(`FACTION ${who(a)} made ${rosterOf(fid)[String(t)].name} ${title} of ${f.name}`);
-    reply(a, `${rosterOf(fid)[String(t)].name} is now ${title}.`, fid, false);
+    return { text: `${rosterOf(fid)[String(t)].name} is now ${title}.` };
+  };
+  onUi('factionKick', (a, args) => {
+    if (!fresh(a, args)) return;
+    const fid = String(args[1] || ''); const r = kickMember(a, fid, Number(args[2]) >>> 0);
+    reply(a, r.error || r.text, fid, !!r.error);
   });
+  onUi('factionSetRank', (a, args) => {
+    if (!fresh(a, args)) return;
+    const fid = String(args[1] || ''); const r = setRankOf(a, fid, Number(args[2]) >>> 0, Math.floor(Number(args[3])));
+    reply(a, r.error || r.text, fid, !!r.error);
+  });
+  globalThis.__dboGuildKick = (a, fid, t) => kickMember(a >>> 0, String(fid), Number(t) >>> 0);
+  globalThis.__dboGuildSetRank = (a, fid, t, rank, court) => setRankOf(a >>> 0, String(fid), Number(t) >>> 0, Math.floor(Number(rank)), !!court);
+  globalThis.__dboGuildInvite = (a, t, fid) => { const text = invite(a >>> 0, Number(t) >>> 0, String(fid)); return /^You invited/.test(text) ? { text } : { error: text }; };
   onUi('factionLeave', (a, args) => {
     if (!fresh(a, args)) return;
     const fid = String(args[1] || ''); const f = FACTIONS.get(fid);
@@ -339,6 +390,127 @@ module.exports = (api) => {
     audit(`FACTION ${who(a)} left ${f.name}`);
     reply(a, `You have left ${f.name}.`, '', false);
   });
+  // A Lead GM adds a character, online or offline, at the lowest rank (the Faction tab's staff view)
+  const addMember = (a, fid, query) => {
+    const f = FACTIONS.get(fid);
+    if (!isLeadStaff(a)) return { error: 'Only a Lead GM or above adds members.' };
+    if (!f) return { error: 'No such faction.' };
+    const t = findAnyByName(String(query || '').trim());
+    if (t < 0) return { error: `${-t} characters have that name. Use their #TAG.` };
+    if (!t) return { error: 'No character by that name or #TAG.' };
+    if (entryOf(fid, t)) return { error: `${nameOf(t)} is already in ${f.name}.` };
+    if (!fits(t, f)) return { error: `${nameOf(t)} could never belong to ${f.name}.` };
+    const err = setMember(fid, t, lowestRank(fid));
+    if (err) return { error: err };
+    const title = f.ranks[lowestRank(fid)].title;
+    ST.invites.set(t >>> 0, invitesOf(t).filter((i) => i.fid !== fid));
+    if (isOnline(t)) system(t, `You have been made ${title} of ${f.name}.`);
+    audit(`FACTION GM ${who(a)} added ${who(t)} to ${f.name} as ${title}${isOnline(t) ? '' : ' (offline)'}`);
+    return { text: `${nameOf(t)} is now ${title} of ${f.name}.${isOnline(t) ? '' : ' They are offline and will see it when they return.'}` };
+  };
+  onUi('factionAdd', (a, args) => {
+    if (!fresh(a, args)) return;
+    const fid = String(args[1] || ''); const r = addMember(a, fid, args[2]);
+    reply(a, r.error || r.text, fid, !!r.error);
+  });
+  // The whole rank list at once: [{ title, role, from }], from = the rank's index before the edit, or -1 for a new one.
+  // A leader may only rename; a Lead GM may also add, move and remove ranks. Members keep their rank through a move
+  // (they are stored by index, so the roster is renumbered in the same write); a rank somebody holds cannot go.
+  const editRanks = (a, fid, list) => {
+    const f = FACTIONS.get(fid);
+    if (!f) return { error: 'No such faction.' };
+    const lead = isLeadStaff(a);
+    if (!lead && (rankOf(fid, a) || {}).role !== 'leader') return { error: 'Only the leader renames ranks, and only a Lead GM adds, moves or removes them.' };
+    if (!Array.isArray(list)) return { error: 'That rank list is not possible.' };
+    const next = list.slice(0, RANKS_MAX + 1).map((r) => ({ title: cleanTitle(r && r.title), role: String((r && r.role) || ''), from: Number.isInteger(r && r.from) ? r.from : -1 }));
+    const froms = next.map((r) => r.from).filter((x) => x >= 0);
+    if (froms.some((x) => x >= f.ranks.length) || new Set(froms).size !== froms.length) return { error: 'That rank list is not possible.' };
+    if (!lead && (next.length !== f.ranks.length || next.some((r, i) => r.from !== i || r.role !== f.ranks[i].role))) return { error: 'You may rename your ranks. A Lead GM adds, moves or removes them.' };
+    const bad = ranksProblem(next);
+    if (bad) return { error: bad };
+    // A hold's or stronghold's ranks that court offices set (court.js, by title) keep their title and stay
+    if (f.kind === 'hold' || f.kind === 'stronghold') {
+      const tied = typeof globalThis.__dboCourtTiedTitles === 'function' ? globalThis.__dboCourtTiedTitles() : [];
+      for (let i = 0; i < f.ranks.length; i++) {
+        if (!tied.includes(f.ranks[i].title.toLowerCase())) continue;
+        const kept = next.find((r) => r.from === i);
+        if (!kept || kept.title.toLowerCase() !== f.ranks[i].title.toLowerCase()) return { error: `${f.ranks[i].title} is set by a court office, so it keeps its title and cannot be removed.` };
+      }
+    }
+    const roster = rosterOf(fid);
+    const held = (i) => Object.values(roster).filter((e) => e.rank === i).length;
+    for (let i = 0; i < f.ranks.length; i++) if (!froms.includes(i) && held(i)) return { error: `${f.ranks[i].title} cannot go: ${held(i)} ${held(i) === 1 ? 'member holds' : 'members hold'} it.` };
+    const map = new Map(next.map((r, i) => [r.from, i]).filter(([from]) => from >= 0));
+    // A member stored at a rank the list no longer has (a stale index) lands on the new lowest rank
+    const newIndex = (old) => (map.has(old) ? map.get(old) : next.length - 1);
+    for (const [role, cap] of Object.entries(CAPS)) {
+      const n = Object.values(roster).filter((e) => (next[newIndex(e.rank)] || {}).role === role).length;
+      if (Number(cap) && n > Number(cap)) return { error: `${f.name} may have only ${cap} with the ${role} role, and ${n} would hold it.` };
+    }
+    const prose = typeof globalThis.__dboProseProblem === 'function' ? globalThis.__dboProseProblem : null;
+    const word = prose ? next.map((r) => prose(r.title)).find(Boolean) : null;
+    if (word) return { error: `The word "${word}" will not do in a rank title.` };
+    const renamed = next.filter((r) => r.from >= 0 && f.ranks[r.from].title !== r.title).map((r) => [f.ranks[r.from].title, r.title]);
+    const old = f.ranks;
+    const ranks = next.map((r) => ({ title: r.title, role: r.role }));
+    const prev = OVR[fid];
+    OVR[fid] = { ranks, by: who(a), at: Date.now() };
+    try { saveOverrides(); } catch (e) { if (prev) OVR[fid] = prev; else delete OVR[fid]; log('guild-overrides.json write failed', e.message); return { error: 'The ranks could not be saved. Try again later.' }; }
+    f.ranks = ranks;
+    for (const e of Object.values(roster)) e.rank = newIndex(e.rank);
+    save();
+    for (const id of Object.keys(roster).map(Number)) if (isOnline(id)) mirror(id);
+    // economy.js keeps a non-hold faction's wages by rank title: every rename at once, so a swap or a chain keeps each wage
+    if (renamed.length && typeof globalThis.__dboEconomyRanksRenamed === 'function') { try { globalThis.__dboEconomyRanksRenamed(fid, renamed); } catch (e) { log('guilds: wage rename failed', e.message); } }
+    audit(`FACTION ${lead ? 'GM ' : ''}${who(a)} set the ranks of ${f.name}: ${old.map((r) => r.title).join(', ')} -> ${ranks.map((r) => `${r.title} (${r.role})`).join(', ')}`);
+    return { text: `The ranks of ${f.name} are saved.` };
+  };
+  onUi('factionRanksEdit', (a, args) => {
+    if (!fresh(a, args)) return;
+    const fid = String(args[1] || ''); const r = editRanks(a, fid, args[2]);
+    reply(a, r.error || r.text, fid, !!r.error);
+  });
+
+  // ---- the Court tab (court.js): a zone's hold or stronghold faction is its household ---------------------------
+  const courtFactionOf = (zoneId) => [...FACTIONS.values()].find((f) => (f.kind === 'hold' || f.kind === 'stronghold') && f.zone === String(zoneId)) || null;
+  globalThis.__dboCourtFaction = (zoneId) => { const f = courtFactionOf(zoneId); return f ? f.id : null; };
+  globalThis.__dboCourtHousehold = (a, zoneId) => {
+    const f = courtFactionOf(zoneId); if (!f) return null;
+    const view = factionView(a >>> 0, f.id);
+    // The invitations the household has out, for those who may invite
+    const pending = !view.canInvite ? [] : [...ST.invites.entries()].flatMap(([t, list]) => (list || [])
+      .filter((i) => i.fid === f.id && Date.now() - i.at < INVITE_MS).map((i) => ({ actorId: Number(t) >>> 0, name: nameOf(Number(t) >>> 0), from: nameOf(i.from), at: i.at })));
+    return Object.assign(view, { pending, mine: invitesOf(a).some((i) => i.fid === f.id) });
+  };
+  // The office is the source of truth (Nate, 3 Oct, Q3): seating someone sets their household rank to the office's
+  // (titles: the first of these the faction has, or '@leader'); unseating drops it to the lowest rank if they still hold
+  // the office's rank. An office with no matching rank only makes sure the holder is in the household.
+  const courtRankIndex = (f, titles) => {
+    for (const t of titles || []) {
+      if (t === '@leader') { const i = f.ranks.findIndex((r) => r.role === 'leader'); if (i >= 0) return i; continue; }
+      const i = f.ranks.findIndex((r) => r.title.toLowerCase() === String(t).toLowerCase());
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  globalThis.__dboCourtSync = (zoneId, actor, titles, seated) => {
+    const f = courtFactionOf(zoneId); const t = Number(actor) >>> 0;
+    if (!f || !t) return null;
+    const want = courtRankIndex(f, titles);
+    const e = entryOf(f.id, t);
+    if (!seated) {
+      if (!e || want < 0 || e.rank !== want) return null;
+      const err = setMember(f.id, t, lowestRank(f.id));
+      return err || `${nameOf(t)} is ${f.ranks[lowestRank(f.id)].title} of ${f.name} again.`;
+    }
+    const rank = want >= 0 ? want : (e ? e.rank : lowestRank(f.id));
+    if (e && e.rank === rank) return null;
+    const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
+    if (rank === leaderRank) for (const [id, m] of Object.entries(rosterOf(f.id))) if (m.rank === leaderRank && Number(id) !== t) { m.rank = Math.min(leaderRank + 1, lowestRank(f.id)); if (isOnline(Number(id))) mirror(Number(id)); }
+    const err = setMember(f.id, t, rank);
+    if (err) { log(`court: ${err}`); return err; }
+    return `${nameOf(t)} is ${f.ranks[rank].title} of ${f.name}.`;
+  };
 
   // ---- X menu: "Invite to <faction>" --------------------------------------------------------------
   globalThis.__dboFactionMenuEntries = (a, t) => membershipsOf(a)

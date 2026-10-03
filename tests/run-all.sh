@@ -71,6 +71,8 @@ declare -A NEEDS=(
   [craft-weight]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
+  [mastery-journal]=server:skymp5-server/ts/systems/masterySystem.ts
+  [admin-school]=server:skymp5-server/ts/systems/adminSystem.ts
   [staff-mastery]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-killing-blow]=server:skymp5-server/ts/systems/masterySystem.ts
   [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
@@ -94,6 +96,8 @@ declare -A NEEDS=(
   [hud-settings]=front:skymp5-front/src/features/hud/index.tsx
   [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
+  [admin-panel-front]=front:skymp5-front/src/features/adminPanel/index.tsx
+  [journal-tabs-b-front]=front:skymp5-front/src/features/journal/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
@@ -110,7 +114,7 @@ bundle() {
     [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"
     # The widget's named exports come too, so a harness can render a part that only a click would show
     printf "export * from '%s';\nexport { default as Widget } from '%s';\nexport { renderToStaticMarkup } from 'react-dom/server';\nexport { createElement } from 'react';\n" "$root/$entry" "$root/$entry" > "$wrap"
-    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.scss=empty --loader:.png=empty --loader:.jpg=empty --loader:.gif=empty --loader:.svg=empty --outfile="$out" --log-level=error || return 1
+    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.js=jsx --loader:.scss=empty --loader:.png=empty --loader:.jpg=empty --loader:.gif=empty --loader:.svg=empty --outfile="$out" --log-level=error || return 1
     echo "$out"; return 0
   fi
   local out="$OUT/$side-$(basename "${entry%.ts}").js"

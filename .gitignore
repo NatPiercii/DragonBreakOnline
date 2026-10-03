@@ -100,3 +100,5 @@ playtester-boost.json.tmp
 item-snapshots.json
 item-snapshots.json.tmp
 journal/
+court-offers.json
+guild-overrides.json

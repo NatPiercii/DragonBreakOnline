@@ -135,7 +135,7 @@ check('boot line: five manuals ready, Glass waiting for the plugin, the award re
 // ---- reading a manual ----
 skills(NOVICE, { blacksmith: 0 }); inv(NOVICE, [[B('orcish'), 1], [B('steel'), 1]]);
 check('a Novice Blacksmith is refused the Orcish manual (T3) through the read hook: the read is refused', (await read(NOVICE, B('orcish'))) === false);
-check('...told why, and keeps the book, with no marker', /You can't follow this yet: Thorbald's Methods: Orcish is for a Blacksmith of Journeyman rank or better\. You keep the book\./.test(said(NOVICE)) && count(NOVICE, B('orcish')) === 1 && !spellSet(NOVICE).has(K('orcish')), said(NOVICE));
+check('...told why, and keeps the book, with no marker', /You can't follow this yet: Thorbald's Methods: Orcish is for a Blacksmith of Adept rank or better\. You keep the book\./.test(said(NOVICE)) && count(NOVICE, B('orcish')) === 1 && !spellSet(NOVICE).has(K('orcish')), said(NOVICE));
 check('...nor the Steel manual (T2): a Novice is T1', (await read(NOVICE, B('steel'))) === false && /Apprentice rank or better/.test(said(NOVICE)));
 skills(SMITH, { blacksmith: 1 }); inv(SMITH, [[B('steel'), 2]]);
 check('an Apprentice Blacksmith learns the Steel manual', (await read(SMITH, B('steel'))) !== false && spellSet(SMITH).has(K('steel')) && (getp(SMITH, 'private.dboManuals') || {}).steel, getp(SMITH, 'private.dboManuals'));
