@@ -170,6 +170,7 @@ module.exports = (api) => {
   };
   // The panel's content, also the Character Journal's Faction tab (journal.js); keepNonce: a journal redraw keeps the
   // nonce the front already holds
+  const CHARTER_HINT = 'To found a faction or a cult of your own, type /charter found <name> or /charter cult <name> in chat. Your co-founders confirm it, then a GM approves it.';
   const menuPayload = (a, result, resultKind, focusFid, keepNonce) => {
     const nonce = keepNonce && ST.nonces.get(a >>> 0) ? ST.nonces.get(a >>> 0) : `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     ST.nonces.set(a >>> 0, nonce);
@@ -185,7 +186,8 @@ module.exports = (api) => {
       // The Realm and War tabs (realm.js): territories and their owners, wars, and what this character leads
       realm: typeof globalThis.__dboRealmView === 'function' ? globalThis.__dboRealmView(a >>> 0) : null,
       economy: typeof globalThis.__dboEconomyView === 'function' ? globalThis.__dboEconomyView(a >>> 0) : null,
-      result: result || '', resultKind: resultKind || '',
+      // The panel has no founding control yet (charters.js is chat only), so with nothing else to say it says how
+      ...(result || !((cfg.charters || {}).enabled) ? { result: result || '', resultKind: resultKind || '' } : { result: CHARTER_HINT, resultKind: 'info' }),
     };
   };
   // While the Character Journal is open its Faction tab is redrawn instead of panel 37

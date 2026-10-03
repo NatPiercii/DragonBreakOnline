@@ -1,5 +1,19 @@
 [
   {
+    "title": "Founding a faction",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "The faction window now tells you how to found a faction or a cult of your own: type /charter found <name> (or /charter cult <name>) in chat, gather your co-founders, and a GM approves it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Welcome to the Alpha",
     "date": "2026-10-01",
     "version": "Server update",
