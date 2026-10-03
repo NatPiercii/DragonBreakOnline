@@ -59,7 +59,8 @@ let info: MasteryInfo = { profession: null, rank: 0, hours: 0, rankHours: [], pr
  *
  * Protocol - all messages are MsgType.CustomPacket with a JSON dump.
  *
- *   Client -> Server: { "customPacketType": "masteryInfoRequest" }
+ *   Client -> Server: { "customPacketType": "masteryInfoRequest", "preferJournal": true }
+ *   Server -> Client: { "customPacketType": "masteryMenu", "journal": true }   the F3 journal opened on Skills: open nothing
  *   Server -> Client: { "customPacketType": "masteryMenu", "profession", "rank",
  *                       "hours", "rankHours", "professions" }
  *   Client -> Server: { "customPacketType": "masteryChoose", "profession" }
@@ -94,7 +95,8 @@ export class MasteryService extends ClientListener {
 
     logTrace(this, `Requesting mastery info`);
     this.awaitingOpen = true;
-    sendCustomPacket(this.controller, { customPacketType: "masteryInfoRequest" });
+    // preferJournal: a server with the F3 journal opens its Skills tab instead and answers { journal: true }
+    sendCustomPacket(this.controller, { customPacketType: "masteryInfoRequest", preferJournal: true });
   }
 
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
@@ -103,6 +105,7 @@ export class MasteryService extends ClientListener {
 
     switch (content["customPacketType"]) {
       case "masteryMenu": {
+        if (content["journal"] === true) { this.awaitingOpen = false; break; }
         const professions = Array.isArray(content["professions"]) ? content["professions"] : [];
         const rankHours = Array.isArray(content["rankHours"]) ? content["rankHours"] : [];
         info = {
