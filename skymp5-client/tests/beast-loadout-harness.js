@@ -90,7 +90,7 @@ function run({ BeastFormService }) {
   const player = () => native({
     getFormID: 0x14,
     getEquippedSpell: (slot) => (hands[slot] ? SPELL(hands[slot]) : null),
-    equipSpell: (s, slot) => { hands[slot] = s.getFormID(); },
+    equipSpell: (s, slot) => { if (globalThis.__failEquip) { globalThis.__failEquip = false; throw new Error('equip failed'); } hands[slot] = s.getFormID(); },
     unequipSpell: (s, slot) => { if (hands[slot] === s.getFormID()) hands[slot] = 0; },
     addSpell: () => {}, removeSpell: () => {}, addPerk: () => {}, removePerk: () => {}, addShout: () => {}, removeShout: () => {},
     unequipAll: () => { hands[SLOT_LEFT] = hands[SLOT_RIGHT] = hands[SLOT_VOICE] = 0; },
@@ -167,6 +167,13 @@ function run({ BeastFormService }) {
   check('key 3 still picks the third left-hand spell (Summon Gargoyle)', hands[SLOT_LEFT] === GARGOYLE, hands);
   tick();
   check('...and it stays', hands[SLOT_LEFT] === GARGOYLE, hands);
+
+  // An equip that fails leaves the old spell in hand: the next pass retries the choice, it does not adopt the old one
+  globalThis.__failEquip = true;
+  key(2 + 3);                                          // N4: Vampire's Grip, whose equip throws once
+  check('a failed equip leaves the previous spell in hand', hands[SLOT_LEFT] === GARGOYLE, hands);
+  tick();
+  check("...and the next pass retries the choice (Vampire's Grip), not the spell left behind", hands[SLOT_LEFT] === GRIP, hands);
 
   console.log(failures ? `\n${failures} FAILED` : '\nall passed');
   process.exit(failures ? 1 : 0);
