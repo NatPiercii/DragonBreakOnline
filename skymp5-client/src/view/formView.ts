@@ -1,5 +1,6 @@
 import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
 import { isBeastRaceId } from "../sync/beastRaceIds";
+import { TAKEOVER_RECHECK_SECONDS, isHostileTakeover, takeoverLine } from "./takeoverDiag";
 import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
 import { isVampireLordRace, noteVampireLordAnim } from "../sync/vampireLordAnimDiag";
 import { Appearance, applyAppearance } from "../sync/appearance";
@@ -1011,6 +1012,21 @@ export class FormView {
     try { disabled = String(refr.isDisabled()); } catch (e) { /* gone */ }
     const seated = this.movState && this.movState.havokSeated ? "yes" : "no";
     note("fv:host", `${(this.refrId >>> 0).toString(16)} remote=${((this.remoteRefrId || 0) >>> 0).toString(16)} ${was ? "ours" : "theirs"}->${now ? "ours" : "theirs"} 3d=${loaded} disabled=${disabled} havokSeated=${seated}`);
+    // A hostile NPC taken over from another host: its AI now and once it has had time to act (thread 10, passive after a
+    // hand-over). Read again from its id later, since a native object does not outlive the frame.
+    if (was || !now) return;
+    try {
+      const actor = Actor.from(refr);
+      if (!isHostileTakeover(actor)) return;
+      const refrId = this.refrId, remoteId = this.remoteRefrId || 0;
+      note("fv:takeover", takeoverLine(actor as Actor, refrId, remoteId, "0s", seated, now));
+      Utility.wait(TAKEOVER_RECHECK_SECONDS).then(() => once("update", () => {
+        try {
+          const later = Actor.from(Game.getFormEx(refrId));
+          if (later) note("fv:takeover", takeoverLine(later, refrId, remoteId, `${TAKEOVER_RECHECK_SECONDS}s`, this.movState && this.movState.havokSeated ? "yes" : "no", this.hostedLast === true));
+        } catch (e) { /* gone */ }
+      }));
+    } catch (e) { /* diagnostics never break the view */ }
   }
 
   private isSettlingBeast(model: FormModel): boolean {
