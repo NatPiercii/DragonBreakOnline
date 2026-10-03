@@ -1753,6 +1753,16 @@ function buildNewsCard(item, featured) {
   return card
 }
 
+// READ MORE opens the newest news card and brings it into view (it had no handler: a dead link)
+function openLatestNews(grid) {
+  const card = grid && grid.querySelector('.news-card')
+  if (card && card.classList.contains('news-card--collapsible')) card.classList.add('news-card--open')
+  const target = card || grid
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  return !!card
+}
+document.getElementById('btn-read-more').addEventListener('click', () => openLatestNews(newsGrid))
+
 async function loadNews() {
   const result = await window.electronAPI.fetchNews()
   newsGrid.innerHTML = ''
