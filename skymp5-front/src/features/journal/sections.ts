@@ -3,3 +3,4 @@
 import './tabs/DeityTab';
 import './tabs/SettingsTab';
 import './tabs/SettingsKeys';
+import './tabs/SettingsVoice';

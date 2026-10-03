@@ -68,6 +68,33 @@
   &__later { font-size: 13px; color: $dbo-gold; font-style: italic; }
   &__note { margin: 12px 0 0; font-size: 14px; color: $dbo-text-dim; }
 
+  &__peer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 260px) auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 6px;
+    border-bottom: 1px solid dbo-accent(0.12);
+    border-left: 2px solid transparent;
+
+    &--focus { border-left-color: dbo-accent(0.9); background: dbo-accent(0.08); }
+    .journal__button { padding: 3px 10px; }
+  }
+  &__peer-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $dbo-text; }
+
+  &__vad { display: flex; flex-direction: column; gap: 6px; }
+  &__vad-meter {
+    position: relative;
+    display: block;
+    max-width: 260px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0 1px rgba(140, 154, 156, 0.3);
+
+    i { position: absolute; left: 0; top: 0; bottom: 0; background: rgb(91, 122, 69); }
+    b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: $dbo-gold; }
+  }
+
   &__row {
     display: grid;
     grid-template-columns: 170px minmax(0, 1fr);

@@ -16,7 +16,7 @@ import {
 export interface SettingsSection {
   staff?: boolean;
   voiceOn?: boolean;
-  nearby?: Array<{ identity: string; name: string }>;
+  nearby?: Array<{ identity: string; name: string; meters?: number }>;
   focusPeer?: string;
   section?: string;
 }

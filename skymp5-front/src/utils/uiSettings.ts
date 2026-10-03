@@ -49,8 +49,10 @@ export const getUiSettings = (): UiSettings => {
   return out;
 };
 
+// Before the chat has mounted with the saved file there is nothing to merge into: writing then would replace the file
 const save = (next: Record<string, unknown>): void => {
   try {
+    if (win().__alduinakChatSettings === undefined) return;
     win().__alduinakChatSettings = next;
     const sp = win().skyrimPlatform;
     if (sp && sp.sendMessage) sp.sendMessage('cef::chat:saveSettings', JSON.stringify(next));
@@ -66,6 +68,14 @@ export const setUiSettings = (patch: Partial<UiSettings>): UiSettings => {
   save(Object.assign({}, file, { ui }));
   announceUiSettings();
   return getUiSettings();
+};
+
+// Other blocks kept beside the interface values in ui (the voice override, VoiceManager.js)
+export const readUiExtra = (key: string): unknown => { const ui = chatSettingsFile().ui; return ui && typeof ui === 'object' ? ui[key] : undefined; };
+export const writeUiExtra = (key: string, value: unknown): void => {
+  const file = chatSettingsFile();
+  const ui = Object.assign({}, file.ui && typeof file.ui === 'object' ? file.ui : {}, { [key]: value });
+  save(Object.assign({}, file, { ui }));
 };
 
 // The chat's own values: the chat applies and saves them (constructorComponents/chat listens for this event)

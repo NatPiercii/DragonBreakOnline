@@ -7,7 +7,10 @@
 //   setMode(key)              Alt+V cycles whisper/talk/shout; the range goes out on the data channel so listeners attenuate by the SPEAKER's loudness
 //   setPeers({ identityHex: distanceUnits })  refresh distances ~every 400ms; peers absent from the map are out of range
 //   setPrefs({ inputLabel, outputLabel, micGain, outputVolume, activation: 'ptt'|'vad', vadThreshold })  launcher Voice tab
-//   adjustPeer(identityHex, 'louder'|'quieter'|'mute'|'unmute'|'reset')  X menu; remembered per character on this PC
+//   adjustPeer(identityHex, 'louder'|'quieter'|'mute'|'unmute'|'reset'|'set', label?, gain?)  X menu and F3; remembered
+//                             per character on this PC ('set' takes an absolute gain, 0 to 2)
+//   setPrefsInGame(patch)      F3, Settings, Voice: kept in the chat-settings file's ui.voice with the launcher's value of
+//                             the moment, and dropped key by key once the launcher's value differs (uiSettings.ts)
 //   releaseDomPtt()           the game side saw the talk key go up (the page had lost the keyboard): stop the page's own
 //                             push-to-talk; cfg.pttScanCode in connect() names the launcher's talk key (DirectInput code)
 // Events back to the game (window.skyrimPlatform.sendMessage):
@@ -15,6 +18,7 @@
 //   'voice::speaking' <json array of {id, level}: own voice plus audible speakers, every 150 ms while anyone talks, [] once when quiet>
 
 import { effectiveActivation, vadBlocked, BLOCKED_NOTICE } from './voiceEchoGate';
+import { readUiExtra, writeUiExtra, UI_EVENT } from './uiSettings';
 import { Room, RoomEvent, Track } from 'livekit-client';
 
 import whisperImg from '../img/voice/Whisper.png';
@@ -121,7 +125,64 @@ class VoiceManager {
   }
 
   // ---- launcher prefs ------------------------------------------------------------------------------
+  // The launcher's push (voiceService, 1.5 s after the page loads): remembered, then any in-game choice still standing
+  // is laid over it
   setPrefs(p) {
+    if (!p || typeof p !== 'object') return;
+    this.launcherPrefs = Object.assign({}, this.launcherPrefs || DEFAULT_PREFS, p);
+    this.applyPrefs(Object.assign({}, this.launcherPrefs, this.inGamePrefs()));
+  }
+
+  // The in-game choices whose launcher value is unchanged since they were made; the others are dropped from the file
+  inGamePrefs() {
+    const saved = readUiExtra('voice');
+    if (!saved || typeof saved !== 'object' || !saved.prefs || typeof saved.prefs !== 'object') return {};
+    const base = this.launcherPrefs || DEFAULT_PREFS;
+    const out = {}, keep = { prefs: {}, launcher: {} };
+    let dropped = false;
+    for (const k of Object.keys(saved.prefs)) {
+      if (!(k in DEFAULT_PREFS)) continue;
+      const was = saved.launcher ? saved.launcher[k] : undefined;
+      if (JSON.stringify(was) !== JSON.stringify(base[k])) { dropped = true; continue; }
+      out[k] = saved.prefs[k]; keep.prefs[k] = saved.prefs[k]; keep.launcher[k] = was;
+    }
+    if (dropped) writeUiExtra('voice', keep);
+    return out;
+  }
+
+  setPrefsInGame(patch) {
+    if (!patch || typeof patch !== 'object') return this.prefs;
+    const base = this.launcherPrefs || DEFAULT_PREFS;
+    const saved = readUiExtra('voice') || {};
+    const next = { prefs: Object.assign({}, saved.prefs || {}), launcher: Object.assign({}, saved.launcher || {}) };
+    for (const k of Object.keys(patch)) {
+      if (!(k in DEFAULT_PREFS)) continue;
+      next.prefs[k] = patch[k];
+      next.launcher[k] = base[k];
+    }
+    writeUiExtra('voice', next);
+    this.applyPrefs(Object.assign({}, this.prefs, patch));
+    return this.prefs;
+  }
+
+  getPrefs() { return Object.assign({}, this.prefs); }
+
+  // Device names for the pickers: Chromium shows names only once the microphone has been allowed
+  async listDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      const names = (kind) => all.filter((d) => d.kind === kind && d.label && d.deviceId !== 'default' && d.deviceId !== 'communications').map((d) => d.label);
+      return { inputs: names('audioinput'), outputs: names('audiooutput') };
+    } catch (e) { return { inputs: [], outputs: [] }; }
+  }
+
+  // { gain, muted } this PC keeps for one voice
+  peerSetting(identity) {
+    const p = this.peerPrefs[String(identity || '').toLowerCase()];
+    return { gain: p ? clampNum(p.gain, 0, PEER_MAX, 1) : 1, muted: !!(p && p.muted) };
+  }
+
+  applyPrefs(p) {
     if (!p || typeof p !== 'object') return;
     const prev = this.prefs;
     this.prefs = {
@@ -349,7 +410,7 @@ class VoiceManager {
     return p.muted ? 0 : clampNum(p.gain, 0, PEER_MAX, 1);
   }
 
-  adjustPeer(identity, op, label) {
+  adjustPeer(identity, op, label, value) {
     const id = String(identity || '').toLowerCase();
     if (!id) return null;
     const p = Object.assign({ gain: 1, muted: false }, this.peerPrefs[id]);
@@ -358,6 +419,7 @@ class VoiceManager {
     else if (op === 'mute') p.muted = true;
     else if (op === 'unmute') p.muted = false;
     else if (op === 'reset') { p.gain = 1; p.muted = false; }
+    else if (op === 'set') p.gain = clampNum(value, 0, PEER_MAX, p.gain);
     if (p.gain === 1 && !p.muted) delete this.peerPrefs[id]; else this.peerPrefs[id] = p;
     try { window.localStorage.setItem(PEERS_KEY, JSON.stringify(this.peerPrefs)); } catch (e) { /* session only */ }
     this.applyVolume(id);
@@ -731,6 +793,9 @@ class VoiceManager {
 }
 
 window.__alduinakVoice = new VoiceManager();
+// The chat-settings file arrives with the chat's mount, which can be after the launcher's push: lay the in-game choices
+// over it then
+window.addEventListener(UI_EVENT, () => { const vm = window.__alduinakVoice; if (vm && vm.launcherPrefs) vm.applyPrefs(Object.assign({}, vm.launcherPrefs, vm.inGamePrefs())); });
 
 // Push-to-talk while a game window has the keyboard (the trade window, a menu): the game side never sees the key then,
 // because the page takes the keyboard, and players could not talk while trading (Nate, 2026-09-25). A text field keeps
