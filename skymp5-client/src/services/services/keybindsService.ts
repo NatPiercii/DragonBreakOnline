@@ -17,6 +17,9 @@ export const MENU_KEYS: Record<string, number> = {
   maskToggleKeyCode: DxScanCode.H, adminMenuKeyCode: DxScanCode.F7, hideChatKeyCode: 0,
 };
 
+const RESERVED_KEYS: number[] = [DxScanCode.Escape, DxScanCode.Backspace, DxScanCode.Enter];
+const OPTIONAL_KEYS = new Set(["hideChatKeyCode"]);
+
 export class KeybindsService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
@@ -38,6 +41,8 @@ export class KeybindsService extends ClientListener {
         const code = keys[name];
         if (code === null) { delete file[name]; continue; }
         if (typeof code !== "number" || code < 0 || code > 255 || Math.floor(code) !== code) continue;
+        // Escape, Backspace and Enter close panels, clear and open the chat; only an optional key may be none
+        if (RESERVED_KEYS.indexOf(code) !== -1 || (code === 0 && !OPTIONAL_KEYS.has(name))) continue;
         file[name] = { code, launcher: launcherKeyValue(this.sp, name) } as KeybindOverride;
       }
       writeKeybindFile(this.sp, file);

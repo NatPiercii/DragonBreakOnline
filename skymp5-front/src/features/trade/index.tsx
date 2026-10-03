@@ -95,7 +95,7 @@ const weightText = (w: number): string => (Math.round(w * 10) / 10).toString();
 
 const Totals = ({ items }: { items: UiItem[] }) => {
   const t = totals(items);
-  return t ? <div className="trade__totals">Worth {Math.round(t.value).toLocaleString('en-US')} gold · weighs {weightText(t.weight)}</div> : null;
+  return t ? <div className="trade__totals" title="The items' base value, before any merchant's price">Base value {Math.round(t.value).toLocaleString('en-US')} gold · weighs {weightText(t.weight)}</div> : null;
 };
 
 interface ItemListProps {

@@ -62,6 +62,9 @@ export interface JournalData {
   // The hub: the tab list, and the header when Profile is not the open tab
   hub?: number;
   readOnly?: number;
+  // journal.js: whose journal (staff reading another's) and which opening, for the section cache
+  subject?: string;
+  opened?: number;
   tabs?: JournalTabInfo[];
   head?: { name: string; title: string; race: string } | null;
   faction?: FactionData | null;
@@ -277,8 +280,12 @@ const Journal = ({ data }: { data: JournalData }) => {
   const nonce = useRef(data.nonce);
   nonce.current = data.nonce;
   const [yielded, setYielded] = useState(false);
-  // The hub: every section received since the journal opened, and the tab a click asked for
+  // The hub: every section received since the journal opened, and the tab a click asked for. A new opening (or another
+  // character's journal read by staff) starts the cache afresh, so no section of one journal shows in another
   const cache = useRef<Record<string, unknown>>({});
+  const cacheOf = useRef('');
+  const opening = `${data.opened === undefined ? '' : data.opened}|${data.subject || ''}`;
+  if (cacheOf.current !== opening) { cacheOf.current = opening; cache.current = {}; }
   const wanted = useRef<{ tab: string; at: number } | null>(null);
   if (hub) for (const k of Object.keys(data)) if (!SHELL_KEYS.has(k) && data[k] !== undefined) cache.current[k] = data[k];
 
@@ -366,7 +373,7 @@ const Journal = ({ data }: { data: JournalData }) => {
         <Tabs<JournalTab> tabs={tabs} value={shown} onChange={(id) => openTab(id)} className="journal__tabs" />
         <div className={'journal__body journal__body--' + shown} data-domain={hub ? domainOfTab(shown) : undefined}>
           {shown === 'profile' && (view.profile ? <ProfileTab data={view} editing={editing && !readOnly} setEditing={setEditing} busy={busy || readOnly} act={act} openSkill={skillsLink} /> : <SectionState section={section('profile')} />)}
-          {shown === 'faction' && (view.faction ? <div className="journal__faction"><FactionContent data={view.faction} embedded /></div> : <SectionState section={section('faction')} />)}
+          {shown === 'faction' && (view.faction ? <div className="journal__faction"><FactionContent data={view.faction} embedded readOnly={readOnly} /></div> : <SectionState section={section('faction')} />)}
           {shown === 'supernatural' && (view.supernatural ? (
             <div className="journal__supernatural">
               <CurseStage curse={view.supernatural} />

@@ -35,6 +35,10 @@
   }
 
   &__content { min-width: 0; min-height: 0; overflow-y: auto; padding-right: 8px; }
+  // A Picker's list opens in the section's flow, not over it: the section scrolls and clips, as the faction roster's did
+  // (d26e2875)
+  &__content .dbo-picker--open { display: block; max-width: 360px; }
+  &__content .dbo-picker--open .dbo-picker__list { position: static; margin-top: 4px; max-height: none; }
 
   // Two columns of groups where the section is wide enough
   &__part {
