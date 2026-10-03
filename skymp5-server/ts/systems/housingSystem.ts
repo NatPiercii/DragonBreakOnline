@@ -154,6 +154,8 @@ export class HousingSystem implements System {
     const s = await Settings.get();
     const all = s.allSettings as Record<string, unknown> | null;
 
+    const placeCap = Number(all?.["housingPlaceCap"]);
+    if (Number.isFinite(placeCap) && placeCap >= 1) this.placeCap = Math.floor(placeCap);
     const maxClaims = Number(all?.["housingMaxClaims"]);
     if (Number.isFinite(maxClaims) && maxClaims > 0) this.maxClaims = maxClaims;
     const maxDistance = Number(all?.["housingMaxDistance"]);
@@ -191,7 +193,8 @@ export class HousingSystem implements System {
         const profileId = this.profileOf(ctx, actor); if (!profileId) return "That is nobody.";
         const rec = this.read(ctx, p) || emptyRecord();
         if (rec.owner === profileId) return "";
-        if (this.countClaims(ctx, profileId) >= this.maxClaims) return `They already hold ${this.maxClaims} properties.`;
+        const full = this.overCap(ctx, profileId, actor, false);
+        if (full) return full;
         if (rec.owner !== 0) this.reKey(ctx, p, rec);
         rec.owner = profileId;
         rec.ownerName = this.nameOf(ctx, actor);
@@ -364,8 +367,10 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "You cannot claim anything right now.");
       return;
     }
-    if (this.countClaims(ctx, profileId) >= this.maxClaims) {
-      this.notice(ctx, userId, `You already hold ${this.maxClaims} properties.`);
+    // Officials claim to hand the property on, so the cap is the recipient's, checked at the hand-over
+    const full = this.placesOn() && isManager ? "" : this.overCap(ctx, profileId, actorId, true);
+    if (full) {
+      this.notice(ctx, userId, full);
       return;
     }
     rec.owner = profileId;
@@ -495,8 +500,9 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "They already own it.");
       return;
     }
-    if (this.countClaims(ctx, recipientProfile) >= this.maxClaims) {
-      this.notice(ctx, userId, "They hold too much property already.");
+    const full = this.overCap(ctx, recipientProfile, recipientActor, false);
+    if (full) {
+      this.notice(ctx, userId, full);
       return;
     }
     // Old keys must not open a new owner's door.
@@ -1219,6 +1225,38 @@ export class HousingSystem implements System {
     this.log(`[housing] place migration applied to ${applied} house(s)${failed ? `, ${failed} write(s) failed` : ""}; backup ${file}`);
   }
 
+  // The cap (Nate, 3 Oct): with the place rules on, one place per player, a place being a house with all its doors and
+  // chests, or a lone claim; members of a place are not counted. Nobody loses anything: an owner already past it keeps what
+  // they hold (the dry run lists them for Nate) and only cannot gain another. Staff are exempt: the profiles in
+  // housingPlaces.staffProfiles / housingStaffProfiles, and anyone online with an admin tier (the roles the gear swap's
+  // staff exemption reads). Without the place rules the old per-claim limit (housingMaxClaims) stands.
+  // Returns the refusal, or "" when they may take one more.
+  private overCap(ctx: SystemContext, profileId: number, actorId: number, self: boolean): string {
+    if (!this.placesOn()) {
+      if (this.countClaims(ctx, profileId) < this.maxClaims) return "";
+      return self ? `You already hold ${this.maxClaims} properties.` : "They hold too much property already.";
+    }
+    if (this.isStaff(ctx, profileId, actorId)) return "";
+    if (this.countPlaces(ctx, profileId) < this.placeCap) return "";
+    const n = this.placeCap === 1 ? "a property" : `${this.placeCap} properties`;
+    return self ? `You already hold ${n}; one each.` : `They already hold ${n}; one each.`;
+  }
+
+  private isStaff(ctx: SystemContext, profileId: number, actorId: number): boolean {
+    if (profileId && this.staffProfiles().has(profileId)) return true;
+    return !!actorId && adminTierOf(ctx.svr as Mp, actorId, this.roleCfg) !== null;
+  }
+
+  // Places held: every owned record that is not a member of a place (a root, or a claim of its own)
+  private countPlaces(ctx: SystemContext, profileId: number): number {
+    let n = 0;
+    for (const primary of this.claimed) {
+      const rec = this.read(ctx, primary);
+      if (rec && rec.owner === profileId && (!rec.memberOf || rec.memberOf === primary)) n++;
+    }
+    return n;
+  }
+
   private countClaims(ctx: SystemContext, profileId: number): number {
     let n = 0;
     for (const primary of this.claimed) {
@@ -1328,6 +1366,7 @@ export class HousingSystem implements System {
   private zones!: Zones;
   private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
+  private placeCap = 1;
   private placeMigration: "off" | "dryrun" | "apply" = "dryrun";
   private staffSetting: number[] = [];
   private initAtMs = 0;
