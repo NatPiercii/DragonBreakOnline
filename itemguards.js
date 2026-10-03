@@ -19,6 +19,7 @@ module.exports = (api) => {
   const S = globalThis.__dboItemGuards || (globalThis.__dboItemGuards = { typeCache: new Map(), warned: new Map() });
   if (!(S.resynced instanceof Map)) S.resynced = new Map();
   if (!(S.told instanceof Map)) S.told = new Map();
+  if (!(S.logged instanceof Map)) S.logged = new Map();
 
   // Non-playable armor and weapons (record flag 0x4) are the game's own gear, such as the Vampire Lord robe
   // beastform.js hands out and takes back on revert: dropped or stored while worn, it was kept and a new one came
@@ -61,19 +62,19 @@ module.exports = (api) => {
     return MODE === 'on' ? false : undefined;
   };
   // A refused move for more than is held means the player's client shows items the server never gave; the server's
-  // own inventory is sent back at once (at most once a second), and the player is told once a minute
+  // own inventory is sent back at once (at most once a second); the player is told, and the log says so, once a minute
   const resync = (actor) => {
     const a = Number(actor) >>> 0; const now = Date.now();
     if (now - (S.resynced.get(a) || 0) < 1000) return;
     S.resynced.set(a, now);
-    if (S.resynced.size > 5000) S.resynced.clear();
+    if (S.resynced.size > 5000) { S.resynced.clear(); S.told.clear(); S.logged.clear(); }
     setTimeout(() => {
       try {
         const inv = mp.get(a, 'inventory');
         if (!inv || !Array.isArray(inv.entries)) return;
         mp.set(a, 'inventory', inv);
-      } catch (e) { log(`itemguards: inventory resync failed for ${nameOf(a)}: ${e.message}`); return; }
-      log(`ITEMGUARD resynced the inventory of ${nameOf(a)}`);
+      } catch (e) { if (now - (S.logged.get(a) || 0) >= 60000) { S.logged.set(a, now); log(`itemguards: inventory resync failed for ${nameOf(a)}: ${e.message}`); } return; }
+      if (now - (S.logged.get(a) || 0) >= 60000) { S.logged.set(a, now); log(`ITEMGUARD resynced the inventory of ${nameOf(a)}`); }
       if (now - (S.told.get(a) || 0) >= 60000) { S.told.set(a, now); try { personal(a, 'Your pack has been set right: it showed items you do not really have.'); } catch (e) { /* offline */ } }
     }, 0);
   };

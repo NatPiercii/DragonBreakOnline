@@ -1,7 +1,7 @@
 // A move refused for more than is held sends the player's own server inventory back to them (itemguards.js resync), so
 // their client stops showing items the server never gave (Veltrius, 2026-10-01: ingredients that could be neither
 // dropped nor stored). At most once a second per player, one note a minute, nothing for other refusals, and loaded
-// over the state the live module (76ad73d7) built, as a hot reload would.
+// over the state the live module (4304ef0c) built, as a hot reload would.
 // node tests/itemguard-resync-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -35,14 +35,14 @@ const setsTo = (a) => sets.filter(([id, k]) => id === a && k === 'inventory');
 // The live module first, then this one over its globalThis state
 globalThis.__dboItemGuards = undefined; globalThis.__dboTakeGuard = undefined;
 let live = null;
-try { live = execFileSync('git', ['show', '76ad73d7:itemguards.js'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { live = null; }
+try { live = execFileSync('git', ['show', '4304ef0c:itemguards.js'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch (e) { live = null; }
 if (live) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-resync-'));
   fs.writeFileSync(path.join(tmp, 'itemguards.js'), live);
   load(path.join(tmp, 'itemguards.js'));
-  check('live 76ad73d7: an unheld drop is refused', mp.onDropItem(P, HERB, 1) === false);
+  check('live 4304ef0c: an unheld drop is refused', mp.onDropItem(P, HERB, 1) === false);
   fs.rmSync(tmp, { recursive: true, force: true });
-} else console.log('skip live-then-new: 76ad73d7 is not in this repository');
+} else console.log('skip live-then-new: 4304ef0c is not in this repository');
 flush(); sets.length = 0; told.length = 0; logs.length = 0;
 load(MODULE);
 
@@ -61,9 +61,12 @@ now += 1000;
 mp.onPutItem(CHEST, P, HERB, 1); flush();
 check('a refused put a second later resyncs again', setsTo(P).length === 2);
 check('...but the note is not repeated within the minute', told.length === 1, told);
+check('...nor the log line', logs.filter((l) => /ITEMGUARD resynced the inventory of Pff000304/.test(l)).length === 1, logs);
+for (let i = 0; i < 30; i++) { now += 1000; mp.onDropItem(P, HERB, 1); flush(); }
+check('a refusal every second for 30 s: a resync each time, still one log line and one note', setsTo(P).length === 32 && logs.filter((l) => /ITEMGUARD resynced/.test(l)).length === 1 && told.length === 1, [setsTo(P).length, told.length]);
 now += 60000;
 mp.onDropItem(P, POTION, 3); flush();
-check('more potions than held: resync, and the note again a minute on', setsTo(P).length === 3 && told.length === 2);
+check('more potions than held: resync, and the note and the log line again a minute on', setsTo(P).length === 33 && told.length === 2 && logs.filter((l) => /ITEMGUARD resynced/.test(l)).length === 2);
 
 now += 2000;
 inv[CHEST] = [{ baseId: HERB, count: 1 }];
@@ -82,12 +85,14 @@ check('a drop that is held passes and resyncs nothing', mp.onDropItem(P, POTION,
 now += 2000;
 mp.onDropItem(0xff000999, HERB, 1); flush();
 check('a player gone before the resync: nothing written', !setsTo(0xff000999).length);
-// A write that throws is logged, not raised
-now += 2000;
+// A write that throws is logged (once a minute, like the rest), not raised
+now += 60000;
 mp.set = () => { throw new Error('gone'); };
 mp.onDropItem(P, HERB, 1);
 let threw = false; try { flush(); } catch (e) { threw = true; }
 check('a failing write is logged and does not throw', !threw && logs.some((l) => /inventory resync failed for Pff000304: gone/.test(l)));
+for (let i = 0; i < 10; i++) { now += 1000; mp.onDropItem(P, HERB, 1); flush(); }
+check('...and a write failing every second is logged once a minute', logs.filter((l) => /inventory resync failed/.test(l)).length === 1);
 
 // log mode refuses nothing, so it resyncs nothing
 mp.set = (id, k, v) => { sets.push([id, k, v]); };
