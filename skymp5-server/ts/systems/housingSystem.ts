@@ -4,6 +4,7 @@ import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId, toFormId } from "./formIdUtil";
 import { AdminRoleConfig, readAdminRoleConfig, adminTierOf, TIER_CAPS } from "./adminRoles";
 import { getZones, Zones } from "./zones";
+import { PlaceClaim, planPlaces } from "./housingPlaces";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -43,6 +44,10 @@ type Mp = any;
 // house from the inside locks the outside too.
 
 const HOUSING_PROP = "private.housing";
+// N3 places: the migration plan written by the dry run, for review (runtime, beside housing.json)
+const PLACE_PLAN_FILE = "./housing-places-plan.json";
+const PLACE_PLAN_DELAY_MS = 30000;
+const PLACE_PLAN_MAX_TRIES = 10;
 const OWNER_INDEX_PROP = "private.indexed.housingOwner";
 const REGISTRY_FILE = "./housing.json";
 
@@ -104,6 +109,11 @@ interface PropertyRecord {
   containers: number[];
   // Key names cut at the current serial; null on records older than this field
   issued: string[] | null;
+  // A place (N3): the interior cells behind this exterior door, its per-ref assignments and kept key credentials.
+  // Not written yet; read back as they are so a later write keeps them.
+  place?: { cells: string[]; builtAt: number };
+  assigned?: Record<string, { profile: number; name: string }>;
+  keyAliases?: string[];
 }
 
 // The far half of a teleport pair just points at the primary.
@@ -141,6 +151,9 @@ export class HousingSystem implements System {
     const maxDistance = Number(all?.["housingMaxDistance"]);
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
     this.openClaims = all?.["housingOpenClaims"] === true;
+    // N3 places: "dryrun" (the default) logs and writes the migration plan once after boot and changes nothing; "off" skips it
+    this.placeMigration = String(all?.["housingPlaceMigration"] ?? "dryrun") === "off" ? "off" : "dryrun";
+    this.initAtMs = Date.now();
 
     this.roleCfg = readAdminRoleConfig(all);
     this.zones = getZones(this.log);
@@ -235,6 +248,11 @@ export class HousingSystem implements System {
 
   async updateAsync(ctx: SystemContext): Promise<void> {
     const now = Date.now();
+    // Records read as null on the first ticks after boot, so the plan waits, and tries again while nothing is readable
+    if (this.placeMigration === "dryrun" && !this.placePlanDone && now - this.initAtMs >= PLACE_PLAN_DELAY_MS && now - this.placePlanTriedMs >= PLACE_PLAN_DELAY_MS) {
+      this.placePlanTriedMs = now;
+      try { this.placePlanDone = this.dryRunPlaces(ctx) || ++this.placePlanTries >= PLACE_PLAN_MAX_TRIES; } catch (e) { this.placePlanDone = true; this.log(`[housing] place plan failed: ${e}`); }
+    }
     if (now - this.lastDecorMs < DECOR_PUSH_INTERVAL_MS) return;
     this.lastDecorMs = now;
     if (!this.decorDirty) return;
@@ -929,6 +947,9 @@ export class HousingSystem implements System {
         partner: Number(r.partner) || 0,
         containers: Array.isArray(r.containers) ? r.containers.map((c) => Number(c) >>> 0) : [],
         issued: Array.isArray(r.issued) ? r.issued.map((n) => String(n)).slice(-MAX_ISSUED_KEY_NAMES) : null,
+        ...(r.place && Array.isArray(r.place.cells) ? { place: { cells: r.place.cells.map(String), builtAt: Number(r.place.builtAt) || 0 } } : {}),
+        ...(r.assigned && typeof r.assigned === "object" ? { assigned: r.assigned } : {}),
+        ...(Array.isArray(r.keyAliases) ? { keyAliases: r.keyAliases.map(String) } : {}),
       };
     } catch {
       return null;
@@ -974,6 +995,44 @@ export class HousingSystem implements System {
     rec.name = null;
     rec.locked = false;
     return this.write(ctx, primary, rec);
+  }
+
+  // ── Places (N3): the migration dry run ──────────────────────────────────────
+  //
+  // Groups each owner's claims behind one exterior door into a place, as the migration will, and writes the plan to the
+  // log and PLACE_PLAN_FILE for review. Nothing is written to any record. Returns false while no claim is readable yet.
+  private dryRunPlaces(ctx: SystemContext): boolean {
+    const mp = ctx.svr as Mp;
+    const cellOf = (ref: number): string => { try { return String(mp.get(ref, "worldOrCellDesc") || ""); } catch { return ""; } };
+    const worlds = new Map<string, boolean>();
+    const isWorld = (desc: string): boolean => {
+      if (!worlds.has(desc)) {
+        let world = false;
+        try { const r = mp.lookupEspmRecordById(mp.getIdFromDesc(desc) >>> 0); world = !!r && !!r.record && String(r.record.type) === "WRLD"; } catch { /* unknown */ }
+        worlds.set(desc, world);
+      }
+      return worlds.get(desc) as boolean;
+    };
+    const claims: PlaceClaim[] = [];
+    let readable = 0;
+    for (const primary of this.claimed) {
+      const rec = this.read(ctx, primary);
+      if (!rec) continue;
+      readable++;
+      if (!rec.owner) continue;
+      claims.push({ ref: primary, owner: rec.owner, ownerName: rec.ownerName, name: rec.name, locked: rec.locked, door: rec.partner !== 0,
+        cell: cellOf(primary), partnerCell: rec.partner ? cellOf(rec.partner) : "" });
+    }
+    if (this.claimed.length && !readable) return false;
+    const plan = planPlaces(claims, isWorld);
+    const hex = (n: number) => (n >>> 0).toString(16);
+    this.log(`[housing] place plan (dry run, nothing changed): ${claims.length} owned claims -> ${plan.places.length} places`);
+    for (const p of plan.places) {
+      this.log(`[housing] place plan: ${p.ownerName} (${p.owner}) ${p.kind} ${hex(p.root)} "${p.name || ""}" cells=${p.cells.join(",")} members=${p.members.map(hex).join(",") || "-"}${p.openChests.length ? ` open chests becoming owner-only=${p.openChests.map(hex).join(",")}` : ""}`);
+    }
+    for (const o of plan.overCap) this.log(`[housing] place plan: ${o.ownerName} (${o.owner}) would hold ${o.places.length} places (${o.places.map(hex).join(", ")}); kept, for Nate to decide`);
+    try { fs.writeFileSync(PLACE_PLAN_FILE, JSON.stringify({ at: new Date().toISOString(), ...plan }, null, 1)); } catch (e) { this.log(`[housing] ${PLACE_PLAN_FILE} write failed: ${e}`); }
+    return true;
   }
 
   private countClaims(ctx: SystemContext, profileId: number): number {
@@ -1085,6 +1144,11 @@ export class HousingSystem implements System {
   private zones!: Zones;
   private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
+  private placeMigration: "off" | "dryrun" = "dryrun";
+  private initAtMs = 0;
+  private placePlanDone = false;
+  private placePlanTriedMs = 0;
+  private placePlanTries = 0;
   private maxDistance = DEFAULT_MAX_DISTANCE;
   private openClaims = false;
   private decorDirty = false;
