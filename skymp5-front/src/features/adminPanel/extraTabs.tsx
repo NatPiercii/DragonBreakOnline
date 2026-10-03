@@ -430,8 +430,15 @@ export const PowersTab = ({ events, targets, canSpawn }: { events: Record<string
             </div>
           </div>
         ))}
+        <div className="admin-panel__power">
+          <span className="admin-panel__label">Disease <span className="admin-panel__hint">the fever runs its days, then the rite decides</span></span>
+          <div className="admin-panel__actions">
+            <Button text="Sanguinare Vampiris" width={190} height={32} onClick={() => adminAction(events, 'giveDisease', fields({ kind: 'vampire' }))} />
+            <Button text="Sanies Lupinus" width={160} height={32} onClick={() => adminAction(events, 'giveDisease', fields({ kind: 'werewolf' }))} />
+          </div>
+        </div>
         <span className="admin-panel__hint">
-          Grant gives the vanilla power so it can be cast in game; Transform now changes shape from here, which
+          To make a player a vampire or a werewolf in play, give the disease. Grant gives the vanilla power so it can be cast in game; Transform now changes shape from here, which
           does not need the cast to reach the server. Revoke takes the power back and reverts the shape.
         </span>
       </div>
