@@ -94,9 +94,12 @@ module.exports = (api) => {
         const mine = seers.find(([p]) => p === current);
         if (mine && mine[1] <= bestD * C.holdFactor + C.holdUnits) continue;   // still has it, nobody clearly nearer
       }
+      // A live host keeps an NPC that just changed hands or is fighting (gamemode.js hostcooldown)
+      const hc = globalThis.__dboHostCooldown;
+      if (hc && hc.holds(best, npc)) continue;
       out.push({ npc, from: current, to: best, dist: bestD });
       if (C.mode === 'on') {
-        try { mp.setHoster(npc, best); S.changedAt.set(npc, now); }
+        try { mp.setHoster(npc, best); S.changedAt.set(npc, now); if (hc) hc.noteHandover(npc); }
         catch (e) { say('err:' + npc, `could not give ${npc.toString(16)} to ${display(best)}: ${e.message}`, now); }
       } else {
         S.changedAt.set(npc, now);

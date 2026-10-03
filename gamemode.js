@@ -4492,6 +4492,19 @@ const hostPolicy = (req, act) => {
   }
 };
 globalThis.__dboHostPolicy = hostPolicy;
+// An NPC stays with a live host for a few seconds after it changes hands or fights (server\hostcooldown.js)
+const HOST_COOLDOWN = (() => {
+  const file = path.resolve('hostcooldown.js');
+  try { delete require.cache[file]; return require(file)(cfg.hostCooldown, undefined, globalThis.__dboHostCooldownState || (globalThis.__dboHostCooldownState = {})); }
+  catch (e) { log('hostcooldown.js failed to load:', e.message); return null; }
+})();
+const hostHold = (req, act) => {
+  if (!HOST_COOLDOWN) return null;
+  let current = 0; try { current = typeof mp.getHoster === 'function' ? mp.getHoster(act) >>> 0 : 0; } catch (e) { return null; }
+  const canDrive = !!current && hostPolicy(current, act).ok;
+  return HOST_COOLDOWN.holds(act, req, current, canDrive);
+};
+globalThis.__dboHostCooldown = HOST_COOLDOWN && { holds: hostHold, noteHandover: HOST_COOLDOWN.noteHandover, noteFight: HOST_COOLDOWN.noteFight };
 const hostAttemptHook = (requesterId, actorId) => {
   const req = Number(requesterId) >>> 0;
   const act = Number(actorId) >>> 0;
@@ -4507,6 +4520,9 @@ const hostAttemptHook = (requesterId, actorId) => {
     if (/world mismatch|distance|^Error/.test(v.why || '')) console.log(`[hostAttempt] Refused req=${req.toString(16)} act=${act.toString(16)}: ${v.why}`);
     return false;
   }
+  const held = hostHold(req, act);
+  if (held) return false;
+  if (HOST_COOLDOWN) HOST_COOLDOWN.noteHandover(act);
   // C++ can still refuse after this (a hoster whose movement is under 2 s old keeps the actor)
   console.log(`[hostAttempt] Host of act=${act.toString(16)} for req=${req.toString(16)} passed policy`);
   return true;
@@ -5044,6 +5060,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   if (dmg > 0 && agg !== tgt && profileOf(agg) >= 0 && profileOf(tgt) >= 0) { const now = Date.now(); pvpAt.set(agg, now); pvpAt.set(tgt, now); }
   // Any combat, NPCs included: Sleep refuses for 5 minutes after it (rest.js), as a logout leaves the body that long
   if (dmg > 0 && agg !== tgt) { const now = Date.now(); if (profileOf(agg) >= 0) combatAt.set(agg >>> 0, now); if (profileOf(tgt) >= 0) combatAt.set(tgt >>> 0, now); }
+  // An NPC in a fight stays with its host for a moment (hostcooldown.js)
+  if (dmg > 0 && agg !== tgt && globalThis.__dboHostCooldown) { if (profileOf(agg) < 0) globalThis.__dboHostCooldown.noteFight(agg); if (profileOf(tgt) < 0) globalThis.__dboHostCooldown.noteFight(tgt); }
   // Any landed blow, PvE included, puts the players in it in combat for the armour swap timer
   if (dmg > 0 && agg !== tgt && armourSwap) armourSwap.onHit(agg, tgt);
   // Fire on a vampire, silver on a werewolf: note the health now, the extra comes off in onHitDamage
