@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "The bank counts in the launcher's gold",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Launcher",
+        "items": [
+          "The gold players hold, shown in the launcher, now includes the gold in the bank."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Apprentice locks for everyone too",
     "date": "2026-10-02",
     "version": "Server update",
