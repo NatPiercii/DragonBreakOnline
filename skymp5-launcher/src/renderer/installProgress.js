@@ -8,7 +8,7 @@
   // Steps of each kind of install, in order, with their labels
   const FLOWS = {
     mo2: ['prepare', 'verify', 'download', 'install', 'finish'],
-    client: ['prepare', 'client', 'unpack', 'finish'],
+    client: ['prepare', 'client', 'unpack', 'extras', 'finish'],
   }
   const LABELS = {
     prepare: 'Getting ready',
@@ -20,13 +20,18 @@
     client: 'Downloading the client files',
     copy: 'Copying the game files',
     unpack: 'Unpacking the client files',
+    extras: 'Updating the DragonBreak files',
     other: 'Working',
   }
   // Parts of the bar the small steps take; the rest is shared out by bytes
   const MO2_BANDS = { prepare: [0, 0.03], verify: [0.03, 0.05], bytes: [0.05, 0.98], finish: [0.98, 1] }
   // A downloaded byte takes about twice as long as an installed one on an average connection
   const DOWNLOAD_WEIGHT = 2
-  const CLIENT_BANDS = { prepare: [0, 0.02], client: [0.02, 0.6], unpack: [0.6, 0.98], finish: [0.98, 1] }
+  // The DragonBreak files (plugins, archives, assets; about 1 GB) come after the client zip (about 180 MB): checking them
+  // fills the first part of their band by files, downloading the rest by bytes. In 2.1.36 they had no band, so the
+  // bar sat on 98% (the end of unpack) for the whole check and download, and closed there.
+  const CLIENT_BANDS = { prepare: [0, 0.02], client: [0.02, 0.4], unpack: [0.4, 0.5], extras: [0.5, 0.98], finish: [0.98, 1] }
+  const CLIENT_EXTRAS = { check: [0.5, 0.6], download: [0.6, 0.98] }
 
   const clamp01 = (x) => (Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0)
   const within = (band, f) => band[0] + (band[1] - band[0]) * clamp01(f)
@@ -67,6 +72,7 @@
       const band = CLIENT_BANDS[s.step]
       if (!band) return null
       if (s.step === 'client' && s.file && s.file.total > 0) return within(band, s.file.done / s.file.total)
+      if (s.step === 'extras') return s.file && s.file.total > 0 ? within(CLIENT_EXTRAS.download, s.file.done / s.file.total) : within(CLIENT_EXTRAS.check, count(s.item))
       return within(band, count(s.item))
     }
     return s.item && s.item.total > 0 ? count(s.item) : null
@@ -121,7 +127,7 @@
   }
 
   const mb = (n) => (n / 1048576).toFixed(1)
-  const itemWord = { verify: 'mods', download: 'archives', wait: 'pages', install: 'mods', unpack: 'files' }
+  const itemWord = { verify: 'mods', download: 'archives', wait: 'pages', install: 'mods', unpack: 'files', extras: 'files' }
 
   // What the panel says for a snapshot: strings and bar fractions, nothing else
   function describe(snap) {

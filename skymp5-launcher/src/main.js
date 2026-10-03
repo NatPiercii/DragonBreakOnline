@@ -3272,13 +3272,15 @@ async function renameRetry(from, to) {
   }
 }
 
-async function syncExtraFiles(skyrimPath, force = false) {
+// track: this run draws the client flow's bar (installProgress 'extras'), so the check counts files and the downloads bytes
+async function syncExtraFiles(skyrimPath, force = false, track = false) {
   let vd
   try { vd = await fetchExtraManifest() } catch (err) { return { success: false, error: `Could not read the DragonBreak file list: ${err.message}` } }
   if (!vd || (!force && extrasUpToDate(vd, skyrimPath))) { store.set('extraFilesInstalled', extraEntries(vd, skyrimPath).map(f => f.path)); return { success: true, count: 0 } }
   const files = extraEntries(vd, skyrimPath)
   store.set('extraFilesInstalled', files.map(f => f.path))
   const progress = (file, index, total) => send('install:progress', { phase: 'download', file, index, total, skipped: false })
+  if (track) installStep('extras', { index: 0, total: files.length })
 
   // Hashes are cached by size + mtime across launches, so only new or changed files are read in full
   const cache = store.get('extraHashCache') || {}
@@ -3286,6 +3288,7 @@ async function syncExtraFiles(skyrimPath, force = false) {
   for (let i = 0; i < files.length; i++) {
     const f = files[i]
     const full = mo2.lp(path.join(skyrimPath, ...f.path.split('/')))
+    if (track) installTrack.step('extras', { index: i + 1, total: files.length })
     progress(`Checking DragonBreak files… ${i + 1}/${files.length}`, i + 1, files.length)
     let st = null
     try { st = fs.statSync(full) } catch { /* missing */ }
@@ -3312,8 +3315,10 @@ async function syncExtraFiles(skyrimPath, force = false) {
       const full = mo2.lp(path.join(skyrimPath, ...f.path.split('/')))
       const part = `${full}.part`
       fs.mkdirSync(path.dirname(full), { recursive: true })
-      await downloadToFile(extraFileUrl(f.path), part, received =>
-        progress(`Downloading ${f.path.split('/').pop()} (${i + 1}/${stale.length}) ${mb(doneBytes + received)} / ${mb(totalBytes)} MB`, doneBytes + received, totalBytes))
+      await downloadToFile(extraFileUrl(f.path), part, received => {
+        if (track) installTrack.file(`${f.path.split('/').pop()} (${i + 1}/${stale.length})`, doneBytes + received, totalBytes)
+        progress(`Downloading ${f.path.split('/').pop()} (${i + 1}/${stale.length}) ${mb(doneBytes + received)} / ${mb(totalBytes)} MB`, doneBytes + received, totalBytes)
+      })
       const sha = (await mo2.sha256FileAsync(part)).toLowerCase()
       if (sha !== f.sha256.toLowerCase()) {
         try { fs.unlinkSync(part) } catch {}
@@ -3362,18 +3367,20 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
 
     const allPresent    = clientFilesPresent(skyrimPath)
     const needsDownload = force || serverVersion !== store.get('filesVersion') || !allPresent
+    // A direct run (Repair Client Files, or no MO2) draws the client flow's bar; inside an MO2 run this is its prepare step
+    const directRun = installTrack.kind() === 'client'
 
     if (store.get('dboFilesDisabled')) { log('[install] DragonBreak files were disabled; enabling them for this launch'); store.set('dboFilesDisabled', false) }
     if (!needsDownload) {
-      const extras = await syncExtraFiles(skyrimPath)
+      const extras = await syncExtraFiles(skyrimPath, false, directRun)
       if (!extras.success) return extras
       log('[install] Files up to date, updating settings only')
       writeClientSettings(clientSettingsPath, srv, serverInfo)
+      if (directRun) installStep('finish', { index: 1, total: 1 })
       return { success: true, upToDate: true }
     }
 
     // 2. Download
-    const directRun = installTrack.kind() === 'client'
     if (directRun) installStep('client')
     send('install:progress', { phase: 'download', file: 'Connecting to server…', index: 0, total: 0, skipped: false })
     await downloadClientZip(tempZip, (received, total) => {
@@ -3412,12 +3419,13 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
       }
     }
 
-    const extras = await syncExtraFiles(skyrimPath, force)
+    const extras = await syncExtraFiles(skyrimPath, force, directRun)
     if (!extras.success) return extras
 
     // 4. Write server settings
     writeClientSettings(clientSettingsPath, srv, serverInfo)
     store.set('filesVersion', serverVersion)
+    if (directRun) installStep('finish', { index: 1, total: 1 })
 
     return { success: true }
   } catch (err) {
