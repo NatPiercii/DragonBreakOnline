@@ -57,9 +57,11 @@ check('a late answer for another player is not shown as theirs', !/Primary schoo
 html = render(PlayerCare, { events, who: '', selfId: 'ff000010', name: 'You', masteryTarget: { name: 'Lead', target: 'ff000010', detail }, canSpawn: true });
 check('acting on yourself shows your own schools', /Primary school/.test(text(html)));
 html = render(PlayerCare, { events, who: 'ff000014', selfId: 'ff000010', name: 'Mira Valen', masteryTarget: { name: 'Mira Valen', target: 'ff000014', detail: Object.assign({}, detail, { schools: undefined }) }, canSpawn: true });
-check('an older server with no schools says so', /sends no school levels/.test(text(html)));
+check('without magic data (schools.js not loaded, or an older server) it says Magic data unavailable', /Magic data unavailable/.test(text(html)) && !/Not a mage yet/.test(text(html)));
+html = render(PlayerCare, { events, who: 'ff000014', selfId: 'ff000010', name: 'Mira Valen', masteryTarget: { name: 'Mira Valen', target: 'ff000014', detail: Object.assign({}, detail, { schools: null }) }, canSpawn: true });
+check('...the same for schools: null', /Magic data unavailable/.test(text(html)));
 html = render(PlayerCare, { events, who: 'ff000014', selfId: 'ff000010', name: 'Mira Valen', masteryTarget: { name: 'Mira Valen', target: 'ff000014', detail: Object.assign({}, detail, { schools: [] }) }, canSpawn: true });
-check('a character with no school opened reads Not a mage yet', /Not a mage yet/.test(text(html)) && !/sends no school levels/.test(text(html)));
+check('a character with no school opened reads Not a mage yet', /Not a mage yet/.test(text(html)) && !/Magic data unavailable/.test(text(html)));
 check('a plain GM sees no character care at all', render(PlayerCare, { events, who: 'ff000014', selfId: '', name: 'Mira', masteryTarget: { name: 'Mira', target: 'ff000014', detail }, canSpawn: false }) === '');
 
 // Powers: no disease row any more, and nothing to press for a plain GM

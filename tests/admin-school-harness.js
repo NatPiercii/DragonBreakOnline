@@ -75,10 +75,14 @@ ok('without schools.js it says so', result(out).ok === false && /schools\.js/.te
 sent.length = 0;
 sys.customPacket(1, 'adminMasteryRequest', { customPacketType: 'adminMasteryRequest', targetName: 'Mira' }, ctx);
 ok('adminMasteryRequest carries the schools too', detail(sent) && detail(sent).detail.schools.length === 5, detail(sent));
+globalThis.__dboMagicView = () => ({ v: 1, open: false });
+sent.length = 0;
+sys.customPacket(1, 'adminMasteryRequest', { customPacketType: 'adminMasteryRequest', targetName: 'Mira' }, ctx);
+ok('a character schools.js has opened no school to: an empty list (the panel says Not a mage yet)', detail(sent) && Array.isArray(detail(sent).detail.schools) && detail(sent).detail.schools.length === 0, detail(sent));
 delete globalThis.__dboMagicView;
 sent.length = 0;
 sys.customPacket(1, 'adminMasteryRequest', { customPacketType: 'adminMasteryRequest', targetName: 'Mira' }, ctx);
-ok('without the magic view the schools are an empty list', detail(sent) && Array.isArray(detail(sent).detail.schools) && detail(sent).detail.schools.length === 0, detail(sent));
+ok('without schools.js the schools are null (the panel says Magic data unavailable)', detail(sent) && detail(sent).detail.schools === null, detail(sent));
 if (/__dboSuperAdminInfect/.test(SRC)) {
   globalThis.__dboSuperAdminInfect = (t, kind) => `Mira now carries ${kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus'}.`;
   out = act(1, { action: 'giveDisease', kind: 'vampire', targetName: 'Mira' });
