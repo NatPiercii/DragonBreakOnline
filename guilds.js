@@ -436,6 +436,9 @@ module.exports = (api) => {
         const kept = next.find((r) => r.from === i);
         if (!kept || kept.title.toLowerCase() !== f.ranks[i].title.toLowerCase()) return { error: `${f.ranks[i].title} is set by a court office, so it keeps its title and cannot be removed.` };
       }
+      // Nor may another rank take such a title (a new one, or a rename): the office would then set the wrong rank
+      const taken = next.find((r) => tied.includes(r.title.toLowerCase()) && !(r.from >= 0 && f.ranks[r.from].title.toLowerCase() === r.title.toLowerCase()));
+      if (taken) return { error: `${taken.title} is a title a court office sets; choose another.` };
     }
     const roster = rosterOf(fid);
     const held = (i) => Object.values(roster).filter((e) => e.rank === i).length;
