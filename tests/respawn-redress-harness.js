@@ -70,6 +70,21 @@ props.set(`${ONNY}|equipment`, report([BOOTS, TUNIC]));
 equipHook(ONNY, report([BOOTS, TUNIC]), true); runPending();
 ok(equips.length === 0, 'a login that comes in dressed is not re-dressed');
 
+// Onny #HFVA, 2-3 Oct (14 sessions): a slow login reports the outfit first, then nothing worn 3 s later
+equips.length = 0; now += 3600000; login(); now += 43000;
+props.set(`${ONNY}|private.lastWorn`, [[BOOTS, 0], [TUNIC, 0]]);
+props.set(`${ONNY}|equipment`, report([BOOTS, TUNIC]));
+equipHook(ONNY, report([BOOTS, TUNIC]), true); runPending();
+ok(equips.length === 0, 'a dressed first report 43 s after loading needs nothing yet');
+now += 3000;
+props.set(`${ONNY}|equipment`, report([]));
+equipHook(ONNY, report([]), true); runPending();
+ok(equips.length === 2 && equips.includes(BOOTS) && equips.includes(TUNIC), '...and the naked report 3 s after it re-dresses from the saved outfit', equips.map((x) => x.toString(16)));
+ok(JSON.stringify(props.get(`${ONNY}|private.lastWorn`)) === JSON.stringify([[BOOTS, 0], [TUNIC, 0]]), '...the saved outfit is untouched by the burst');
+equips.length = 0; now += 15000;
+equipHook(ONNY, report([]), true); runPending();
+ok(equips.length === 0, 'undressing by hand once the burst is over is still left alone');
+
 // ---- part 2: waking at the temple asks for the re-dress (downed.js) ----
 const dprops = new Map();
 const dset = (id, k, v) => dprops.set(`${id}|${k}`, v), dget = (id, k) => dprops.get(`${id}|${k}`);

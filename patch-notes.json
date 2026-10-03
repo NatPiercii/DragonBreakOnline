@@ -138,6 +138,20 @@
     ]
   },
   {
+    "title": "Dressed again after a slow load",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Characters",
+        "items": [
+          "When your game takes a while to load, you no longer come into the world with your clothes and weapons taken off: your outfit is put back on."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Ashes of the raised dead",
     "date": "2026-10-03",
     "version": "Server update",

@@ -4373,6 +4373,11 @@ const redressAt = new Map(); // actorId -> last login re-dress triggered by a na
 // 15 s window, so it counted as undressing by hand and he stood at the temple naked. That is the report a character
 // who died while logged out sends, because the engine's respawn left nothing worn on the stored body.
 const firstEquipOf = globalThis.__dboFirstEquip instanceof Map ? globalThis.__dboFirstEquip : (globalThis.__dboFirstEquip = new Map());
+// The login's reports come in a burst: a client that loads slowly first reports the outfit, then a few seconds later
+// nothing worn (Onny #HFVA, 14 sessions on 2-3 Oct, 3 s apart, 23-65 s after loading). Reports this soon after the
+// session's first one are the login's too, so the naked one re-dresses
+const LOGIN_BURST_MS = 10000;
+const firstEquipAt = globalThis.__dboFirstEquipAt instanceof Map ? globalThis.__dboFirstEquipAt : (globalThis.__dboFirstEquipAt = new Map());
 const equipHook = (actorId, equipment, isAllowed, ...rest) => {
   // The client reports its equipment while it is still dressing after login (an empty or naked
   // report), and the engine has already stored that. Keep our own copy of the last outfit that
@@ -4385,8 +4390,8 @@ const equipHook = (actorId, equipment, isAllowed, ...rest) => {
     const worn = wornOf(equipment);
     const conn = connectedAt.get(a) || 0;
     const first = firstEquipOf.get(a) !== conn;
-    if (first) firstEquipOf.set(a, conn);
-    const fresh = first || Date.now() - conn < WORN_GRACE_MS;
+    if (first) { firstEquipOf.set(a, conn); firstEquipAt.set(a, Date.now()); }
+    const fresh = first || Date.now() - conn < WORN_GRACE_MS || Date.now() - (firstEquipAt.get(a) || 0) < LOGIN_BURST_MS;
     // A beast form's outfit (the Vampire Lord's robes) is not the character's: a revert re-dresses from lastWorn
     let beast = null; try { beast = mp.get(a, 'private.beast'); } catch (e) { /* not an actor */ }
     if (isAllowed && worn.length && !fresh && !(beast && beast.form)) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0]));
