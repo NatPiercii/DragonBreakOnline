@@ -158,6 +158,20 @@
     ]
   },
   {
+    "title": "Your pack, set right",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Items",
+        "items": [
+          "Items that only appeared to be in your pack after a dropped or harvested item are now corrected straight away."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Vampire Lords can turn back",
     "date": "2026-10-01",
     "version": "Server update",
