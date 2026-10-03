@@ -29,6 +29,9 @@ export const isRagdolling = (s: CopyState, now: number): boolean => s.ragdolledA
 // Dead, downed, in a kill move or ragdolling: the states the 1 Oct crashes deleted or re-seated a copy in
 export const isRiskyToTouch = (s: CopyState, now: number): boolean => s.dead || s.bleedingOut || s.unconscious || s.inKillMove || isRagdolling(s, now);
 
+// Whether a delete may run at once; a deferred one (the world cleaner's, whose actors may be fighting or casting) never does
+export const deleteNow = (s: CopyState, now: number, defer: boolean): boolean => !defer && !isRiskyToTouch(s, now);
+
 export type ReseatDecision = "now" | "later" | "skip";
 
 export const reseatDecision = (s: CopyState, bornAt: number, askedAt: number, now: number): ReseatDecision => {

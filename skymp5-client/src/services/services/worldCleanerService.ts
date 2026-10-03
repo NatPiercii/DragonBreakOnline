@@ -6,6 +6,7 @@ import { logTrace } from "../../logging";
 import { isOwnCompanion, isAnyCompanion } from "../../sync/ownCompanions";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
 import { WcPluginDeletes } from "./wcPluginDeletes";
+import { safeDelete } from "../../view/npcLifetimeRuntime";
 
 export class WorldCleanerService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -134,13 +135,9 @@ export class WorldCleanerService extends ClientListener {
       this.countPluginDelete(actor, actorId);
     }
 
-    actor.disable(false).then(() => {
-      const ac = this.sp.Actor.from(this.sp.Game.getFormEx(actorId));
-      if (!ac || this.isActorInDialogue(ac)) {
-        return;
-      }
-      ac.delete();
-    });
+    // Disabled now and deleted once its 3D is gone, never in the frame the engine may still animate it
+    // (npcLifetime.ts; the Niryastare crash above stepped a swept actor's graph through a freed pointer)
+    safeDelete(actor, { defer: true });
   }
 
   // Logging only. remoteId 0 means the view never adopted it, which is the case that matters.
