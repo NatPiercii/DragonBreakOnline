@@ -42,9 +42,7 @@ TEST_CASE("A host attempt for an NPC that is gone is ignored quietly",
 TEST_CASE("A host attempt for an NPC that is there still hosts it",
           "[PartOne][Host]")
 {
-  // GetPartOne() rather than a bare PartOne: hosting an NPC that EXISTS reaches code that reads the espm, and a bare
-  // instance has none attached, so this threw "No espm attached" rather than testing the host. The sibling test above
-  // passes with a bare instance only because its NPC is already destroyed and the path stops before it needs espm.
+  // GetPartOne(): hosting a live NPC reads the espm, which a bare PartOne lacks
   PartOne& p = GetPartOne();
   DoConnect(p, 0);
   p.CreateActor(0xff000000, { 0.f, 0.f, 0.f }, 0.f, 0x3c);
@@ -55,6 +53,12 @@ TEST_CASE("A host attempt for an NPC that is there still hosts it",
   auto it = p.worldState.hosters.find(0xff000001);
   REQUIRE(it != p.worldState.hosters.end());
   REQUIRE(it->second == 0xff000000);
+
+  // The singleton is shared, so leave it as it was found: other cases create 0xff000000 too
+  p.worldState.hosters.erase(0xff000001);
+  p.DestroyActor(0xff000001);
+  p.DestroyActor(0xff000000);
+  DoDisconnect(p, 0);
 }
 
 // An index is reused about 10 s after its form goes, while a client with a ghost copy can keep asking for tens of
