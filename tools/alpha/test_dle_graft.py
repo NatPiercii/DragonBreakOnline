@@ -176,6 +176,78 @@ try:
     ok(rc != 0 and 'VMAD' in text and 'graft refused' in text, 'a master record with a subrecord it cannot map is refused', text)
     rc, text = run(base3, src3, os.path.join(tmp, 'x.esp'), '--overrides', '--disable-deleted')
     ok(rc != 0 and 'needs --overrides and --data' in text, '--disable-deleted without --data is refused')
+
+    # (H-L1review a) at one offset: records appended to the group that ends there go inside it, a new sibling group after
+    base5, src5 = os.path.join(tmp, 'base5.esp'), os.path.join(tmp, 'src5.esp')
+    plugin(base5, {CELL_A: {9: [b800]}, CELL_B: {8: [b801]}}, 0x000802)
+    plugin(src5, {CELL_A: {9: [b800]}, CELL_B: {8: [b801, refr(0x01000806, 9.0)], 9: [refr(0x01000807, 10.0)], 10: [refr(0x01000808, 11.0)]}}, 0x000809)
+    B5, S5 = D.Plugin(base5), D.Plugin(src5)
+    take5, ins5, ng5 = D.plan(B5, S5, None)
+    ok(len({k[0] for k in ins5}) == 1 and len(ins5) == 3, 'the three inserts share one offset (the end of the cell)', list(ins5))
+    for name, ins in (('source order', ins5), ('reversed', dict(reversed(list(ins5.items()))))):
+        o5 = os.path.join(tmp, f'o5-{len(name)}.esp')
+        with open(o5, 'wb') as fh:
+            fh.write(D.build(B5, take5, ins, ng5))
+        try:
+            O5 = D.Plugin(o5)
+            p5 = {r[0]: r[5][-1] for r in O5.records}
+            got = (p5[0x01000806], p5[0x01000807], p5[0x01000808])
+            ok(got == ((8, CELL_B), (9, CELL_B), (10, CELL_B)), f'{name}: each ref lands in its own group, nested to the byte', got)
+            cellkids = sorted((O5.groups[k][0], k[-1][0]) for k in O5.groups if k[-1][1] == CELL_B and k[-1][0] in (8, 9, 10))
+            ok([t for _, t in cellkids] == [8, 9, 10], f'{name}: the cell\'s groups in type order', cellkids)
+        except SystemExit as e:
+            ok(False, f'{name}: the output parses', str(e))
+
+    # (b) a verify that cannot parse its output leaves no .part behind
+    real_build = D.build
+    D.build = lambda *a_: real_build(*a_)[:-10]
+    argv = sys.argv
+    out6 = os.path.join(tmp, 'out6.esp')
+    sys.argv = ['dle_graft.py', base, src, out6]
+    try:
+        D.main(); ok(False, 'a truncated output is refused')
+    except SystemExit:
+        ok(not os.path.exists(out6 + '.part') and not os.path.exists(out6), 'a truncated output is refused, and its .part removed')
+    finally:
+        D.build, sys.argv = real_build, argv
+
+    # (c) a compressed source record; (d) own ids beyond the first, and layouts it cannot read
+    def refused(cells, expect, what):
+        sp = os.path.join(tmp, 'srcx.esp')
+        plugin(sp, {**{CELL_A: {9: [b800]}, CELL_B: {8: [b801]}}, **cells}, 0x000A00)
+        if os.path.exists(os.path.join(tmp, 'x.esp')):
+            os.remove(os.path.join(tmp, 'x.esp'))
+        rc, text = run(base, sp, os.path.join(tmp, 'x.esp'))
+        ok(rc != 0 and expect in text and not os.path.exists(os.path.join(tmp, 'x.esp')), what, text)
+    comp = refr(0x01000809, 1.0)
+    comp = comp[:8] + struct.pack('<I', D.COMPRESSED) + comp[12:]
+    refused({CELL_A: {9: [b800, comp]}}, 'compressed in the source', 'a compressed source record is refused before anything is built')
+    xlkr = sub(b'XLKR', struct.pack('<II', 0x00000F00, 0x01000999))
+    refused({CELL_A: {9: [b800, rec(b'REFR', 0x01000809, sub(b'NAME', struct.pack('<I', 0xF00)) + sub(b'DATA', b'\0' * 24) + xlkr)]}},
+            'XLKR names 01000999', 'an own id in the second half of an XLKR is checked')
+    xloc = sub(b'XLOC', struct.pack('<B3xI3x8x', 1, 0x01000998))
+    refused({CELL_A: {9: [b800, rec(b'REFR', 0x01000809, sub(b'NAME', struct.pack('<I', 0xF00)) + sub(b'DATA', b'\0' * 24) + xloc)]}},
+            'XLOC names 01000998', "an own id as an XLOC's key is checked")
+    xapr = sub(b'XAPR', struct.pack('<If', 0x01000801, 0.0)) + sub(b'XAPR', struct.pack('<If', 0x01000997, 0.0))
+    refused({CELL_A: {9: [b800, rec(b'REFR', 0x01000809, sub(b'NAME', struct.pack('<I', 0xF00)) + sub(b'DATA', b'\0' * 24) + xapr)]}},
+            'XAPR names 01000997', 'every XAPR is checked')
+    refused({CELL_A: {9: [b800, rec(b'REFR', 0x01000809, sub(b'NAME', struct.pack('<I', 0xF00)) + sub(b'DATA', b'\0' * 24) + sub(b'ZZZZ', b'\0' * 4))]}},
+            'no known layout', 'a subrecord of no known layout is refused')
+    refused({CELL_A: {9: [b800, rec(b'REFR', 0x01000809, sub(b'VMAD', b'\0' * 6) + sub(b'NAME', struct.pack('<I', 0xF00)) + sub(b'DATA', b'\0' * 24))]}},
+            'VMAD', 'a script (VMAD) is refused')
+    sp = os.path.join(tmp, 'srcok.esp')
+    plugin(sp, {CELL_A: {9: [b800, rec(b'REFR', 0x01000809, sub(b'NAME', struct.pack('<I', 0xF00)) + sub(b'DATA', b'\0' * 24) + sub(b'XAPR', struct.pack('<If', 0x01000800, 0.0)))]}, CELL_B: {8: [b801]}}, 0x000A00)
+    rc, text = run(base, sp, os.path.join(tmp, 'ok.esp'))
+    ok(rc == 0, 'an XAPR naming a record the output has is fine', text)
+
+    # (e) --disable-deleted refuses a master record with an enable parent
+    plugin(os.path.join(data, 'Skyrim.esm'), {CELL_A: {9: [ref(0x00000901, 6.0, 0x00000F00), ref(0x00000902, 6.5, 0x00000F00, sub(b'VMAD', b'\0' * 8)),
+                                                        ref(0x00000903, 7.5, 0x00000F00, sub(b'XESP', struct.pack('<IB3x', 0x00000901, 0)))]}},
+           0x000904, masters=(), stats=(0x00000F00,))
+    src7 = os.path.join(tmp, 'src7.esp')
+    plugin(src7, {CELL_A: {9: [refr(0x03000800, 1.0), rec(b'REFR', 0x00000903, sub(b'NAME', struct.pack('<I', 0x00000F00)), D.DELETED)]}}, 0x000801, masters=M3)
+    rc, text = run(base3, src7, os.path.join(tmp, 'x.esp'), '--overrides', '--disable-deleted', '--data', data)
+    ok(rc != 0 and 'enable parent' in text, '--disable-deleted refuses a master ref with an enable parent (XESP)', text)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

@@ -24,22 +24,60 @@ what goes in, and the TES4 header's record count (records plus groups) and next 
 
 The output is checked before it is kept: the groups nest to the byte, the count matches, every base record is there
 unchanged and in order, and every grafted record is identical to the source's. Masters must be the same list, and every
-form id of the file's own that a grafted record names (base object, location) must be in the output.
+form id of the file's own that a grafted record names, in any subrecord, must be in the output. Form ids are found by
+the REFR/ACHR layouts of xEdit's wbDefinitionsTES5 (ID_LAYOUT below); a record with a subrecord of no known layout, or a
+VMAD (whose properties can hold form ids), is refused rather than half checked, and so is a compressed record.
+--disable-deleted refuses a master record with an enable parent (XESP): the parent's state wins over Initially Disabled.
 """
 import argparse, os, struct, sys
 
-# REFR/ACHR subrecords that hold a form id at the start (a graft is refused if one of the file's own is missing)
-FORM_FIELDS = (b'NAME', b'XLRL', b'XLRT', b'XLCN', b'XEZN', b'XOWN', b'XESP', b'XLIB', b'XTEL', b'XAPR', b'XNDP', b'XMBR')
-# --disable-deleted copies a master's record only when every subrecord is one of these: a form id at the start (mapped),
-# or no form id at all. Anything else is refused rather than copied with ids in the master's numbering
-MAP_AT_0 = (b'NAME', b'XLRL', b'XLRT', b'XLCN', b'XEZN', b'XOWN', b'XESP')
-NO_IDS = (b'DATA', b'XSCL', b'EDID', b'XRGD', b'XRGB')
+# Where REFR/ACHR subrecords hold form ids, from xEdit's wbDefinitionsTES5 (wbRefRecord REFR and ACHR): signature ->
+# (byte offsets of the form ids, stride). Stride 0 is one struct; a stride repeats the offsets for every element of an
+# array. PDTO holds one only when its type (the first u32) is 0, and is handled on its own
+ID_LAYOUT = {
+    b'NAME': ([0], 0), b'XEZN': ([0], 0), b'XLCN': ([0], 0), b'XLRL': ([0], 0), b'XOWN': ([0], 0), b'XESP': ([0], 0),
+    b'XLIB': ([0], 0), b'XTEL': ([0], 0), b'XMBR': ([0], 0), b'XLRM': ([0], 0), b'XNDP': ([0], 0), b'XEMI': ([0], 0),
+    b'XTNM': ([0], 0), b'XSPC': ([0], 0), b'XATR': ([0], 0), b'XLTW': ([0], 0), b'XPWR': ([0], 0), b'XCZR': ([0], 0),
+    b'XCZC': ([0], 0), b'LNAM': ([0], 0), b'INAM': ([0], 0), b'XHOR': ([0], 0), b'XMRC': ([0], 0),
+    b'XLKR': ([0, 4], 0),             # keyword, then the linked ref
+    b'XLOC': ([4], 0),                # level u8, 3 unused, then the key
+    b'XAPR': ([0], 8),                # activate parent ref, delay
+    b'XPOD': ([0, 4], 8),             # portal origin, destination
+    b'XORD': ([0], 4), b'XLRT': ([0], 4),
+}
+# Subrecords of those records that hold no form id
+NO_IDS = {b'EDID', b'DATA', b'XSCL', b'XMBO', b'XPRM', b'XOCP', b'XPTL', b'XRMR', b'XMBP', b'XRGD', b'XRGB', b'XRDS',
+          b'XLIG', b'XALP', b'XWCN', b'XWCU', b'XWCS', b'XCVL', b'XCVR', b'XCZA', b'XAPD', b'XLCM', b'XTRI', b'XIS2',
+          b'XRNK', b'XCNT', b'XCHG', b'XPRD', b'XPPA', b'SCHR', b'SCTX', b'XACT', b'XHTW', b'XFVC', b'ONAM', b'XMRK',
+          b'FNAM', b'FULL', b'TNAM', b'XLOD'}
 DISABLED = 0x800
 COMPRESSED = 0x40000
 
 DELETED = 0x20
 CELL_CHILDREN = 6
 REF_GROUPS = (8, 9, 10)   # persistent, temporary, visible when distant
+
+
+def form_ids(rec, what):
+    """[(signature, offset in the subrecord, form id)] of a record with its header; refuses what it cannot read"""
+    out = []
+    for sig, val in subrecords(rec):
+        if sig == b'VMAD':
+            raise SystemExit(f'{what}: VMAD (a script) can hold form ids this tool does not read; graft refused')
+        if sig == b'PDTO':
+            if len(val) >= 8 and struct.unpack_from('<I', val, 0)[0] == 0:
+                out.append((sig, 4, struct.unpack_from('<I', val, 4)[0]))
+            continue
+        if sig in NO_IDS:
+            continue
+        if sig not in ID_LAYOUT:
+            raise SystemExit(f'{what}: {sig.decode("ascii", "replace")} has no known layout here; graft refused')
+        offsets, stride = ID_LAYOUT[sig]
+        for start in (range(0, len(val), stride) if stride else [0]):
+            for off in offsets:
+                if start + off + 4 <= len(val):
+                    out.append((sig, start + off, struct.unpack_from('<I', val, start + off)[0]))
+    return out
 
 
 class Plugin:
@@ -168,12 +206,20 @@ class Winners:
                 raise SystemExit(f'{fid:08X}: names {x:08X} in {name}, whose plugin is not a master of the base; graft refused')
             return self.base.masters.index(owner) << 24 | (x & 0xFFFFFF)
 
+        rec = p.bytes_of(r)
+        where = {}
+        for sig, off, _ in form_ids(rec, f'{fid:08X} in {name}'):
+            where.setdefault(sig, []).append(off)
+        if b'XESP' in where:
+            raise SystemExit(f'{fid:08X}: has an enable parent in {name}, whose state would win over Initially Disabled; graft refused')
         body = b''
-        for sig, val in subrecords(p.bytes_of(r)):
-            if sig in MAP_AT_0 and len(val) >= 4:
-                val = struct.pack('<I', remap(struct.unpack_from('<I', val, 0)[0])) + val[4:]
-            elif sig not in NO_IDS:
-                raise SystemExit(f'{fid:08X}: {sig.decode()} in {name} may hold form ids this tool does not map; graft refused')
+        for sig, val in subrecords(rec):
+            # this subrecord's own form ids, read as a record of one subrecord
+            offs = form_ids(rec[:24] + sig + struct.pack('<H', len(val)) + val, f'{fid:08X} in {name}')
+            val = bytearray(val)
+            for _, off, x in offs:
+                struct.pack_into('<I', val, off, remap(x))
+            val = bytes(val)
             if len(val) > 0xFFFF:
                 raise SystemExit(f'{fid:08X}: {sig.decode()} is too long to copy; graft refused')
             body += sig + struct.pack('<H', len(val)) + val
@@ -194,6 +240,9 @@ def plan(base, src, only, overrides=False, deleted=False, content=None):
     new_groups = {}         # group path -> header bytes (from the source)
     for r in take:
         path = r[5]
+        if r[2] & COMPRESSED:
+            raise SystemExit(f'{r[0]:08X}: compressed in the source; graft refused')
+        form_ids(content.get(r[0], src.bytes_of(r)), f'{r[0]:08X}')   # refuses what the output check could not read
         if len(path) < 2 or path[-1][0] not in REF_GROUPS or path[-2][0] != CELL_CHILDREN:
             raise SystemExit(f'{r[0]:08X}: not in a cell\'s reference group ({path})')
         cell = path[:-1]
@@ -223,7 +272,10 @@ def build(base, take, inserts, new_groups):
     b = base.buf
     chunks = {}               # base offset -> bytes inserted there
     grow = {}                 # base group offset -> bytes added inside it: the enclosing group and each one above it
-    for (at, gpath, inside), recs in inserts.items():
+    # At one offset the innermost insert goes first: records appended to a group that ends there close inside it, and a
+    # new sibling group follows; new sibling groups at one offset go in type order (persistent, temporary, distant)
+    order = sorted(inserts.items(), key=lambda kv: (kv[0][0], -len(kv[0][2]), kv[0][1][-1][0] if kv[0][1] else -1))
+    for (at, gpath, inside), recs in order:
         body = b''.join(recs)
         if gpath is not None:
             label, gtype = gpath[-1][1], gpath[-1][0]
@@ -273,11 +325,9 @@ def verify(base, src, out_path, take, content=None):
         fails.append(f'next object id {o.next_id:06X} is not past every record of its own')
     present = {r[0] for r in o.records}
     for r in take:
-        for sig, val in subrecords(content.get(r[0], src.bytes_of(r))):
-            if sig in FORM_FIELDS and len(val) >= 4:
-                ref = struct.unpack_from('<I', val, 0)[0]
-                if ref and o.own(ref) and ref not in present:
-                    fails.append(f'{r[0]:08X} {sig.decode()} names {ref:08X}, which is not in the output')
+        for sig, _, ref in form_ids(content.get(r[0], src.bytes_of(r)), f'{r[0]:08X}'):
+            if ref and o.own(ref) and ref not in present:
+                fails.append(f'{r[0]:08X} {sig.decode()} names {ref:08X}, which is not in the output')
     return o, fails
 
 
@@ -344,7 +394,12 @@ def main():
     tmp = a.out + '.part'
     with open(tmp, 'wb') as fh:
         fh.write(data)
-    o, fails = verify(base, src, tmp, take, content)
+    try:
+        o, fails = verify(base, src, tmp, take, content)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
     if fails:
         os.remove(tmp)
         for f in fails:
