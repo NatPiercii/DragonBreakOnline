@@ -92,6 +92,7 @@ declare -A NEEDS=(
   [study-magic]=front:skymp5-front/src/features/studyMagic/index.tsx
   [journal-front]=front:skymp5-front/src/features/journal/index.tsx
   [hud-settings]=front:skymp5-front/src/features/hud/index.tsx
+  [context-menu-front]=front:skymp5-front/src/features/contextMenu/index.tsx
   [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
 )
