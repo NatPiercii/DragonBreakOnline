@@ -85,6 +85,10 @@ function sendToGame(...args) {
   try { window.skyrimPlatform.sendMessage(...args); } catch (e) { /* outside game */ }
 }
 
+// Chromium's automatic gain control can raise the system microphone level itself (#bugs, 2 Oct: G Hub gain pushed to
+// max while the game runs); the mic gain slider is ours, so it stays off for our capture and LiveKit's
+export const MIC_CAPTURE = Object.freeze({ echoCancellation: true, noiseSuppression: true, autoGainControl: false });
+
 class VoiceManager {
   constructor() {
     this.room = null;
@@ -366,7 +370,7 @@ class VoiceManager {
   async startMic() {
     const deviceId = await this.deviceIdFor('audioinput', this.prefs.inputLabel);
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: Object.assign({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }, deviceId ? { deviceId: { exact: deviceId } } : {}),
+      audio: Object.assign({}, MIC_CAPTURE, deviceId ? { deviceId: { exact: deviceId } } : {}),
     });
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const source = ctx.createMediaStreamSource(stream);
@@ -463,7 +467,7 @@ class VoiceManager {
     try {
       await this.disconnect();
       this.lastToken = token; // after disconnect(), which nulls it
-      const room = new Room({ adaptiveStream: false, dynacast: false });
+      const room = new Room({ adaptiveStream: false, dynacast: false, audioCaptureDefaults: { ...MIC_CAPTURE } });
 
       room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (track.kind !== Track.Kind.Audio) return;
