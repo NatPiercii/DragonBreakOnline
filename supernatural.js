@@ -937,8 +937,11 @@ module.exports = (api) => {
   };
   onUi('shrinePray', (a, args) => {
     const st = panelFor(a, args); if (!st) return;
+    const warnedBefore = prayWarned.get(a >>> 0);
     const why = typeof globalThis.__dboPrayerStart === 'function' ? globalThis.__dboPrayerStart(a, st.targetId) : 'Prayer is closed on this server.';
-    if (why) return showShrinePanel(a, st, why, 'refused');
+    // The fever's warning (__dboSuperPrayWarning just stamped it) is news, not a refusal: the front draws anything but
+    // 'refused' in its ordinary result style
+    if (why) return showShrinePanel(a, st, why, prayWarned.get(a >>> 0) !== warnedBefore ? 'info' : 'refused');
     // The prayer's own panel is open (and focused) by now; closing this one after it keeps the cursor
     closeShrinePanel(a);
   });

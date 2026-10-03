@@ -31,7 +31,7 @@ const lookup = (id) => {
 };
 
 const P = 0xff000014;
-const store = new Map(), said = [], logs = [];
+const store = new Map(), said = [], logs = [], ui = {}, widgets = [];
 let admin = false;
 globalThis.__dboClock = { gameDays: () => 100, sendTo: () => {}, summary: () => ({ timeScale: 6 }) };
 global.setTimeout = () => 0;
@@ -44,7 +44,7 @@ const mp = {
 };
 const api = {
   mp, log: (...a) => logs.push(a.join(' ')), audit: () => {}, personal: (a, t) => said.push(t), registerChatCommand: () => {},
-  onUi: () => {}, openWidget: () => {}, closeWidget: () => {}, sendPacket: () => {}, display: (a) => `P${a.toString(16)}`, who: String,
+  onUi: (n, fn) => { (ui[n] = ui[n] || []).push(fn); }, openWidget: (a, w) => widgets.push(w), closeWidget: () => {}, sendPacket: () => {}, display: (a) => `P${a.toString(16)}`, who: String,
   isAdmin: () => admin, findByName: () => null, onlineActors: () => [P], every: () => {}, profileOf: () => 1, nameOf: String,
   isWorldspace: () => true, needsFeed: () => {}, hungerOf: () => 0, cfg: {},
 };
@@ -127,6 +127,21 @@ ok(/is a werewolf\. Lift that curse first/.test(give('vampire')) && !store.get(`
 state({ kind: null, disease: null });
 ok(/now carries Sanguinare Vampiris/.test(give('vampire')) && store.get(`${P}|private.supernatural`).disease.kind === 'vampire', 'giving Sanguinare Vampiris works');
 ok(/no plague disease/.test(give('plague')), 'an unknown disease is refused');
+
+// The Arkay/Stendarr shrine panel: the fever's warning is shown as news, a refusal as a refusal (H-L1review)
+const fire = (n, ...args) => (ui[n] || []).forEach((fn) => fn(P, args));
+fire('uiCaps', 'shrinePanel');
+globalThis.__dboPrayerRefusal = () => '';
+let refuse = '';
+globalThis.__dboPrayerStart = (a) => refuse || globalThis.__dboSuperPrayWarning(a, 'arkay') || '';
+fevered('vampire'); globalThis.__dboSuperPrayWarned.clear();
+ok(globalThis.__dboShrinePanel(P, 0x1234, { id: 'arkay', name: 'Arkay', shrineName: 'Shrine of Arkay' }) === true, 'the shrine panel opens');
+const panel = () => widgets.filter((w) => w.type === 'shrinePanel').pop() || {};
+fire('shrinePray', panel().nonce);
+ok(/Arkay will cure the Sanguinare Vampiris/.test(panel().result) && panel().resultKind === 'info', "Pray on the panel shows the fever's warning in the ordinary style", panel());
+refuse = 'You have prayed too recently.';
+fire('shrinePray', panel().nonce);
+ok(panel().result === refuse && panel().resultKind === 'refused', '...and a refusal as refused', panel());
 
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);
