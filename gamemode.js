@@ -1827,6 +1827,8 @@ const onCharacterReady = (userId, a) => {
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     // Waking from a bed (rest.js) before the hunger stage is applied
     try { if (globalThis.__dboRestLogin) globalThis.__dboRestLogin(a); } catch (e) { log('rest login failed', e.message); }
+    // Gear above the loot cap becomes its steel equivalent, once (gearswap.js)
+    try { if (globalThis.__dboGearSwapLogin) globalThis.__dboGearSwapLogin(a); } catch (e) { log('gear swap login failed', e.message); }
     try { if (globalThis.__dboBusinessLogin) globalThis.__dboBusinessLogin(a); } catch (e) { log('business login failed', e.message); }
     try { if (globalThis.__dboJailLogin) globalThis.__dboJailLogin(a); } catch (e) { log('jail login failed', e.message); }
     needsOnConnect(a);

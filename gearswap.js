@@ -2,9 +2,10 @@
 // per character (Nate, 1 Oct 2026). "Above the cap" is loottiers.js's own verdict ('capped', or a never-loot family);
 // what replaces each item is gear-swap.json (tools/loot/steel_swap_map.py: the same type or slot, same province).
 // Artifacts (artifacts.json) are never touched. A character in a fight, downed or in a beast form waits for a quiet
-// moment; online players are swept within a minute, everyone else at their next login; staff are left alone;
+// moment; each character is swept at its login (no timer: the server cannot see an open inventory or container menu,
+// and a loading screen has closed them all); staff are left alone;
 // containers are swapped once, as they are opened. Arrows and bolts above the cap become iron arrows and steel bolts.
-// Config "gearSwap": { mode: "on" | "log" | "off", version, exemptProfiles: [], intervalMs, containers }. Loaded by gamemode.js.
+// Config "gearSwap": { mode: "on" | "log" | "off", version, exemptProfiles: [], containers }. Loaded by gamemode.js.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -73,7 +74,7 @@ module.exports = (api) => {
   const { mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand } = api;
   // Staff are left alone (Nate, 3 Oct): the roles source the admin tiers use (gamemode.js tierOf)
   const isStaff = typeof api.isStaff === 'function' ? api.isStaff : () => false;
-  const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], intervalMs: 30000, combatSeconds: 30 }, (cfg && cfg.gearSwap) || {});
+  const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], combatSeconds: 30 }, (cfg && cfg.gearSwap) || {});
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`gearswap: ${file} unreadable`, e.message); return fallback; } };
   const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
   delete require.cache[LOOT_TIERS_JS];
@@ -119,7 +120,12 @@ module.exports = (api) => {
       mp.set(a, 'inventory', { entries: p.entries });
       // What was worn goes on again as its replacement, and the login re-dress remembers the replacement
       for (const s of p.swaps.filter((x) => x.worn || x.wornLeft)) {
-        try { mp.callPapyrusFunction('method', 'Actor', 'EquipItem', { type: 'form', desc: mp.getDescFromId(a) }, [{ type: 'espm', desc: mp.getDescFromId(s.to) }, false, true]); } catch (e) { log('gearswap EquipItem failed', s.to.toString(16), e.message); }
+        // A left-hand weapon goes back in the left hand (EquipItemEx slot 2)
+        const self = { type: 'form', desc: mp.getDescFromId(a) }, item = { type: 'espm', desc: mp.getDescFromId(s.to) };
+        try {
+          if (s.wornLeft && !s.worn) mp.callPapyrusFunction('method', 'Actor', 'EquipItemEx', self, [item, 2, false, true]);
+          else mp.callPapyrusFunction('method', 'Actor', 'EquipItem', self, [item, false, true]);
+        } catch (e) { log('gearswap EquipItem failed', s.to.toString(16), e.message); }
       }
       try {
         const lastWorn = mp.get(a, 'private.lastWorn');
@@ -154,9 +160,9 @@ module.exports = (api) => {
     mp.set(ref, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
   };
   globalThis.__dboGearSwapContainer = (ref) => { try { sweepContainer(ref); } catch (e) { log('gearswap container failed', (ref >>> 0).toString(16), e.message); } };
-  if (C.mode !== 'off') {
-    every('gearSwap', C.intervalMs, () => { for (const a of onlineActors()) { try { sweep(a); } catch (e) { log('gearswap failed for', (a >>> 0).toString(16), e.message); } } });
-  }
+  // From gamemode.js's login path (onCharacterReady), when the character has loaded and no menu is open
+  globalThis.__dboGearSwapLogin = (a) => { if (C.mode === 'off') return; try { sweep(a); } catch (e) { log('gearswap failed for', (a >>> 0).toString(16), e.message); } };
+
   if (typeof registerChatCommand === 'function') {
     registerChatCommand('gearswap', (a, args) => {
       const t = String(args || '').trim();

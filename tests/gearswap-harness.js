@@ -82,21 +82,23 @@ const load = (gearSwap) => require(path.join(SERVER, 'gearswap.js'))({ mp, log: 
   onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, cfg: { gearSwap }, registerChatCommand: () => {}, isStaff: (a) => staff.has(a >>> 0),
   recordOf: (id) => (id >>> 0 === CHEST_BASE ? { record: { type: 'CONT', editorId: 'TreasCaveChest' } } : id >>> 0 === BARREL_BASE ? { record: { type: 'ACTI', editorId: 'Barrel' } } : EDID[id >>> 0] ? { record: { editorId: EDID[id >>> 0] } } : null) });
 const staff = new Set();
+// Each online character logs in (gamemode.js onCharacterReady calls __dboGearSwapLogin)
+const loginAll = () => { for (const a of online) globalThis.__dboGearSwapLogin(a); };
 const CHEST_BASE = 0x20671, BARREL_BASE = 0x20672;
 globalThis.__dboCombatAt = new Map([[A >>> 0, Date.now()]]);
 load({ exemptProfiles: [3] });
-timers.gearSwap();
+loginAll();
 check('a player in a fight is left for later: nothing taken, no mark', store[A].inventory.entries.some((e) => e.baseId === ID.GlassSword) && !store[A]['private.dboGearSwap']);
 globalThis.__dboCombatAt = new Map();
 globalThis.__dboIsDowned = (a) => a === A;
-timers.gearSwap();
+loginAll();
 check('...and so is a downed one', !store[A]['private.dboGearSwap']);
 globalThis.__dboIsDowned = () => false;
 globalThis.__dboBeastOriginalRace = (a) => (a === A ? 0x13746 : 0);
-timers.gearSwap();
+loginAll();
 check('...and one in a beast form', !store[A]['private.dboGearSwap']);
 globalThis.__dboBeastOriginalRace = () => 0;
-timers.gearSwap();
+loginAll();
 const inv = store[A].inventory.entries;
 check('then the swap: steel sword, CYR leather cuirass, steel ingots, the high-end pieces gone',
   inv.some((e) => e.baseId === ID.SteelSword) && inv.some((e) => e.baseId === ID.CYRArmorLeatherCuirassA) && inv.some((e) => e.baseId === ID.IngotSteel && e.count === 2) && !inv.some((e) => [ID.GlassSword, ID.CYRArmorElvenCuirass, ID.IngotEbony].includes(e.baseId)), inv);
@@ -106,27 +108,27 @@ check('the login re-dress remembers the replacements', JSON.stringify(store[A]['
 check('one message to the player and one audit line per swap', said.length === 1 && said[0][0] === A && /4 items/.test(said[0][1]) && audits.length === 3 && audits.every((t) => /^GEARSWAP P/.test(t)), { said, audits });
 check('the character is marked with the version', store[A]['private.dboGearSwap'] && store[A]['private.dboGearSwap'].version === G.VERSION && store[A]['private.dboGearSwap'].swapped === 4);
 store[A].inventory.entries.push({ baseId: ID.GlassSword, count: 1 });
-timers.gearSwap();
+loginAll();
 check('once only: glass found later is not swapped again (that is the loot cap\'s job)', store[A].inventory.entries.some((e) => e.baseId === ID.GlassSword) && said.length === 1);
 online = [A, B];
-timers.gearSwap();
+loginAll();
 check('an exempt profile is left alone', store[B].inventory.entries[0].baseId === ID.ArmorEbonyCuirass && !store[B]['private.dboGearSwap']);
 load({});
 online = [B];
 check('offline: nothing happens to a character until it logs in', store[B].inventory.entries[0].baseId === ID.ArmorEbonyCuirass);
-timers.gearSwap();
+loginAll();
 check('...and at the first sweep after its login it is swapped', store[B].inventory.entries[0].baseId === ID.ArmorSteelCuirassA && store[B]['private.dboGearSwap']);
 const C = 0xff000305;
 store[C] = { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] }, equipment: { inv: { entries: [] } }, profileId: 40 };
 load({ mode: 'log' });
 online = [C];
-timers.gearSwap();
+loginAll();
 check('mode log changes nothing and marks nothing', store[C].inventory.entries[0].baseId === ID.GlassSword && !store[C]['private.dboGearSwap']);
 // staff, through the roles source
 const S1 = 0xff000306;
 store[S1] = { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] }, equipment: { inv: { entries: [] } }, profileId: 50 };
 staff.add(S1); load({}); online = [S1]; said.length = 0;
-timers.gearSwap();
+loginAll();
 check('a staff character (admin tier from the roles source) is left alone', store[S1].inventory.entries[0].baseId === ID.GlassSword && !store[S1]['private.dboGearSwap'] && !said.length);
 // containers, swapped once as they are opened
 const CH = 0x0800f001, BAR = 0x0800f002;
@@ -147,7 +149,16 @@ const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 const chain = gm.slice(gm.indexOf('mp.onActivate = (targetId, casterId) => {'), gm.indexOf('if (globalThis.__dboDungeonActivate) {'));
 check('the activate chain swaps a container before it opens and never refuses for it', /\n  if \(globalThis\.__dboGearSwapContainer\) globalThis\.__dboGearSwapContainer\(targetId >>> 0\);\n/.test(chain));
 check('gamemode hands the module its staff check (isAdmin, the roles source)', /require\(GEARSWAP_JS\)\(\{[^}]*isStaff: isAdmin \}\)/.test(gm));
-delete globalThis.__dboGearSwapContainer;
+check('no timer sweeps inventories: the server cannot see an open inventory or container menu (D, 3 Oct)', !Object.keys(timers).length && !/every\(/.test(fs.readFileSync(path.join(SERVER, 'gearswap.js'), 'utf8').replace(/Object\.keys\(e\)\.every\(/g, '')), Object.keys(timers));
+check('the login path sweeps each character, beside the rest login', /__dboRestLogin\(a\);[^\n]*\n\s*\/\/[^\n]*\n\s*try \{ if \(globalThis\.__dboGearSwapLogin\) globalThis\.__dboGearSwapLogin\(a\); \}/.test(gm));
+// a left-hand weapon goes back in the left hand
+const LH = 0xff000307;
+store[LH] = { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] }, equipment: { inv: { entries: [{ baseId: ID.GlassSword, wornLeft: true }] } }, profileId: 51 };
+load({}); calls.length = 0;
+globalThis.__dboGearSwapLogin(LH);
+const lh = calls.filter((c) => /^EquipItem/.test(c[2]));
+check('a left-hand piece is put on again in the left hand (EquipItemEx slot 2)', lh.length === 1 && lh[0][2] === 'EquipItemEx' && lh[0][4][1] === 2 && lh[0][4][0].desc === descOf(ID.SteelSword), lh);
+delete globalThis.__dboGearSwapContainer; delete globalThis.__dboGearSwapLogin;
 delete globalThis.__dboCombatAt; delete globalThis.__dboIsDowned; delete globalThis.__dboBeastOriginalRace;
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);
