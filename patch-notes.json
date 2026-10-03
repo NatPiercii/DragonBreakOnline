@@ -57,50 +57,8 @@
     ]
   },
   {
-    "title": "Founding a faction",
-    "date": "2026-10-03",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Factions",
-        "items": [
-          "The faction window now tells you how to found a faction or a cult of your own: type /charter found <name> (or /charter cult <name>) in chat, gather your co-founders, and a GM approves it."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "Staves work",
-    "date": "2026-10-03",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Magic",
-        "items": [
-          "Staves work: a staff's spell now hits, for players and for NPCs such as goblin shamans."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "Known issues",
-    "date": "2026-10-03",
-    "version": "Server update",
-    "tag": "Update",
-    "sections": [
-      {
-        "heading": "Known issues",
-        "items": [
-          "RaceMenu's own extras (its Presets tab and saved preset files, the extra sliders, sculpting, overlays and body morphs) are saved only on your own PC, so they don't carry over to your character on the server. Only the standard character creator options are saved with your character."
-        ]
-      }
-    ]
-  },
-  {
     "title": "Dungeon loot rebalanced",
-    "date": "2026-10-01",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Balance",
     "sections": [
@@ -123,7 +81,7 @@
   },
   {
     "title": "High-end gear swapped for steel",
-    "date": "2026-10-03",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -138,7 +96,7 @@
   },
   {
     "title": "Your First Spell",
-    "date": "2026-10-01",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -163,7 +121,7 @@
   },
   {
     "title": "Skills rise more slowly",
-    "date": "2026-10-01",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -177,8 +135,50 @@
     ]
   },
   {
+    "title": "See your fever grow",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Vampires and werewolves",
+        "items": [
+          "Caught Sanies Lupinus or Sanguinare Vampiris? The skills menu (K) now has a Fever tab: how far it has grown, how much play time is left before it peaks, the trial that comes then, and how to cure it."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Founding a faction",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "The faction window now tells you how to found a faction or a cult of your own: type /charter found <name> (or /charter cult <name>) in chat, gather your co-founders, and a GM approves it."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Staves work",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Staves work: a staff's spell now hits, for players and for NPCs such as goblin shamans."
+        ]
+      }
+    ]
+  },
+  {
     "title": "More blessings now work",
-    "date": "2026-10-01",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -196,7 +196,7 @@
   },
   {
     "title": "The bank counts in the launcher's gold",
-    "date": "2026-10-03",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -210,7 +210,7 @@
   },
   {
     "title": "Dressed again after a slow load",
-    "date": "2026-10-03",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -224,7 +224,7 @@
   },
   {
     "title": "Ashes of the raised dead",
-    "date": "2026-10-03",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -238,7 +238,7 @@
   },
   {
     "title": "Your pack, set right",
-    "date": "2026-10-03",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -252,7 +252,7 @@
   },
   {
     "title": "More gear breaks down",
-    "date": "2026-10-03",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -267,15 +267,15 @@
     ]
   },
   {
-    "title": "See your fever grow",
-    "date": "2026-10-03",
+    "title": "Known issues",
+    "date": "SHIP_DATE",
     "version": "Server update",
-    "tag": "New",
+    "tag": "Update",
     "sections": [
       {
-        "heading": "Vampires and werewolves",
+        "heading": "Known issues",
         "items": [
-          "Caught Sanies Lupinus or Sanguinare Vampiris? The skills menu (K) now has a Fever tab: how far it has grown, how much play time is left before it peaks, the trial that comes then, and how to cure it."
+          "RaceMenu's own extras (its Presets tab and saved preset files, the extra sliders, sculpting, overlays and body morphs) are saved only on your own PC, so they don't carry over to your character on the server. Only the standard character creator options are saved with your character."
         ]
       }
     ]
