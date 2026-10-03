@@ -138,6 +138,20 @@
     ]
   },
   {
+    "title": "Ashes of the raised dead",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "When a corpse you raised crumbles to ash, the ash holds nothing to take."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Apprentice locks for everyone too",
     "date": "2026-10-02",
     "version": "Server update",
