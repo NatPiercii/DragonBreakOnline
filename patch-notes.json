@@ -105,6 +105,39 @@
     ]
   },
   {
+    "title": "Skills rise more slowly",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "A skill now counts at most two thirds as much work in an hour as before, and the most it can count in a day is two thirds of what it was too. Skills that were rising as fast as they could now rise at two thirds of that pace.",
+          "Every level you have already earned is kept."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "More blessings now work",
+    "date": "2026-10-01",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Blessings",
+        "items": [
+          "Blessings that speed up your health, magicka or stamina now really do: Akatosh, Hircine, Meridia and the Worm Cult. Until now the server pulled your bar back to its normal speed.",
+          "Hircine's blessing now says what it does: stamina comes back three times as fast.",
+          "The Hist, the Ancestors, the Yokudan Gods and the Riddle'Thar gave a racial power that the server blocks, so their blessings did nothing. Now, for as long as the blessing lasts, the Hist heal you 50% faster, the Ancestors take a quarter off the damage of fire magic, the Yokudan Gods double your stamina regeneration, and the Riddle'Thar let you see in the dark.",
+          "If a blessing left one of those old powers in your spellbook, it is taken back and you get the new blessing for the time that is left.",
+          "If you die while blessed, the blessing comes back a few seconds after you stand up."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Apprentice locks for everyone too",
     "date": "2026-10-02",
     "version": "Server update",

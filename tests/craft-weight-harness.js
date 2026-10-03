@@ -109,7 +109,10 @@ const was = [250, 750, 1750, 2950].map((u) => u / before);
 console.log(`\n  hours to Apprentice / Journeyman / Expert / Master at 40 dishes an hour, five recipes:`);
 console.log(`    before: ${was.map((h) => h.toFixed(1)).join(' / ')}  (every dish 0.5: ${before.toFixed(1)} units an hour)`);
 console.log(`    after:  ${after.map((h) => h.toFixed(1)).join(' / ')}  (tier-1 dishes ${rate(1).toFixed(1)} an hour, then the ${perHour}-unit bucket)`);
-eq('a new cook reaches Apprentice about twice as fast', was[0] / after[0] > 1.9, true);
+// Cook's craft weight never slows a new cook, and speeds them up wherever the bucket has room above the plain dish weight
+// (14.5 units an hour at 40 dishes): 2.00x at 30 an hour, 1.38x at 20, 1.03x at 15, the same at 10.
+eq('a new cook never reaches Apprentice slower with the craft weight', after[0] <= was[0] + 1e-9, true);
+if (perHour > before + 1e-9) eq(`...and faster where the bucket allows (${(was[0] / after[0]).toFixed(2)}x at ${perHour} an hour)`, after[0] < was[0], true);
 eq('from Apprentice on, cooking fills the hour as any trade can', rate(1.5), perHour);
 
 console.log(fails ? `\n${fails} of ${checks} checks FAILED` : `\nall ${checks} checks passed`);
