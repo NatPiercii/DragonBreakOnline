@@ -964,18 +964,26 @@ export class MasterySystem implements System {
     this.sendMenu(ctx, userId);
   }
 
-  // K. A client that has the F3 journal asks with preferJournal: when the gameplay's journal takes the Skills tab, the
-  // answer is { journal: true } and the client opens nothing. An older client never asks, and an older server ignores
-  // the flag, so widget 25 opens as before in both cases.
+  // K. A client that has the F3 journal asks with preferJournal: when the gameplay's hub journal (the shell's
+  // __dboJournalLimited, and journalskills.js's Skills section) opens on Skills, the answer is { journal: true } and the
+  // client opens nothing. An older client never asks, an older server ignores the flag, an older journal has no Skills
+  // tab, and a journal that refuses (in a fight) stays shut: widget 25 opens in every one of those cases.
   private onInfoRequest(ctx: SystemContext, userId: number, content: Content): void {
-    if (content && (content as Record<string, unknown>)["preferJournal"] === true) {
+    if (content && (content as Record<string, unknown>)["preferJournal"] === true && this.journalHasSkills()) {
       const actorId = this.actorOf(ctx, userId);
-      const openTab = (globalThis as any).__dboJournalOpenTab;
+      const g = globalThis as any;
       let taken = false;
-      if (actorId && typeof openTab === "function") { try { taken = openTab(actorId, "skills") === true; } catch (e) { this.log(`[skills] journal open failed: ${e}`); } }
+      try { taken = !!actorId && g.__dboJournalOpenTab(actorId, "skills") === true && (typeof g.__dboJournalIsOpen !== "function" || g.__dboJournalIsOpen(actorId) === true); }
+      catch (e) { this.log(`[skills] journal open failed: ${e}`); taken = false; }
       if (taken) { this.send(ctx, userId, { customPacketType: "masteryMenu", journal: true }); return; }
     }
     this.sendMenu(ctx, userId);
+  }
+
+  private journalHasSkills(): boolean {
+    const g = globalThis as any;
+    return typeof g.__dboJournalOpenTab === "function" && typeof g.__dboJournalLimited === "function"
+      && !!g.__dboJournalSections && !!g.__dboJournalSections.skills;
   }
 
   // A K-menu action asked from the journal: the same handler runs with its notices kept and its menu redraw held back.
