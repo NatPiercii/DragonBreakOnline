@@ -1,6 +1,8 @@
-// /warband settle keeps NPCs that are aggressive by their record (warband.js aggressionOf: AIDT aggression, through any
-// template whose ACBS flags pass AI data on). A settled NPC is rebuilt as an ordinary one with its own factions and AI, so a
-// Daedroth Titan settled on 3 Oct turned on the players near it. Unleash is unchanged.
+// /warband settle keeps NPCs that are very aggressive or frenzied by their record (warband.js aggressionOf: AIDT aggression,
+// through any template whose ACBS flags pass AI data on). A settled NPC is rebuilt as an ordinary one with its own AI, so a
+// Daedroth Titan settled on 3 Oct turned on the players near it. A settled one is given the player faction (ff_factions),
+// so an aggressive one (1) finds no enemy among the players and is settled; 2 and 3 attack neutrals too and are kept.
+// Unleash is unchanged.
 //   node tests/warband-settle-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -23,7 +25,7 @@ const records = {
   [TITAN]: NPC([['ACBS', acbs(0)], ['AIDT', u8([2, 3, 50])]]),
   [BANDIT]: NPC([['ACBS', acbs(0)], ['AIDT', u8([1, 2, 50])]]),
   [LVL]: NPC([['ACBS', acbs(0x10)], ['TPLT', tplt(TPL_AGGR)], ['AIDT', u8([0])]]),   // AI data comes from the template
-  [TPL_AGGR]: NPC([['ACBS', acbs(0)], ['AIDT', u8([1])]]),
+  [TPL_AGGR]: NPC([['ACBS', acbs(0)], ['AIDT', u8([2])]]),
   [FARMER]: NPC([['ACBS', acbs(0)], ['AIDT', u8([0, 1, 50])]]),
   [OWN_AI]: NPC([['ACBS', acbs(0x04)], ['TPLT', tplt(OWN_AI_TPL)], ['AIDT', u8([0])]]),  // template gives factions only
   [OWN_AI_TPL]: NPC([['ACBS', acbs(0)], ['AIDT', u8([2])]]),
@@ -38,8 +40,10 @@ globalThis.__dboCompanions = {
   dismiss: (id) => companions.delete(id), follow: () => true, stay: () => true, attack: () => true,
 };
 const said = [], logs = [], commands = {};
+const factionsOf = new Map();
 require(MODULE)({
   mp: { get: (id, k) => (k === 'pos' ? [0, 0, 0] : k === 'angle' ? [0, 0, 0] : undefined), getIdFromDesc: (d) => parseInt(d, 16),
+    set: (id, k, v) => { if (k === 'ff_factions') factionsOf.set(id, v); },
     lookupEspmRecordById: (id) => { if (id === BROKEN) throw new Error('bad'); return records[id] || null; } },
   log: (...x) => logs.push(x.join(' ')), personal: (a, t) => said.push(t), audit: () => {}, who: (a) => `GM${a}`, isAdmin: () => true,
   registerChatCommand: (n, f) => { commands[n] = f; }, findByName: () => 0, cfg: {}, onUi: () => {},
@@ -54,20 +58,21 @@ try {
   said.length = 0;
   commands.warband(GM, 'settle');
   ok(raised(TITAN)[0].released !== true, 'a Daedroth Titan (very aggressive) is not settled');
-  ok(raised(BANDIT)[0].released !== true, 'a bandit (aggressive) is not settled');
-  ok(raised(LVL)[0].released !== true, 'aggression taken from the template when the ACBS flags pass AI data on');
+  ok(raised(BANDIT)[0].released === true && raised(BANDIT)[0].hostile === false, 'a bandit (aggressive, 1) is settled');
+  ok(JSON.stringify(factionsOf.get(raised(BANDIT)[0].id)) === JSON.stringify({ f: [[0xdb1, 0]], c: 0 }), '...in the player faction on every screen', factionsOf.get(raised(BANDIT)[0].id));
+  ok(raised(LVL)[0].released !== true, 'aggression taken from the template when the ACBS flags pass AI data on (2: kept)');
   ok(raised(FARMER)[0].released === true && raised(FARMER)[0].hostile === false, 'an unaggressive farmer is settled as before');
   ok(raised(OWN_AI)[0].released === true, 'a template that passes on only factions: the record\'s own (unaggressive) AI decides');
   ok(raised(BROKEN)[0].released === true, 'a record that cannot be read is settled as before');
   const msg = said.join(' ');
-  ok(/Your warband of 3 stays here as friendly NPCs/.test(msg), 'the GM is told who was settled', msg);
-  ok(/3 \(Daedroth Titan, Bandit, Templated Wolf\) are aggressive by nature/.test(msg) && /dismiss them, or unleash them as a raid/.test(msg), '...and who stays, and why', msg);
-  ok(logs.some((l) => /kept 3 aggressive NPC\(s\)/.test(l)), 'one log line for the kept ones');
+  ok(/Your warband of 4 stays here as friendly NPCs/.test(msg), 'the GM is told who was settled', msg);
+  ok(/2 \(Daedroth Titan, Templated Wolf\) are aggressive by nature/.test(msg) && /dismiss them, or unleash them as a raid/.test(msg), '...and who stays, and why', msg);
+  ok(logs.some((l) => /kept 2 aggressive NPC\(s\)/.test(l)), 'one log line for the kept ones');
   said.length = 0;
   commands.warband(GM, 'settle');
   ok(/Nobody was settled\./.test(said.join(' ')) && raised(TITAN)[0].released !== true, 'settling again with only aggressive ones left settles nobody', said);
   commands.warband(GM, 'unleash');
-  ok(raised(TITAN)[0].released === true && raised(TITAN)[0].hostile === true && raised(BANDIT)[0].hostile === true, 'unleash still releases them, hostile');
+  ok(raised(TITAN)[0].released === true && raised(TITAN)[0].hostile === true, 'unleash still releases them, hostile');
 } finally {
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });

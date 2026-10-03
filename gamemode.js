@@ -5113,6 +5113,10 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // bandit's Chain Lightning arced through its own allies for full damage (Plundered Mine, 2026-09-23).
   if (dmg > 0 && agg !== tgt && dungeonAllies(agg, tgt)) return false;
 
+  // 2d. GM warbands (warband.js): an NPC a GM raised never harms that GM, after a raid or settle too, and the NPCs of two
+  // friendly GMs never harm each other. Before companionSystem's hook, so a refused hit sets no band on anyone.
+  try { if (agg !== tgt && typeof globalThis.__dboWarbandRefusesHit === 'function' && globalThis.__dboWarbandRefusesHit(agg, tgt)) return false; } catch (e) { log('warband hit check failed', e.message); }
+
   const prev = globalThis.__dboPrevHitDamageAttempt;
   if (prev) {
     try { if (prev(agg, tgt, src, dmg) === false) return false; }
@@ -5509,7 +5513,7 @@ try {
 try {
   const WARBAND_JS = path.resolve('warband.js');
   delete require.cache[WARBAND_JS];
-  require(WARBAND_JS)({ mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg, onUi, runChat: (a, line) => handleChat(userOf(a), line) });
+  require(WARBAND_JS)({ mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg, onUi, every, profileOf, runChat: (a, line) => handleChat(userOf(a), line) });
 } catch (e) { log('warband.js failed to load:', e.stack || e.message); }
 
 // ---- the F7 Place tab: NPCs and world objects placed by GMs (server\placement.js, admin-placeables.json) --------

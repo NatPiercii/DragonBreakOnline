@@ -77,7 +77,7 @@ run(GM, 'raise bandit chief 2');
 r = run(GM, 'settle');
 check('settle leaves them friendly', /stays here as friendly NPCs/.test(r) && [...companions.values()].filter((c) => c.released && !c.hostile).length === 2);
 r = run(GM, 'clear', 'raid');
-check('/raid clear removes every standing raider and settler', /Removed 14/.test(r) && destroyed.size === 14, r);
+check('/raid clear removes every standing raider and settler, and the dead', /Removed 16/.test(r) && destroyed.size === 16, r);
 
 run(GM, 'raise bandit chief 2');
 const before = companions.size;
