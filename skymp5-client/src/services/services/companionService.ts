@@ -65,6 +65,8 @@ interface LocalState {
   unstuckAt: number;
   // This copy ignores the engine's orders, so the client walks it itself
   driven: boolean;
+  // Set once it had to be driven: from then on it is driven as soon as it falls behind, with no stand and no lift first
+  driveSticky?: boolean;
   // Distance to the owner at the last stuck check, to tell walking apart from actually closing
   lastGap?: number;
 }
@@ -290,6 +292,7 @@ export class CompanionService extends ClientListener {
     if (state.unstuckAt && distance <= CompanionService.teleportDistance) {
       state.unstuckAt = now;
       state.driven = true;
+      state.driveSticky = true;
       actor.clearKeepOffsetFromActor();
       state.following = false;
       state.followResult = "stuck again at " + Math.round(distance) + ", driven";
@@ -440,6 +443,17 @@ export class CompanionService extends ClientListener {
       actor.stopCombat();
       state.fightingTarget = 0;
       state.followResult = "left a fight " + Math.round(distance) + " away";
+    }
+    // A companion that had to be driven once walks no better the next time: it is driven again as soon as it falls behind
+    if (state.driveSticky) {
+      const behind = actor.getDistance(player);
+      if (behind > CompanionService.followRadius * 2 && behind <= CompanionService.teleportDistance) {
+        state.driven = true;
+        actor.clearKeepOffsetFromActor();
+        state.following = false;
+        state.followResult = "behind at " + Math.round(behind) + ", driven again";
+        return;
+      }
     }
     if (!state.aliasFailed && this.nativeFollow(actor, state)) {
       return;
