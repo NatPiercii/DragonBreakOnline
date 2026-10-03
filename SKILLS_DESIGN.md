@@ -582,7 +582,7 @@ Each with a recommended default and the trade-off in one line.
 | 9 | Arrows | **exclude ebony/dragonbone/stalhrim arrows from loot entirely** | Excluding makes a quiver a smith's commission; keeping them means an ebony arrow pool that no value band can see. |
 | 10 | Announce ebony scarcity publicly? | **yes, before launch — "one seam in the province", not "no ebony"** | Saying it up front makes scarcity a feature; discovering it later makes it a nerf, and announcing absence would be a public retraction. |
 | 11 | `vanillaLevel` (cap 5, level = Σtiers/3) | **defer — read by nothing today** | Reviving it needs a rule for "sum of tiers" under a pool; leaving it out costs a flavour system nobody currently has. |
-| 12 | The unimplemented `skills.json` blocks (`minigames`, `spellStudyPoints`, `praying`, `deities`, `worldPickup`, `markerSpells` placeholders, `gates.nodes/books/skinning/weaponOnly/pickable`) | **keep as design, mark clearly as unbuilt** | Leaving them looks like features that exist; deleting them loses the design work in §12 of the old review. |
+| 12 | The unimplemented `skills.json` blocks (`minigames`, `spellStudyPoints`, `praying`, `deities`, `worldPickup`, `markerSpells` placeholders, `gates.nodes/books/skinning/pickable`) | **keep as design, mark clearly as unbuilt** | Leaving them looks like features that exist; deleting them loses the design work in §12 of the old review. `gates.weaponOnly` is **dropped** (Nate, 2026-10-03): the Enchanter enchants weapons, armour and jewellery, and the key is gone from `skills.json`. |
 
 ---
 

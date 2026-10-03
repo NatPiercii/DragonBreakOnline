@@ -267,6 +267,21 @@
     ]
   },
   {
+    "title": "Enchanting, set right",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Enchanting",
+        "items": [
+          "Enchanting with Beyond Skyrim effects such as Water Walking works again.",
+          "The Enchanter skill now says what it really covers: weapons, armour and jewellery."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Known issues",
     "date": "SHIP_DATE",
     "version": "Server update",

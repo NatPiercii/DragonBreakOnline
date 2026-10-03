@@ -630,7 +630,7 @@
    "category": "support",
    "label": "Enchanter",
    "title": "The Rune-Wright",
-   "description": "Only an Enchanter may use the arcane enchanter. Weapon enchantments only; tiers decide which enchantments and how strong.",
+   "description": "Only an Enchanter may use the arcane enchanter, on weapons, armour and jewellery. You learn an enchantment by disenchanting an item that carries it; tiers decide how strong your enchantments can be.",
    "vanillaSkills": [
     "Enchanting"
    ],
@@ -639,8 +639,7 @@
     "stations": [
      "isEnchanting",
      "CraftingEnchantingWorkbench"
-    ],
-    "weaponOnly": true
+    ]
    },
    "counts": {
     "craftStations": [
@@ -648,11 +647,11 @@
     ]
    },
    "tiers": [
-    "Fire, frost, shock",
-    "Soul trap, absorb stamina",
-    "Absorb health, paralyze",
-    "Chaos, absorb magicka",
-    "Dual enchantments"
+    "Up to half the strength of the finest enchantments found",
+    "Up to three quarters of their strength",
+    "Up to their full strength",
+    "Up to half again their strength",
+    "Up to twice their strength"
    ],
    "markerSpells": [
     "<T1>",
