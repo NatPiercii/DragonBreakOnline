@@ -213,12 +213,13 @@ export class BeastFormService extends ClientListener {
       if (entry && entry.shout) { this.equipShout(player, entry); return; }
       const current = player.getEquippedSpell(source);
       const want = entry ? Spell.from(this.sp.Game.getFormEx(entry.id)) : null;
-      this.lastSet[source] = want ? want.getFormID() : 0;
+      const wantId = want ? want.getFormID() : 0;
       // Only on a difference: this also runs once a second, and re-equipping would cut off a cast
-      if (want && current && current.getFormID() === want.getFormID()) return;
+      if (want && current && current.getFormID() === wantId) { this.lastSet[source] = wantId; return; }
       try {
         if (want) player.equipSpell(want, source);
         else if (current) player.unequipSpell(current, source);
+        this.lastSet[source] = wantId;
       } catch { /* the form may already be gone */ }
     };
     slot(a.right, 0, SLOT_RIGHT);
