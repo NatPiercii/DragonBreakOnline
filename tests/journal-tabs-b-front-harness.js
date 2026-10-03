@@ -126,5 +126,8 @@ check('...a leader renames titles: the editor without role pickers, moves or rem
 html = render(hub('faction', { faction: player([fview({ myRank: 2, canRename: false, canEditRanks: false, canAdd: false, canSetRank: false })]) }));
 check('...a member gets no editor', !/Save ranks/.test(text(html)));
 
+// The Move and rank Pickers choose only on Enter or a click: their arrow keys move a highlight (R-f3b)
+check('the action Pickers (court Move, household and roster ranks) are in commit mode', /dbo-picker__option--hi/.test(SRC) && (SRC.match(/className: "court__(move|rank)",\s*commit: true/g) || []).length === 2, (SRC.match(/className: "court__(move|rank)"[^)]{0,40}/g) || []));
+
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);
