@@ -74,7 +74,9 @@ const NOT_GRANTED = "Property here is granted by its ruler (Jarl, Baron or Count
 // The Count of Bruma (zones.json region "bruma") manages property the way a Jarl does.
 const MANAGER_RANKS = ["jarl", "baron", "steward", "chieftain", "bane", "count"];
 // Actions on any door or chest of a place that act on the whole place (its root)
-const PLACE_WIDE = ["abandon", "revoke", "rename", "createkey", "revokekeys", "transfer"];
+const PLACE_WIDE = ["abandon", "revoke", "rename", "createkey", "revokekeys", "transfer", "assign", "unassign", "share", "unshare"];
+// The owner's Rooms and chests panel lists at most this many of a place's inner doors and chests
+const MAX_ROOMS_LISTED = 48;
 // A place's cells: the interior behind its door and the rooms reachable only through it, at most this many
 const MAX_PLACE_CELLS = 4;
 // Housing actions whose use by staff on someone else's property is logged
@@ -328,7 +330,8 @@ export class HousingSystem implements System {
 
     const actorId = this.actorOf(ctx, userId);
     if (!actorId) return;
-    if (!this.nearProperty(ctx, actorId, target)) {
+    // Inside a place, anywhere in its cells is near enough to manage it (a fort's rooms are far from its door)
+    if (!this.nearProperty(ctx, actorId, target) && !(this.placesOn() && this.standsInPlaceOf(ctx, actorId, target))) {
       this.notice(ctx, userId, "That is too far away.");
       return;
     }
@@ -363,6 +366,10 @@ export class HousingSystem implements System {
       case "revokekeys": this.doRevokeKeys(ctx, userId, primary, rec, isOwner, isManager); break;
       case "transfer": this.doTransfer(ctx, userId, primary, rec, isOwner, isManager, content["recipient"]); break;
       case "grantcontainer": this.doGrantContainer(ctx, userId, primary, rec, isOwner, isManager, content["recipient"]); break;
+      case "assign":
+      case "unassign":
+      case "share":
+      case "unshare": this.doRoom(ctx, userId, actorId, primary, rec, isOwner || isManager, action, content["ref"], content["recipient"]); break;
       default: break;
     }
   }
@@ -561,8 +568,14 @@ export class HousingSystem implements System {
   // ── Menu ────────────────────────────────────────────────────────────────────
 
   private sendMenu(ctx: SystemContext, userId: number, actorId: number, target: number): void {
-    const primary = this.primaryOf(ctx, target);
-    const rec = primary ? this.read(ctx, primary) : null;
+    let primary = this.primaryOf(ctx, target);
+    let rec = primary ? this.read(ctx, primary) : null;
+    // A door or chest nobody claimed inside a place opens the place's own menu, with that one marked in its rooms
+    let here = 0;
+    if (this.placesOn() && (!rec || rec.owner === 0)) {
+      const place = this.placeAt(ctx, target);
+      if (place) { here = primary; primary = place.root; rec = place.rec; }
+    }
     const owned = !!rec && rec.owner !== 0;
     const profileId = this.profileOf(ctx, actorId);
     const isOwner = owned && rec!.owner === profileId;
@@ -585,9 +598,147 @@ export class HousingSystem implements System {
       name: rec ? rec.name : null,
       locked: owned && rec!.locked,
       hasKeys: owned,
-      canGrantContainers: (isOwner || isManager) && owned && this.baseTypeOf(ctx, primary) === "CONT",
+      canGrantContainers: (isOwner || isManager) && owned && this.baseTypeOf(ctx, primary) === "CONT" && !(this.placesOn() && rec!.memberOf),
       ownerName: owned ? (rec!.ownerName || "Someone") : null,
+      ...(owned && this.placesOn() ? this.placeMenu(ctx, primary, rec!, isOwner || isManager, profileId, here) : {}),
     });
+  }
+
+  // The place part of the menu (N3): for its owner and the managers, the Rooms and chests panel; for anyone else, whether
+  // what they look at is assigned to them
+  private placeMenu(ctx: SystemContext, primary: number, rec: PropertyRecord, manages: boolean, profileId: number, here: number): Record<string, unknown> {
+    const root = rec.place ? primary : rec.memberOf || 0;
+    if (!root) return {};
+    const rootRec = root === primary ? rec : this.read(ctx, root);
+    if (!rootRec || rootRec.owner === 0 || !rootRec.place) return {};
+    const lookedAt = here || primary;
+    const mine = rootRec.assigned && rootRec.assigned[lookedAt.toString(16)];
+    if (!manages) return { place: null, placeName: rootRec.name, assignedToYou: !!mine && !!profileId && mine.profile === profileId };
+    const rooms = this.roomsOf(ctx, root, rootRec);
+    // What the owner looks at comes first
+    rooms.sort((a, b) => (b.ref === lookedAt ? 1 : 0) - (a.ref === lookedAt ? 1 : 0));
+    return {
+      placeName: rootRec.name,
+      place: { root, name: rootRec.name, here: lookedAt, rooms: rooms.slice(0, MAX_ROOMS_LISTED), more: Math.max(0, rooms.length - MAX_ROOMS_LISTED) },
+    };
+  }
+
+  // A place's inner doors and chests, the ones its owner assigns: everything in its cells but the ways out to the world,
+  // each door pair once. Another owner's own claim inside is shown as theirs and cannot be assigned.
+  private roomsOf(ctx: SystemContext, root: number, rootRec: PropertyRecord): Array<Record<string, unknown> & { ref: number }> {
+    const out: Array<Record<string, unknown> & { ref: number }> = [];
+    const seen = new Set<number>();
+    const cells = rootRec.place ? rootRec.place.cells : [];
+    for (const cell of cells) {
+      for (const ref of this.refsInCell(ctx, cell)) {
+        const kind = this.baseTypeOf(ctx, ref) === "CONT" ? "chest" : "door";
+        const far = kind === "door" ? this.partnerOf(ctx, ref) : 0;
+        if (far && this.isWorldDesc(ctx, this.cellDescOf(ctx, far))) continue;
+        const p = this.primaryOf(ctx, ref);
+        if (!p || p === root || seen.has(p)) continue;
+        seen.add(p);
+        const own = this.read(ctx, p);
+        const other = own && own.owner !== 0 && own.memberOf !== root ? (own.ownerName || "someone") : null;
+        const hex = p.toString(16);
+        const a = rootRec.assigned && rootRec.assigned[hex];
+        out.push({ ref: p, label: this.labelOf(ctx, ref, kind, far), kind, assigned: a ? a.name : null, shared: (rootRec.shared || []).includes(hex), other });
+      }
+    }
+    // Duplicate labels get a number, so "Chest" and "Chest 2" can be told apart
+    const counts = new Map<string, number>();
+    out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "door" ? -1 : 1) || String(a.label).localeCompare(String(b.label)) || a.ref - b.ref);
+    for (const r of out) { const n = (counts.get(String(r.label)) || 0) + 1; counts.set(String(r.label), n); if (n > 1) r.label = `${r.label} ${n}`; }
+    return out;
+  }
+
+  // A ref's base name (the plugin's FULL, localized or not), else its editor id spelled out, else "Chest" / "Door"; a
+  // door between two cells says where it goes
+  private labelOf(ctx: SystemContext, refrId: number, kind: string, far: number): string {
+    const mp = ctx.svr as Mp;
+    let label = "";
+    try {
+      const baseId = espmRefrFieldId(mp, refrId, "NAME");
+      if (baseId) {
+        try { const t = typeof mp.getLocalizedString === "function" ? mp.getLocalizedString(baseId) : undefined; if (typeof t === "string") label = t.trim(); } catch { /* no strings */ }
+        if (!label) {
+          const r = mp.lookupEspmRecordById(baseId);
+          const full = r && r.record && Array.isArray(r.record.fields) ? r.record.fields.find((f: any) => f && f.type === "FULL") : null;
+          if (full && full.data && full.data.length !== 4) label = String.fromCharCode(...Array.from(full.data as ArrayLike<number>)).replace(/\0/g, "").trim();
+          if (!label && r && r.record && r.record.editorId) label = String(r.record.editorId).replace(/[_\d]+$/, "").replace(/([a-z])([A-Z0-9])/g, "$1 $2").replace(/_/g, " ").trim();
+        }
+      }
+    } catch { /* not an espm ref */ }
+    label = label.replace(/[^\x20-\x7e]/g, "").slice(0, 40) || (kind === "chest" ? "Chest" : "Door");
+    if (far) {
+      let to = "";
+      try { const cellId = mp.getIdFromDesc(this.cellDescOf(ctx, far)) >>> 0; const t = cellId && typeof mp.getLocalizedString === "function" ? mp.getLocalizedString(cellId) : undefined; if (typeof t === "string") to = t.trim(); } catch { /* unknown */ }
+      if (to) label = `${label} to ${to.replace(/[^\x20-\x7e]/g, "").slice(0, 40)}`;
+    }
+    return label;
+  }
+
+  // Assigning the rooms and chests of a place (N3): its owner or a manager gives one to a person (it then opens for them,
+  // the owner and the managers), takes it back, or shares a chest with the household (anyone who may open the place)
+  private doRoom(ctx: SystemContext, userId: number, actorId: number, primary: number, rec: PropertyRecord, manages: boolean, action: string, rawRef: unknown, rawRecipient: unknown): void {
+    if (!this.placesOn() || rec.owner === 0 || !rec.place) {
+      this.notice(ctx, userId, "Only a whole property's rooms are assigned.");
+      return;
+    }
+    if (!manages) {
+      this.notice(ctx, userId, "This is not yours to assign.");
+      return;
+    }
+    const ref = toFormId(rawRef);
+    const room = ref ? this.roomsOf(ctx, primary, rec).find((r) => r.ref === (this.primaryOf(ctx, ref) || ref)) : undefined;
+    if (!room) {
+      this.notice(ctx, userId, "That is not one of this property's rooms or chests.");
+      return;
+    }
+    if (room.other) {
+      this.notice(ctx, userId, `That is ${room.other}'s own.`);
+      return;
+    }
+    const hex = room.ref.toString(16);
+    const assigned = Object.assign({}, rec.assigned || {});
+    let shared = (rec.shared || []).filter((h) => h !== hex);
+    let said = "";
+    if (action === "assign") {
+      const recipientActor = toFormId(rawRecipient);
+      const profile = recipientActor ? this.profileOf(ctx, recipientActor) : 0;
+      if (!profile) { this.notice(ctx, userId, "That is nobody."); return; }
+      if (profile === rec.owner) { delete assigned[hex]; said = `${room.label} is yours alone again.`; }
+      else { assigned[hex] = { profile, name: this.nameOf(ctx, recipientActor) }; said = `${room.label} is ${assigned[hex].name}'s now.`; }
+      if (Object.keys(assigned).length > MAX_ROOMS_LISTED * 2) { this.notice(ctx, userId, "Too many rooms are assigned already."); return; }
+    } else if (action === "unassign") {
+      delete assigned[hex];
+      said = `${room.label} is yours alone again.`;
+    } else if (action === "share") {
+      if (room.kind !== "chest") { this.notice(ctx, userId, "Only a chest is shared."); return; }
+      delete assigned[hex];
+      shared = shared.concat([hex]);
+      said = `${room.label} is shared with everyone who has a key.`;
+    } else {
+      said = `${room.label} is yours alone again.`;
+    }
+    if (Object.keys(assigned).length) rec.assigned = assigned; else delete rec.assigned;
+    if (shared.length) rec.shared = shared; else delete rec.shared;
+    if (!this.commit(ctx, userId, primary, rec)) return;
+    this.notice(ctx, userId, said);
+    if (action === "assign" && room.ref && rec.assigned && rec.assigned[hex]) {
+      const to = this.userOf(ctx, toFormId(rawRecipient));
+      this.notice(ctx, to, `${room.label} in ${rec.name || `${rec.ownerName}'s property`} is yours to use.`);
+    }
+    this.sendMenu(ctx, userId, actorId, primary);
+  }
+
+  // Whether an actor stands in one of the cells of the place a ref belongs to
+  private standsInPlaceOf(ctx: SystemContext, actorId: number, target: number): boolean {
+    const p = this.primaryOf(ctx, target);
+    const rec = p ? this.read(ctx, p) : null;
+    const root = rec && rec.owner !== 0 ? (rec.place ? p : rec.memberOf || 0) : (this.placeAt(ctx, target) || { root: 0 }).root;
+    const rootRec = root ? (root === p ? rec : this.read(ctx, root)) : null;
+    if (!rootRec || !rootRec.place) return false;
+    return rootRec.place.cells.indexOf(this.cellDescOf(ctx, actorId)) !== -1;
   }
 
   // ── Access ──────────────────────────────────────────────────────────────────
