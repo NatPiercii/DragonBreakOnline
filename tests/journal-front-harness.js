@@ -130,6 +130,50 @@ t = text(html);
 check('Stats: one table per group, label and value', count(html, /<table class="journal__table">/g) === 2 && /Combat Players killed 3 Times downed 7 the finishing blow counts as a death/.test(t) && /Time &? ?Travel Distance travelled 41\.2 km \(25\.6 mi\)/.test(t), t);
 check('...an empty record says so', /Nothing has been recorded yet/.test(render(Journal, { data: data({ tab: 'stats', stats: { groups: [] } }) })));
 
+// ---- the F3 hub (data.hub; journal.js hubPayload, piece H1) --------------------------------------------------------
+if (typeof J.registerJournalTab !== 'function') {
+  require('./expect')('journal-front', 'this front has no F3 hub');
+  console.log('ok   (this front predates the F3 hub: its checks are skipped)');
+} else {
+  const hubData = (extra) => Object.assign({
+    type: 'journal', id: 50, nonce: 'h1', hub: 1, tab: 'stats',
+    tabs: [{ id: 'profile', label: 'Profile' }, { id: 'faction', label: 'Faction', badge: '2' }, { id: 'court', label: 'Court' }, { id: 'stats', label: 'Stats' },
+      { id: 'supernatural', label: 'Werewolf' }, { id: 'settings', label: 'Settings', pinned: true }],
+    clock: { date: '17th of Last Seed, 4E 211', time: '9:42 in the evening' }, head: { name: 'Vaeliss Dren', title: 'Expert Spellsword', race: 'Dunmer' }, stats,
+  }, extra || {});
+  html = render(Journal, { data: hubData() });
+  t = text(html);
+  const known = Object.keys(J.JOURNAL_TABS || {});
+  const sent = ['profile', 'faction', 'court', 'stats', 'supernatural', 'settings'], labels = ['Profile', 'Faction', 'Court', 'Stats', 'Werewolf', 'Settings'];
+  const drawable = labels.filter((l, i) => ['profile', 'faction', 'stats', 'supernatural'].includes(sent[i]) || known.includes(sent[i]));
+  check('hub: the server\'s tabs in its order, less any this front cannot draw', JSON.stringify(tabs(html)) === JSON.stringify(drawable), tabs(html));
+  check('...a badge from the server on its tab', /Faction<span class="dbo-tabs__badge">2<\/span>/.test(html));
+  check('...the open tab is the server\'s, its section drawn', /journal__body journal__body--stats/.test(html) && /Players killed/.test(t));
+  check('...the header from head when Profile is not sent', /<h1 class="journal__name">Vaeliss Dren<\/h1>/.test(html) && /Expert Spellsword · Dunmer/.test(t));
+  check('...the body wears its tab\'s hue: Stats is the journal\'s violet', /journal__body--stats" data-domain="dragonbreak"/.test(html));
+  check('...Supernatural the Heart\'s red, Faction the aqua', /data-domain="lorkhan"/.test(render(Journal, { data: hubData({ tab: 'supernatural', supernatural: curse }) })) && /data-domain="aqua"/.test(render(Journal, { data: hubData({ tab: 'faction', faction: faction() }) })));
+  check('...an older payload has no data-domain on the body (today\'s journal)', !/journal__body[^"]*" data-domain/.test(render(Journal, { data: data() })));
+  html = render(Journal, { data: hubData({ tab: 'faction' }) });
+  check('a tab whose section has not come yet says the page is turning', /journal__body--faction/.test(html) && /Turning the page/.test(text(html)));
+  html = render(Journal, { data: hubData({ tab: 'faction', faction: null }) });
+  check('...a section the server could not build says so', /This page cannot be shown just now/.test(text(html)));
+  html = render(Journal, { data: hubData({ tab: 'profile', profile: profile(), head: undefined }) });
+  check('Profile on the hub: the profile section draws as before', /Born in the ash of Vvardenfell/.test(html) && /<h1 class="journal__name">Vaeliss Dren<\/h1>/.test(html));
+  check('...its meters are no links while this front has no Skills tab', !/journal__meter--link/.test(html));
+  // A tab module registers itself; the hub then draws it with its section
+  J.registerJournalTab('skills', ({ section, act }) => createElement('div', { className: 'probe-skills' }, `skills ${JSON.stringify(section)}`), 'dragonbreak');
+  J.registerJournalTab('probe', ({ section }) => createElement('div', { className: 'probe' }, `probe ${section && section.n}`), 'aedric');
+  html = render(Journal, { data: hubData({ tab: 'profile', profile: profile(), tabs: hubData().tabs.concat([{ id: 'skills', label: 'Skills' }, { id: 'probe', label: 'Probe' }]) }) });
+  check('...with Skills drawn by this front, each meter opens its skill there', (html.match(/journal__meter--link/g) || []).length === 3 && /title="Blade: open its page in Skills"/.test(html));
+  html = render(Journal, { data: hubData({ tab: 'probe', probe: { n: 7 }, tabs: hubData().tabs.concat([{ id: 'probe', label: 'Probe' }]) }) });
+  check('a registered tab draws its component with its section, in its own hue', /class="probe">probe 7</.test(html) && /journal__body--probe" data-domain="aedric"/.test(html));
+  check('...the pinned tab (Settings) carries the pinned class when drawn', !known.includes('settings') || /dbo-tabs__tab--pinned/.test(render(Journal, { data: hubData() })));
+  check('the caps the HUD sends: journalHub and one journalTab:<id> per registered tab', JSON.stringify(J.journalCaps().slice(0, 1)) === '["journalHub"]' && J.journalCaps().includes('journalTab:probe'));
+  const jsrc0 = fs.readFileSync(bundle, 'utf8');
+  check('a tab click asks the server for that tab under the journal nonce (dbo:journalTab)', /send\d*\(["']dbo:journalTab["'], nonce\.current, id\)/.test(jsrc0) && /send\d*\(["']dbo:journalTab["'], nonce\.current, id, focus\)/.test(jsrc0));
+  check('...and a redraw on another tab does not pull the view back while that answer is on its way', /if \(w && w\.tab !== data\.tab && Date\.now\(\) - w\.at < WANT_MS\) return;/.test(jsrc0));
+}
+
 // ---- a payload from the server's own harness (JOURNAL_SAMPLE=<file>, written by journal-harness.js) ------------------
 if (process.env.JOURNAL_SAMPLE && fs.existsSync(process.env.JOURNAL_SAMPLE)) {
   const sample = JSON.parse(fs.readFileSync(process.env.JOURNAL_SAMPLE, 'utf8'));
@@ -166,6 +210,8 @@ else {
   check('constructor.js draws type "journal" with the Journal widget', /case 'journal':\s*return <Journal data=\{rend\} \/>;/.test(read('constructor.js')));
   check('App.js keys the journal by its id, so a redraw keeps its state', /widget\.type === 'journal'\) \? \('journal-' \+ widget\.id\)/.test(read('App.js')));
   check('the front tells the server it can draw the journal (dbo:uiCaps)', /const UI_CAPS = \[[^\]]*'journal'/.test(read('features/hud/index.tsx')));
+  if (fs.existsSync(path.join(FRONT, 'features/journal/tabs.ts')))
+    check('...and the hub with every tab it draws', /sendMessage\('dbo:uiCaps', \.\.\.UI_CAPS, \.\.\.journalCaps\(\)\)/.test(read('features/hud/index.tsx')) && /import '\.\.\/journal\/sections';/.test(read('features/hud/index.tsx')));
   check('Escape in a field leaves the edit and keeps the draft; only Discard clears it (review F3)',
     /const discard = \(\): void => \{ unsaved = null; setEditing\(false\); \};/.test(jsrc) && /const leave = \(\): void => setEditing\(false\);/.test(jsrc)
     && (jsrc.match(/onEscape=\{leave\}/g) || []).length === 2 && /onClick=\{discard\}>Discard</.test(jsrc) && !/onEscape=\{discard\}/.test(jsrc));
