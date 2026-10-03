@@ -1559,8 +1559,36 @@ module.exports = (api) => {
       ],
     };
   };
+  // The fever before the turning (groundedpasta, #bugs "Lycanthropy", 1 Oct): its own tab while the disease incubates
+  const feverView = (a, s) => {
+    const wolf = s.disease.kind === 'werewolf';
+    const played = Math.min(C.incubationDays, playedOf(s.disease));
+    const left = Math.max(0, C.incubationDays - played);
+    const rite = wolf ? "Hircine's Hunt" : 'The Blood Fever';
+    return {
+      kind: `fever-${wolf ? 'werewolf' : 'vampire'}`, group: 'The Fever', label: wolf ? 'Sanies Lupinus' : 'Sanguinare Vampiris',
+      epithet: left > 0 ? 'Incubating' : 'At its peak',
+      creed: wolf ? "Hircine's sickness is in your blood. When the fever peaks, the beast tries to come out."
+        : "Molag Bal's sickness is in your blood. When the fever peaks, it tries to make you his.",
+      ladder: null,
+      rows: [
+        {
+          label: 'The fever', value: `${Math.round((played / C.incubationDays) * 100)}% grown`,
+          hint: left > 0 ? `It grows only while you play: about ${inWords(realMinutes(left))} more. Time away from the game does not count.`
+            : 'It has peaked. The trial comes as soon as you are settled in the world.',
+        },
+        {
+          label: 'When it peaks', value: rite,
+          hint: `${rite} begins wherever you are. Strike true ${C.rite.needFever} times in ${C.rite.rounds}, and the curse takes you. Fail, and the fever burns out.`,
+        },
+        { label: 'A cure', value: 'Still possible', hint: 'A held prayer to one of the Divines, or a Cure Disease potion, breaks the fever. Prayers to the Daedric Princes do not.' },
+      ],
+      powers: [],
+    };
+  };
   globalThis.__dboSuperProgress = (a) => {
-    const s = stateOf(a); if (!s || !s.kind) return null;
+    const s = stateOf(a); if (!s) return null;
+    if (!s.kind) return s.disease && (s.disease.kind === 'werewolf' || s.disease.kind === 'vampire') ? feverView(a, s) : null;
     return s.kind === 'werewolf' ? werewolfView(a, s) : s.kind === 'vampire' ? vampireView(a, s) : null;
   };
   globalThis.__dboSuperProgressSend = (a) => {

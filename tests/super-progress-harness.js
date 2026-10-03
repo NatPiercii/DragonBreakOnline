@@ -186,5 +186,23 @@ ok(last.p.progress && last.p.progress.kind === 'vampire', "the send carries the 
 const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
 ok(/customPacketType === 'masteryInfoRequest'\) \{\s*const a = actorOf\(userId\); if \(a && typeof globalThis\.__dboSuperProgressSend === 'function'\) globalThis\.__dboSuperProgressSend\(a\);/.test(gm), 'gamemode.js sends the progress when K asks for the skills menu');
 
+// The fever before the turning has its own tab (groundedpasta, #bugs "Lycanthropy", 1 Oct)
+const CARRIER = 0xff00c0de, CARRIER2 = 0xff00c0df;
+curse(CARRIER, { kind: null, disease: { kind: 'werewolf', since: 0, played: 1.5, by: '' } });
+let f = globalThis.__dboSuperProgress(CARRIER);
+ok(f && f.kind === 'fever-werewolf' && f.label === 'Sanies Lupinus' && f.group === 'The Fever' && f.epithet === 'Incubating', 'a werewolf carrier gets the Sanies Lupinus tab', f);
+ok(row(f, 'The fever').value === '50% grown' && /only while you play: about 6 hours more\. Time away from the game does not count\./.test(row(f, 'The fever').hint), '...halfway grown, the play time left, and that time away does not count', row(f, 'The fever'));
+ok(row(f, 'When it peaks').value === "Hircine's Hunt" && /Strike true 3 times in 5/.test(row(f, 'When it peaks').hint), "...Hircine's Hunt and what it takes", row(f, 'When it peaks'));
+ok(/Divines.*Cure Disease potion.*Daedric Princes do not/.test(row(f, 'A cure').hint) && f.ladder === null && f.powers.length === 0, '...how it is cured; no ladder, no powers');
+curse(CARRIER2, { kind: null, disease: { kind: 'vampire', since: 0, played: 3.2, by: '' } });
+f = globalThis.__dboSuperProgress(CARRIER2);
+ok(f && f.kind === 'fever-vampire' && f.label === 'Sanguinare Vampiris' && f.epithet === 'At its peak' && row(f, 'The fever').value === '100% grown'
+  && row(f, 'When it peaks').value === 'The Blood Fever', 'a vampire carrier past the peak: Sanguinare Vampiris at its peak, The Blood Fever', f);
+globalThis.__dboSuperProgressSend(CARRIER);
+last = packets[packets.length - 1];
+ok(last && last.a === CARRIER && last.p.progress && last.p.progress.kind === 'fever-werewolf', 'the panel packet carries the fever tab', last);
+curse(CARRIER, { kind: null, disease: { kind: 'something', played: 1 } });
+ok(globalThis.__dboSuperProgress(CARRIER) === null, 'an unknown disease shows nothing');
+
 console.log(fail ? `${fail} FAILED` : 'all checks passed');
 process.exit(fail ? 1 : 0);
