@@ -1,7 +1,8 @@
 // DragonBreak Online: world statistics for the launcher's Server Stats window. Loaded by gamemode.js on every hot reload.
 //
 // Every minute writes server-stats.json beside the server: players online, characters per race and the gold players
-// hold, carried plus whatever sits in containers of the housing properties their profile owns, plus their bank balances.
+// hold, carried plus whatever sits in containers of the housing properties their profile owns, plus their bank balances,
+// plus the gold the server holds for them until it is paid out (commission rewards, deposits, takings, refunds owed).
 // The backend (routes/metrics.js) serves it as /api/metrics `world`.
 'use strict';
 
@@ -60,6 +61,32 @@ module.exports = (api) => {
     return total;
   };
 
+  // Gold that has left a player's purse but is still theirs, held by the server until it is paid out or comes back. Each
+  // module keeps it in its own file (they save on every change, so the minute's snapshot is at most one save behind):
+  //   commissions.json  a live commission's reward (open, taken, refused) and gold owed to someone offline
+  //   tenancy.json      a tenant's deposit and gold owed
+  //   businesses.json   an owner's takings, and takings held for a former owner
+  //   charters.json     a pending charter's fee and gold owed (a refund, a disbanded faction's treasury)
+  // Treasuries (bank.json) are left out: nobody may take gold out of one, so it is no longer a player's.
+  const readJson = (f) => { try { return JSON.parse(fs.readFileSync(path.resolve(f), 'utf8')); } catch (e) { return null; } };
+  const vals = (o) => (o && typeof o === 'object' ? Object.values(o) : []);
+  const gold0 = (v) => { const g = Math.floor(Number(v) || 0); return g > 0 ? g : 0; };
+  const heldGold = () => {
+    const c = readJson('commissions.json') || {}, t = readJson('tenancy.json') || {};
+    const b = readJson('businesses.json') || {}, ch = readJson('charters.json') || {};
+    const LIVE = new Set(['open', 'taken', 'refused']);
+    return [
+      ...vals(c.list).filter((x) => x && LIVE.has(x.state)).map((x) => x.reward),
+      ...vals(c.owed).map((x) => x && x.gold),
+      ...vals(t.listings).map((x) => x && x.depositHeld),
+      ...vals(t.owed).map((x) => x && x.gold),
+      ...vals(b.businesses).map((x) => x && x.owed),
+      ...vals(b.owedTo),
+      ...vals(ch.charters).filter((x) => x && x.status === 'pending' && x.fee).map((x) => x.fee.held),
+      ...vals(ch.owed),
+    ].reduce((n, v) => n + gold0(v), 0);
+  };
+
   // A played character: owned by a profile's slot list, creation finished, not perma-dead. Deleted ones are destroyed and drop out.
   const isCharacter = (a, profileId) => {
     try {
@@ -88,6 +115,7 @@ module.exports = (api) => {
       banked += bankedOf(a);
       if (!profiles.has(profileId)) { profiles.add(profileId); stored += storedGold(profileId); }
     }
+    const held = heldGold();
     const day = new Date().toISOString().slice(0, 10);
     if (ST.peak.day !== day) ST.peak = { day, online: 0 };
     ST.peak.online = Math.max(ST.peak.online, online.length);
@@ -96,7 +124,8 @@ module.exports = (api) => {
       online: online.length, peakToday: ST.peak.online,
       characters: [...races.values()].reduce((n, c) => n + c, 0), players: profiles.size,
       // The launcher shows "carried" and "in storage": the bank is storage too (athny, #bugs "Very Minor", 2 Oct)
-      gold: { total: carried + stored + banked, carried, stored: stored + banked, banked },
+      // Held gold is storage too, so carried + stored is always the total the launcher shows
+      gold: { total: carried + stored + banked + held, carried, stored: stored + banked + held, banked, held },
       ids: [...ST.chars], peak: ST.peak,
       clock: (() => { try { return globalThis.__dboClock ? globalThis.__dboClock.summary() : null; } catch (e) { return null; } })(),
       races: [...races.entries()].map(([race, count]) => ({ race, count })).sort((x, y) => y.count - x.count || x.race.localeCompare(y.race)),
