@@ -1239,12 +1239,9 @@ module.exports = (api) => {
     };
   };
 
-  onUi('deityChoose', (a, args) => {
-    if (String(args[0]) !== pickerNonce.get(a)) return;
-    const d = deityByName(String(args[1] || ''));
-    if (!d) return openWidget(a, pickerPayload(a, 'No god by that name.', 'refused'), false);
+  // The menu's choice (the picker 36 and the journal's Deity tab): the 7-day rule, the first choice free, then where to pray
+  const chooseFromMenu = (a, d) => {
     const r = takeDeity(a, d);
-    openWidget(a, pickerPayload(a, r.text, r.ok ? 'taken' : 'refused'), false);
     if (r.ok) {
       endCreationStep(a);
       const where = d.prayAnywhere
@@ -1254,6 +1251,47 @@ module.exports = (api) => {
           : `${d.name} has no shrine you can reach yet, so there is nowhere to pray until Skyrim opens.`;
       personal(a, where);
     }
+    return r;
+  };
+  onUi('deityChoose', (a, args) => {
+    if (String(args[0]) !== pickerNonce.get(a)) return;
+    const d = deityByName(String(args[1] || ''));
+    if (!d) return openWidget(a, pickerPayload(a, 'No god by that name.', 'refused'), false);
+    const r = chooseFromMenu(a, d);
+    openWidget(a, pickerPayload(a, r.text, r.ok ? 'taken' : 'refused'), false);
+  });
+
+  // ── the F3 hub's Deity tab (specs/f3-hub-design.md 3.4; journal.js draws it for a journalHub front) ──────────────────
+  // The picker's choices plus what the tab shows on each god: the names it is also known by, its shrines in Bruma, the
+  // law (unlawfulWhere), and for staff the data note. Browsing and turning move here; prayer (35), the shrine panel (74)
+  // and the creation-end step (36) are unchanged. "Turn to" sends journalDeity [nonce, deityId]: the same rule as the
+  // picker, answered in the journal, never by widget 36.
+  const deityView = (a, staff) => {
+    const faith = faithOf(a);
+    const left = faith ? daysLeft(faith) : 0;
+    return {
+      current: faith ? faith.id : '', first: !faith, daysLeft: left, cooldownDays: CONVERSION_DAYS, canChoose: !faith || left === 0,
+      choices: DEITIES.map((d) => Object.assign({
+        id: d.id, name: d.name, kind: d.kind, sphere: d.sphere || '', boon: d.boon || '',
+        reachable: Number(d.inBruma) > 0 || !!d.prayAnywhere, inBruma: Math.max(0, Number(d.inBruma) || 0), prayAnywhere: !!d.prayAnywhere,
+        lawful: d.lawful !== false, unlawfulWhere: d.lawful === false ? String(d.unlawfulWhere || '') : '',
+        aspectOf: d.aspectOf || '', alsoKnownAs: Array.isArray(d.alsoKnownAs) ? d.alsoKnownAs.map(String) : [],
+      }, staff && d.note ? { note: String(d.note) } : {})),
+    };
+  };
+  globalThis.__dboDeityView = (a, staff) => deityView(a >>> 0, !!staff);
+  const journalSections = globalThis.__dboJournalSections && typeof globalThis.__dboJournalSections === 'object'
+    ? globalThis.__dboJournalSections : (globalThis.__dboJournalSections = {});
+  journalSections.deity = { visible: () => !!CFG.enabled && DEITIES.length > 0, view: (a, o) => deityView(a >>> 0, !!(o && o.staff)) };
+  onUi('journalDeity', (a, args) => {
+    if (typeof globalThis.__dboJournalFresh !== 'function' || !globalThis.__dboJournalFresh(a, (args || [])[0])) return;
+    const id = String((args || [])[1] || '');
+    globalThis.__dboJournalLimited(a, () => {
+      const d = deityById(id);
+      if (!d) return { tab: 'deity', text: 'No god by that name.', kind: 'refused' };
+      const r = chooseFromMenu(a, d);
+      return { tab: 'deity', text: r.text, kind: r.ok ? 'ok' : 'refused' };
+    });
   });
   onUi('deityClose', (a) => { pickerNonce.delete(a); closeWidget(a, PICKER_ID); endCreationStep(a); });
 
@@ -1368,7 +1406,9 @@ module.exports = (api) => {
     // Staff: /deity reset <character> (Lead GM and above; gamemode.js refuses a GM before this runs)
     if (/^reset(\s|$)/i.test(arg)) return staffReset(a, arg.replace(/^reset\s*/i, ''), (ok, text) => personal(a, text));
     if (!arg) {
-      // Bare /deity is the menu key the brief asked for, until there is a real one.
+      // Bare /deity is the menu key the brief asked for, until there is a real one. A hub front opens the journal's
+      // Deity tab instead (false for any other front, which gets the picker)
+      try { if (typeof globalThis.__dboJournalOpenTab === 'function' && globalThis.__dboJournalOpenTab(a, 'deity')) return; } catch (e) { log('deity: journal open failed', e.message); }
       if (openPicker(a)) return;
       const mine = faith ? deityById(faith.id) : null;
       personal(a, mine

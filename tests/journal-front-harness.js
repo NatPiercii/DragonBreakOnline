@@ -25,6 +25,8 @@ const check = (label, ok, got) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label
 const render = (W, props) => renderToStaticMarkup(createElement(W, props));
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&#x27;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 const count = (html, re) => (html.match(re) || []).length;
+// A front source file from $FORK (run-all sets it), or '' without one
+const FRONT_SRC = (f) => { const p = process.env.FORK ? path.join(process.env.FORK, 'skymp5-front', 'src', f) : ''; return p && fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : ''; };
 
 // ---- the payload, as journal.js sends it ----------------------------------------------------------------------
 const skill = (id, name, level, tier, tierName, epithet) => ({ id, name, level, tier, tierName, epithet });
@@ -172,6 +174,44 @@ if (typeof J.registerJournalTab !== 'function') {
   const jsrc0 = fs.readFileSync(bundle, 'utf8');
   check('a tab click asks the server for that tab under the journal nonce (dbo:journalTab)', /send\d*\(["']dbo:journalTab["'], nonce\.current, id\)/.test(jsrc0) && /send\d*\(["']dbo:journalTab["'], nonce\.current, id, focus\)/.test(jsrc0));
   check('...and a redraw on another tab does not pull the view back while that answer is on its way', /if \(w && w\.tab !== data\.tab && Date\.now\(\) - w\.at < WANT_MS\) return;/.test(jsrc0));
+}
+
+// ---- the Deity tab (prayer.js deityView; piece H2) ------------------------------------------------------------------
+if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.deity) {
+  require('./expect')('journal-front', 'this front has no Deity tab');
+  console.log('ok   (this front has no Deity tab yet: its checks are skipped)');
+} else {
+  const SK = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'skills.json'), 'utf8'));
+  const deity = (extra) => Object.assign({ current: 'mara', first: false, daysLeft: 3, cooldownDays: 7, canChoose: false,
+    choices: SK.deities.choices.map((d) => ({ id: d.id, name: d.name, kind: d.kind, sphere: d.sphere || '', boon: d.boon || '', reachable: Number(d.inBruma) > 0 || !!d.prayAnywhere,
+      inBruma: Number(d.inBruma) || 0, prayAnywhere: !!d.prayAnywhere, lawful: d.lawful !== false, unlawfulWhere: d.lawful === false ? String(d.unlawfulWhere || '') : '', aspectOf: d.aspectOf || '', alsoKnownAs: d.alsoKnownAs || [] })) }, extra || {});
+  const dData = (sec) => ({ type: 'journal', id: 50, nonce: 'd1', hub: 1, tab: 'deity', tabs: [{ id: 'profile', label: 'Profile' }, { id: 'stats', label: 'Stats' }, { id: 'deity', label: 'Deity' }],
+    head: { name: 'Aela', title: 'Wanderer', race: 'Nord' }, deity: sec });
+  html = render(Journal, { data: dData(deity()) });
+  t = text(html);
+  check('Deity: the body wears the Aedra\'s gold', /journal__body--deity" data-domain="aedric"/.test(html));
+  check('...three groups: the Divines, the Daedric Princes, Other faiths', /The Divines.*The Daedric Princes.*Other faiths/.test(t), t.slice(0, 300));
+  const divines = (t.match(/The Divines(.*)The Daedric Princes/) || [])[1] || '';
+  check('...the Divines include Dibella, and Auri-El sits under Akatosh as the Aldmeri Akatosh, not as a tenth Divine', /Dibella/.test(divines) && /Akatosh .*Auri-El \(the Aldmeri Akatosh\)/.test(divines) && divines.indexOf('Auri-El') < divines.indexOf('Arkay'), divines);
+  check('...Talos carries the Unlawful tag; Malacath, Azura and Meridia do not', /Talos[^A-Z]*Unlawful/.test(t) && !/Malacath[^A-Z]*Unlawful/.test(t) && !/Azura[^A-Z]*Unlawful/.test(t) && !/Meridia[^A-Z]*Unlawful/.test(t));
+  check('...the player\'s god is marked', /Mara[^A-Z]*your god/.test(t));
+  const far = render(Journal, { data: dData(deity({ choices: deity().choices.map((c) => (c.id === 'vaermina' ? Object.assign({}, c, { inBruma: 0, reachable: false }) : c)) })) });
+  check('...a god with no shrine in reach is dimmed and says so (none is today: every god has one in Bruma or needs none)', /jdeity__row jdeity__row--far/.test(far) && /Vaermina.{0,30}no shrine within reach/.test(text(far)) && !/jdeity__row--far/.test(html));
+  check('...the god shown first is your own, with its sphere, boon, shrines and law', /jdeity__title">Mara</.test(html) && /Boon/.test(t) && /2 shrines in Bruma\./.test(t) && /Lawful throughout the Empire\./.test(t));
+  check('...and your state: the days until you may turn again, the Turn button held', /You follow Mara\. You may turn to another god in 3 days\./.test(t) && /Mara is your god\./.test(t));
+  check('no native select anywhere on the tab', !/<select/.test(html));
+  // Talos shown: a component state, so the page is rendered for a player whose god he is
+  html = render(Journal, { data: dData(deity({ current: 'talos', daysLeft: 0, canChoose: true })) });
+  t = text(html);
+  check('Talos\' page: the Concordat line for 4E 211, his live boon, 4 shrines in Bruma, also known as Ysmir',
+    /Under the White-Gold Concordat the worship of Talos is outlawed throughout the Empire, and Bruma is Imperial land; the Thalmor keep a Justiciar here\. North of the Jerall Mountains each Jarl now decides for their own hold\./.test(t)
+    && /Two-handed \+10\./.test(t) && /4 shrines in Bruma\./.test(t) && /Also known as Ysmir/.test(t) && !/banned in Skyrim under the Thalmor/.test(t) && !/shout costs/.test(t), t.slice(0, 900));
+  html = render(Journal, { data: dData(deity({ current: '', first: true, daysLeft: 0, canChoose: true })) });
+  t = text(html);
+  check('no god yet: the first choice is free, and the button reads Take', /Your first choice is free and needs no shrine\./.test(t) && /<button[^>]*journal__button--primary[^>]*>Take Akatosh</.test(html), (html.match(/<button[^>]*primary[^>]*>[^<]*/g) || []));
+  check('a faith needs no shrine (its shrines line)', J.JOURNAL_TABS.deity && /kneel anywhere/.test(text(render(J.JOURNAL_TABS.deity.component, { section: deity({ choices: deity().choices.filter((c) => c.id === 'hist'), current: 'hist' }), sections: {}, nonce: 'd', busy: false, act: () => {}, openTab: () => {} }))));
+  const dsrc = FRONT_SRC('features/journal/tabs/DeityTab.tsx');
+  if (dsrc) check('Turn asks once more, then sends journalDeity with the god\'s id', /onClick=\{\(\) => setConfirm\(true\)\}/.test(dsrc) && /onClick=\{\(\) => act\('journalDeity', shown\.id\)\}/.test(dsrc));
 }
 
 // ---- a payload from the server's own harness (JOURNAL_SAMPLE=<file>, written by journal-harness.js) ------------------
