@@ -262,10 +262,14 @@ module.exports = (api) => {
     view: (a, o) => memo((o && o.memo) || {}, 'magic', () => magicView(a)),
   };
   // Settings belong to the player's PC: the server sends only what the page cannot know (H3-H5 add to it)
-  SECTIONS.settings = { visible: () => true, view: (a) => settingsView(a) };
-  const settingsView = (a) => {
+  SECTIONS.settings = { visible: () => true, view: (a, o) => settingsView(a, o) };
+  // focus { section, peer }: X's "Voice settings for <name>" opens Voice on that player
+  const settingsView = (a, o) => {
     const v = { staff: !!isAdmin(a) };
-    try { if (typeof globalThis.__dboJournalSettingsExtra === 'function') Object.assign(v, globalThis.__dboJournalSettingsExtra(a) || {}); } catch (e) { log('journal: settings extra failed', e.message); }
+    try { if (typeof globalThis.__dboJournalSettingsExtra === 'function') Object.assign(v, globalThis.__dboJournalSettingsExtra(a, o) || {}); } catch (e) { log('journal: settings extra failed', e.message); }
+    const f = o && o.focus && typeof o.focus === 'object' ? o.focus : null;
+    if (f && typeof f.section === 'string' && /^[a-z]{1,16}$/.test(f.section)) v.section = f.section;
+    if (f && typeof f.peer === 'string' && /^[0-9a-f]{1,8}$/.test(f.peer)) v.focusPeer = f.peer;
     return v;
   };
   const sectionOf = (id) => { const s = SECTIONS[id]; return s && typeof s === 'object' && typeof s.view === 'function' ? s : null; };
@@ -424,6 +428,8 @@ module.exports = (api) => {
   globalThis.__dboJournalIsOpen = (a) => J.open.has(a >>> 0);
   // The tab the open journal shows ('' when closed), so a module redraws only when its tab is in view
   globalThis.__dboJournalTabOf = (a) => { const st = J.open.get(a >>> 0); return st ? st.tab : ''; };
+  // Whether this player's front draws that tab and they may see it (playermenu.js offers Voice settings… on it)
+  globalThis.__dboJournalHasTab = (a, tab) => !!C.enabled && typeof hasCap === 'function' && hasCap(a, 'journal') && isHub(a) && tabOk(a >>> 0, String(tab || ''));
 
   // ---- a tab switch -------------------------------------------------------------------------------------------------
   // The nonce asked for is the open journal's: tab answers keep it, so only a save's answer moves it on

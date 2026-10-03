@@ -243,6 +243,20 @@ if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.settings) {
     check('...two rows on one key are both marked (Emote wheel now on F3 with the journal)', (g.match(/jset__key jset__key--clash/g) || []).length === 2 && /Shared with another key/.test(gt));
     check('...the admin panel key only for staff', !/Admin panel/.test(gt) && /Admin panel F7/.test(text(render(Journal, { data: sData({ staff: true }) }))));
     delete global.window;
+    // Voice (H5): only while voice is on; the players near, the one X named marked
+    const vNear = [{ identity: 'ff000041', name: 'Stranger', meters: 1 }, { identity: 'ff000044', name: 'Ria', meters: 2 }];
+    check('Voice is in the rail only while voice is on', !rail.includes('Voice') && /jset__rail-item[^>]*>Voice</.test(render(Journal, { data: sData({ voiceOn: true, nearby: [] }) })));
+    global.window = { skyrimPlatform: { sendMessage() {} }, addEventListener() {}, removeEventListener() {} };
+    const v = render(Journal, { data: sData({ voiceOn: true, nearby: vNear, section: 'voice', focusPeer: 'ff000044' }) });
+    const vt = text(v);
+    check('...Voice: microphone and speakers as Pickers, the two volumes, the transmit mode', /jset__rail-item jset__rail-item--on"[^>]*>Voice/.test(v) && /Microphone/.test(vt) && /Speakers/.test(vt)
+      && (v.match(/dbo-picker jset__picker|jset__picker/g) || []).length >= 2 && /Your voice volume/.test(vt) && /Other players' volume/.test(vt) && /Push to talk/.test(vt) && /Voice activity/.test(vt) && !/<select/.test(v), vt.slice(0, 600));
+    check('...the players near, with metres, each with a volume, Mute and Reset; the one X named is marked', (v.match(/class="jset__peer[ "]/g) || []).length === 2 && /Stranger 1 m/.test(vt) && /Ria 2 m/.test(vt)
+      && (v.match(/jset__peer jset__peer--focus/g) || []).length === 1 && /jset__peer--focus"><span class="jset__peer-name">Ria/.test(v) && (vt.match(/Mute/g) || []).length >= 2);
+    check('...nobody near says so', /Nobody is near enough to hear/.test(text(render(Journal, { data: sData({ voiceOn: true, nearby: [], section: 'voice' }) }))));
+    delete global.window;
+    const vsrc = FRONT_SRC('features/journal/tabs/SettingsVoice.tsx');
+    if (vsrc) check('...changes go to the page\'s voice manager at once (setPrefsInGame, adjustPeer set)', /v\.setPrefsInGame\(patch\)/.test(vsrc) && /op\('set', n \/ 100\)/.test(vsrc));
     const ksrc = FRONT_SRC('features/journal/tabs/SettingsKeys.tsx');
     if (ksrc) check('...capture: Escape cancels, Backspace puts the launcher\'s key back (or clears an optional one), keys kept from the game', /if \(e\.code === 'Escape'\) \{ setCapturing\(''\); return; \}/.test(ksrc)
       && /if \(e\.code === 'Backspace'\) \{ save\(r, r\.optional \? 0 : null\); return; \}/.test(ksrc) && /e\.preventDefault\(\);\s*e\.stopPropagation\(\);/.test(ksrc) && /tell\('cef::keybinds:save', JSON\.stringify\(\{ keys \}\)\)/.test(ksrc));
