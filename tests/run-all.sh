@@ -55,6 +55,7 @@ declare -A LIMIT=([expedition-loot-budget]=600 [loot-tiers]=600)
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
   [chat-bubble-plan]=client:skymp5-client/src/services/services/chatBubblePlan.ts
+  [refdecor-names]=client:skymp5-client/src/services/services/refDecorNames.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
   [caster-guard]=client:skymp5-client/src/sync/beastRaceIds.ts
   [npc-lifetime-plan]=client:skymp5-client/src/view/npcLifetime.ts
