@@ -15,10 +15,9 @@ module.exports = (api) => {
   const OPS = new Set(['choose', 'drop', 'lock', 'takeUp']);
   const menuOf = (a) => (typeof globalThis.__alduinakMasteryMenu === 'function' ? globalThis.__alduinakMasteryMenu(a >>> 0) : null);
   const sections = globalThis.__dboJournalSections || (globalThis.__dboJournalSections = {});
-  // Always shown; without the fork's hook (an older server) the tab says it cannot be shown, and K opens widget 25
-  // A link from elsewhere (Profile's meters) arrives as opts.focus { skill } and names the page to show
+  // Shown once the fork has the hook (server-f3-skills); before that K keeps opening widget 25. A link from elsewhere (Profile's meters) arrives as opts.focus { skill } and names the page to show
   sections.skills = {
-    visible: () => true,
+    visible: () => typeof globalThis.__alduinakMasteryMenu === 'function',
     view: (a, opts) => {
       const m = menuOf(a);
       const want = opts && opts.focus && typeof opts.focus === 'object' ? String(opts.focus.skill || '') : '';
