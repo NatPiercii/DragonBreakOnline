@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import './styles.scss';
-import { PlayerPunish, DeityReset, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PanelBan, MasteryTarget, TargetOption, BeastState, PanelPlacements, PlaceMeta, PlaceResults, PlaceSet } from './extraTabs';
+import { PlayerPunish, DeityReset, SkillsTab, ItemsTab, PowersTab, TeleportTab, PlaceTab, PlayerCare, TargetPicker, PanelBan, MasteryTarget, TargetOption, BeastState, PanelPlacements, PlaceMeta, PlaceResults, PlaceSet } from './extraTabs';
+import { SearchBar, fuzzyFilter } from '../../components/SearchBar/SearchBar';
 
 // One roster row as merged by the server (online actor data + backend record).
 interface PanelPlayer {
@@ -113,7 +114,9 @@ const send = (key: string, ...args: unknown[]): void => {
 
 type Tab = 'debug' | 'players' | 'skills' | 'items' | 'powers' | 'teleport' | 'place' | 'modes' | 'npcs';
 
-// Debug is open to every player; the rest render only while data.admin is true
+// Debug is open to every player; the rest render only while data.admin is true. The rail lists them top to bottom
+// (F3 design 3.10); the tabs that act on somebody act on the one named in the status strip.
+const ACTS_ON: Tab[] = ['players', 'skills', 'items', 'powers'];
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'debug', label: 'Debug' },
   { id: 'players', label: 'Players' },
@@ -250,6 +253,9 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   const [npcSub, setNpcSub] = useState<NpcSub>('list');
   const [zoneForm, setZoneForm] = useState<ZoneForm>(EMPTY_ZONE_FORM);
   const [grantHours, setGrantHours] = useState('1');
+  // The one character every tab acts on: '' is the admin, otherwise an online actor id hex
+  const [actingOn, setActingOn] = useState('');
+  const [zoneSearch, setZoneSearch] = useState('');
   const [now, setNow] = useState(Date.now());
 
   // The zone countdown and the debug clocks tick locally between server pushes
@@ -309,6 +315,11 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   const targets: TargetOption[] = [{ id: '', label: 'You', beast: data.me ? data.me.b : undefined }].concat(
     players.filter((pl) => pl.online && pl.a).map((pl) => ({ id: pl.a as string, label: pl.n || '(no name)', beast: pl.b })),
   );
+  const acting = targets.find((t) => t.id === actingOn) || targets[0];
+  // Picking an online row in Players makes it the one acted on everywhere
+  const pickRow = (pl: PanelPlayer): void => { setSelected(pl.p); if (pl.online && pl.a) setActingOn(pl.a); };
+  const selfId = (data.me && data.me.a) || (debug && debug.actorId) || '';
+  const shownZones = fuzzyFilter(npcZones, zoneSearch, (z) => z.name);
 
   const openTab = (id: Tab): void => {
     setTab(id);
@@ -366,17 +377,26 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
           </div>
         </div>
 
-        <div className="admin-panel__tabs">
+        <div className="admin-panel__layout">
+        <nav className="admin-panel__rail">
           {shownTabs.map((t) => (
             <button
               key={t.id}
-              className={'admin-panel__tab' + (tab === t.id ? ' admin-panel__tab--active' : '')}
+              className={'admin-panel__railitem' + (tab === t.id ? ' admin-panel__railitem--active' : '')}
               onClick={() => openTab(t.id)}
             >
               {t.label}
             </button>
           ))}
-        </div>
+        </nav>
+        <div className="admin-panel__main">
+        {data.admin && ACTS_ON.indexOf(tab) !== -1 ? (
+          <div className="admin-panel__strip">
+            <span className="admin-panel__strip-text">Acting on: <b>{acting ? acting.label : 'You'}</b></span>
+            <TargetPicker targets={targets} value={actingOn} onChange={setActingOn} label="Change" />
+            {!canSpawn ? <span className="admin-panel__hint">GM: you observe; changes are for a Lead GM and above</span> : null}
+          </div>
+        ) : null}
 
         {tab === 'debug' ? (
           <div className="admin-panel__body">
@@ -429,13 +449,17 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
                 target={actionsEnabled && selectedPlayer && selectedPlayer.a ? selectedPlayer.a : null}
                 name={selectedPlayer ? selectedPlayer.n : ''}
                 canBan={canBan}
+                canSpawn={canSpawn}
                 bans={data.bans || []}
               />
+            ) : null}
+            {ev.request ? (
+              <PlayerCare events={ev} who={actingOn} selfId={selfId} name={acting ? acting.label : ''} masteryTarget={data.masteryTarget || null} canSpawn={canSpawn} />
             ) : null}
             {selectedPlayer ? (
               <DeityReset actor={selectedPlayer.online && selectedPlayer.a ? selectedPlayer.a : null} name={selectedPlayer.n || ''} profile={selectedPlayer.p} canSpawn={canSpawn} />
             ) : null}
-            {ev.masteryGrant && data.mastery ? (
+            {canSpawn && ev.masteryGrant && data.mastery ? (
               <div className="admin-panel__mastery">
                 <div className="admin-panel__mastery-row">
                   <span className="admin-panel__mastery-who">Mastery hours</span>
@@ -499,7 +523,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
                       (pl.online ? '' : ' admin-panel__row--offline') +
                       (pl.p === selected ? ' admin-panel__row--selected' : '')
                     }
-                    onClick={() => setSelected(pl.p)}
+                    onClick={() => pickRow(pl)}
                   >
                     <span className={'admin-panel__dot' + (pl.online ? ' admin-panel__dot--online' : '')} />
                     <span className="admin-panel__cell admin-panel__cell--ping">
@@ -519,9 +543,9 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
           </div>
         ) : null}
 
-        {tab === 'skills' ? <SkillsTab events={ev} masteryTarget={data.masteryTarget || null} targets={targets} /> : null}
-        {tab === 'items' ? <ItemsTab events={ev} itemsVersion={data.itemsVersion || 0} targets={targets} /> : null}
-        {tab === 'powers' ? <PowersTab events={ev} targets={targets} canSpawn={canSpawn} /> : null}
+        {tab === 'skills' ? <SkillsTab events={ev} masteryTarget={data.masteryTarget || null} who={actingOn} canSpawn={canSpawn} /> : null}
+        {tab === 'items' ? <ItemsTab events={ev} itemsVersion={data.itemsVersion || 0} who={actingOn} canSpawn={canSpawn} /> : null}
+        {tab === 'powers' ? <PowersTab events={ev} who={actingOn} beast={acting ? acting.beast : undefined} canSpawn={canSpawn} /> : null}
 
         {tab === 'teleport' ? <TeleportTab events={ev} locationsVersion={data.locationsVersion || 0} /> : null}
         {tab === 'place' ? <PlaceTab events={ev} placements={data.placements || null} meta={data.placeMeta || null} results={data.placeResults || null} sets={data.placeSets || null} /> : null}
@@ -555,11 +579,13 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
             </div>
 
             {npcSub === 'list' ? (
+              <div className="admin-panel__body">
+              <SearchBar value={zoneSearch} onChange={setZoneSearch} placeholder="Search zones" />
               <div className="admin-panel__list">
-                {npcZones.length === 0 ? (
-                  <div className="admin-panel__empty">No zones configured</div>
+                {shownZones.length === 0 ? (
+                  <div className="admin-panel__empty">{npcZones.length ? 'No zone matches' : 'No zones configured'}</div>
                 ) : (
-                  npcZones.map((z) => (
+                  shownZones.map((z) => (
                     <div key={z.name} className="admin-panel__row admin-panel__row--zone">
                       <div className="admin-panel__zone-info">
                         <span className="admin-panel__cell admin-panel__cell--name">{z.name}</span>
@@ -570,12 +596,13 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
                       </div>
                       <div className="admin-panel__zone-buttons">
                         <Button text="TP" width={72} height={30} onClick={() => send(ev.npcTp, z.name)} />
-                        <Button text="Reset" width={84} height={30} onClick={() => send(ev.npcReset, z.name)} />
-                        <Button text="Delete" width={92} height={30} onClick={() => send(ev.npcDelete, z.name)} />
+                        {canSpawn ? <Button text="Reset" width={84} height={30} onClick={() => send(ev.npcReset, z.name)} /> : null}
+                        {canSpawn ? <Button text="Delete" width={92} height={30} onClick={() => send(ev.npcDelete, z.name)} /> : null}
                       </div>
                     </div>
                   ))
                 )}
+              </div>
               </div>
             ) : (
               <div className="admin-panel__body">
@@ -602,15 +629,21 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
                   </label>
                 </div>
                 <div className="admin-panel__actions">
-                  <Button text="Add" width={104} height={32} disabled={!canAddZone} onClick={addZone} />
+                  <Button text="Add" width={104} height={32} disabled={!canAddZone || !canSpawn} onClick={addZone} />
+                  {!canSpawn ? <span className="admin-panel__hint">Adding zones is for a Lead GM and above</span> : null}
                 </div>
               </div>
             )}
           </div>
         ) : null}
+        </div>
+        </div>
       </div>
     </div>
   );
 };
 
 export default AdminPanel;
+// For the static render harness (tests/admin-panel-front-harness.js)
+export { PlayerCare, PowersTab } from './extraTabs';
+export { fuzzyScore, fuzzyFilter } from '../../components/SearchBar/SearchBar';

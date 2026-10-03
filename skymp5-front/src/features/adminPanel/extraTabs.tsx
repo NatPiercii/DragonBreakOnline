@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import Button from '../../constructorComponents/button';
 import { Picker } from '../../components/Picker/Picker';
+import { SearchBar, SearchChip, fuzzyFilter, useCursor, useFavourites, useRecent, useScrollIntoView } from '../../components/SearchBar/SearchBar';
 
 // F7 admin panel additions (2026-09-16): player punishments and bans, skill tiers, item spawning, powers.
 // Every action goes out as admin::action <action> <JSON fields>; the server checks rank and target.
@@ -126,15 +127,15 @@ export const DeityReset = ({ actor, name, profile, canSpawn }: { actor: string |
 };
 
 // Extra buttons for the selected online player, plus the ban list
-export const PlayerPunish = ({ events, target, name, canBan, bans }: {
-  events: Record<string, string>; target: string | null; name: string; canBan: boolean; bans: PanelBan[];
+export const PlayerPunish = ({ events, target, name, canBan, canSpawn, bans }: {
+  events: Record<string, string>; target: string | null; name: string; canBan: boolean; canSpawn: boolean; bans: PanelBan[];
 }) => {
   const [hours, setHours] = useState('24');
   const hoursOk = Number(hours) > 0 && Number(hours) <= 8760;
   return (
     <div className="admin-panel__punish">
       <div className="admin-panel__actions">
-        <Button text="Kill" width={96} height={32} disabled={!target} onClick={() => target && adminAction(events, 'kill', { target })} />
+        {canSpawn ? <Button text="Kill" width={96} height={32} disabled={!target} onClick={() => target && adminAction(events, 'kill', { target })} /> : null}
         {canBan ? <Confirm text="Delete character" width={170} disabled={!target} onConfirm={() => target && adminAction(events, 'deleteCharacter', { target })} /> : null}
         {canBan ? <Confirm text="IP ban" width={110} disabled={!target} onConfirm={() => target && adminAction(events, 'ipBan', { target })} /> : null}
       </div>
@@ -175,42 +176,94 @@ export interface MasteryTarget {
     tierNames: string[];
     tierHours: number[];
     maxChosen: number;
+    schools?: Array<{ name: string; level: number; role: string; roleLabel: string }>; // fork server-f3-admin, from schools.js
   } | null;
 }
 
-export const SkillsTab = ({ events, masteryTarget, targets }: {
-  events: Record<string, string>; masteryTarget: MasteryTarget | null; targets: TargetOption[];
+export const SkillsTab = ({ events, masteryTarget, who, canSpawn }: {
+  events: Record<string, string>; masteryTarget: MasteryTarget | null; who: string; canSpawn: boolean;
 }) => {
-  const [who, setWho] = useState('');
-  const load = (id: string): void => adminRequest(events, 'adminMasteryRequest', targetFields(id));
-  useEffect(() => { if (!masteryTarget) load(who); }, []);
+  const load = (): void => adminRequest(events, 'adminMasteryRequest', targetFields(who));
+  useEffect(() => { load(); }, [who]);
   const detail = masteryTarget && masteryTarget.detail;
   const target = masteryTarget ? masteryTarget.target : '';
   return (
     <div className="admin-panel__body">
       <div className="admin-panel__filters">
-        <TargetPicker targets={targets} value={who} onChange={(id) => { setWho(id); load(id); }} label="Skills of" />
-        <Button text="Reload" width={96} height={32} onClick={() => load(who)} />
-        <span className="admin-panel__hint">{masteryTarget ? 'Editing ' + (masteryTarget.name || 'you') : 'Loading'}</span>
+        <Button text="Reload" width={96} height={32} onClick={load} />
+        <span className="admin-panel__hint">{masteryTarget ? (canSpawn ? 'Editing ' : 'Viewing ') + (masteryTarget.name || 'you') : 'Loading'}</span>
       </div>
       {!detail ? <div className="admin-panel__empty">No skill data yet</div> : (
         <div className="admin-panel__list admin-panel__list--skills">
           {detail.skills.map((sk) => (
             <div key={sk.id} className={'admin-panel__row' + (sk.chosen ? ' admin-panel__row--selected' : '')}>
               <span className="admin-panel__cell admin-panel__cell--name">{sk.label}</span>
-              <span className="admin-panel__cell admin-panel__cell--discord">{sk.chosen ? (detail.tierNames[sk.rank] || '-') + ' · ' + sk.hours + ' h' : 'not followed'}</span>
-              <span className="admin-panel__tiers">
-                {detail.tierNames.map((t, i) => (
-                  <button key={t} className={'admin-panel__chip' + (sk.chosen && sk.rank === i ? ' admin-panel__chip--on' : '')}
-                    onClick={() => adminAction(events, 'masterySetTier', { target, skill: sk.id, tier: i })}>{t}</button>
-                ))}
-              </span>
-              {sk.chosen ? <Button text="Set aside" width={100} height={28} onClick={() => adminAction(events, 'masteryDrop', { target, skill: sk.id })} /> : null}
+              <span className="admin-panel__cell admin-panel__cell--discord">{sk.chosen ? (detail.tierNames[sk.rank] || '-') + ' · ' + sk.hours : 'not followed'}</span>
+              {canSpawn ? (
+                <span className="admin-panel__tiers">
+                  {detail.tierNames.map((t, i) => (
+                    <button key={t} className={'admin-panel__chip' + (sk.chosen && sk.rank === i ? ' admin-panel__chip--on' : '')}
+                      onClick={() => adminAction(events, 'masterySetTier', { target, skill: sk.id, tier: i })}>{t}</button>
+                  ))}
+                </span>
+              ) : null}
+              {canSpawn && sk.chosen ? <Button text="Set aside" width={100} height={28} onClick={() => adminAction(events, 'masteryDrop', { target, skill: sk.id })} /> : null}
             </div>
           ))}
         </div>
       )}
-      <span className="admin-panel__hint">A tier puts the character at its first hour; skills past the {detail ? detail.maxChosen : 3}-skill limit are allowed. Set aside is a free respec.</span>
+      <span className="admin-panel__hint">
+        {canSpawn ? `A tier puts the character at its first point; skills past the ${detail ? detail.maxChosen : 3}-skill limit are allowed. Set aside is a free respec.` : 'Changing skills is for a Lead GM and above.'}
+      </span>
+    </div>
+  );
+};
+
+// ---- the Players tab's character care: the diseases (L1) and the school levels (N7), Lead GM and above -------------
+const SCHOOL_ORDER = ['Alteration', 'Conjuration', 'Destruction', 'Illusion', 'Restoration'];
+export const PlayerCare = ({ events, who, selfId, name, masteryTarget, canSpawn }: {
+  events: Record<string, string>; who: string; selfId: string; name: string; masteryTarget: MasteryTarget | null; canSpawn: boolean;
+}) => {
+  const [levels, setLevels] = useState<Record<string, string>>({});
+  useEffect(() => { if (canSpawn) adminRequest(events, 'adminMasteryRequest', targetFields(who)); }, [who, canSpawn]);
+  // The detail for this target only; a late answer for someone else is not shown
+  const want = who || selfId;
+  const mine = masteryTarget && masteryTarget.detail && (!want || masteryTarget.target === want) ? masteryTarget : null;
+  const schools = (mine && mine.detail && mine.detail.schools) || [];
+  useEffect(() => { setLevels({}); }, [who, masteryTarget]);
+  if (!canSpawn) return null;
+  const fields = (extra: Record<string, unknown>): Record<string, unknown> => Object.assign({}, targetFields(who), extra);
+  const sorted = SCHOOL_ORDER.map((n) => schools.find((x) => x.name === n)).filter(Boolean) as Array<{ name: string; level: number; role: string; roleLabel: string }>;
+  return (
+    <div className="admin-panel__care">
+      <div className="admin-panel__power">
+        <span className="admin-panel__label">Disease <span className="admin-panel__hint">for {name || 'you'}: the fever runs its days, then the rite decides</span></span>
+        <div className="admin-panel__actions">
+          <Confirm text="Sanguinare Vampiris" width={240} onConfirm={() => adminAction(events, 'giveDisease', fields({ kind: 'vampire' }))} />
+          <Confirm text="Sanies Lupinus" width={200} onConfirm={() => adminAction(events, 'giveDisease', fields({ kind: 'werewolf' }))} />
+        </div>
+      </div>
+      <div className="admin-panel__power">
+        <span className="admin-panel__label">Schools of magic <span className="admin-panel__hint">0 to 100; a closed school set above 0 rests at that level</span></span>
+        {!sorted.length ? <span className="admin-panel__hint">{mine ? 'This server sends no school levels yet.' : 'Loading their schools'}</span> : sorted.map((sc) => {
+          const priest = sc.name === 'Restoration';
+          const text = levels[sc.name] !== undefined ? levels[sc.name] : String(sc.level);
+          const n = Number(text);
+          const valid = text.trim() !== '' && Number.isInteger(n) && n >= 0 && n <= 100 && n !== sc.level;
+          return (
+            <div key={sc.name} className="admin-panel__school">
+              <span className="admin-panel__school-name">{sc.name}</span>
+              <span className="admin-panel__school-role">{sc.roleLabel || sc.role}</span>
+              <input type="range" min={0} max={100} step={1} className="admin-panel__range" disabled={priest} value={Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : sc.level}
+                onChange={(e) => setLevels(Object.assign({}, levels, { [sc.name]: e.target.value }))} />
+              <input className="admin-panel__input admin-panel__input--short" disabled={priest} value={text}
+                onChange={(e) => setLevels(Object.assign({}, levels, { [sc.name]: e.target.value }))} />
+              {priest ? <span className="admin-panel__hint">follows Priest: set it on the Skills tab</span>
+                : <Button text="Set" width={72} height={28} disabled={!valid} onClick={() => adminAction(events, 'setSchool', fields({ school: sc.name, level: n }))} />}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -227,84 +280,98 @@ const PAGE = 200;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const catalog = (): ItemCategory[] | null => ((window as any).__dboAdminItems as ItemCategory[]) || null;
 
-export const ItemsTab = ({ events, itemsVersion, targets }: {
-  events: Record<string, string>; itemsVersion: number; targets: TargetOption[];
+export const ItemsTab = ({ events, itemsVersion, who, canSpawn }: {
+  events: Record<string, string>; itemsVersion: number; who: string; canSpawn: boolean;
 }) => {
   const [cat, setCat] = useState('');
   const [search, setSearch] = useState('');
   const [mod, setMod] = useState('');
   const [picked, setPicked] = useState<string | null>(null);
   const [count, setCount] = useState('1');
-  const [who, setWho] = useState('');
   const [shown, setShown] = useState(PAGE);
+  const recent = useRecent('items');
+  const favs = useFavourites('items');
   const categories = useMemo(catalog, [itemsVersion]);
   useEffect(() => { if (!categories) adminRequest(events, 'adminItemsRequest', {}); }, []);
-  useEffect(() => { if (categories && categories.length && !cat) setCat(categories[0].id); }, [categories]);
   const plugins = useMemo(() => {
     const set = new Set<string>();
     for (const c of categories || []) for (const it of c.items) if (it[2]) set.add(it[2]);
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [categories]);
-  // Lower-cased search text per item, built once per catalog
+  // Search text per item (name, editor id, form), built once per catalog
   const index = useMemo(() => {
     const out: Array<{ desc: string; name: string; plugin: string; cat: string; catLabel: string; hay: string }> = [];
     for (const c of categories || []) for (const it of c.items) {
       const name = it[2] === undefined ? humanize(it[1]) : it[1];
-      out.push({ desc: it[0], name, plugin: it[2] || '', cat: c.id, catLabel: c.label, hay: (name + ' ' + it[1] + ' ' + it[0]).toLowerCase() });
+      out.push({ desc: it[0], name, plugin: it[2] || '', cat: c.id, catLabel: c.label, hay: name + ' ' + it[1] + ' ' + it[0] });
     }
     return out;
   }, [categories]);
-  const q = search.trim().toLowerCase();
-  const rows = useMemo(() => index.filter((r) => (q ? r.hay.indexOf(q) !== -1 : r.cat === cat) && (!mod || r.plugin === mod)), [index, q, cat, mod]);
+  const q = search.trim();
+  // Typed text searches every category (fuzzy, best first); a chip narrows it, and with no text shows its whole list
+  const matches = useMemo(() => fuzzyFilter(index.filter((r) => !mod || r.plugin === mod), q, (r) => r.hay), [index, q, mod]);
+  const rows = useMemo(() => (cat ? matches.filter((r) => r.cat === cat) : q ? matches : []), [matches, cat, q]);
   useEffect(() => setShown(PAGE), [q, cat, mod]);
-  const counts = useMemo(() => {
+  const chips: SearchChip[] = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const r of index) if (!mod || r.plugin === mod) m[r.cat] = (m[r.cat] || 0) + 1;
-    return m;
-  }, [index, mod]);
-  const pickedRow = rows.find((r) => r.desc === picked) || index.find((r) => r.desc === picked) || null;
+    for (const r of matches) m[r.cat] = (m[r.cat] || 0) + 1;
+    return [{ id: '', label: 'All', count: matches.length }].concat((categories || []).map((c) => ({ id: c.id, label: c.label, count: m[c.id] || 0 })).filter((c) => !q || c.count));
+  }, [matches, categories, q]);
+  const cursor = useCursor(Math.min(shown, rows.length));
+  const pickedRow = index.find((r) => r.desc === picked) || null;
   const countOk = Number.isInteger(Number(count)) && Number(count) >= 1 && Number(count) <= 100000;
   const spawn = (desc?: string): void => {
     const item = desc || picked;
-    if (!item || !countOk) return;
+    if (!item || !countOk || !canSpawn) return;
+    const row = index.find((r) => r.desc === item);
+    if (row) recent.push({ id: row.desc, label: row.name });
     adminAction(events, 'giveItem', Object.assign({ item, count: Number(count) }, targetFields(who)));
   };
+  // Enter picks the highlighted row, and spawns it when it is already picked
+  const enter = (): void => {
+    const r = rows[cursor.at];
+    if (!r) return;
+    if (picked === r.desc) spawn(r.desc); else setPicked(r.desc);
+  };
   return (
-    <div className="admin-panel__body admin-panel__items">
-      <div className="admin-panel__categories">
-        {(categories || []).map((c) => (
-          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); }}>
-            {c.label} <span className="admin-panel__count">{counts[c.id] || 0}</span>
-          </button>
-        ))}
+    <div className="admin-panel__body">
+      <SearchBar value={search} onChange={setSearch} placeholder="Search items by name or editor id" autoFocus
+        chips={chips} chip={cat} onChip={setCat} plugins={plugins} plugin={mod} onPlugin={setMod}
+        onMove={cursor.move} onEnter={enter} recent={recent.items} favourites={favs.items} onPick={(id) => setPicked(id)} />
+      <div className="admin-panel__list admin-panel__list--items">
+        {!categories ? <div className="admin-panel__empty">Loading items</div> : !rows.length ? (
+          <div className="admin-panel__empty">{q || cat ? 'No items' : 'Type to search, or pick a category'}</div>
+        ) : (
+          rows.slice(0, shown).map((r, i) => <ItemRow key={r.desc} row={r} showCat={!cat} on={i === cursor.at} picked={r.desc === picked} fav={favs.has(r.desc)}
+            onPick={() => { setPicked(r.desc); cursor.setAt(i); }} onSpawn={() => { setPicked(r.desc); spawn(r.desc); }} onFav={() => favs.toggle({ id: r.desc, label: r.name })} />)
+        )}
+        <MoreRow shown={Math.min(shown, rows.length)} total={rows.length} onMore={() => setShown(shown + PAGE)} />
       </div>
-      <div className="admin-panel__itempane">
-        <div className="admin-panel__filters">
-          <input className="admin-panel__search" placeholder="Search every category" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Picker className="admin-panel__select" value={mod} onChange={setMod}
-            options={[{ value: '', label: 'All mods' }, ...plugins.map((pl) => ({ value: pl, label: pl.replace(/\.(esp|esm|esl)$/i, '') }))]} />
-        </div>
-        <div className="admin-panel__list admin-panel__list--items">
-          {!categories ? <div className="admin-panel__empty">Loading items</div> : rows.length === 0 ? <div className="admin-panel__empty">No items</div> : (
-            rows.slice(0, shown).map((r) => (
-              <div key={r.desc} className={'admin-panel__row admin-panel__row--clickable' + (r.desc === picked ? ' admin-panel__row--selected' : '')}
-                onClick={() => setPicked(r.desc)} onDoubleClick={() => { setPicked(r.desc); spawn(r.desc); }}>
-                <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
-                {q ? <span className="admin-panel__cell admin-panel__cell--discord">{r.catLabel}</span> : null}
-                <span className="admin-panel__cell admin-panel__cell--discord">{r.plugin.replace(/\.(esp|esm|esl)$/i, '')}</span>
-              </div>
-            ))
-          )}
-          <MoreRow shown={Math.min(shown, rows.length)} total={rows.length} onMore={() => setShown(shown + PAGE)} />
-        </div>
+      {canSpawn ? (
         <div className="admin-panel__actions">
-          <span className="admin-panel__label">{pickedRow ? pickedRow.name : 'Pick an item (double-click spawns)'}</span>
+          <span className="admin-panel__label">{pickedRow ? pickedRow.name : 'Pick an item (double-click or Enter twice spawns)'}</span>
           <span className="admin-panel__label">Count</span>
           <input className="admin-panel__input admin-panel__input--short" value={count} onChange={(e) => setCount(e.target.value)} />
-          <TargetPicker targets={targets} value={who} onChange={setWho} label="Give to" />
           <Button text="Spawn" width={110} height={32} disabled={!picked || !countOk} onClick={() => spawn()} />
         </div>
-      </div>
+      ) : <span className="admin-panel__hint">Spawning items is for a Lead GM and above.</span>}
+    </div>
+  );
+};
+
+const ItemRow = ({ row, showCat, on, picked, fav, onPick, onSpawn, onFav }: {
+  row: { desc: string; name: string; plugin: string; catLabel: string }; showCat: boolean; on: boolean; picked: boolean; fav: boolean;
+  onPick: () => void; onSpawn: () => void; onFav: () => void;
+}) => {
+  const ref = useScrollIntoView(on);
+  return (
+    <div ref={ref} className={'admin-panel__row admin-panel__row--clickable' + (picked ? ' admin-panel__row--selected' : '') + (on ? ' admin-panel__row--cursor' : '')}
+      onClick={onPick} onDoubleClick={onSpawn}>
+      <button className={'admin-panel__star' + (fav ? ' admin-panel__star--on' : '')} title={fav ? 'Remove from favourites' : 'Add to favourites'}
+        onClick={(e) => { e.stopPropagation(); onFav(); }}>{fav ? '\u2605' : '\u2606'}</button>
+      <span className="admin-panel__cell admin-panel__cell--name">{row.name}</span>
+      {showCat ? <span className="admin-panel__cell admin-panel__cell--discord">{row.catLabel}</span> : null}
+      <span className="admin-panel__cell admin-panel__cell--discord">{row.plugin.replace(/\.(esp|esm|esl)$/i, '')}</span>
     </div>
   );
 };
@@ -322,44 +389,50 @@ export const TeleportTab = ({ events, locationsVersion }: { events: Record<strin
   const [world, setWorld] = useState('');
   const [search, setSearch] = useState('');
   const [shown, setShown] = useState(PAGE);
+  const recent = useRecent('teleport');
+  const favs = useFavourites('teleport');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all = useMemo(() => ((window as any).__dboAdminLocations as TeleportPoint[]) || null, [locationsVersion]);
   useEffect(() => { if (!all) adminRequest(events, 'adminLocationsRequest', {}); }, []);
+  const q = search.trim();
+  // Typed text searches every region (fuzzy, best first), so a name you half remember is always findable
+  const matches = useMemo(() => fuzzyFilter(all || [], q, (l) => l.name + ' ' + l.worldName + ' ' + l.region), [all, q]);
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const l of all || []) m[l.region] = (m[l.region] || 0) + 1;
+    for (const l of matches) m[l.region] = (m[l.region] || 0) + 1;
     return m;
-  }, [all]);
+  }, [matches]);
   // A region that the data has but REGIONS never listed would otherwise be unreachable except by search
   const regions = useMemo(() => {
     const known = REGIONS.filter((r) => counts[r]);
     return known.concat(Object.keys(counts).filter((r) => REGIONS.indexOf(r) === -1).sort());
   }, [counts]);
-  useEffect(() => { if (regions.length && !counts[region]) setRegion(regions[0]); }, [regions]);
-  const q = search.trim().toLowerCase();
-  // Searching looks across every region, so a name you half remember is always findable
-  const inScope = useMemo(() => (all || []).filter((l) => (q ? (l.name + ' ' + l.worldName + ' ' + l.region).toLowerCase().indexOf(q) !== -1 : l.region === region)), [all, q, region]);
+  useEffect(() => { if (!q && regions.length && !counts[region]) setRegion(regions[0]); }, [regions]);
+  const inScope = useMemo(() => (region ? matches.filter((l) => l.region === region) : matches), [matches, region]);
   const worlds = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const l of inScope) m[l.worldName || '—'] = (m[l.worldName || '—'] || 0) + 1;
+    for (const l of inScope) m[l.worldName || '-'] = (m[l.worldName || '-'] || 0) + 1;
     return Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b)).map((w) => ({ w, n: m[w] }));
   }, [inScope]);
   const rows = useMemo(() => {
-    const list = world ? inScope.filter((l) => (l.worldName || '—') === world) : inScope;
-    return list.slice().sort((a, b) => a.name.localeCompare(b.name));
-  }, [inScope, world]);
+    const list = world ? inScope.filter((l) => (l.worldName || '-') === world) : inScope;
+    return q ? list : list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  }, [inScope, world, q]);
   useEffect(() => { setShown(PAGE); }, [q, region, world]);
   useEffect(() => { if (world && !worlds.some((x) => x.w === world)) setWorld(''); }, [worlds]);
+  const cursor = useCursor(Math.min(shown, rows.length));
+  const go = (name: string): void => {
+    if (!events.tpLoc) return;
+    recent.push({ id: name, label: name });
+    send(events.tpLoc, name);
+  };
+  const chips: SearchChip[] = (q ? [{ id: '', label: 'All', count: matches.length }] : []).concat(regions.map((r) => ({ id: r, label: r, count: counts[r] || 0 })));
   return (
     <div className="admin-panel__body">
-      <div className="admin-panel__filters">
-        {regions.map((r) => (
-          <button key={r} className={'admin-panel__chip' + (r === region && !q ? ' admin-panel__chip--on' : '')} onClick={() => { setRegion(r); setWorld(''); setSearch(''); }}>
-            {r} {counts[r]}
-          </button>
-        ))}
-        <input className="admin-panel__search" placeholder="Search every region" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
+      <SearchBar value={search} onChange={(v) => { setSearch(v); if (v.trim() && !search.trim()) setRegion(''); }} placeholder="Search every region" autoFocus
+        chips={chips} chip={region} onChip={(r) => { setRegion(r); setWorld(''); }}
+        onMove={cursor.move} onEnter={() => rows[cursor.at] && go(rows[cursor.at].name)}
+        recent={recent.items} favourites={favs.items} onPick={go} />
       {worlds.length > 1 ? (
         <div className="admin-panel__filters admin-panel__filters--sub">
           <button className={'admin-panel__chip' + (world ? '' : ' admin-panel__chip--on')} onClick={() => setWorld('')}>All {inScope.length}</button>
@@ -370,16 +443,23 @@ export const TeleportTab = ({ events, locationsVersion }: { events: Record<strin
       ) : null}
       <div className="admin-panel__list">
         {!all ? <div className="admin-panel__empty">Loading locations</div> : rows.length === 0 ? <div className="admin-panel__empty">No locations</div> : (
-          rows.slice(0, shown).map((l) => (
-            <div key={l.region + '|' + l.worldName + '|' + l.name} className="admin-panel__row admin-panel__row--location">
-              <span className="admin-panel__cell admin-panel__cell--name">{l.name}</span>
-              <span className="admin-panel__cell admin-panel__cell--discord">{q ? l.region + ' · ' : ''}{l.worldName}</span>
-              <Button text="Teleport" width={112} height={30} onClick={() => events.tpLoc && send(events.tpLoc, l.name)} />
-            </div>
-          ))
+          rows.slice(0, shown).map((l, i) => <LocationRow key={l.region + '|' + l.worldName + '|' + l.name} l={l} showRegion={!!q} on={i === cursor.at}
+            fav={favs.has(l.name)} onFav={() => favs.toggle({ id: l.name, label: l.name })} onGo={() => go(l.name)} />)
         )}
         <MoreRow shown={Math.min(shown, rows.length)} total={rows.length} onMore={() => setShown(shown + PAGE)} />
       </div>
+    </div>
+  );
+};
+
+const LocationRow = ({ l, showRegion, on, fav, onFav, onGo }: { l: TeleportPoint; showRegion: boolean; on: boolean; fav: boolean; onFav: () => void; onGo: () => void }) => {
+  const ref = useScrollIntoView(on);
+  return (
+    <div ref={ref} className={'admin-panel__row admin-panel__row--location' + (on ? ' admin-panel__row--cursor' : '')}>
+      <button className={'admin-panel__star' + (fav ? ' admin-panel__star--on' : '')} title={fav ? 'Remove from favourites' : 'Add to favourites'} onClick={onFav}>{fav ? '\u2605' : '\u2606'}</button>
+      <span className="admin-panel__cell admin-panel__cell--name">{l.name}</span>
+      <span className="admin-panel__cell admin-panel__cell--discord">{showRegion ? l.region + ' · ' : ''}{l.worldName}</span>
+      <Button text="Teleport" width={112} height={30} onClick={onGo} />
     </div>
   );
 };
@@ -390,10 +470,7 @@ const BEASTS: Array<{ key: 'werewolf' | 'vampirelord'; label: string; give: stri
   { key: 'vampirelord', label: 'Vampire Lord', give: 'giveVampireLord' },
 ];
 
-export const PowersTab = ({ events, targets, canSpawn }: { events: Record<string, string>; targets: TargetOption[]; canSpawn: boolean }) => {
-  const [who, setWho] = useState('');
-  const chosen = targets.find((t) => t.id === who) || targets[0];
-  const beast: BeastState | undefined = chosen && chosen.beast;
+export const PowersTab = ({ events, who, beast, canSpawn }: { events: Record<string, string>; who: string; beast?: BeastState; canSpawn: boolean }) => {
   const fields = (extra?: Record<string, unknown>): Record<string, unknown> => Object.assign({}, targetFields(who), extra || {});
   const state = (key: 'werewolf' | 'vampirelord'): string => {
     if (!beast) return 'state unknown';
@@ -403,45 +480,40 @@ export const PowersTab = ({ events, targets, canSpawn }: { events: Record<string
   return (
     <div className="admin-panel__body">
       <div className="admin-panel__filters">
-        <TargetPicker targets={targets} value={who} onChange={setWho} />
         <span className="admin-panel__hint">
           {beast ? (beast.form ? 'Currently a ' + (beast.form === 'vampirelord' ? 'Vampire Lord' : 'werewolf') : 'In their own shape') : 'Refresh to read their state'}
         </span>
       </div>
       <div className="admin-panel__powers">
-        <div className="admin-panel__power">
-          <Button text="Give all spells" width={200} height={40} onClick={() => adminAction(events, 'giveSpells', fields())} />
-          <span className="admin-panel__hint">Every spell a spell tome teaches, kept on the character</span>
-        </div>
         {canSpawn ? (
-          <div className="admin-panel__power">
-            <Button text="Give all shouts" width={200} height={40} onClick={() => adminAction(events, 'giveShouts', fields())} />
-            <span className="admin-panel__hint">Every shout with all three words unlocked, taught again at each login (Lead GM and above)</span>
-          </div>
+          <>
+            <div className="admin-panel__power">
+              <Button text="Give all spells" width={200} height={40} onClick={() => adminAction(events, 'giveSpells', fields())} />
+              <span className="admin-panel__hint">Every spell a spell tome teaches, kept on the character</span>
+            </div>
+            <div className="admin-panel__power">
+              <Button text="Give all shouts" width={200} height={40} onClick={() => adminAction(events, 'giveShouts', fields())} />
+              <span className="admin-panel__hint">Every shout with all three words unlocked, taught again at each login</span>
+            </div>
+          </>
         ) : null}
         {BEASTS.map((b) => (
           <div key={b.key} className="admin-panel__power">
             <span className="admin-panel__label">{b.label} <span className="admin-panel__hint">{state(b.key)}</span></span>
-            <div className="admin-panel__actions">
-              <Button text="Grant power" width={132} height={32} onClick={() => adminAction(events, b.give, fields())} />
-              <Button text="Transform now" width={140} height={32} onClick={() => adminAction(events, 'beastForm', fields({ form: b.key, op: 'now' }))} />
-              <Button text="Revert" width={96} height={32} disabled={!!beast && beast.form !== b.key} onClick={() => adminAction(events, 'beastForm', fields({ form: b.key, op: 'revert' }))} />
-              <Confirm text="Revoke" width={110} onConfirm={() => adminAction(events, 'beastForm', fields({ form: b.key, op: 'revoke' }))} />
-            </div>
+            {canSpawn ? (
+              <div className="admin-panel__actions">
+                <Button text="Grant power" width={132} height={32} onClick={() => adminAction(events, b.give, fields())} />
+                <Button text="Transform now" width={140} height={32} onClick={() => adminAction(events, 'beastForm', fields({ form: b.key, op: 'now' }))} />
+                <Button text="Revert" width={96} height={32} disabled={!!beast && beast.form !== b.key} onClick={() => adminAction(events, 'beastForm', fields({ form: b.key, op: 'revert' }))} />
+                <Confirm text="Revoke" width={110} onConfirm={() => adminAction(events, 'beastForm', fields({ form: b.key, op: 'revoke' }))} />
+              </div>
+            ) : null}
           </div>
         ))}
-        {canSpawn ? (
-          <div className="admin-panel__power">
-            <span className="admin-panel__label">Disease <span className="admin-panel__hint">the fever runs its days, then the rite decides (Lead GM and above)</span></span>
-            <div className="admin-panel__actions">
-              <Confirm text="Sanguinare Vampiris" width={240} onConfirm={() => adminAction(events, 'giveDisease', fields({ kind: 'vampire' }))} />
-              <Confirm text="Sanies Lupinus" width={200} onConfirm={() => adminAction(events, 'giveDisease', fields({ kind: 'werewolf' }))} />
-            </div>
-          </div>
-        ) : null}
         <span className="admin-panel__hint">
-          To make a player a vampire or a werewolf in play, give the disease. Grant gives the vanilla power so it can be cast in game; Transform now changes shape from here, which
-          does not need the cast to reach the server. Revoke takes the power back and reverts the shape.
+          {canSpawn
+            ? 'To make a player a vampire or a werewolf in play, give the disease on the Players tab. Grant gives the vanilla power so it can be cast in game; Transform now changes shape from here, which does not need the cast to reach the server. Revoke takes the power back and reverts the shape.'
+            : 'Powers are for a Lead GM and above. You can see who holds what.'}
         </span>
       </div>
     </div>
@@ -491,6 +563,8 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
   const [mod, setMod] = useState('');
   const [picked, setPicked] = useState<PlaceRow | null>(null);
   const [hostile, setHostile] = useState(true);
+  const recent = useRecent('place');
+  const favs = useFavourites('place');
   useEffect(() => { adminRequest(events, 'adminPlaceMeta', {}); }, []);
   useEffect(() => { if (meta && meta.categories.length && !cat) setCat(meta.categories[0].id); }, [meta]);
   const q = search.trim().toLowerCase();
@@ -504,11 +578,15 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
   const current = results && results.query === q && results.category === (q ? '' : cat) && results.plugin === mod ? results : null;
   const rows: PlaceRow[] = useMemo(() => (current ? current.items.map((it) => ({ desc: it[0], name: it[1], plugin: it[2] || '', cat: it[3], kind: it[4] })) : []), [current]);
   const rights = meta && meta.rights;
+  const cursor = useCursor(rows.length);
+  // A recent or favourite pick carries its whole row, so it can be placed without searching for it again
+  const pickSaved = (id: string): void => { try { const r = JSON.parse(id); if (r && r.desc) setPicked(r as PlaceRow); } catch (e) { /* an old entry */ } };
   const mayPlace = !rights || rights.place;
   const mayHostile = !rights || rights.hostile;
   const start = (row?: PlaceRow): void => {
     const r = row || picked;
     if (!r || !mayPlace) return;
+    recent.push({ id: JSON.stringify(r), label: r.name });
     send('admin::place', JSON.stringify({ desc: r.desc, kind: r.kind, name: r.name, hostile: r.kind === 'npc' && hostile && mayHostile }));
   };
   const more = (): void => { if (current) adminRequest(events, 'adminPlaceSearch', { query: q, category: q ? '' : cat, plugin: mod, offset: current.items.length }); };
@@ -639,21 +717,16 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
     pane = (
       <div className="admin-panel__itempane">
         {viewBar}
-        <div className="admin-panel__filters">
-          <input className="admin-panel__search" placeholder="Search every NPC and object" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Picker className="admin-panel__select" value={mod} onChange={setMod}
-            options={[{ value: '', label: 'All mods' }, ...(meta ? meta.plugins : []).map((pl) => ({ value: pl, label: pl.replace(/\.(esp|esm|esl)$/i, '') }))]} />
-        </div>
+        <SearchBar value={search} onChange={setSearch} placeholder="Search every NPC and object" autoFocus
+          chips={(meta ? meta.categories : []).map((c) => ({ id: c.id, label: c.label, count: c.count }))} chip={q ? '' : cat} onChip={(id) => { setCat(id); setSearch(''); }}
+          plugins={meta ? meta.plugins : []} plugin={mod} onPlugin={setMod}
+          onMove={cursor.move} onEnter={() => { const r = rows[cursor.at]; if (!r) return; if (picked && picked.desc === r.desc) start(r); else setPicked(r); }}
+          recent={recent.items} favourites={favs.items} onPick={pickSaved} />
         <div className="admin-panel__list admin-panel__list--items">
           {!meta || !current ? <div className="admin-panel__empty">{meta ? 'Searching' : 'Loading the catalog'}</div> : rows.length === 0 ? <div className="admin-panel__empty">Nothing matches</div> : (
-            rows.map((r) => (
-              <div key={r.desc} className={'admin-panel__row admin-panel__row--clickable' + (picked && r.desc === picked.desc ? ' admin-panel__row--selected' : '')}
-                onClick={() => setPicked(r)} onDoubleClick={() => { setPicked(r); start(r); }}>
-                <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
-                {q ? <span className="admin-panel__cell admin-panel__cell--discord">{catLabel(r.cat)}</span> : null}
-                <span className="admin-panel__cell admin-panel__cell--discord">{r.plugin.replace(/\.(esp|esm|esl)$/i, '')}</span>
-              </div>
-            ))
+            rows.map((r, i) => <PlaceCatalogRow key={r.desc} r={r} cat={q ? catLabel(r.cat) : ''} on={i === cursor.at} picked={!!picked && r.desc === picked.desc}
+              fav={favs.has(JSON.stringify(r))} onFav={() => favs.toggle({ id: JSON.stringify(r), label: r.name })}
+              onPick={() => { setPicked(r); cursor.setAt(i); }} onPlace={() => { setPicked(r); start(r); }} />)
           )}
           {current ? <MoreRow shown={rows.length} total={current.total} onMore={more} step={SEARCH_PAGE} /> : null}
         </div>
@@ -673,16 +746,21 @@ export const PlaceTab = ({ events, placements, meta, results, sets }: { events: 
     );
   }
 
+  return <div className="admin-panel__body">{pane}</div>;
+};
+
+const PlaceCatalogRow = ({ r, cat, on, picked, fav, onFav, onPick, onPlace }: {
+  r: PlaceRow; cat: string; on: boolean; picked: boolean; fav: boolean; onFav: () => void; onPick: () => void; onPlace: () => void;
+}) => {
+  const ref = useScrollIntoView(on);
   return (
-    <div className="admin-panel__body admin-panel__items">
-      <div className="admin-panel__categories">
-        {(meta ? meta.categories : []).map((c) => (
-          <button key={c.id} className={'admin-panel__category' + (c.id === cat && !q && view === 'catalog' ? ' admin-panel__category--on' : '')} onClick={() => { setCat(c.id); setSearch(''); setView('catalog'); }}>
-            {c.label} <span className="admin-panel__count">{c.count}</span>
-          </button>
-        ))}
-      </div>
-      {pane}
+    <div ref={ref} className={'admin-panel__row admin-panel__row--clickable' + (picked ? ' admin-panel__row--selected' : '') + (on ? ' admin-panel__row--cursor' : '')}
+      onClick={onPick} onDoubleClick={onPlace}>
+      <button className={'admin-panel__star' + (fav ? ' admin-panel__star--on' : '')} title={fav ? 'Remove from favourites' : 'Add to favourites'}
+        onClick={(e) => { e.stopPropagation(); onFav(); }}>{fav ? '\u2605' : '\u2606'}</button>
+      <span className="admin-panel__cell admin-panel__cell--name">{r.name}</span>
+      {cat ? <span className="admin-panel__cell admin-panel__cell--discord">{cat}</span> : null}
+      <span className="admin-panel__cell admin-panel__cell--discord">{r.plugin.replace(/\.(esp|esm|esl)$/i, '')}</span>
     </div>
   );
 };
