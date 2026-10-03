@@ -1818,6 +1818,8 @@ if (globalThis.__dboLoginWaits) { for (const t of globalThis.__dboLoginWaits.val
 globalThis.__dboLoginWaits = new Map();
 const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
+  // itemguards.js: the pack against the one written down at the last logout, before anything is handed out at login
+  try { if (globalThis.__dboItemLogin) globalThis.__dboItemLogin(a); } catch (e) { log('item relog check failed', e.message); }
   // A crash mid-transform leaves the beast race stored; put the real one back before anything reads it
   try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, 'login'); } catch (e) { log('beast revert on login failed', e.message); }
   try { if (globalThis.__dboSuperLogin) globalThis.__dboSuperLogin(a); } catch (e) { log('supernatural login failed', e.message); }
@@ -1929,7 +1931,7 @@ globalThis.__dboHandlers.disconnect = (userId) => {
   if (a && globalThis.__dboDungeonLeave) { try { globalThis.__dboDungeonLeave(a); } catch (e) { log('dungeon logout move failed', e.message); } }
   if (a && globalThis.__dboPartyLogout) { try { globalThis.__dboPartyLogout(a); } catch (e) { log('party logout failed', e.message); } }
   // What a UI said it can draw, and a deity offer already made, belong to this session (review C6, PRAY-1)
-  for (const k of ['__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave', '__dboLabourLeave', '__dboPrayerLeave', '__dboSkinLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
+  for (const k of ['__dboItemLeave', '__dboBankLeave', '__dboRobLeave', '__dboDeityForget', '__dboPanelLeave', '__dboManualsLeave', '__dboLabourLeave', '__dboPrayerLeave', '__dboSkinLeave']) { if (a && typeof globalThis[k] === 'function') { try { globalThis[k](a); } catch (e) { log(`${k} failed`, e.message); } } }
   connected.delete(userId);
   const wait = globalThis.__dboLoginWaits.get(userId);
   if (wait) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); }
