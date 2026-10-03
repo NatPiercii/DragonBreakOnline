@@ -72,6 +72,7 @@ declare -A NEEDS=(
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
   [staff-mastery]=server:skymp5-server/ts/systems/masterySystem.ts
+  [mastery-killing-blow]=server:skymp5-server/ts/systems/masterySystem.ts
   [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
   [mastery-boost]=server:skymp5-server/ts/systems/masterySystem.ts
   [skill-waning]=server:skymp5-server/ts/systems/masterySystem.ts

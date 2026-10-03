@@ -149,6 +149,20 @@
     ]
   },
   {
+    "title": "The killing blow counts",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "Archery and the other weapon skills now count the blow that kills, so a bow that drops an enemy in two shots earns both shots."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Founding a faction",
     "date": "SHIP_DATE",
     "version": "Server update",

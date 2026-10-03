@@ -9,6 +9,12 @@
 //    editor id never drops.
 //   node tests/ayleid-loot-harness.js   (from server/)
 'use strict';
+// Seeded rolls (mulberry32), so a rate check is the same on every run: an unseeded one missed its threshold now and then
+// (10.3% strong against < 10%, 3 Oct). AYLEID_SEED picks another sequence.
+{
+  let t = (Number(process.env.AYLEID_SEED) || 0x1003) >>> 0;
+  Math.random = () => { t = (t + 0x6d2b79f5) >>> 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+}
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
