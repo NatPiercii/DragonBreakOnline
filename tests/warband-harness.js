@@ -39,6 +39,8 @@ require(MODULE)({
     get: (id, k) => { if (destroyed.has(id)) throw new Error('gone'); if (k === 'pos') return [1000, 2000, 300]; if (k === 'angle') return [0, 0, 90]; if (k === 'isDead') return dead.has(id); return undefined; },
     getIdFromDesc: (d) => parseInt(d, 16),
     destroyActor: (id) => destroyed.add(id),
+    // Unaggressive records (AIDT 0), so settle settles them; warband-settle-harness tests the aggression rules
+    lookupEspmRecordById: () => ({ record: { type: 'NPC_', fields: [{ type: 'AIDT', data: new Uint8Array([0]) }] }, toGlobalRecordId: (x) => x }),
   },
   log: () => {}, personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => `#${a}`, isAdmin: (a) => a === GM,
   registerChatCommand: (n, fn) => { commands[n] = fn; }, findByName: (q) => (q === 'Target' ? TARGET : 0), cfg: {},
@@ -77,7 +79,7 @@ run(GM, 'raise bandit chief 2');
 r = run(GM, 'settle');
 check('settle leaves them friendly', /stays here as friendly NPCs/.test(r) && [...companions.values()].filter((c) => c.released && !c.hostile).length === 2);
 r = run(GM, 'clear', 'raid');
-check('/raid clear removes every standing raider and settler', /Removed 14/.test(r) && destroyed.size === 14, r);
+check('/raid clear removes every standing raider and settler, and the dead', /Removed 16/.test(r) && destroyed.size === 16, r);
 
 run(GM, 'raise bandit chief 2');
 const before = companions.size;

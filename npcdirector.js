@@ -13,7 +13,9 @@
 // server distance, so a modified client cannot claim NPCs from afar (review 2026-09-25). Without mp.setHoster (an
 // older build) the director does nothing and refuses nothing.
 //
-// Left alone: companions and summons (companionSystem gives them to their owner), dead NPCs, player characters.
+// Left alone: companions and summons (companionSystem gives them to their owner), dead NPCs, player characters. A GM's
+// unleashed warband raider is the exception: it is driven by the player nearest it other than its GM (warband.js
+// __dboWarbandAvoidHost). While its GM is the only one near it, a GM who drives it keeps it and is not given it anew.
 // Config "npcDirector": { mode: "on" | "shadow" | "off" }. shadow logs the decisions without applying them.
 
 module.exports = (api) => {
@@ -44,6 +46,9 @@ module.exports = (api) => {
     S.sight.set(a >>> 0, { at: Date.now(), dist });
   });
 
+  // warband.js: the GM who unleashed this raider, never chosen to drive it while anyone else near it can; 0 for any other NPC
+  const avoidOf = (npc) => { try { return typeof globalThis.__dboWarbandAvoidHost === 'function' ? Number(globalThis.__dboWarbandAvoidHost(npc)) >>> 0 : 0; } catch (e) { return 0; } };
+
   const managed = (npc) => {
     try {
       // A form the server destroyed that a client still reports (gamemode.js formExists): the director steps aside,
@@ -53,7 +58,8 @@ module.exports = (api) => {
       if (mp.get(npc, 'isDead') === true) return false;
       const owner = mp.get(npc, 'ff_companionOf');
       if (owner && Number(owner) !== 0) return false;
-      if (mp.get(npc, 'private.dboCompanion')) return false;
+      // An unleashed warband raider is the one tagged NPC driven from here, so it goes to a player other than its GM
+      if (mp.get(npc, 'private.dboCompanion')) return !!avoidOf(npc);
       return true;
     } catch (e) { return false; }
   };
@@ -82,14 +88,18 @@ module.exports = (api) => {
         let l = seenBy.get(npc); if (!l) seenBy.set(npc, l = []); l.push([p, Number(v.dist) || 0]);
       }
     }
-    for (const [npc, seers] of seenBy) {
+    for (const [npc, seen] of seenBy) {
       if (now - (S.changedAt.get(npc) || 0) < C.changeEveryMs) continue;
       if (!managed(npc)) continue;
+      const avoid = avoidOf(npc);
+      const seers = avoid ? seen.filter(([p]) => p !== avoid) : seen;
+      if (!seers.length) continue;
       let current = 0; try { current = mp.getHoster(npc) >>> 0; } catch (e) { continue; }
       seers.sort((x, y) => x[1] - y[1]);
       const [best, bestD] = seers[0];
       if (current === best) continue;
-      if (current && online.has(current)) {
+      // The raider's own GM gives it up to anyone near it, however near the GM is
+      if (current && online.has(current) && current !== avoid) {
         if (!reports(current)) continue;                       // an older client keeps what it hosts
         const mine = seers.find(([p]) => p === current);
         if (mine && mine[1] <= bestD * C.holdFactor + C.holdUnits) continue;   // still has it, nobody clearly nearer
