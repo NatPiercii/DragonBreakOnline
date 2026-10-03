@@ -58,6 +58,8 @@ html = render(PlayerCare, { events, who: '', selfId: 'ff000010', name: 'You', ma
 check('acting on yourself shows your own schools', /Primary school/.test(text(html)));
 html = render(PlayerCare, { events, who: 'ff000014', selfId: 'ff000010', name: 'Mira Valen', masteryTarget: { name: 'Mira Valen', target: 'ff000014', detail: Object.assign({}, detail, { schools: undefined }) }, canSpawn: true });
 check('an older server with no schools says so', /sends no school levels/.test(text(html)));
+html = render(PlayerCare, { events, who: 'ff000014', selfId: 'ff000010', name: 'Mira Valen', masteryTarget: { name: 'Mira Valen', target: 'ff000014', detail: Object.assign({}, detail, { schools: [] }) }, canSpawn: true });
+check('a character with no school opened reads Not a mage yet', /Not a mage yet/.test(text(html)) && !/sends no school levels/.test(text(html)));
 check('a plain GM sees no character care at all', render(PlayerCare, { events, who: 'ff000014', selfId: '', name: 'Mira', masteryTarget: { name: 'Mira', target: 'ff000014', detail }, canSpawn: false }) === '');
 
 // Powers: no disease row any more, and nothing to press for a plain GM
