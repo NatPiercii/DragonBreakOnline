@@ -47,6 +47,7 @@ const HOUSING_PROP = "private.housing";
 // N3 places: the migration plan written by the dry run, for review (runtime, beside housing.json)
 const PLACE_PLAN_FILE = "./housing-places-plan.json";
 const PLACE_BACKUP_PREFIX = "./housing-places-backup-";
+const GAMEMODE_CONFIG_FILE = "./gamemode-config.json";
 const PLACE_PLAN_DELAY_MS = 30000;
 const PLACE_PLAN_MAX_TRIES = 10;
 const OWNER_INDEX_PROP = "private.indexed.housingOwner";
@@ -158,6 +159,7 @@ export class HousingSystem implements System {
     // N3 places: "dryrun" (the default) logs and writes the migration plan once after boot and changes nothing; "off" skips it
     // "apply" (set by Nate) also writes the plan into the records, once, after a backup
     const mode = String(all?.["housingPlaceMigration"] ?? "dryrun");
+    this.staffSetting = Array.isArray(all?.["housingStaffProfiles"]) ? (all!["housingStaffProfiles"] as unknown[]).map(Number).filter((p) => p > 0) : [];
     this.placeMigration = mode === "off" ? "off" : mode === "apply" ? "apply" : "dryrun";
     this.initAtMs = Date.now();
 
@@ -569,6 +571,19 @@ export class HousingSystem implements System {
     const assigned = root.assigned && root.assigned[primary.toString(16)];
     if (assigned && v.profileId && assigned.profile === v.profileId) return true;
     return this.hasAccessWith(ctx, rec.memberOf, root, v);
+  }
+
+  // Staff profiles, whose claims the place migration leaves exactly as they are and the place cap never counts (Nate,
+  // 3 Oct). Owners are offline at boot, so the Discord roles cannot say; the list is gamemode-config.json
+  // housingPlaces.staffProfiles (read when the plan runs, so an edit needs no restart) and the setting housingStaffProfiles.
+  private staffProfiles(): Set<number> {
+    const out = new Set<number>(this.staffSetting);
+    try {
+      const cfg = JSON.parse(fs.readFileSync(GAMEMODE_CONFIG_FILE, "utf8"));
+      const list = cfg && cfg.housingPlaces && Array.isArray(cfg.housingPlaces.staffProfiles) ? cfg.housingPlaces.staffProfiles : [];
+      for (const p of list) if (Number(p) > 0) out.add(Number(p));
+    } catch { /* no gamemode config here */ }
+    return out;
   }
 
   // The place rules (N3) apply only once Nate sets housingPlaceMigration "apply"
@@ -1074,13 +1089,15 @@ export class HousingSystem implements System {
         cell: cellOf(primary), partnerCell: rec.partner ? cellOf(rec.partner) : "" });
     }
     if (this.claimed.length && !readable) return false;
-    const plan = planPlaces(claims, isWorld);
+    const staff = this.staffProfiles();
+    const plan = planPlaces(claims, isWorld, 1, staff);
     const hex = (n: number) => (n >>> 0).toString(16);
     this.log(`[housing] place plan (dry run, nothing changed): ${claims.length} owned claims -> ${plan.places.length} places`);
     for (const p of plan.places) {
       this.log(`[housing] place plan: ${p.ownerName} (${p.owner}) ${p.kind} ${hex(p.root)} "${p.name || ""}" cells=${p.cells.join(",")} members=${p.members.map(hex).join(",") || "-"}${p.openChests.length ? ` open chests becoming owner-only=${p.openChests.map(hex).join(",")}` : ""}`);
     }
     for (const o of plan.overCap) this.log(`[housing] place plan: ${o.ownerName} (${o.owner}) would hold ${o.places.length} places (${o.places.map(hex).join(", ")}); kept, for Nate to decide`);
+    for (const k of plan.staffKept) this.log(`[housing] place plan: staff, left as they are: ${k.ownerName} (${k.owner}) ${k.claims.map(hex).join(", ")}`);
     try { fs.writeFileSync(PLACE_PLAN_FILE, JSON.stringify({ at: new Date().toISOString(), ...plan }, null, 1)); } catch (e) { this.log(`[housing] ${PLACE_PLAN_FILE} write failed: ${e}`); }
     if (this.placeMigration === "apply") this.applyPlaces(ctx, plan.places);
     return true;
@@ -1237,6 +1254,7 @@ export class HousingSystem implements System {
   private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
   private placeMigration: "off" | "dryrun" | "apply" = "dryrun";
+  private staffSetting: number[] = [];
   private initAtMs = 0;
   private placePlanDone = false;
   private placePlanTriedMs = 0;

@@ -29,15 +29,19 @@ export interface PlannedPlace {
 
 export interface PlacePlan {
   places: PlannedPlace[];
+  // Staff owners' claims, left exactly as they are: no place, no lock change, no cap (Nate, 3 Oct: storage lent to players)
+  staffKept: Array<{ owner: number; ownerName: string; claims: number[] }>;
   // Owners left with more than one place: Nate decides; nothing is taken (they keep them, and claim nothing new)
   overCap: Array<{ owner: number; ownerName: string; places: number[] }>;
 }
 
-export const planPlaces = (claims: PlaceClaim[], isWorld: (cell: string) => boolean, cap = 1): PlacePlan => {
+export const planPlaces = (claims: PlaceClaim[], isWorld: (cell: string) => boolean, cap = 1, staff: Set<number> = new Set()): PlacePlan => {
   const interiorOf = (c: PlaceClaim): string[] => [c.cell, c.partnerCell].filter((x) => !!x && !isWorld(x));
   const byOwner = new Map<number, PlaceClaim[]>();
+  const kept = new Map<number, PlaceClaim[]>();
   for (const c of claims) {
     if (!c.owner) continue;
+    if (staff.has(c.owner)) { const k = kept.get(c.owner) || []; k.push(c); kept.set(c.owner, k); continue; }
     const list = byOwner.get(c.owner) || [];
     list.push(c);
     byOwner.set(c.owner, list);
@@ -79,5 +83,6 @@ export const planPlaces = (claims: PlaceClaim[], isWorld: (cell: string) => bool
     // A record's ownerName can be stale (a renamed character), so every name the owner's places carry is given
     if (mine.length > cap) overCap.push({ owner, ownerName: [...new Set(mine.map((p) => p.ownerName).filter(Boolean))].join(" / "), places: mine.map((p) => p.root) });
   }
-  return { places, overCap };
+  const staffKept = [...kept].map(([owner, list]) => ({ owner, ownerName: [...new Set(list.map((c) => c.ownerName).filter(Boolean))].join(" / "), claims: list.map((c) => c.ref).sort((a, b) => a - b) }));
+  return { places, overCap, staffKept };
 };
