@@ -1193,6 +1193,8 @@ mp.onActivate = (targetId, casterId) => {
   // An alchemy lab also shows what the pack can brew (alchemy.js); the lab's own menu still opens
   if (globalThis.__dboAlchemyLab) { try { globalThis.__dboAlchemyLab(targetId >>> 0, casterId >>> 0); } catch (e) { log('alchemy lab panel failed', e.message); } }
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
+  // Gear above the loot cap in a container becomes its steel equivalent before the container opens (gearswap.js)
+  if (globalThis.__dboGearSwapContainer) globalThis.__dboGearSwapContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
   if (globalThis.__dboCorpseLoot && globalThis.__dboCorpseLoot(targetId >>> 0, casterId >>> 0) === false) return false;
@@ -1836,6 +1838,8 @@ const onCharacterReady = (userId, a) => {
     else if (mp.get(a, 'private.kitPending') === true && moveToHubIfLanding(a)) log(`moved ${display(a)} from the landing point into the hub`);
     // Waking from a bed (rest.js) before the hunger stage is applied
     try { if (globalThis.__dboRestLogin) globalThis.__dboRestLogin(a); } catch (e) { log('rest login failed', e.message); }
+    // Gear above the loot cap becomes its steel equivalent, once (gearswap.js)
+    try { if (globalThis.__dboGearSwapLogin) globalThis.__dboGearSwapLogin(a); } catch (e) { log('gear swap login failed', e.message); }
     try { if (globalThis.__dboBusinessLogin) globalThis.__dboBusinessLogin(a); } catch (e) { log('business login failed', e.message); }
     try { if (globalThis.__dboJailLogin) globalThis.__dboJailLogin(a); } catch (e) { log('jail login failed', e.message); }
     needsOnConnect(a);
@@ -4186,6 +4190,12 @@ try {
   delete require.cache[ITEMGUARDS_JS];
   require(ITEMGUARDS_JS)({ mp, log, who, recordOf, cfg, personal });
 } catch (e) { log('itemguards.js failed to load:', e.stack || e.message); }
+// ---- gear above the steel loot cap swapped for steel, once per character (server\gearswap.js; Nate, 1 Oct 2026) ----
+try {
+  const GEARSWAP_JS = path.resolve('gearswap.js');
+  delete require.cache[GEARSWAP_JS];
+  require(GEARSWAP_JS)({ mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand, findByName, isStaff: isAdmin });
+} catch (e) { log('gearswap.js failed to load:', e.stack || e.message); }
 // The trade window (fork tradeSystem.ts) asks before an item changes hands: a reason for the player, or null
 globalThis.__dboTradeItemVeto = (a, baseId, count) => {
   try { return typeof globalThis.__dboManualsOwedMove === 'function' ? globalThis.__dboManualsOwedMove(Number(a) >>> 0, Number(baseId) >>> 0, Number(count)) || null : null; } catch (e) { return null; }
