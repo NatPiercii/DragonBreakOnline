@@ -2,6 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { notifyNextUpdate } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuHotkeyBlocked, isGameInputBlocked } from "./widgetMenuUtil";
 import { RestraintService } from "./restraintService";
+import { emoteNote } from "./emoteDiag";
 import { BrowserService } from "./browserService";
 import { parseCustomPacket } from "./customPacketUtil";
 import { ConnectionMessage } from "../events/connectionMessage";
@@ -192,6 +193,10 @@ export class EmoteService extends ClientListener {
         if (this.probeAnim && ctx.animEventName === this.probeAnim) {
           this.probeSucceeded = ctx.animationSucceeded;
         }
+        if (this.diagAnim && ctx.animEventName === this.diagAnim) {
+          emoteNote(`graph ${this.diagAnim} accepted=${ctx.animationSucceeded}`);
+          this.diagAnim = "";
+        }
       },
     }, 0x14, 0x14);
   }
@@ -205,7 +210,7 @@ export class EmoteService extends ClientListener {
     }
     // Movement is real gameplay even with the interface hidden
     if (e.isDown && this.activeEmote && CANCEL_KEYS.includes(e.code) && !isGameInputBlocked(this.sp, this.controller)) {
-      this.stopActiveEmote();
+      this.stopActiveEmote(false, `movement key ${e.code}`);
     }
     if (e.code !== this.menuKey || !e.isDown || this.menuOpen) {
       return;
@@ -243,7 +248,7 @@ export class EmoteService extends ClientListener {
     }
     if (key === events.stop) {
       this.closeMenu();
-      this.stopActiveEmote(true);
+      this.stopActiveEmote(true, "the wheel's stop");
       return;
     }
     if (key === events.play) {
@@ -251,18 +256,22 @@ export class EmoteService extends ClientListener {
       // The player's own choice is never the server's idle, even when it is the same clip
       this.serverIdle = "";
       this.closeMenu();
+      emoteNote(`play ${anim || "?"} (active ${this.activeEmote || "none"})`);
       if (!this.allowedAnims.has(anim)) {
         logTrace(this, `Emote not in the catalog`, anim);
+        emoteNote(`refused ${anim || "?"}: not in the catalog`);
         return;
       }
       if (this.isPoseLocked()) {
         notifyNextUpdate(this.controller, this.sp, "You cannot use emotes while restrained.");
+        emoteNote(`refused ${anim}: restrained`);
         return;
       }
       const blocker = this.idleBlocker();
       if (blocker) {
         notifyNextUpdate(this.controller, this.sp, blocker);
         logTrace(this, `Emote refused`, anim, blocker);
+        emoteNote(`refused ${anim}: ${blocker}`);
         return;
       }
       this.playEmote(anim);
@@ -415,16 +424,22 @@ export class EmoteService extends ClientListener {
         this.activeEmote = "";
         notifyNextUpdate(this.controller, this.sp, blocker);
         logTrace(this, `Emote dropped before playing`, anim, blocker);
+        emoteNote(`dropped ${anim} before playing: ${blocker}`);
         return;
       }
+      this.diagAnim = anim;
+      this.diagSentAt = Date.now();
+      emoteNote(`sent ${anim}`);
       this.sp.Debug.sendAnimationEvent(player, anim);
       logTrace(this, `Playing emote`, anim);
     });
   }
 
-  private stopActiveEmote(graceful = false): void {
+  private stopActiveEmote(graceful = false, why = "an idle's end or a newer idle"): void {
     const anim = this.activeEmote;
     this.activeEmote = "";
+    // An emote ended within two seconds of being sent is the "nothing happens" the wheel shows: say what ended it
+    if (anim && Date.now() - this.diagSentAt < 2000) emoteNote(`stopped ${anim} after ${Date.now() - this.diagSentAt} ms by ${why}`);
     if (anim) this.exitEmote(anim, undefined, graceful);
   }
 
@@ -541,6 +556,9 @@ export class EmoteService extends ClientListener {
   private propAnims: Set<string>;
   private exitEvents = new Map<string, string>();
   private probeAnim = "";
+  // The emote last sent to the graph, for its diagnostic line (emoteNote), and when
+  private diagAnim = "";
+  private diagSentAt = 0;
   private probeSucceeded = false;
   // Generation counter: bumping it abandons any pending exit chain.
   private chainId = 0;
