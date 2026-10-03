@@ -20,8 +20,14 @@ export interface UiSettings {
   chatLettering: ChatLettering;
 }
 
-// Nate, 3 Oct (F3 Q6): vitals fade when full in the Quiet style, chat fades when idle; Hidden until T is offered only
+// Nate, 3 Oct (F3 Q6): a new player's vitals fade when full in the Quiet style and the chat fades when idle; Hidden until
+// T is offered only. Nate, 3 Oct, later: anyone who has played before keeps today's look (bars always shown in today's
+// style, chat always shown, plain lettering) until they change it.
 export const UI_DEFAULTS: UiSettings = { vitals: 'fade', vitalsStyle: 'quiet', vitalsFadeSeconds: 5, chat: 'fade', chatLettering: 'book' };
+export const EXISTING_DEFAULTS: UiSettings = { vitals: 'always', vitalsStyle: 'classic', vitalsFadeSeconds: 5, chat: 'always', chatLettering: 'plain' };
+// ui.profile in the file says which defaults a player has: 'new' or 'existing', stamped once (settleUiProfile). Without
+// one (before the chat has mounted with the file, or a file written before this) the existing player's look holds.
+export const defaultsOf = (profile: unknown): UiSettings => (profile === 'new' ? UI_DEFAULTS : EXISTING_DEFAULTS);
 
 const ONE_OF: { [K in keyof UiSettings]?: string[] } = {
   vitals: ['always', 'fade', 'hidden'], vitalsStyle: ['classic', 'quiet'], chat: ['always', 'fade', 'hidden'], chatLettering: ['book', 'plain'],
@@ -37,7 +43,8 @@ export const chatSettingsFile = (): Record<string, any> => {
 
 export const getUiSettings = (): UiSettings => {
   const raw = chatSettingsFile().ui;
-  const out: UiSettings = Object.assign({}, UI_DEFAULTS);
+  const base = defaultsOf(raw && typeof raw === 'object' ? raw.profile : undefined);
+  const out: UiSettings = Object.assign({}, base);
   if (raw && typeof raw === 'object') {
     for (const k of Object.keys(UI_DEFAULTS) as Array<keyof UiSettings>) {
       const v = raw[k];
@@ -45,7 +52,7 @@ export const getUiSettings = (): UiSettings => {
       if (allowed ? allowed.includes(v) : typeof v === typeof UI_DEFAULTS[k]) (out as unknown as Record<string, unknown>)[k] = v;
     }
   }
-  if (!VITALS_FADE_CHOICES.includes(out.vitalsFadeSeconds)) out.vitalsFadeSeconds = UI_DEFAULTS.vitalsFadeSeconds;
+  if (!VITALS_FADE_CHOICES.includes(out.vitalsFadeSeconds)) out.vitalsFadeSeconds = base.vitalsFadeSeconds;
   return out;
 };
 
@@ -76,6 +83,30 @@ export const writeUiExtra = (key: string, value: unknown): void => {
   const file = chatSettingsFile();
   const ui = Object.assign({}, file.ui && typeof file.ui === 'object' ? file.ui : {}, { [key]: value });
   save(Object.assign({}, file, { ui }));
+};
+
+// Anything this page has kept in localStorage before (an interface size, panel sizes, voice volumes): a player who has
+// played here, even if the chat-settings file was lost
+export const hasPageTraces = (): boolean => {
+  try {
+    const ls = win().localStorage;
+    if (!ls || typeof ls.length !== 'number' || typeof ls.key !== 'function') return false;
+    for (let i = 0; i < ls.length; i++) { const k = String(ls.key(i) || ''); if (/^dbo/.test(k)) return true; }
+  } catch (e) { /* no storage: nothing to tell */ }
+  return false;
+};
+
+// Called once by the chat as it mounts with the file the client injected, before the chat writes its own values into
+// it. fileWasEmpty: the injected file had nothing in it. The chat writes its values on every mount, so any player who has
+// ever had the chat up has a file; an empty one with no page traces is a new player. Stamped once: later mounts keep it.
+export const settleUiProfile = (fileWasEmpty: boolean): string => {
+  const file = chatSettingsFile();
+  const ui = file.ui && typeof file.ui === 'object' ? file.ui : null;
+  if (ui && (ui.profile === 'new' || ui.profile === 'existing')) return ui.profile;
+  const profile = fileWasEmpty && !ui && !hasPageTraces() ? 'new' : 'existing';
+  writeUiExtra('profile', profile);
+  announceUiSettings();
+  return profile;
 };
 
 // The chat's own values: the chat applies and saves them (constructorComponents/chat listens for this event)

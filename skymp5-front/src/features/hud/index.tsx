@@ -5,7 +5,7 @@ import { journalCaps } from '../journal/tabs';
 import { UiSettings, useUiSettings } from '../../utils/uiSettings';
 
 // For tests/hud-settings-harness.js: the settings store the HUD and the chat read
-export { getUiSettings, setUiSettings, UI_DEFAULTS } from '../../utils/uiSettings';
+export { getUiSettings, setUiSettings, settleUiProfile, UI_DEFAULTS, EXISTING_DEFAULTS } from '../../utils/uiSettings';
 import '../journal/sections';
 
 // The widget object pushed through window.skyrimPlatform.widgets by the
