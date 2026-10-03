@@ -19,7 +19,8 @@
 //              silver hurts. The leader of a pack (guild-defs kind "pack") runs with the pale spirit coat. The Great
 //              Hunt (greathunt.js) sets these numbers by rank when it is loaded, and a werewolf in beast form feeds on
 //              any fresh corpse, beast or person.
-//   Cures      a filled black soul gem at a shrine of Arkay or Stendarr (/rite); each curse also ends the other.
+//   Cures      a filled black soul gem (Skyrim 02E504) offered at a shrine of Arkay or Stendarr (/rite) lifts a curse; the fever
+//              is cured by a Cure Disease potion, an ingredient whose first effect cures, or a prayer at a shrine of the Divines.
 // State: private.supernatural on the character; the Blood Crown in supernatural.json (runtime, gitignored).
 'use strict';
 
