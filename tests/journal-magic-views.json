@@ -1,0 +1,671 @@
+{
+ "teacher": {
+  "v": 1,
+  "open": true,
+  "arcane": {
+   "held": true,
+   "level": 80
+  },
+  "priest": {
+   "held": false,
+   "level": 0
+  },
+  "primary": "Destruction",
+  "secondary": "Illusion",
+  "note": "",
+  "ranks": [
+   "Novice",
+   "Apprentice",
+   "Adept",
+   "Expert",
+   "Master"
+  ],
+  "floors": [
+   1,
+   25,
+   50,
+   75,
+   90
+  ],
+  "firstSpellAt": 25,
+  "schools": [
+   {
+    "name": "Destruction",
+    "epithet": "The Art of Ruin",
+    "blurb": "Fire, frost and shock: magic that does harm.",
+    "role": "primary",
+    "roleLabel": "Primary school",
+    "level": 80,
+    "rank": "Expert",
+    "nextRank": "Master",
+    "nextAt": 90,
+    "fill": 0.8,
+    "firstSpell": {
+     "state": "made",
+     "spell": "Frostbite"
+    },
+    "allows": {
+     "maxRank": 3,
+     "maxRankName": "Expert",
+     "line": "You may read Destruction tomes up to Expert, held there by your study of Destruction."
+    },
+    "swapStartsAt": 0,
+    "recommendations": [
+     {
+      "spell": "Frost Flames",
+      "school": "Destruction",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Flames",
+      "school": "Destruction",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Sparks",
+      "school": "Destruction",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     }
+    ]
+   },
+   {
+    "name": "Illusion",
+    "epithet": "The Art of the Mind",
+    "blurb": "The minds of others: fear and calm, courage and fury, and silence for oneself.",
+    "role": "secondary",
+    "roleLabel": "Secondary school",
+    "level": 33,
+    "rank": "Apprentice",
+    "nextRank": "Adept",
+    "nextAt": 50,
+    "fill": 0.33,
+    "firstSpell": {
+     "state": "made",
+     "spell": "Courage"
+    },
+    "allows": {
+     "maxRank": 1,
+     "maxRankName": "Apprentice",
+     "line": "You may read Illusion tomes up to Apprentice, held there by your study of Illusion."
+    },
+    "swapStartsAt": 0,
+    "recommendations": [
+     {
+      "spell": "Clairvoyance",
+      "school": "Illusion",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Fury",
+      "school": "Illusion",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Trap Detect",
+      "school": "Illusion",
+      "rank": 1,
+      "rankName": "Apprentice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     }
+    ]
+   },
+   {
+    "name": "Conjuration",
+    "epithet": "The Art of Summoning",
+    "blurb": "Daedra called from Oblivion, weapons bound from nothing, and the dead raised to serve.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Bound Sword or Conjure Familiar"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 40,
+    "recommendations": []
+   },
+   {
+    "name": "Alteration",
+    "epithet": "The Art of Change",
+    "blurb": "The world bent to the will: skin as hard as stone, light from nothing, things moved without a hand.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Oakflesh or Candlelight"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 40,
+    "recommendations": []
+   },
+   {
+    "name": "Restoration",
+    "epithet": "The Art of Healing",
+    "blurb": "Healing, wards against magic, and the turning of the undead: the priest's school, learned through Priest.",
+    "role": "closed",
+    "roleLabel": "Opens with Priest",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Healing"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Take up Priest to study Restoration."
+    },
+    "swapStartsAt": 0,
+    "recommendations": []
+   }
+  ],
+  "book": {
+   "max": 3,
+   "canPrepare": true,
+   "hint": "",
+   "prepared": [
+    {
+     "id": "2b96b:Skyrim.esm",
+     "name": "Frostbite",
+     "school": "Destruction",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    },
+    {
+     "id": "4dee8:Skyrim.esm",
+     "name": "Courage",
+     "school": "Illusion",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    }
+   ],
+   "known": [
+    {
+     "id": "2b96b:Skyrim.esm",
+     "name": "Frostbite",
+     "school": "Destruction",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    },
+    {
+     "id": "4dee8:Skyrim.esm",
+     "name": "Courage",
+     "school": "Illusion",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    }
+   ],
+   "outside": []
+  },
+  "swap": {
+   "enabled": true,
+   "can": true,
+   "why": "",
+   "nextAt": 0,
+   "cooldownDays": 7,
+   "startShare": 0.5,
+   "where": "At a Scholars' Ledger or a Study Magic shelf"
+  }
+ },
+ "priest": {
+  "v": 1,
+  "open": true,
+  "arcane": {
+   "held": false,
+   "level": 0
+  },
+  "priest": {
+   "held": true,
+   "level": 25
+  },
+  "primary": "",
+  "secondary": "",
+  "note": "Your first spell and your school of magic open at Arcane Arts 25; yours is 0. Study Magic at a place of learning, or cast what you know, to get there.",
+  "ranks": [
+   "Novice",
+   "Apprentice",
+   "Adept",
+   "Expert",
+   "Master"
+  ],
+  "floors": [
+   1,
+   25,
+   50,
+   75,
+   90
+  ],
+  "firstSpellAt": 25,
+  "schools": [
+   {
+    "name": "Destruction",
+    "epithet": "The Art of Ruin",
+    "blurb": "Fire, frost and shock: magic that does harm.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Flames, Sparks or Frostbite"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 0,
+    "recommendations": []
+   },
+   {
+    "name": "Illusion",
+    "epithet": "The Art of the Mind",
+    "blurb": "The minds of others: fear and calm, courage and fury, and silence for oneself.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Courage or Fury"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 0,
+    "recommendations": []
+   },
+   {
+    "name": "Conjuration",
+    "epithet": "The Art of Summoning",
+    "blurb": "Daedra called from Oblivion, weapons bound from nothing, and the dead raised to serve.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Bound Sword or Conjure Familiar"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 0,
+    "recommendations": []
+   },
+   {
+    "name": "Alteration",
+    "epithet": "The Art of Change",
+    "blurb": "The world bent to the will: skin as hard as stone, light from nothing, things moved without a hand.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Oakflesh or Candlelight"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 0,
+    "recommendations": []
+   },
+   {
+    "name": "Restoration",
+    "epithet": "The Art of Healing",
+    "blurb": "Healing, wards against magic, and the turning of the undead: the priest's school, learned through Priest.",
+    "role": "priest",
+    "roleLabel": "Through Priest",
+    "level": 25,
+    "rank": "Apprentice",
+    "nextRank": "Adept",
+    "nextAt": 50,
+    "fill": 0.25,
+    "firstSpell": {
+     "state": "made",
+     "spell": "Healing"
+    },
+    "allows": {
+     "maxRank": 1,
+     "maxRankName": "Apprentice",
+     "line": "You may read Restoration tomes up to Apprentice, held there by Priest."
+    },
+    "swapStartsAt": 0,
+    "recommendations": [
+     {
+      "spell": "Insect Swarm",
+      "school": "Restoration",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Lesser Ward",
+      "school": "Restoration",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Fast Healing",
+      "school": "Restoration",
+      "rank": 1,
+      "rankName": "Apprentice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     }
+    ]
+   }
+  ],
+  "book": {
+   "max": 3,
+   "canPrepare": true,
+   "hint": "",
+   "prepared": [
+    {
+     "id": "12fcc:Skyrim.esm",
+     "name": "Healing",
+     "school": "Restoration",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    }
+   ],
+   "known": [
+    {
+     "id": "12fcc:Skyrim.esm",
+     "name": "Healing",
+     "school": "Restoration",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    }
+   ],
+   "outside": [
+    {
+     "id": "12fcd:Skyrim.esm",
+     "name": "Flames",
+     "school": "Destruction",
+     "rank": 0,
+     "rankName": "Novice"
+    }
+   ]
+  },
+  "swap": {
+   "enabled": true,
+   "can": false,
+   "why": "You have no school of magic to change yet.",
+   "nextAt": 0,
+   "cooldownDays": 7,
+   "startShare": 0.5,
+   "where": "At a Scholars' Ledger or a Study Magic shelf"
+  }
+ },
+ "mage": {
+  "v": 1,
+  "open": true,
+  "arcane": {
+   "held": true,
+   "level": 40
+  },
+  "priest": {
+   "held": false,
+   "level": 0
+  },
+  "primary": "Destruction",
+  "secondary": "",
+  "note": "",
+  "ranks": [
+   "Novice",
+   "Apprentice",
+   "Adept",
+   "Expert",
+   "Master"
+  ],
+  "floors": [
+   1,
+   25,
+   50,
+   75,
+   90
+  ],
+  "firstSpellAt": 25,
+  "schools": [
+   {
+    "name": "Destruction",
+    "epithet": "The Art of Ruin",
+    "blurb": "Fire, frost and shock: magic that does harm.",
+    "role": "primary",
+    "roleLabel": "Primary school",
+    "level": 40,
+    "rank": "Apprentice",
+    "nextRank": "Adept",
+    "nextAt": 50,
+    "fill": 0.4,
+    "firstSpell": {
+     "state": "made",
+     "spell": "Sparks"
+    },
+    "allows": {
+     "maxRank": 1,
+     "maxRankName": "Apprentice",
+     "line": "You may read Destruction tomes up to Apprentice, held there by your study of Destruction."
+    },
+    "swapStartsAt": 0,
+    "recommendations": [
+     {
+      "spell": "Frost Flames",
+      "school": "Destruction",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Flames",
+      "school": "Destruction",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     },
+     {
+      "spell": "Frostbite",
+      "school": "Destruction",
+      "rank": 0,
+      "rankName": "Novice",
+      "where": "Sold by the Synod in Bruma (members of the Synod or a College)"
+     }
+    ]
+   },
+   {
+    "name": "Illusion",
+    "epithet": "The Art of the Mind",
+    "blurb": "The minds of others: fear and calm, courage and fury, and silence for oneself.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Courage or Fury"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 20,
+    "recommendations": []
+   },
+   {
+    "name": "Conjuration",
+    "epithet": "The Art of Summoning",
+    "blurb": "Daedra called from Oblivion, weapons bound from nothing, and the dead raised to serve.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Bound Sword or Conjure Familiar"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 20,
+    "recommendations": []
+   },
+   {
+    "name": "Alteration",
+    "epithet": "The Art of Change",
+    "blurb": "The world bent to the will: skin as hard as stone, light from nothing, things moved without a hand.",
+    "role": "closed",
+    "roleLabel": "Closed",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Oakflesh or Candlelight"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Not one of your schools: its tomes will not settle."
+    },
+    "swapStartsAt": 20,
+    "recommendations": []
+   },
+   {
+    "name": "Restoration",
+    "epithet": "The Art of Healing",
+    "blurb": "Healing, wards against magic, and the turning of the undead: the priest's school, learned through Priest.",
+    "role": "closed",
+    "roleLabel": "Opens with Priest",
+    "level": 0,
+    "rank": "",
+    "nextRank": "Novice",
+    "nextAt": 1,
+    "fill": 0,
+    "firstSpell": {
+     "state": "closed",
+     "at": 25,
+     "spells": "Healing"
+    },
+    "allows": {
+     "maxRank": -1,
+     "maxRankName": "",
+     "line": "Take up Priest to study Restoration."
+    },
+    "swapStartsAt": 0,
+    "recommendations": []
+   }
+  ],
+  "book": {
+   "max": 3,
+   "canPrepare": true,
+   "hint": "",
+   "prepared": [
+    {
+     "id": "2dd2a:Skyrim.esm",
+     "name": "Sparks",
+     "school": "Destruction",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    }
+   ],
+   "known": [
+    {
+     "id": "2dd2a:Skyrim.esm",
+     "name": "Sparks",
+     "school": "Destruction",
+     "rank": 0,
+     "rankName": "Novice",
+     "prepared": true
+    }
+   ],
+   "outside": []
+  },
+  "swap": {
+   "enabled": true,
+   "can": true,
+   "why": "",
+   "nextAt": 0,
+   "cooldownDays": 7,
+   "startShare": 0.5,
+   "where": "At a Scholars' Ledger or a Study Magic shelf"
+  }
+ }
+}

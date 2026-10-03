@@ -274,6 +274,40 @@ if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.settings) {
   }
 }
 
+// ---- the Magic tab (L4's schools.js __dboMagicView; piece H7). The sample is that view's shape on magic-flow-2 ----------
+if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.magic) {
+  require('./expect')('journal-front', 'this front has no Magic tab');
+  console.log('ok   (this front has no Magic tab yet: its checks are skipped)');
+} else {
+  const M = JSON.parse(fs.readFileSync(path.join(__dirname, 'journal-magic-sample.json'), 'utf8'));
+  const mData = (sec) => ({ type: 'journal', id: 50, nonce: 'm1', hub: 1, tab: 'magic', tabs: [{ id: 'profile', label: 'Profile' }, { id: 'magic', label: 'Magic' }],
+    head: { name: 'Aela', title: 'Apprentice Mage', race: 'Nord' }, magic: sec });
+  html = render(Journal, { data: mData(M) });
+  t = text(html);
+  check('Magic: five schools, Enchanting not among them, in the journal\'s violet', (html.match(/class="jmagic__school /g) || []).length === 5 && !/Enchant/.test(t) && /journal__body--magic" data-domain="dragonbreak"/.test(html));
+  check('...each with its level and role (primary, secondary, resting, closed, through Priest)', /Alteration 12 Secondary school/.test(t) && /Conjuration Closed/.test(t) && /Illusion 18 Resting/.test(t) && /Restoration 12 Through Priest/.test(t));
+  check('...the primary school open first: Destruction, the Art of Ruin, 27 / 100 Apprentice, Adept at 50', /jmagic__title">Destruction</.test(html) && /The Art of Ruin/.test(t) && /27 \/ 100 Apprentice/.test(t) && /Adept at 50/.test(t));
+  check('...what the rank really allows (no magicka cost bonus anywhere)', /You may read Destruction tomes up to Apprentice/.test(t) && !/magicka cost|-10%|-50%/i.test(t));
+  check('...a first spell to choose: Flames, Sparks, Frostbite, each with its line', /Choose your first spell/.test(t) && /Flames A stream of fire/.test(t) && /Sparks Lightning/.test(t) && /Frostbite A stream of frost/.test(t) && (html.match(/>Choose</g) || []).length === 3);
+  check('...the next tomes, with where they are sold', /Next tomes for you/.test(t) && /Firebolt Apprentice Sold by the Synod in Bruma/.test(t) && /Ice Spike Apprentice Sold in Skyrim/.test(t));
+  check('Prepared 1 / 3, read only away from a ledger, saying where to change them', /Prepared \(1 \/ 3\)/.test(t) && /Change your prepared spells at a Scholars\' Ledger or in a college\./.test(t) && !/>Prepare<|>Put away</.test(html));
+  check('Known spells: rank chips instead of a dropdown, the spells, one known without study', /All Novice Apprentice Adept Expert Master/.test(t) && !/<select/.test(html) && /Courage Illusion Novice/.test(t) && /Ancestor.s Wrath Destruction Novice known without study/.test(t));
+  const ledger = JSON.parse(JSON.stringify(M)); ledger.book.canPrepare = true;
+  html = render(Journal, { data: mData(ledger) });
+  check('at a ledger: Put away on the prepared, Prepare on the others, none on a spell known without study', (html.match(/>Put away</g) || []).length === 2 && (html.match(/>Prepare</g) || []).length === 2);
+  html = render(Journal, { data: mData({ v: 1, open: false }) });
+  check('a player off the Wheel: what opens Magic', /Magic opens with Arcane Arts or Priest/.test(text(html)));
+  // Views schools.js really built (magic-flow-2 886acc1d, its own harness's characters: a teacher, a priest, a mage)
+  const real = JSON.parse(fs.readFileSync(path.join(__dirname, 'journal-magic-views.json'), 'utf8'));
+  for (const who of Object.keys(real)) {
+    let out = '';
+    try { out = text(render(Journal, { data: mData(real[who]) })); } catch (e) { out = 'THREW ' + e.message; }
+    check(`a view schools.js built (${who}) draws: its schools and its book`, !/THREW/.test(out) && (real[who].schools || []).every((x) => out.includes(x.name)) && /Prepared \(\d \/ 3\)/.test(out), out.slice(0, 300));
+  }
+  const msrc = FRONT_SRC('features/journal/tabs/MagicTab.tsx');
+  if (msrc) check('...the actions: journalMagic firstSpell <school> <spell>, prepare and unprepare <spell>', /act\('journalMagic', 'firstSpell', s\.name, c\.id\)/.test(msrc) && /act\('journalMagic', sp\.prepared \? 'unprepare' : 'prepare', sp\.id\)/.test(msrc));
+}
+
 // ---- a payload from the server's own harness (JOURNAL_SAMPLE=<file>, written by journal-harness.js) ------------------
 if (process.env.JOURNAL_SAMPLE && fs.existsSync(process.env.JOURNAL_SAMPLE)) {
   const sample = JSON.parse(fs.readFileSync(process.env.JOURNAL_SAMPLE, 'utf8'));
