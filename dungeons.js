@@ -1269,6 +1269,7 @@ module.exports = (api) => {
     return e || null;
   };
   globalThis.__dboDungeonLeave = (a) => {
+    ST.pending.delete(a);
     if (!C.enabled) return false;
     try {
       const d = dungeonAround(a); if (!d) return false;
@@ -1390,7 +1391,7 @@ module.exports = (api) => {
         return deny(casterId, `${d.name} still rests for ${names.join(', ')}. Claim it without them, or come back in ${minutesLeft(until)} minutes.`, `${d.id} rests for party member(s) ${resting.join(', ')}`);
       }
       const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}`;
-      ST.pending.set(casterId, { nonce, dungeonId: d.id, entrance });
+      ST.pending.set(casterId, { nonce, dungeonId: d.id, entrance, at: Date.now() });
       const partyNames = partyMembers(pid).filter((x) => x !== pid).map((x) => { const a = actorByProfile(x); return a ? nameOf(a) : `#${x}`; });
       // A boss dungeon is built for a party, not a raid (Nate, 2026-09-28); config dungeons.raid.bossDungeonMax (0: no cap)
       const cap = d.expedition && !isRaidRuin(d) ? Number(RAID.bossDungeonMax) || 0 : 0;
@@ -1454,8 +1455,35 @@ module.exports = (api) => {
   // gate panel keeps the activation refused); putting them back at the entrance finishes it. For Cancel and a refused claim
   const putBack = (a, p, why) => {
     const e = p && p.entrance && Array.isArray(p.entrance.pos) && !p.entrance.expedition ? p.entrance : null;
-    if (e && teleport(a, e.world || e.cell, e.pos, e.rot)) log(`${display(a)} ${why} at ${p.dungeonId}; put back at the entrance`);
+    if (!e || !gateFree(a, p)) return;
+    if (teleport(a, e.world || e.cell, e.pos, e.rot)) log(`${display(a)} ${why} at ${p.dungeonId}; put back at the entrance`);
   };
+  // A gate panel answer counts only from a player still at that entrance, not held, carried or serving a sentence
+  const GATE_PENDING_MS = 5 * 60000;
+  const gateFree = (a, p) => {
+    if (!p || !atEntrance(a, p.entrance)) return false;
+    try {
+      const r = mp.get(a, 'private.restrained');
+      if (r && (r.boundHands || r.carried || r.captorActorId)) return false;
+      return !mp.get(a, 'private.dboSentence');
+    } catch (e) { return false; }
+  };
+  // A pending gate ends at logout, once its player is no longer free at the entrance, and after GATE_PENDING_MS; a
+  // player who simply waited is put back first, so an automatic door's load never stays open
+  every('dungeons.gates', 5000, () => {
+    const online = new Set(onlineActors());
+    const now = Date.now();
+    for (const [a, p] of [...ST.pending]) {
+      if (!p.at) p.at = now;
+      const free = online.has(a) && gateFree(a, p);
+      if (free && now - p.at <= GATE_PENDING_MS) continue;
+      ST.pending.delete(a);
+      if (!online.has(a)) continue;
+      closeWidget(a, GATE_WIDGET_ID);
+      if (free) putBack(a, p, 'let the gate lapse');
+      log(`dungeon gate for ${who(a)} at ${p.dungeonId} closed: ${free ? 'not answered in time' : 'no longer free at the entrance'}`);
+    }
+  });
   const PARTY_HINT = 'To go in together, party up with /party invite before anyone claims it.';
   onUi('dungeonClaim', (a, args) => {
     const p = ST.pending.get(a); if (!p || String(args[0]) !== p.nonce) return;
@@ -1475,7 +1503,10 @@ module.exports = (api) => {
     startLease(a, d, p.entrance, diff);
   });
   const turnBack = (a) => { const p = ST.pending.get(a); ST.pending.delete(a); putBack(a, p, 'turned back'); };
-  onUi('dungeonCancel', (a) => { turnBack(a); closeWidget(a, GATE_WIDGET_ID); });
+  onUi('dungeonCancel', (a, args) => {
+    const p = ST.pending.get(a); if (!p || String((args || [])[0]) !== p.nonce) return;
+    turnBack(a); closeWidget(a, GATE_WIDGET_ID);
+  });
 
   // ---- expeditions from the Synod Conclave ----------------------------------------------------------
   const EXPEDITION_WIDGET_ID = 63;
