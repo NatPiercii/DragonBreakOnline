@@ -4597,7 +4597,7 @@ mp.onHostAttempt = hostAttemptHook;
 // would credit nobody: MASTERY_MIN_HEALTH keeps the bonus from landing the killing blow, and the
 // engine's next hit takes it with the killer intact.
 // Tunable in gamemode-config.json under "mastery": { "damage": { ... } }; byTier is indexed by rank
-// (0 Novice .. 4 Master) and matches what skills.json advertises: +35/+65/+100% from Journeyman.
+// (0 Novice .. 4 Master) and matches what skills.json advertises: +35/+65/+100% from Adept.
 const MASTERY_DMG = Object.assign({ enabled: true, byTier: [0, 0, 0.35, 0.65, 1.0], log: true },
   ((cfg.mastery || {}).damage) || {});
 const MASTERY_MIN_HEALTH = 0.01;

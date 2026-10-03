@@ -19,7 +19,7 @@ ok(at('13954:Skyrim.esm') && at('13954:Skyrim.esm')[0] === 'smelter' && mats('13
 ok(at('1399f:Skyrim.esm') && at('1399f:Skyrim.esm')[0] === 'smelter' && at('1399f:Skyrim.esm')[1] === 0, 'Elven Greatsword: the smelter, Novice', at('1399f:Skyrim.esm'));
 ok(at('1399c:Skyrim.esm') && at('30006b:BSHeartland.esm') && at('1399c:Skyrim.esm')[1] === 0 && at('30006b:BSHeartland.esm')[1] === 0, 'both Elven Battleaxes (Skyrim and Beyond Skyrim) break down alike at Novice', [at('1399c:Skyrim.esm'), at('30006b:BSHeartland.esm')]);
 const glass = Object.entries(items).filter(([, v]) => v[0] === 'smelter' && (names[v[2][0][0]] || '') === 'IngotMalachite');
-ok(glass.length && glass.every(([, v]) => v[1] >= 2), 'glass stays gated (Journeyman)', glass.slice(0, 2));
+ok(glass.length && glass.every(([, v]) => v[1] >= 2), 'glass stays gated (Adept)', glass.slice(0, 2));
 ok(at('300071:BSHeartland.esm') && at('300071:BSHeartland.esm')[0] === 'smelter' && at('300071:BSHeartland.esm')[1] === 0 && mats('300071:BSHeartland.esm')[0][0] === 'IngotIMoonstone', 'Beyond Skyrim Elven War Axe: covered, moonstone first', at('300071:BSHeartland.esm'));
 ok(at('30006b:BSHeartland.esm') && at('300078:BSHeartland.esm'), 'Beyond Skyrim Elven Battleaxe and Glass Sword: covered');
 const sentinel = Object.keys(items).filter((d) => /:Sentinel\.esp$/.test(d));
