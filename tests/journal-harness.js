@@ -196,6 +196,24 @@ check('a faction answer while the journal is open redraws its Faction tab, same 
 check('...and with the journal closed it is not taken (panel 37 opens)', globalThis.__dboJournalFaction(NOCAP, { type: 'faction' }) === false);
 check('/faction opens the journal on its Faction tab for a journal client', globalThis.__dboJournalOpenTab(P, 'faction') === true && last(P).w.tab === 'faction' && last(P).focus === true);
 check('...and not for an older client (panel 37 as before)', globalThis.__dboJournalOpenTab(NOCAP, 'faction') === false);
+// ---- the Magic section (schools.js __dboMagicView, specs/f3-hub-design.md 3.3), for a hub front only ----
+check('today\'s journal front gets no Magic section', last(P).w.magic === undefined);
+const magicCalls = [];
+globalThis.__dboMagicView = () => ({ v: 1, open: true, schools: [] });
+globalThis.__dboMagicAction = (a, op, args) => { magicCalls.push([a, op, args]); return { ok: true, text: 'You learn Fury, your first spell of Illusion.' }; };
+caps.get(P).add('journalHub');
+globalThis.__dboJournalOpenTab(P, 'profile');
+check('a hub front gets the Magic section', last(P).w.magic && last(P).w.magic.open === true, last(P).w.magic);
+now += 10000;
+fire('journalMagic', P, ['stale', 'firstSpell', 'Illusion', '4deeb:Skyrim.esm']);
+check('...a stale nonce does nothing', magicCalls.length === 0);
+fire('journalMagic', P, [nonceOf(P), 'firstSpell', 'Illusion', '4deeb:Skyrim.esm']);
+check('...an action goes to __dboMagicAction and the answer redraws with its line', magicCalls.length === 1 && magicCalls[0][1] === 'firstSpell' && magicCalls[0][2].join() === 'Illusion,4deeb:Skyrim.esm'
+  && last(P).w.result === 'You learn Fury, your first spell of Illusion.' && last(P).w.resultKind === 'ok', [magicCalls, last(P).w.result]);
+caps.get(P).delete('journalHub'); now += 10000;
+fire('journalMagic', P, [nonceOf(P), 'prepare', '4deeb:Skyrim.esm']);
+check('...and a front without the hub sends none that count', magicCalls.length === 1);
+delete globalThis.__dboMagicView; delete globalThis.__dboMagicAction;
 const gd = fs.readFileSync('guilds.js', 'utf8');
 check('guilds.js: /faction asks the journal first; faction answers redraw the journal while it is open', /__dboJournalOpenTab\(a >>> 0, 'faction'\)\) return;/.test(gd) && /__dboJournalFaction\(a >>> 0, p\)\) return;/.test(gd) && /globalThis\.__dboFactionPayload = \(a, keepNonce\) => menuPayload\(/.test(gd));
 

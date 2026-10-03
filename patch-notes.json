@@ -132,6 +132,54 @@
     ]
   },
   {
+    "title": "Magic: A First Spell for Every School",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Your first spell, in each school",
+        "items": [
+          "When one of your schools of magic reaches 25, you choose its first spell, no tome needed: Flames, Sparks or Frostbite for Destruction; Courage or Fury for Illusion; Bound Sword or Conjure Familiar for Conjuration; Oakflesh or Candlelight for Alteration.",
+          "Restoration is the priest's school: when your Priest skill reaches 25, you can take Healing as your first Restoration spell.",
+          "Your school starts at your Arcane Arts level, so if you choose it at 25 its first spell follows straight away. A secondary school starts at 33, so its first spell comes as soon as you choose it.",
+          "The choice opens at a Study Magic shelf, at a Scholars' Ledger, or when you log in. Spells you already know aren't offered.",
+          "If you were given a first spell when you chose your school, that was your pick for that school.",
+          "Fury turns a person or creature on whoever is near them. Inside a dungeon, enemies can't hurt each other, so it does little there."
+        ]
+      },
+      {
+        "heading": "Starting spells",
+        "items": [
+          "Characters start out knowing no spells. Flames and Healing are learned like any other spell, and if you already know them you keep them."
+        ]
+      },
+      {
+        "heading": "Schools grow more slowly",
+        "items": [
+          "Schools of magic now grow at about a third of their old pace, from casting and from classes alike.",
+          "Taking a school from 25 to 50 by casting alone now takes about 13 days at the daily limit."
+        ]
+      },
+      {
+        "heading": "Changing your school",
+        "items": [
+          "You can now swap one of your schools of magic for another at a Scholars' Ledger or a Study Magic shelf, once every 7 days.",
+          "The new school starts at half the level of the one it replaces. The old school rests at its level, and if you change back later you pick it up where you left it.",
+          "Your spells stay in your spellbook and can still be prepared. You can't read the tomes of a resting school or raise it by casting.",
+          "A swap never gives you a third school."
+        ]
+      },
+      {
+        "heading": "Flesh spells protect you",
+        "items": [
+          "Oakflesh, Stoneflesh, Ironflesh and Ebonyflesh now really protect you. While one lasts, the server counts its armour (40, 60, 80 or 100) against weapon and unarmed hits, on top of what you wear.",
+          "A new Flesh spell replaces the one before it; they don't stack."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your First Spell",
     "date": "SHIP_DATE",
     "version": "Server update",

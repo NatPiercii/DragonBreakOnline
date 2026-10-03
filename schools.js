@@ -2,21 +2,36 @@
 // Lectern. Loaded by gamemode.js after spells.js, whose spellbook and spell records it reads through globalThis.
 //
 // A mage picks a primary school (Destruction, Illusion, Conjuration or Alteration); only it is active and the other three
-// are locked. The choice opens at Arcane Arts `firstSchoolAt` (25; Swag's flow, Nate 1 Oct) and gives the school's starter
-// spell (`starters`); before it, Study Magic pays Arcane Arts itself and school tomes are refused. At Arcane Arts `secondaryAtLevel` (76) one more may be chosen as the secondary, which starts at
-// `secondaryStartLevel` (33, never above the primary), and the rest lock for good. Each school is a meter of levels 0-100
+// are locked. The choice opens at Arcane Arts `firstSchoolAt` (25; Swag's flow, Nate 1 Oct); before it, Study Magic pays
+// Arcane Arts itself and school tomes are refused. At Arcane Arts `secondaryAtLevel` (76) one more may be chosen as the
+// secondary, which starts at `secondaryStartLevel` (33, never above the primary), and the rest lock for good. Each school is a meter of levels 0-100
 // on the Wheel's own curve (skillPoints.ts: flat early, steep late) and ranks by the spell names: Novice 1, Apprentice 25,
 // Adept 50, Expert 75, Master 90. A tome of a school is read only up to that school's rank (spells.js asks
 // __dboSchoolsRefusal), and Arcane Arts' own tier still caps every school (spells.js spellRankByTier).
-// Restoration is not one of the four: it stays with Priest.
+// Restoration is not one of the four: it stays with Priest, and its level is Priest's (Nate, 3 Oct).
+//
+// The first spell (Nate, 3 Oct; magic-flow-2.md): at `firstSpellAt` (25) in a school its first spell is chosen from
+// `firstSpells`, once per school, no tome needed. Restoration's comes at Priest 25. Spells the character already knows are
+// not offered; when every one is known there is no pick. At a Study Magic shelf, a Scholars' Ledger or login the pick opens
+// there (the Study Magic panel's choose mode with its `lead` line, client 0.3.75); in the field a line says where. The
+// school chosen at Arcane Arts 25 starts at 25, so its pick follows the choice at once. A mage given one of the fixed
+// starters of update-1003 (s.starter) has made that school's pick.
+// Characters do not start with Flames or Healing: they are on the vanilla Player record (7:Skyrim.esm), which DLE
+// overrides without them, and server-settings playersInheritBaseSpells is false (2026-09-20). A character who learned
+// them keeps them; nothing is stripped.
+//
+// Changing school (Nate, 3 Oct): at a Scholars' Ledger or a Study Magic shelf, an active school (primary or secondary)
+// is changed for a closed one. The new school starts at `swap.startShare` (half) of the old one's level, or at its own
+// resting level when that is higher; the old school rests at its level and changing back restores it. One change every
+// `swap.cooldownDays` (7) days. A change never opens a third school; spells of a resting school stay in the book and stay
+// preparable.
 //
 // School levels come from:
 //   casting a spell of an active school (gamemode.js castHook -> __dboSchoolsCast), repeated spells worth less, with a
 //     daily cap per school;
 //   Study Magic: a study activator (base editor id `study.edid`, or a ref in `study.refs`) plays a reading idle and pays
 //     the primary school every `tickSeconds` while the reader stays put, `minutesPerWindow` minutes per `windowHours`.
-//     Studying closes for good once a spell of the four schools is in the spellbook (the engine's own list is no guide:
-//     every race starts knowing Flames and Healing);
+//     Studying closes for good once a spell of the four schools is in the spellbook (learned through Arcane Arts);
 //   classes at a Class Lectern (base editor id `classes.edid`): a qualified teacher picks one spell they know, which sets
 //     the class's school and rank only (nobody learns it); students sign up at the same lectern. It runs `minutes` (30),
 //     teacher and students in the classroom (the lectern's interior cell, or `radiusMeters` outdoors); after it the
@@ -39,6 +54,8 @@
 //
 // State, on the character: private.dboSchools
 //   { v, primary, secondary, levels: { <school>: { level, xp } }, grandfathered: [spell desc...], study: { log: [[from, to] ms...] },
+//     picks: { <school>: { spell: desc | '', how: 'chose' | 'starter' | 'none', at } }, pickTold: { <school>: ms },
+//     swapAt, swaps: [{ from, to, fromLevel, toLevel, at }],
 //     priestStudy: { log: [[from, to] ms...] }, cast: { day, units: {} },
 //     ring: [{ h, at }], classAt, paidAt, teacher: { by, at }, preachAt, sermonPaidAt, preacher: { by, at } }
 // Classes and sermons live on globalThis and end with the process (a restart cancels one in progress).
@@ -59,14 +76,24 @@ module.exports = (api) => {
     arcaneSkill: 'arcane',
     secondaryAtLevel: 76,
     secondaryStartLevel: 33,
-    // Swag's first spell (Nate, 1 Oct): the primary school is chosen at Arcane Arts `firstSchoolAt`, and the choice gives the
-    // school's starter spell into the Arcane Arts book. Before it, Study Magic pays Arcane Arts itself, `firstStudyWeight` of
-    // the Wheel's units each `study.wheelEverySeconds`, inside the Wheel's hourly and daily limits. 0: a school at once.
+    // Swag's flow (Nate, 1 Oct): the primary school is chosen at Arcane Arts `firstSchoolAt`. Before it, Study Magic pays
+    // Arcane Arts itself, `firstStudyWeight` of the Wheel's units each `study.wheelEverySeconds`, inside the Wheel's hourly
+    // and daily limits. 0: a school at once. (update-1003's fixed `starters` are gone: the first spell is chosen, below.)
     firstSchoolAt: 25,
-    starters: { Destruction: '2b96b:Skyrim.esm', Conjuration: '211eb:Skyrim.esm', Illusion: '4dee8:Skyrim.esm', Alteration: '43324:Skyrim.esm' },
     firstStudyWeight: 3,
-    castUnits: 0.5,
-    castDailyUnits: 120,
+    // The first spell of each school at `firstSpellAt` in it (Restoration: at Priest firstSpellAt), Nate's lists, 3 Oct
+    firstSpellAt: 25,
+    firstSpells: {
+      Destruction: ['12fcd:Skyrim.esm', '2dd2a:Skyrim.esm', '2b96b:Skyrim.esm'], // Flames, Sparks, Frostbite
+      Restoration: ['12fcc:Skyrim.esm'],                                        // Healing
+      Alteration: ['5ad5c:Skyrim.esm', '43324:Skyrim.esm'],                     // Oakflesh, Candlelight
+      Conjuration: ['211eb:Skyrim.esm', '640b6:Skyrim.esm'],                    // Bound Sword, Conjure Familiar
+      Illusion: ['4dee8:Skyrim.esm', '4deeb:Skyrim.esm'],                       // Courage, Fury
+    },
+    swap: { enabled: true, cooldownDays: 7, startShare: 0.5 },
+    // A third of the first pace (Nate, 3 Oct): 25 to 50 takes about 12 days at the daily cap
+    castUnits: 0.2,
+    castDailyUnits: 40,
     study: {
       enabled: true, edid: 'StudyMagic', refs: [], tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20, windowHours: 4,
       moveLimitMeters: 1.5, anim: 'IdleBook_PageTurn', exitAnim: 'IdleForceDefaultState', wheelEverySeconds: 60, wheelValue: 0,
@@ -93,7 +120,7 @@ module.exports = (api) => {
     classes: {
       enabled: true, edid: 'ClassLectern', lecterns: [], sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
       teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: true, teacherGuilds: ['synod', 'college-of-winterhold', 'college-of-whispers'],
-      units: 60, wheelEvents: 8, wheelValue: 150, maxStudents: 12,
+      units: 25, wheelEvents: 8, wheelValue: 150, maxStudents: 12,
       // [student rank][class rank], ranks Novice..Master. "Reduced" (Apprentice student, Novice class) and "XP" (Expert
       // student, Master class) had no figure in Swag's spec: 0.35 and 0.7 until Nate says otherwise.
       scale: [
@@ -113,6 +140,8 @@ module.exports = (api) => {
     preach: Object.assign({}, DEFAULTS.preach, raw.preach || {}),
     classes: Object.assign({}, DEFAULTS.classes, raw.classes || {}),
     wheel: Object.assign({}, DEFAULTS.wheel, raw.wheel || {}),
+    swap: Object.assign({}, DEFAULTS.swap, raw.swap || {}),
+    firstSpells: Object.assign({}, DEFAULTS.firstSpells, raw.firstSpells || {}),
   });
   const ALTERATION = ['both', 'arcane', 'priest'].includes(String(C.alteration)) ? String(C.alteration) : 'both';
   const SCHOOLS = (Array.isArray(C.schools) ? C.schools : DEFAULTS.schools).map(String).filter((n) => n !== 'Alteration' || ALTERATION !== 'priest');
@@ -172,7 +201,7 @@ module.exports = (api) => {
     return { held: !!(r && Array.isArray(r.order) && r.order.includes(C.arcaneSkill)), level: p ? Math.max(0, Number(p.level) || 0) : 0 };
   };
   const bookOf = (a) => { try { return typeof globalThis.__dboSpellsBook === 'function' ? (globalThis.__dboSpellsBook(a) || []) : []; } catch (e) { return []; } };
-  const fresh = () => ({ v: 1, primary: null, secondary: null, grandfathered: [], levels: {}, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
+  const fresh = () => ({ v: 1, primary: null, secondary: null, grandfathered: [], levels: {}, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, picks: {}, pickTold: {}, swapAt: 0, swaps: [] });
   // A mage from before the rework keeps what they had: the school most of their studied spells belong to becomes the
   // primary at their Arcane Arts level, and a second school they hold spells of becomes the secondary when the level
   // allows one. Anyone else starts with no school and chooses.
@@ -208,8 +237,14 @@ module.exports = (api) => {
     const s = get(a, PROP, null);
     if (s && typeof s === 'object' && s.v) {
       const out = Object.assign(fresh(), s);
+      let dirty = false;
       // A record from before the grandfathered set keeps what its spellbook held then
-      if (!Array.isArray(s.grandfathered)) { out.grandfathered = studiedNow(a); set(a, PROP, out); }
+      if (!Array.isArray(s.grandfathered)) { out.grandfathered = studiedNow(a); dirty = true; }
+      if (!out.picks || typeof out.picks !== 'object') { out.picks = {}; dirty = true; }
+      if (!out.pickTold || typeof out.pickTold !== 'object') out.pickTold = {};
+      // update-1003's fixed starter (s.starter, a spell desc) is that school's first spell: it has been picked
+      if (out.primary && out.starter && out.starter !== 'had' && !out.picks[out.primary]) { out.picks[out.primary] = { spell: String(out.starter), how: 'starter', at: 0 }; dirty = true; }
+      if (dirty) set(a, PROP, out);
       return out;
     }
     const out = migrate(a, fresh());
@@ -219,6 +254,8 @@ module.exports = (api) => {
   const save = (a, s) => set(a, PROP, s);
   const levelOf = (s, school) => { const l = s.levels[school]; return l ? Math.max(0, Number(l.level) || 0) : 0; };
   const roleOf = (s, school) => (s.primary === school ? 'primary' : s.secondary === school ? 'secondary' : 'locked');
+  // A school changed away from keeps its level, resting; changing back restores it
+  const resting = (s, school) => !active(s, school) && levelOf(s, school) > 0;
   const active = (s, school) => s.primary === school || s.secondary === school;
   const schoolRank = (s, school) => (active(s, school) ? rankOfLevel(levelOf(s, school)) : -1);
   // Adds units to one school; returns levels gained
@@ -235,31 +272,128 @@ module.exports = (api) => {
     personal(a, r1 > r0 ? `Your study of ${school} rises to ${now}: you are now ${/^[AEIOU]/.test(RANKS[r1]) ? 'an' : 'a'} ${RANKS[r1]} of ${school}.` : `Your study of ${school} rises to ${now}.`);
   };
 
-  // ---- the first spell: the school is chosen at Arcane Arts firstSchoolAt, with its starter (Swag's flow) -----------
+  // ---- the school choice at Arcane Arts firstSchoolAt (Swag's flow), and each school's first spell at firstSpellAt ----
   const FIRST_AT = Math.max(0, Number(C.firstSchoolAt) || 0);
   const FIRST_LINE = "You've dedicated yourself to the study of magic and are now finally able to learn your first spell and choose your school.";
-  const starterId = (school) => idOf((C.starters || {})[school] || '');
-  const starterName = (school) => {
-    const id = starterId(school);
-    try { const sp = id && typeof globalThis.__dboSpellsClassify === 'function' ? globalThis.__dboSpellsClassify(id) : null; return sp ? String(sp.name) : ''; } catch (e) { return ''; }
-  };
-  // No school yet, and Arcane Arts short of the first spell
+  // No school yet, and Arcane Arts short of the choice
   const beforeFirst = (a, s) => !!FIRST_AT && !s.primary && arcaneOf(a).level < FIRST_AT;
   const notYet = (level) => `Your first spell and your school of magic open at Arcane Arts ${FIRST_AT}; yours is ${level}. Study Magic at a place of learning, or cast what you know, to get there.`;
-  // The school's starter into the Arcane Arts book, once, for a mage with no spell of the four schools yet; the line to tell
-  const giveStarter = (a, s) => {
-    if (!s.primary || s.starter) return '';
-    const had = firstSpell(a);
-    if (had) { s.starter = 'had'; save(a, s); return ''; }
-    const id = starterId(s.primary);
-    if (!id || typeof globalThis.__dboSpellsGrant !== 'function') return '';
+  const PICK_AT = Math.max(1, Number(C.firstSpellAt) || 25);
+  const RESTORATION = 'Restoration';
+  // One line for each first spell, in the panel's choice
+  const SPELL_BLURB = {
+    '12fcd:skyrim.esm': 'A stream of fire from your hand, burning while you hold it.',
+    '2dd2a:skyrim.esm': 'Lightning from your hand that burns and drains magicka while you hold it.',
+    '2b96b:skyrim.esm': 'A stream of frost from your hand that numbs and drains stamina while you hold it.',
+    '12fcc:skyrim.esm': 'Heals you while you hold it.',
+    '5ad5c:skyrim.esm': 'Your skin hardens like bark: 40 more armour for a minute.',
+    '43324:skyrim.esm': 'A ball of light that follows you for a time.',
+    '211eb:skyrim.esm': 'A sword called from Oblivion and bound to your hand for a time.',
+    '640b6:skyrim.esm': 'A spectral wolf from Oblivion that fights at your side for a time.',
+    '4dee8:skyrim.esm': 'Steels a person or creature against fear for a time.',
+    '4deeb:skyrim.esm': 'Drives a person or creature to attack anyone near them.',
+  };
+  const classify = (id) => { try { return id && typeof globalThis.__dboSpellsClassify === 'function' ? globalThis.__dboSpellsClassify(id >>> 0) : null; } catch (e) { return null; } };
+  const nameOfSpell = (desc) => { const sp = classify(idOf(desc)); return sp ? String(sp.name) : ''; };
+  // The level that opens a school's first spell: the school's own meter, Restoration's is Priest's
+  const pickLevel = (a, s, school) => (school === RESTORATION ? priestOf(a).level : levelOf(s, school));
+  // Schools whose first spell waits to be chosen, in the order they are offered
+  const pickSchools = (a, s) => {
+    const out = [];
+    for (const school of SCHOOLS) if (active(s, school) && !s.picks[school] && levelOf(s, school) >= PICK_AT && (C.firstSpells[school] || []).length) out.push(school);
+    const pr = priestOf(a);
+    if (pr.held && pr.level >= PICK_AT && !s.picks[RESTORATION] && (C.firstSpells[RESTORATION] || []).length) out.push(RESTORATION);
+    return out;
+  };
+  // A school's first spells the character does not know yet: [{ id, desc, name }]
+  const pickOptions = (a, school) => {
+    const known = new Set(knownSpells(a).map((sp) => sp.id >>> 0));
+    for (const sp of bookOf(a)) known.add(sp.id >>> 0);
+    // desc as the engine writes it (ids are looked up by it); key, lower case, for SPELL_BLURB and comparisons
+    return (C.firstSpells[school] || []).map((d) => ({ id: idOf(d) })).filter((o) => o.id && !known.has(o.id))
+      .map((o) => Object.assign(o, { desc: descOf(o.id), key: norm(descOf(o.id)) })).map((o) => Object.assign(o, { name: nameOfSpell(o.desc) })).filter((o) => o.name);
+  };
+  const listWords = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`);
+  // Every first spell of a school, known or not, in words: 'Flames, Sparks or Frostbite'
+  const firstWords = (school) => listWords((C.firstSpells[school] || []).map(nameOfSpell).filter(Boolean));
+  // Schools still pending after those whose every spell is known are marked done (and said once)
+  const pendingPicks = (a, s) => {
+    const out = [];
+    for (const school of pickSchools(a, s)) {
+      if (pickOptions(a, school).length) { out.push(school); continue; }
+      s.picks[school] = { spell: '', how: 'none', at: Date.now() };
+      save(a, s);
+      audit(`SCHOOLS ${who(a)} reached ${school} ${PICK_AT} knowing every first spell of it: no pick`);
+      personal(a, `Your ${school === RESTORATION ? 'Priest skill' : `study of ${school}`} has reached ${PICK_AT}. You already know every first spell of ${school}, so there is none to choose.`);
+    }
+    return out;
+  };
+  const ST0 = globalThis.__dboSchoolsState || (globalThis.__dboSchoolsState = {});
+  const pickNonces = ST0.pickNonces instanceof Map ? ST0.pickNonces : (ST0.pickNonces = new Map()); // actor -> { nonce, school, ref, options }
+  // The pick panel: Study Magic's choose mode with its lead line (client 0.3.75); `ref` is the shelf or ledger it opened at
+  const openPick = (a, ref, school, result, resultKind) => {
+    const options = pickOptions(a, school);
+    if (!options.length) return false;
+    const nonce = mkNonce('f', a);
+    pickNonces.set(a >>> 0, { nonce, school, ref: ref >>> 0, options });
+    const what = school === RESTORATION ? `Priest has reached ${PICK_AT}` : `Your study of ${school} has reached ${PICK_AT}`;
+    openWidget(a, {
+      type: 'studyMagic', id: STUDY_PANEL_ID, nonce, title: 'Your First Spell', mode: 'choose',
+      lead: `${what}: choose your first spell of ${school}. It goes into your spellbook, no tome needed.`,
+      school, level: pickLevel(a, stateOf(a), school), rank: RANKS[1], fill: 0, leftSeconds: 0, tickSeconds: 0, gained: 0, whyNot: '',
+      choices: options.map((o) => ({ name: o.name, blurb: SPELL_BLURB[o.key] || '', confirm: `Do you want ${o.name} as your first spell of ${school}?${options.length > 1 ? ` The other${options.length > 2 ? 's' : ''} you can still learn from a tome or a teacher.` : ''}` })),
+      result: result || '', resultKind: resultKind || '',
+      events: { choose: 'dbo:firstSpellPick', start: 'dbo:firstSpellPick', stop: 'dbo:firstSpellPick', close: 'dbo:firstSpellClose' },
+    }, true);
+    return true;
+  };
+  // { ok, text } of choosing `desc` (or a spell name) as the first spell of `school`
+  const pickSpell = (a, school, which) => {
+    const s = stateOf(a);
+    if (!pickSchools(a, s).includes(school)) return { ok: false, text: s.picks[school] ? `You have already chosen your first spell of ${school}.` : `${school}'s first spell opens at ${PICK_AT}.` };
+    const w = String(which || '').toLowerCase();
+    const o = pickOptions(a, school).find((x) => x.key === norm(which) || x.name.toLowerCase() === w);
+    if (!o) return { ok: false, text: `That is not one of ${school}'s first spells you can choose.` };
+    if (typeof globalThis.__dboSpellsGrant !== 'function') return { ok: false, text: 'Your spellbook cannot be written just now. Try again in a moment.' };
     let r = null;
-    try { r = globalThis.__dboSpellsGrant(a, id, C.arcaneSkill); } catch (e) { log('schools: starter failed', e.message); return ''; }
-    if (!r) return '';
-    s.starter = descOf(id);
+    try { r = globalThis.__dboSpellsGrant(a, o.id, school === RESTORATION ? PS.skill : C.arcaneSkill); } catch (e) { log('schools: first spell grant failed', e.message); }
+    if (!r || !r.ok) return { ok: false, text: r && r.line ? r.line : `${o.name} would not settle. Try again in a moment.` };
+    s.picks[school] = { spell: o.desc, how: 'chose', at: Date.now() };
     save(a, s);
-    audit(`SCHOOLS ${who(a)} was given the ${s.primary} starter ${s.starter} ${r.name}`);
-    return r.ok ? `You learn ${r.name}. ${r.line}` : '';
+    audit(`SCHOOLS ${who(a)} chose ${o.desc} ${o.name} as their first spell of ${school}`);
+    return { ok: true, text: `You learn ${r.name}, your first spell of ${school}. ${r.line}` };
+  };
+  // The first spell's moment, checked every few seconds, at login and at a shelf or ledger. With no school at Arcane Arts
+  // firstSchoolAt, the school choice is told once (Swag's line). A school (or Priest) at firstSpellAt with its first spell
+  // unchosen is told once; at a shelf or ledger the pick opens there, at login it opens on its own, in the field a line
+  // says where. `ref` is the shelf or ledger; true when a panel was opened.
+  const firstCheck = (a, why, ref) => {
+    if (!ready(a) || !isPlayer(a)) return false;
+    const s = stateOf(a);
+    if (!s.primary && FIRST_AT && arcaneOf(a).level >= FIRST_AT) {
+      const told = !!s.firstOffered;
+      if (told && why === 'tick') return false;
+      if (!told) { s.firstOffered = Date.now(); save(a, s); audit(`SCHOOLS ${who(a)} reached Arcane Arts ${FIRST_AT}: first spell offered (${why})`); }
+      const shelf = ref || studyAt.get(a >>> 0);
+      if (shelf) { if (!told) personal(a, FIRST_LINE); openStudy(a, shelf); return true; }
+      if (why === 'login') { personal(a, told ? 'Your first spell and your school of magic wait to be chosen.' : FIRST_LINE); openStudy(a, 0); return true; }
+      if (!told) personal(a, `${FIRST_LINE} Open your skills (K) to choose on the Arcane Arts page, or go to a Study Magic shelf.`);
+      return false;
+    }
+    // The 10 s check looks no further once every waiting pick has been told (the options read the engine's spell list)
+    const waiting = pickSchools(a, s);
+    if (!waiting.length || (why === 'tick' && waiting.every((x) => s.pickTold[x]))) return false;
+    const pend = pendingPicks(a, s);
+    if (!pend.length) return false;
+    const school = pend[0];
+    const told = !!s.pickTold[school];
+    if (!told) { s.pickTold[school] = Date.now(); save(a, s); audit(`SCHOOLS ${who(a)} reached ${school} ${PICK_AT}: first spell offered (${why})`); }
+    const names = listWords(pickOptions(a, school).map((o) => o.name));
+    const line = `${school === RESTORATION ? 'Priest' : `Your study of ${school}`} has reached ${PICK_AT}: you may choose your first spell of ${school} (${names}).`;
+    const at = ref || (why === 'study' ? studyAt.get(a >>> 0) || 0 : 0);
+    if (at || why === 'login') { personal(a, told ? `Your first spell of ${school} waits to be chosen.` : line); return openPick(a, at, school); }
+    if (!told) personal(a, `${line} Choose it at a Study Magic shelf or a Scholars' Ledger, or when you next log in.`);
+    return false;
   };
 
   // ---- the Wheel: Arcane Arts through masterySystem's own cast credit ----------------------------------------------
@@ -301,11 +435,11 @@ module.exports = (api) => {
         if (took !== 'ok' && took !== 'held') return { ok: false, text: 'Arcane Arts could not be taken up just now. Try again in a moment.' };
       }
       s.primary = school;
-      s.levels[school] = { level: Math.max(1, arcaneOf(a).level), xp: 0 };
+      if (levelOf(s, school) < Math.max(1, arcaneOf(a).level)) s.levels[school] = { level: Math.max(1, arcaneOf(a).level), xp: 0 };
       save(a, s);
       audit(`SCHOOLS ${who(a)} chose ${school} as their primary school (level ${levelOf(s, school)})`);
-      const learned = giveStarter(a, s);
-      return { ok: true, text: `${school} is your school of magic. ${learned ? learned + ' ' : ''}The other schools are closed to you until your Arcane Arts reaches ${C.secondaryAtLevel}.` };
+      const next = levelOf(s, school) >= PICK_AT && !s.picks[school] ? ' Now choose its first spell.' : '';
+      return { ok: true, text: `${school} is your school of magic.${next} The other schools are closed to you until your Arcane Arts reaches ${C.secondaryAtLevel}.` };
     }
     if (as === 'secondary') {
       if (!s.primary) return { ok: false, text: 'Choose your primary school first.' };
@@ -314,10 +448,13 @@ module.exports = (api) => {
       const arc = arcaneOf(a);
       if (arc.level < C.secondaryAtLevel) return { ok: false, text: `A secondary school opens at Arcane Arts ${C.secondaryAtLevel}. Yours is ${arc.level}.` };
       s.secondary = school;
-      s.levels[school] = { level: Math.min(levelOf(s, s.primary), Math.max(1, C.secondaryStartLevel)), xp: 0 };
+      // A school resting from a change keeps its level when that is higher
+      const start = Math.min(levelOf(s, s.primary), Math.max(1, C.secondaryStartLevel));
+      if (levelOf(s, school) < start) s.levels[school] = { level: start, xp: 0 };
       save(a, s);
       audit(`SCHOOLS ${who(a)} chose ${school} as their secondary school (level ${levelOf(s, school)})`);
-      return { ok: true, text: `${school} is your secondary school of magic. The remaining schools are closed to you.` };
+      const next = levelOf(s, school) >= PICK_AT && !s.picks[school] ? ' Now choose its first spell.' : '';
+      return { ok: true, text: `${school} is your secondary school of magic.${next} The remaining schools are closed to you.` };
     }
     return { ok: false, text: 'Choose a school as your primary or your secondary.' };
   };
@@ -395,7 +532,7 @@ module.exports = (api) => {
       note: early
         ? notYet(arc.level)
         : !s.primary
-        ? 'Choose the school you will give yourself to; it brings you its first spell. The others stay closed until your Arcane Arts reaches ' + C.secondaryAtLevel + '.'
+        ? 'Choose the school you will give yourself to; you choose its first spell at once. The others stay closed until your Arcane Arts reaches ' + C.secondaryAtLevel + '.'
         : secondaryOpen
           ? 'Your Arcane Arts has reached ' + C.secondaryAtLevel + ': you may take up one more school as your secondary.'
           : s.secondary
@@ -410,16 +547,17 @@ module.exports = (api) => {
         const r = rankOfLevel(level);
         const next = r + 1 < FLOORS.length ? FLOORS[r + 1] : 0;
         const pick = early ? '' : !s.primary ? 'primary' : secondaryOpen && role === 'locked' ? 'secondary' : '';
-        const first = pick === 'primary' ? starterName(school) : '';
+        const first = pick === 'primary' ? firstWords(school) : '';
+        const rest = role === 'locked' && resting(s, school);
         const l = s.levels[school];
         return {
           name: school, role, level, rank: role === 'locked' ? '' : RANKS[Math.max(0, r)],
-          roleLabel: role === 'primary' ? 'Primary school' : role === 'secondary' ? 'Secondary school' : 'Closed',
+          roleLabel: role === 'primary' ? 'Primary school' : role === 'secondary' ? 'Secondary school' : rest ? 'Resting' : 'Closed',
           // The meter fills bottom to top over the whole ladder, 0..100
           fill: role === 'locked' ? 0 : Math.max(0, Math.min(1, (level + (l ? Number(l.xp) || 0 : 0) / 100) / 100)),
-          hint: role === 'locked' ? (pick ? (first ? `Begins with ${first}` : '') : early ? `Opens at Arcane Arts ${FIRST_AT}` : 'Closed to you') : next ? `${RANKS[r + 1]} at ${next}` : 'The top of the school',
+          hint: role === 'locked' ? (pick ? (first ? `First spell: ${first}` : '') : early ? `Opens at Arcane Arts ${FIRST_AT}` : rest ? `Resting at ${level}` : 'Closed to you') : next ? `${RANKS[r + 1]} at ${next}` : 'The top of the school',
           choose: pick ? { as: pick, label: pick === 'primary' ? 'Choose as my school' : 'Choose as secondary', title: `Choose ${school}?`, yes: 'Choose', no: 'Not yet',
-            confirm: pick === 'primary' ? `Do you want to choose ${school} as your school of magic?${first ? ` You will learn ${first}, and the` : ' The'} other schools will be closed to you.` : `Do you want to choose ${school} as your secondary school of magic?` } : null,
+            confirm: pick === 'primary' ? `Do you want to choose ${school} as your school of magic?${first ? ` You will choose your first spell from ${first}, and the` : ' The'} other schools will be closed to you.` : `Do you want to choose ${school} as your secondary school of magic?` } : null,
         };
       }),
       events: { choose: 'dbo:schoolChoose' },
@@ -439,9 +577,18 @@ module.exports = (api) => {
     const r = choose(a, school, as);
     personal(a, r.text);
     globalThis.__dboSchoolsProgressSend(a);
+    const fromStudy = studyNonces.get(a >>> 0) === nonce;
+    // A school chosen at 25 or more opens its first spell's pick at once, in the same panel (or over K)
+    if (r.ok && pendingPicks(a, stateOf(a)).includes(school)) {
+      const at = fromStudy ? (studyAt.get(a >>> 0) || 0) : 0;
+      if (fromStudy) { studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); }
+      const s2 = stateOf(a);
+      if (!s2.pickTold[school]) { s2.pickTold[school] = Date.now(); save(a, s2); }
+      if (openPick(a, at, school, r.text, 'ok')) return;
+    }
     // Chosen from the Study Magic panel: it goes on to studying, or shows the first spell the choice gave. Opened at login
     // (no shelf), it closes once the school is chosen.
-    if (studyNonces.get(a >>> 0) === nonce) {
+    if (fromStudy) {
       const at = studyAt.get(a >>> 0);
       if (at && r.ok && !firstSpell(a)) startStudy(a, at);
       else if (at || !r.ok) openStudy(a, at || 0, r.text, r.ok ? 'ok' : 'refused');
@@ -541,8 +688,8 @@ module.exports = (api) => {
       gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
       whyNot: why,
       choices: !school && !early ? SCHOOLS.map((n) => {
-        const first = starterName(n);
-        return { name: n, blurb: `${BLURB[n] || ''}${first ? ` You begin with ${first}.` : ''}`, confirm: `Do you want to choose ${n} as your school of magic?${first ? ` You will learn ${first}, and the` : ' The'} other schools will be closed to you.` };
+        const first = firstWords(n);
+        return { name: n, blurb: `${BLURB[n] || ''}${first ? ` Your first spell: ${first}.` : ''}`, confirm: `Do you want to choose ${n} as your school of magic?${first ? ` You will choose your first spell from ${first}, and the` : ' The'} other schools will be closed to you.` };
       }) : [],
       result: result || '', resultKind: resultKind || '',
       events: { choose: 'dbo:schoolChoose', start: 'dbo:studyStart', stop: 'dbo:studyStop', close: 'dbo:studyClose' },
@@ -584,26 +731,6 @@ module.exports = (api) => {
     if (typeof globalThis.__alduinakMasteryAward !== 'function') return 0;
     try { return Number(globalThis.__alduinakMasteryAward(a, C.arcaneSkill, Number(C.firstStudyWeight) || 1, ref >>> 0)) || 0; } catch (e) { log('schools: study award failed', e.message); return 0; }
   };
-  // The first spell's moment, looked at every few seconds, at login and when a sitting reaches it. A mage who chose a
-  // school before this and has no spell of it gets the school's starter once. A mage at firstSchoolAt with no school is
-  // told once; at a Study Magic shelf the choice opens there, at login it opens on its own, in the field K has it.
-  const firstCheck = (a, why) => {
-    if (!ready(a) || !isPlayer(a)) return;
-    const s = stateOf(a);
-    if (s.primary) {
-      const line = giveStarter(a, s);
-      if (line) personal(a, `Your study of ${s.primary} brings you your first spell. ${line}`);
-      return;
-    }
-    if (!FIRST_AT || arcaneOf(a).level < FIRST_AT) return;
-    const told = !!s.firstOffered;
-    if (told && why !== 'login') return;
-    if (!told) { s.firstOffered = Date.now(); save(a, s); audit(`SCHOOLS ${who(a)} reached Arcane Arts ${FIRST_AT}: first spell offered (${why})`); }
-    const shelf = studyAt.get(a >>> 0);
-    if (shelf) { personal(a, FIRST_LINE); return openStudy(a, shelf); }
-    if (why === 'login') { personal(a, told ? 'Your first spell and your school of magic wait to be chosen.' : FIRST_LINE); return openStudy(a, 0); }
-    personal(a, `${FIRST_LINE} Open your skills (K) to choose on the Arcane Arts page, or go to a Study Magic shelf.`);
-  };
   globalThis.__dboSchoolsLogin = (a) => { try { firstCheck(a, 'login'); } catch (e) { log(`schools: login check for ${display(a)} failed: ${e.message}`); } };
 
   // One study tick for every reader: pays whole ticks only, stops a reader who walked off, left or ran out of time
@@ -627,6 +754,8 @@ module.exports = (api) => {
         ses.gained += paid * C.study.unitsPerTick;
         save(a, s);
         tellGain(a, s.primary, before, s);
+        // The school has reached its first spell: the books close and the pick opens here
+        if (before < PICK_AT && levelOf(s, s.primary) >= PICK_AT && !s.picks[s.primary]) { ses.lastTick += paid * tickMs; stopStudy(a, 'reached'); firstCheck(a, 'study'); continue; }
       }
       ses.lastTick += paid * tickMs;
       if (C.study.wheelEverySeconds > 0 && now - ses.lastWheel >= C.study.wheelEverySeconds * 1000) {
@@ -651,7 +780,8 @@ module.exports = (api) => {
   onUi('studyStop', (a, args) => { if (studyNonces.get(a >>> 0) !== String(args[0] || '')) return; stopStudy(a, 'stopped'); const ref = studyAt.get(a >>> 0); if (ref) openStudy(a, ref); });
   onUi('studyClose', (a) => { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); closeWidget(a, STUDY_PANEL_ID); });
   onUi('close', (a, args, widgetId) => {
-    if (widgetId === STUDY_PANEL_ID) { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); }
+    if (widgetId === STUDY_PANEL_ID) { stopStudy(a, 'closed'); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); pickNonces.delete(a >>> 0); }
+    if (widgetId === SCHOOL_MENU_ID) menuOpen.delete(a >>> 0);
     if (widgetId === PRIEST_PANEL_ID) { stopPriest(a, 'closed'); priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); }
     if (widgetId === CLASS_PANEL_ID) CLASSES.forget(a);
     if (widgetId === PREACH_PANEL_ID) SERMONS.forget(a);
@@ -660,6 +790,9 @@ module.exports = (api) => {
     const s = stateOf(a);
     if (!s.primary && !beforeFirst(a, s)) return openStudy(a, ref);
     if (S.studying.has(a >>> 0)) return openStudy(a, ref);
+    // A first spell waiting to be chosen opens here; with the books closed to them, a mage may change school here
+    if (firstCheck(a, 'shelf', ref)) return;
+    if (s.primary && firstSpell(a) && C.swap.enabled) return openSchoolMenu(a, ref, 'shelf', studyRefusal(a, s));
     startStudy(a, ref);
   };
   // One set of books at a time; the new panel opens before the other closes, so the cursor stays (panel handoff)
@@ -668,6 +801,132 @@ module.exports = (api) => {
     stopPriest(a, 'closed');
     openOrStartStudy(ref, a);
     if (priestOpen) { priestNonces.delete(a >>> 0); priestAt.delete(a >>> 0); closeWidget(a, PRIEST_PANEL_ID); }
+  };
+
+  // ---- the first spell's panel answers ------------------------------------------------------------------------------
+  const closePick = (a) => { pickNonces.delete(a >>> 0); studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); closeWidget(a, STUDY_PANEL_ID); };
+  onUi('firstSpellPick', (a, args) => {
+    const p = pickNonces.get(a >>> 0);
+    if (!p || p.nonce !== String(args[0] || '')) return;
+    if (p.ref && !atBooks(a, p.ref)) { closePick(a); return personal(a, 'You walked away from the books.'); }
+    const r = pickSpell(a, p.school, String(args[1] || ''));
+    pickNonces.delete(a >>> 0);
+    personal(a, r.text);
+    try { globalThis.__dboSchoolsProgressSend(a); } catch (e) { /* no K menu */ }
+    if (!r.ok) { if (!openPick(a, p.ref, p.school, r.text, 'refused')) closePick(a); return; }
+    // Another school (the secondary, or Priest) waiting too: its pick follows in the same panel
+    const next = pendingPicks(a, stateOf(a));
+    if (next.length && openPick(a, p.ref, next[0], r.text, 'ok')) return;
+    if (p.ref && isStudy(p.ref)) return openStudy(a, p.ref, r.text, 'ok');
+    closePick(a);
+  });
+  onUi('firstSpellClose', (a) => closePick(a));
+
+  // ---- changing school, at a Study Magic shelf or a Scholars' Ledger (Nate, 3 Oct) -----------------------------------
+  const SW = C.swap;
+  const SWAP_MS = Math.max(0, Number(SW.cooldownDays) || 0) * 24 * HOUR;
+  const waitWords = (ms) => { const h = Math.max(1, Math.ceil(ms / HOUR)); return h >= 24 ? plural(Math.ceil(h / 24), 'day') : plural(h, 'hour'); };
+  // The level `to` starts at when it takes `from`'s place: half of `from`, or its own resting level when that is higher
+  const startFor = (s, from, to) => Math.max(levelOf(s, to), Math.max(1, Math.floor(levelOf(s, from) * (Number(SW.startShare) || 0.5))));
+  // Why `a` cannot change school now, or ''
+  const swapRefusal = (a, s) => {
+    if (!C.enabled || !SW.enabled) return 'Schools are not changed just now.';
+    if (!s.primary) return 'You have no school of magic to change yet.';
+    const next = (Number(s.swapAt) || 0) + SWAP_MS;
+    if (next > Date.now()) return `You changed your school of magic not long ago. You may change again in ${waitWords(next - Date.now())}.`;
+    return '';
+  };
+  // { ok, text }: `to` takes `from`'s place; `from` rests at its level
+  const swapSchool = (a, from, to) => {
+    const s = stateOf(a);
+    const why = swapRefusal(a, s);
+    if (why) return { ok: false, text: why };
+    if (!active(s, from)) return { ok: false, text: `${from} is not one of your schools of magic.` };
+    if (!SCHOOLS.includes(to) || active(s, to)) return { ok: false, text: `${to} cannot take ${from}'s place.` };
+    const fromLevel = levelOf(s, from), start = startFor(s, from, to);
+    if (levelOf(s, to) < start) s.levels[to] = { level: start, xp: 0 };
+    if (s.primary === from) s.primary = to; else s.secondary = to;
+    const now = Date.now();
+    s.swapAt = now;
+    s.swaps = (Array.isArray(s.swaps) ? s.swaps : []).concat([{ from, to, fromLevel, toLevel: levelOf(s, to), at: now }]).slice(-10);
+    save(a, s);
+    audit(`SCHOOLS ${who(a)} changed ${from} (${fromLevel}, now resting) for ${to} (${levelOf(s, to)}) as their ${s.primary === to ? 'primary' : 'secondary'} school`);
+    return { ok: true, text: `${to} takes the place of ${from} at ${levelOf(s, to)}. ${from} rests at ${fromLevel}; change back to take it up where you left it. Your next change is ${plural(Math.round(SWAP_MS / (24 * HOUR)), 'day')} away.` };
+  };
+  const SCHOOL_MENU_ID = 77;
+  const menuOpen = S.schoolMenu instanceof Map ? S.schoolMenu : (S.schoolMenu = new Map()); // actor -> { ref, where, nonce }
+  const showMenu = (a, ref, where, title, actions) => {
+    const nonce = mkNonce('w', a);
+    menuOpen.set(a >>> 0, { ref: ref >>> 0, where, nonce });
+    openWidget(a, { type: 'contextMenu', id: SCHOOL_MENU_ID, mode: 'menu', targetName: title, actions: actions.map((x) => ({ id: `${nonce}|${x.id}`, label: x.label })),
+      events: { action: 'dbo:schoolMenu', close: 'dbo:schoolMenuClose' } }, true);
+  };
+  // The shelf's (or the ledger's) magic menu: a first spell waiting, a change of school
+  const openSchoolMenu = (a, ref, where, note) => {
+    const s = stateOf(a);
+    const rows = pendingPicks(a, s).map((school) => ({ id: `pick:${school}`, label: `Choose your first spell of ${school}` }));
+    if (s.primary && SW.enabled) rows.push({ id: 'swap', label: 'Change your school of magic' });
+    rows.push({ id: 'leave', label: 'Leave' });
+    showMenu(a, ref, where, note || 'Schools of Magic', rows);
+  };
+  const openSwapList = (a, ref, where) => {
+    const s = stateOf(a);
+    const why = swapRefusal(a, s);
+    if (why) return openSchoolMenu(a, ref, where, why);
+    const rows = [];
+    for (const from of [s.primary, s.secondary].filter(Boolean)) {
+      for (const to of SCHOOLS) if (!active(s, to)) rows.push({ id: `swap:${from}:${to}`, label: `${from} for ${to} (${to} at ${startFor(s, from, to)})` });
+    }
+    rows.push({ id: 'menu', label: 'Back' });
+    showMenu(a, ref, where, `Change which school? The new one starts at half the old one's level, or where it rested; the old one rests at its level. One change every ${plural(Math.round(SWAP_MS / (24 * HOUR)), 'day')}.`, rows);
+  };
+  const openSwapConfirm = (a, ref, where, from, to) => {
+    const s = stateOf(a);
+    if (!active(s, from) || !SCHOOLS.includes(to) || active(s, to)) return openSwapList(a, ref, where);
+    const start = startFor(s, from, to);
+    showMenu(a, ref, where, `Change ${from} for ${to}? ${to} starts at ${start}${start >= PICK_AT && !s.picks[to] ? ', and you choose its first spell' : ''}; ${from} rests at ${levelOf(s, from)}. Your spells stay in your spellbook. You cannot change again for ${plural(Math.round(SWAP_MS / (24 * HOUR)), 'day')}.`,
+      [{ id: `yes:${from}:${to}`, label: `Change to ${to}` }, { id: 'swap', label: 'Back' }]);
+  };
+  const closeMenu = (a) => { menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); };
+  onUi('schoolMenu', (a, args) => {
+    const m = menuOpen.get(a >>> 0);
+    const raw = String(args[0] || ''), cut = raw.indexOf('|');
+    if (!m || cut < 0 || raw.slice(0, cut) !== m.nonce) return;
+    const id = raw.slice(cut + 1);
+    if (id === 'leave') return closeMenu(a);
+    if (m.ref && !atBooks(a, m.ref)) { closeMenu(a); return personal(a, `You walked away from the ${m.where === 'ledger' ? "Scholars' Ledger" : 'books'}.`); }
+    if (id === 'menu') return openSchoolMenu(a, m.ref, m.where);
+    if (id === 'swap') return openSwapList(a, m.ref, m.where);
+    const [verb, from, to] = id.split(':');
+    if (verb === 'pick') {
+      // The pick opens first and takes the cursor, then this menu closes (panel handoff)
+      if (openPick(a, m.ref, from)) { menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); return; }
+      return openSchoolMenu(a, m.ref, m.where, `There is no first spell of ${from} to choose.`);
+    }
+    if (verb === 'swap' && from && to) return openSwapConfirm(a, m.ref, m.where, from, to);
+    if (verb === 'yes' && from && to) {
+      const r = swapSchool(a, from, to);
+      personal(a, r.text);
+      try { globalThis.__dboSchoolsProgressSend(a); } catch (e) { /* no K menu */ }
+      if (r.ok && pendingPicks(a, stateOf(a)).includes(to) && openPick(a, m.ref, to, r.text, 'ok')) { menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); return; }
+      return openSchoolMenu(a, m.ref, m.where, r.text);
+    }
+  });
+  onUi('schoolMenuClose', (a) => closeMenu(a));
+  // salvage.js's Scholars' Ledger menu: its rows for the schools, and what one of them does (true when handled)
+  globalThis.__dboSchoolsLedgerActions = (a) => {
+    if (!ready(a) || !isPlayer(a)) return [];
+    const s = stateOf(a);
+    const rows = pendingPicks(a, s).map((school) => ({ id: `school:pick:${school}`, label: `Choose your first spell of ${school}` }));
+    if (s.primary && SW.enabled) rows.push({ id: 'school:swap', label: 'Change your school of magic' });
+    return rows;
+  };
+  globalThis.__dboSchoolsLedgerChoose = (a, id, ref) => {
+    if (!ready(a) || !isPlayer(a)) return false;
+    const [, verb, school] = String(id || '').split(':');
+    if (verb === 'pick') { if (!openPick(a, ref, school)) openSchoolMenu(a, ref, 'ledger', `There is no first spell of ${school} to choose.`); return true; }
+    if (verb === 'swap') { openSwapList(a, ref, 'ledger'); return true; }
+    return false;
   };
 
   // ---- Priest Studies ------------------------------------------------------------------------------------------------
@@ -1144,6 +1403,102 @@ module.exports = (api) => {
     try { SERMONS.tick(); } catch (e) { log('schools: sermon tick failed', e.stack || e.message); }
   });
 
+  // ---- the F3 Magic tab's data: the journal's Magic section (specs/f3-hub-design.md 3.3; lane L5 draws it) --------------
+  // Five schools: the four meters and Restoration, whose level is Priest's. Offered once Arcane Arts or Priest is on the
+  // Wheel ({ open: false } otherwise). No packet of its own: journal.js puts __dboMagicView(a) in widget 50's `magic` and
+  // sends the tab's actions, dbo:journalMagic [nonce, op, ...], to __dboMagicAction(a, op, args): firstSpell <school>
+  // <spell desc> (anywhere F3 opens: it refuses in a fight), prepare <spell desc>, unprepare <spell desc> (at a college
+  // or a Scholars' Ledger, as the spellbook). There are no rank bonuses to magicka cost here: `allows` says what a rank
+  // really does (the tome ranks it reads).
+  const EPITHET = { Destruction: 'The Art of Ruin', Illusion: 'The Art of the Mind', Conjuration: 'The Art of Summoning', Alteration: 'The Art of Change', Restoration: 'The Art of Healing' };
+  const RESTORATION_BLURB = 'Healing, wards against magic, and the turning of the undead: the priest\'s school, learned through Priest.';
+  const magicTabOf = (a) => {
+    if (!ready(a) || !isPlayer(a)) return null;
+    const s = stateOf(a), arc = arcaneOf(a), pr = priestOf(a);
+    if (!arc.held && !pr.held) return { v: 1, open: false };
+    const pend = pendingPicks(a, s);
+    const swapWhy = swapRefusal(a, s);
+    const tomes = (school, skill, maxRank) => { try { return typeof globalThis.__dboSpellsTomesFor === 'function' ? globalThis.__dboSpellsTomesFor(a, school, skill, maxRank, 3) : []; } catch (e) { return []; } };
+    const cap = (skill) => { try { return typeof globalThis.__dboSpellsRankCap === 'function' ? globalThis.__dboSpellsRankCap(a, skill) : -1; } catch (e) { return -1; } };
+    const arcCap = cap(C.arcaneSkill), priestCap = cap(PS.skill);
+    const schools = SCHOOLS.concat(SCHOOLS.includes(RESTORATION) ? [] : [RESTORATION]).map((school) => {
+      const isR = school === RESTORATION;
+      const role = isR ? (pr.held ? 'priest' : 'closed') : active(s, school) ? roleOf(s, school) : resting(s, school) ? 'resting' : 'closed';
+      const level = isR ? (pr.held ? pr.level : 0) : levelOf(s, school);
+      const on = role === 'primary' || role === 'secondary' || role === 'priest';
+      const r = rankOfLevel(level);
+      const next = r + 1 < FLOORS.length ? FLOORS[r + 1] : 0;
+      const l = isR ? null : s.levels[school];
+      const made = s.picks[school];
+      const firstPick = made ? { state: made.how === 'none' ? 'none' : 'made', spell: made.spell ? nameOfSpell(made.spell) : '' }
+        : pend.includes(school) ? { state: 'open', choices: pickOptions(a, school).map((o) => ({ id: o.desc, name: o.name, blurb: SPELL_BLURB[o.key] || '' })) }
+          : { state: on ? 'later' : 'closed', at: PICK_AT, spells: firstWords(school) };
+      return {
+        name: school, epithet: EPITHET[school] || '', blurb: isR ? RESTORATION_BLURB : BLURB[school] || '',
+        role, roleLabel: { primary: 'Primary school', secondary: 'Secondary school', priest: 'Through Priest', resting: 'Resting', closed: isR ? 'Opens with Priest' : 'Closed' }[role],
+        level, rank: r >= 0 && role !== 'closed' ? RANKS[r] : '', nextRank: next ? RANKS[r + 1] : '', nextAt: next,
+        fill: Math.max(0, Math.min(1, (level + (l ? Number(l.xp) || 0 : 0) / 100) / 100)),
+        firstSpell: firstPick,
+        // What the rank really allows: the highest tome rank read in this school (the school's rank, capped by Arcane Arts'
+        // tier; Restoration by Priest's), and why it stops there
+        allows: (() => {
+          if (!on) return { maxRank: -1, maxRankName: '', line: isR ? 'Take up Priest to study Restoration.' : role === 'resting' ? `Resting: change back to ${school} at a Scholars' Ledger or a Study Magic shelf to read its tomes.` : `Not one of your schools: its tomes will not settle.` };
+          const skillCap = isR ? priestCap : arcCap;
+          const max = Math.min(Math.max(r, 0), skillCap >= 0 ? skillCap : 4);
+          const by = isR ? 'Priest' : skillCap >= 0 && skillCap < r ? 'your Arcane Arts tier' : `your study of ${school}`;
+          return { maxRank: max, maxRankName: RANKS[max], line: `You may read ${school} tomes up to ${RANKS[max]}, held there by ${by}.` };
+        })(),
+        // Changing an active school for this one: the level it would start at (the primary's change)
+        swapStartsAt: !isR && !active(s, school) && s.primary ? startFor(s, s.primary, school) : 0,
+        recommendations: on ? tomes(school, isR ? PS.skill : C.arcaneSkill, isR ? 4 : r) : [],
+      };
+    });
+    let book = null; try { book = typeof globalThis.__dboSpellsTab === 'function' ? globalThis.__dboSpellsTab(a) : null; } catch (e) { book = null; }
+    const next = (Number(s.swapAt) || 0) + SWAP_MS;
+    return {
+      v: 1, open: true,
+      arcane: { held: arc.held, level: arc.level }, priest: { held: pr.held, level: pr.level },
+      primary: s.primary || '', secondary: s.secondary || '',
+      note: beforeFirst(a, s) ? notYet(arc.level) : !s.primary && arc.held ? 'Choose your school of magic on the Arcane Arts page of your skills (K) or at a Study Magic shelf.' : '',
+      ranks: RANKS.slice(), floors: FLOORS.slice(), firstSpellAt: PICK_AT,
+      schools,
+      book: book || { max: 0, canPrepare: false, hint: '', prepared: [], known: [], outside: [] },
+      swap: { enabled: !!SW.enabled, can: !swapWhy, why: swapWhy, nextAt: next > Date.now() ? next : 0, cooldownDays: Number(SW.cooldownDays) || 0, startShare: Number(SW.startShare) || 0.5,
+        where: "At a Scholars' Ledger or a Study Magic shelf" },
+    };
+  };
+  const magicView = (a) => { try { return magicTabOf(a); } catch (e) { log(`schools: magic view for ${display(a)} failed: ${e.message}`); return null; } };
+  globalThis.__dboMagicView = magicView;
+  globalThis.__dboMagicTab = magicView;
+  // { ok, text } of one Magic tab action
+  globalThis.__dboMagicAction = (a, op, args) => {
+    const list = Array.isArray(args) ? args.map(String) : [];
+    if (!ready(a) || !isPlayer(a)) return { ok: false, text: 'Magic is not open to you yet.' };
+    if (op === 'firstSpell') { const r = pickSpell(a, list[0] || '', list[1] || ''); if (r.ok) { try { globalThis.__dboSchoolsProgressSend(a); } catch (e) { /* no K menu */ } } return r; }
+    if (op === 'prepare' || op === 'unprepare') {
+      if (typeof globalThis.__dboSpellsChangePrepared !== 'function') return { ok: false, text: 'Your spellbook cannot be opened right now.' };
+      return globalThis.__dboSpellsChangePrepared(a, list[0] || '', op === 'prepare');
+    }
+    return { ok: false, text: 'That is not done here.' };
+  };
+
+  // ---- staff: a player's school level (N7; the admin panel calls this) -----------------------------------------------
+  // { ok, text }. A closed school set above 0 rests at that level; Restoration is Priest's, set on the Wheel.
+  const adminSet = (by, t, school, level) => {
+    const name = SCHOOLS.find((n) => n.toLowerCase() === String(school || '').toLowerCase());
+    if (String(school || '').toLowerCase() === 'restoration') return { ok: false, text: 'Restoration follows the Priest skill: set Priest on the Wheel instead.' };
+    if (!name) return { ok: false, text: `${school || 'That'} is not a school of magic. Schools: ${SCHOOLS.join(', ')}.` };
+    const lv = Math.round(Number(level));
+    if (!Number.isFinite(lv) || lv < 0 || lv > 100) return { ok: false, text: 'A school level is 0 to 100.' };
+    const s = stateOf(t);
+    const was = levelOf(s, name);
+    s.levels[name] = { level: lv, xp: 0 };
+    save(t, s);
+    audit(`SCHOOLS ${by ? who(by) : 'staff'} set ${who(t)}'s ${name} from ${was} to ${lv} (${roleOf(s, name)})`);
+    return { ok: true, text: `${display(t)}'s ${name} is now ${lv} (was ${was}${active(s, name) ? '' : '; not one of their schools, so it rests at that level'}).` };
+  };
+  globalThis.__dboAdminSetSchool = (t, school, level, by) => { try { return adminSet(by || 0, t >>> 0, school, level); } catch (e) { return { ok: false, text: e.message }; } };
+
   // ---- staff ---------------------------------------------------------------------------------------------------------
   const argList = (args) => (Array.isArray(args) ? args.map(String) : String(args || '').trim().split(/\s+/)).filter(Boolean);
   registerChatCommand('classteacher', (a, args) => {
@@ -1181,6 +1536,13 @@ module.exports = (api) => {
   }, { admin: true, help: 'name or remove a preacher (Preach pulpit; only with preach.requireList)' });
   registerChatCommand('schools', (a, args) => {
     const words = argList(args);
+    if (words[0] && words[0].toLowerCase() === 'set') {
+      const t = findByName(words.slice(3).join(' '));
+      if (!t || words.length < 4) return personal(a, words.length < 4 ? 'Usage: /schools set <school> <level> <player>.' : `Nobody online answers to "${words.slice(3).join(' ')}".`);
+      const r = adminSet(a, t, words[1], words[2]);
+      if (r.ok) { try { globalThis.__dboSchoolsProgressSend(t); } catch (e) { /* no K menu */ } }
+      return personal(a, r.text);
+    }
     const isReset = !!words[0] && words[0].toLowerCase() === 'reset';
     const query = (isReset ? words.slice(1) : words).join(' ');
     const t = query ? findByName(query) : (isReset ? 0 : a);
@@ -1191,10 +1553,10 @@ module.exports = (api) => {
       return personal(a, `${display(t)}'s schools of magic are cleared; they choose again.`);
     }
     const s = stateOf(t);
-    personal(a, `${display(t)}: ${SCHOOLS.map((n) => `${n} ${roleOf(s, n)}${active(s, n) ? ` ${levelOf(s, n)}` : ''}`).join(', ')}; Arcane Arts ${arcaneOf(t).level}${s.teacher ? '; a named teacher' : ''}.`);
-  }, { admin: true, help: 'a player\'s schools of magic (or reset them)' });
+    personal(a, `${display(t)}: ${SCHOOLS.map((n) => `${n} ${active(s, n) ? `${roleOf(s, n)} ${levelOf(s, n)}` : resting(s, n) ? `resting ${levelOf(s, n)}` : 'locked'}`).join(', ')}; Arcane Arts ${arcaneOf(t).level}; first spells: ${Object.entries(s.picks).map(([k, v]) => `${k} ${v.spell ? nameOfSpell(v.spell) || v.spell : v.how}`).join(', ') || 'none'}${s.swapAt ? `; last change ${new Date(s.swapAt).toISOString().slice(0, 10)}` : ''}${s.teacher ? '; a named teacher' : ''}.`);
+  }, { admin: true, help: 'a player\'s schools of magic (or reset them, or /schools set <school> <level> <player>)' });
 
-  log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; first spell at Arcane Arts ${FIRST_AT || 'any level'} (${SCHOOLS.map((n) => `${n} ${starterName(n) || '?'}`).join(', ')}); secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${CLASSES.runs.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}; Alteration ${ALTERATION}`);
+  log(`schools ${C.enabled ? 'on' : 'off'}: ${SCHOOLS.join(', ')}; school at Arcane Arts ${FIRST_AT || 'any level'}; first spell at ${PICK_AT} (${SCHOOLS.concat([RESTORATION]).map((n) => `${n} ${firstWords(n) || '?'}`).join('; ')}); casts ${C.castUnits} a day ${C.castDailyUnits}, classes ${C.classes.units}; change school ${SW.enabled ? `every ${SW.cooldownDays} days at ${SW.startShare}` : 'off'}; secondary at Arcane Arts ${C.secondaryAtLevel} from ${C.secondaryStartLevel}; study ${C.study.enabled ? `${C.study.minutesPerWindow} min per ${C.study.windowHours} h at ${C.study.edid}${STUDY_REFS.size ? ` + ${STUDY_REFS.size} refs` : ''}` : 'off'}; classes ${C.classes.enabled ? `${C.classes.minutes} min at ${C.classes.edid}${LECTERN_REFS.size ? ` + ${LECTERN_REFS.size} refs` : ''}, ${CLASSES.runs.size} running` : 'off'}; school spells ${Object.keys(SCHOOL_SPELL).length}; Alteration ${ALTERATION}`);
   log(`schools: sermons ${P.enabled && C.enabled ? `${P.minutes} min at ${P.edid}${PREACH_REFS.size ? ` + ${PREACH_REFS.size} refs` : ''}, by a follower of ${(P.teacherFaiths || []).join('/') || 'any faith'} at Priest ${RANKS[P.teacherMinRank]}${P.requireList ? ', named preachers only' : ''}, ${SERMONS.runs.size} running` : 'off'}`);
   log(`schools: Priest Studies ${PS.enabled && C.enabled ? `${PS.minutesPerWindow} min per ${PS.windowHours} h at ${PS.edid}${PRIEST_REFS.size ? ` + ${PRIEST_REFS.size} refs` : ''}, paying ${PS.skill} with ${PRIEST_SPELL || 'no Restoration spell'}${S.priestStudySeen ? '' : `; inert until a ${PS.edid} activator is used (DLE v10)`}` : 'off'}`);
 };

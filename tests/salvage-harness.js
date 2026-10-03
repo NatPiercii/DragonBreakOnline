@@ -185,6 +185,25 @@ ok(opened.length === 1 && /walked away/.test(said[said.length - 1][1]), 'nothing
 FAR = false; globalThis.__dboOpenSpellbook = undefined;
 act(LEDGER, PLAYER); choose(PLAYER, 'spellbook');
 ok(/cannot be opened right now/.test(said[said.length - 1][1]), 'without spells.js the ledger says the book cannot be opened');
+// The schools of magic (schools.js): a first spell to choose and a change of school are rows of the first menu, after the book
+FAR = false;
+const schoolCalls = [];
+globalThis.__dboSchoolsLedgerActions = (a) => (a === PLAYER ? [{ id: 'school:pick:Destruction', label: 'Choose your first spell of Destruction' }, { id: 'school:swap', label: 'Change your school of magic' }] : []);
+globalThis.__dboSchoolsLedgerChoose = (a, id, ref) => { schoolCalls.push([a, id, ref]); widgets.push([a, { type: 'studyMagic', id: 73 }]); return true; };
+act(LEDGER, PLAYER); w = lastWidget(PLAYER);
+ok(w.actions.map((x) => x.label).join('|') === 'Open your Spell Book|Choose your first spell of Destruction|Change your school of magic|Break down old books', 'the schools\' rows sit after the spellbook: ' + w.actions.map((x) => x.label).join('|'));
+act(LEDGER, NOVICE);
+ok(lastWidget(NOVICE).actions.map((x) => x.label).join('|') === 'Open your Spell Book|Break down old books', '...only for the player they apply to');
+act(LEDGER, PLAYER); const b2 = widgets.length; choose(PLAYER, 'school:swap');
+ok(schoolCalls.length === 1 && schoolCalls[0][1] === 'school:swap' && schoolCalls[0][2] === LEDGER, 'a schools row goes to schools.js with the ledger it was chosen at');
+ok(widgets[b2][1].type === 'studyMagic' && widgets[b2 + 1][1] === null, '...whose panel opens before the menu closes');
+FAR = true; act(LEDGER, PLAYER); choose(PLAYER, 'school:pick:Destruction');
+ok(schoolCalls.length === 1 && /walked away/.test(said[said.length - 1][1]), '...and nothing happens once the player walked away');
+FAR = false;
+globalThis.__dboSchoolsLedgerChoose = () => false;
+act(LEDGER, PLAYER); choose(PLAYER, 'school:swap');
+ok(lastWidget(PLAYER).targetName === 'That is not done here just now.', 'a row schools.js no longer handles reopens the menu with a line');
+globalThis.__dboSchoolsLedgerActions = undefined; globalThis.__dboSchoolsLedgerChoose = undefined;
 
 // Using the station, walking away, paging
 reset(); S = load();

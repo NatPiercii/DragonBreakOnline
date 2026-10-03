@@ -204,10 +204,17 @@ module.exports = (api) => {
   // keep: a redraw keeps the faction panel's nonce, so a faction click in flight is not refused by the clock tick
   const factionView = (a, keep) => { try { return typeof globalThis.__dboFactionPayload === 'function' ? globalThis.__dboFactionPayload(a, !!keep) : null; } catch (e) { log('journal: faction view failed', e.message); return null; } };
   const superView = (a) => { try { return typeof globalThis.__dboSuperProgress === 'function' ? globalThis.__dboSuperProgress(a) : null; } catch (e) { return null; } };
+  // The Magic tab (schools.js __dboMagicView; specs/f3-hub-design.md 3.3), for a front that draws the hub only: today's
+  // journal has no Magic tab, and the section is not built for it
+  const magicView = (a) => {
+    if (!(typeof hasCap === 'function' && hasCap(a, 'journalHub'))) return undefined;
+    try { return typeof globalThis.__dboMagicView === 'function' ? globalThis.__dboMagicView(a) : null; } catch (e) { log('journal: magic view failed', e.message); return null; }
+  };
 
   const payload = (a, st, extra) => Object.assign({
     type: 'journal', id: WIDGET_ID, nonce: st.nonce, clock: clockView(), profile: profileView(a),
     faction: 'faction' in (extra || {}) ? extra.faction : factionView(a, !(extra && extra.tab === 'profile' && extra.fresh)), supernatural: superView(a), stats: statsView(a),
+    magic: magicView(a),
   }, extra || {}, { fresh: undefined });
   // focus only on opening: a redraw is data only and never moves the keyboard (the relay's refresh)
   const draw = (a, st, extra, focus) => { try { openWidget(a, payload(a, st, extra), !!focus); } catch (e) { log('journal: draw failed for', display(a), e.message); } };
@@ -317,6 +324,15 @@ module.exports = (api) => {
       flushDoc();
       log(`journal: ${display(a)} saved their story (${backstory.length} + ${origin.length} characters)`);
       answer(a, st, 'Your story is saved.', 'ok');
+    });
+  });
+  // The Magic tab's actions: [nonce, op, ...] (firstSpell <school> <spell desc>, prepare <spell desc>, unprepare <spell desc>)
+  onUi('journalMagic', (a, args) => {
+    if (!fresh(a, args) || !(typeof hasCap === 'function' && hasCap(a, 'journalHub'))) return;
+    limited(a, () => {
+      const st = J.open.get(a >>> 0); if (!st) return;
+      const r = typeof globalThis.__dboMagicAction === 'function' ? globalThis.__dboMagicAction(a, String(args[1] || ''), args.slice(2)) : { ok: false, text: 'Magic is not open just now.' };
+      answer(a, st, r.text, r.ok ? 'ok' : 'refused');
     });
   });
   onUi('journalTitle', (a, args) => {
