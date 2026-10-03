@@ -45,6 +45,28 @@
   }
 
   &__group { min-width: 0; }
+  &__part--one { grid-template-columns: minmax(0, 760px); }
+
+  &__key-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  &__key {
+    min-width: 120px;
+    min-height: 28px;
+    padding: 3px 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(140, 154, 156, 0.45);
+    color: $dbo-silver;
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+
+    &:hover { border-color: dbo-accent(0.7); }
+    &--capture { border-color: $dbo-gold-border-strong; color: $dbo-gold; }
+    &--clash { border-color: rgba(214, 84, 84, 0.8); }
+  }
+  &__clash { font-size: 13px; color: #e6b3ad; }
+  &__later { font-size: 13px; color: $dbo-gold; font-style: italic; }
+  &__note { margin: 12px 0 0; font-size: 14px; color: $dbo-text-dim; }
 
   &__row {
     display: grid;

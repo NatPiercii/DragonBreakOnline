@@ -2,3 +2,4 @@
 // (tabs.ts). Add a line here for a new tab; nothing else in the journal needs to change.
 import './tabs/DeityTab';
 import './tabs/SettingsTab';
+import './tabs/SettingsKeys';

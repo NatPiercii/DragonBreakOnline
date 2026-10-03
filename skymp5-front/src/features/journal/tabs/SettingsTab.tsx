@@ -213,7 +213,7 @@ export const SettingsTab = ({ section, busy, act }: JournalTabProps<SettingsSect
   const s = (section || {}) as SettingsSection;
   const parts = PARTS.filter((p) => !p.shown || p.shown(s));
   const want = s.focusPeer && parts.some((p) => p.id === 'voice') ? 'voice' : s.section;
-  const [open, setOpen] = useState<string>(() => (want && parts.some((p) => p.id === want) ? want : (parts.find((p) => p.id === 'interface') || parts[0] || { id: '' }).id));
+  const [open, setOpen] = useState<string>(() => (want && parts.some((p) => p.id === want) ? want : (parts[0] || { id: '' }).id));
   // A deep link (X's "Voice settings for <name>") opens its section
   useEffect(() => { if (want && parts.some((p) => p.id === want)) setOpen(want); }, [want, s.focusPeer]);
   const part = parts.find((p) => p.id === open) || parts[0];

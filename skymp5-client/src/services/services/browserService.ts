@@ -4,7 +4,7 @@ import { QueryKeyCodeBindings } from "../events/queryKeyCodeBindings";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { FormView } from "../../view/formView";
 import { showSystemNotification } from "./systemNotification";
-import { forgetDeferredFocus, isConsoleOpen, readMenuKeyCode, takeDeferredFocus } from "./widgetMenuUtil";
+import { forgetDeferredFocus, isConsoleOpen, keybindOverride, readMenuKeyCode, takeDeferredFocus } from "./widgetMenuUtil";
 import { badMenuAction } from "./badMenuPolicy";
 import { logTrace } from "../../logging";
 import { PlacementService } from "./placementService";
@@ -36,6 +36,9 @@ export class BrowserService extends ClientListener {
     } catch {
       // fall back to defaults
     }
+    // F3, Settings, General rebinds the chat key (T), keeping Enter and F6
+    const chatKey = keybindOverride(this.sp, "chatKeyCode");
+    if (chatKey !== null) this.chatFocusKeys = [DxScanCode.Enter, chatKey as DxScanCode, DxScanCode.F6].filter((k) => k > 0);
 
     this.controller.emitter.on("queryKeyCodeBindings", (e) => this.onQueryKeyCodeBindings(e));
     // A front reload must never leave the player with a hidden interface
