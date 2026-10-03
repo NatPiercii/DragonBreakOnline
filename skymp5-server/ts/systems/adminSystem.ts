@@ -40,8 +40,9 @@ type Mp = any;
 //                     { customPacketType: "adminAction", action: "giveSpells" | "giveShouts" | "giveWerewolf" | "giveVampireLord", targetName? }
 //                     { customPacketType: "adminAction", action: "beastForm", form: "werewolf" | "vampirelord", op: "now" | "revert" | "revoke", targetName? }
 //                     { customPacketType: "adminAction", action: "giveDisease", kind: "vampire" | "werewolf", targetName? }
+//                     { customPacketType: "adminAction", action: "setSchool", school, level, targetName? }  level 0..100 (schools.js)
 //                     A missing target/targetName means the admin themself; targetName takes a name, a name prefix or #TAG.
-//   Server -> Client: { customPacketType: "adminMastery", targetName, detail }
+//   Server -> Client: { customPacketType: "adminMastery", targetName, detail }  detail.schools: [{ name, level, role, roleLabel }]
 //                     { customPacketType: "adminItems", categories: [{ id, label, items: [[desc, name, plugin?]] }] }
 //                     { customPacketType: "adminLocations", locations: [{ name, region, worldName }] }
 //                     { customPacketType: "dboTeachShouts", shouts: [{ shout, words: [desc] }] }  -> the target's client (AdminModeService)
@@ -70,7 +71,7 @@ const ADMIN_MODES: Array<{ id: string; label: string }> = [
 
 // Lead GM and above only (TIER_CAPS.spawn); a GM keeps teleports, kick, observing modes and the roster
 const SPAWN_ACTIONS = new Set(["kill", "deleteCharacter", "masteryGrant", "masteryReset", "masterySetTier", "masteryDrop",
-  "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "giveDisease", "beastForm", "npcZoneAdd", "npcZoneDelete", "npcZoneReset"]);
+  "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "giveDisease", "setSchool", "beastForm", "npcZoneAdd", "npcZoneDelete", "npcZoneReset"]);
 const SPAWN_MODES = new Set(["smite", "healhit"]);
 
 // Modes mirrored onto the neighbors-visible ff_adminModes actor property (registered in gamemode.js)
@@ -427,8 +428,7 @@ export class AdminSystem implements System {
     if (type === "adminMasteryRequest") {
       const who = this.resolveTarget(mp, myActorId, content);
       if (!who) { this.reply(mp, userId, false, "No online player by that name"); return; }
-      try { mp.sendCustomPacket(userId, JSON.stringify({ customPacketType: "adminMastery", targetName: who.name, target: who.actorId.toString(16), detail: this.mastery.adminDetail(ctx, who.actorId) })); }
-      catch (e) { this.log(`AdminSystem: adminMastery reply failed: ${e}`); }
+      this.sendMasteryDetail(ctx, mp, userId, who);
       return;
     }
 
@@ -474,7 +474,7 @@ export class AdminSystem implements System {
       this.reply(mp, userId, !!lifted, lifted ? `Ban on ${lifted.name || lifted.ip} lifted` : "No such ban");
       return;
     }
-    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "giveDisease", "beastForm"].indexOf(action) !== -1) {
+    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "giveDisease", "setSchool", "beastForm"].indexOf(action) !== -1) {
       const who = this.resolveTarget(mp, myActorId, content);
       if (!who) { this.reply(mp, userId, false, "No online player by that name"); return; }
       this.selfServiceAction(ctx, mp, userId, myActorId, adminProfile, action, who, content);
@@ -567,6 +567,19 @@ export class AdminSystem implements System {
     }
   }
 
+  // The Skills tab's detail, with the five schools from server\schools.js (__dboMagicView) when it is loaded
+  private sendMasteryDetail(ctx: SystemContext, mp: Mp, userId: number, who: { actorId: number; name: string }): void {
+    let schools: Array<{ name: string; level: number; role: string; roleLabel: string }> = [];
+    try {
+      const view = typeof (globalThis as any).__dboMagicView === "function" ? (globalThis as any).__dboMagicView(who.actorId) : null;
+      if (view && Array.isArray(view.schools)) {
+        schools = view.schools.map((x: any) => ({ name: String(x && x.name || ""), level: Number(x && x.level) || 0, role: String(x && x.role || ""), roleLabel: String(x && x.roleLabel || "") })).filter((x: { name: string }) => x.name);
+      }
+    } catch (e) { this.log(`AdminSystem: the schools of ${who.name} could not be read: ${e}`); }
+    try { mp.sendCustomPacket(userId, JSON.stringify({ customPacketType: "adminMastery", targetName: who.name, target: who.actorId.toString(16), detail: Object.assign({}, this.mastery.adminDetail(ctx, who.actorId), { schools }) })); }
+    catch (e) { this.log(`AdminSystem: adminMastery reply failed: ${e}`); }
+  }
+
   // A named player (name, unique name prefix or #TAG), an actor id hex, or the admin themself when neither is given
   private resolveTarget(mp: Mp, myActorId: number, content: Content): { userId: number; actorId: number; profileId: number; name: string } | null {
     const online = this.onlinePlayers(mp);
@@ -596,7 +609,23 @@ export class AdminSystem implements System {
         const ok = action === "masterySetTier" ? this.mastery.adminSetTier(ctx, who.actorId, skill, tier) : this.mastery.adminDropSkill(ctx, who.actorId, skill);
         if (ok) this.adminLog(`profile ${adminProfile} ${action === "masterySetTier" ? `set ${skill} to tier ${tier} for` : `dropped ${skill} for`} ${whom}`);
         this.reply(mp, userId, ok, ok ? (action === "masterySetTier" ? `${who.name}: ${skill} set` : `${who.name}: ${skill} set aside`) : "That did not work");
-        if (ok) mp.sendCustomPacket(userId, JSON.stringify({ customPacketType: "adminMastery", targetName: who.name, target: who.actorId.toString(16), detail: this.mastery.adminDetail(ctx, who.actorId) }));
+        if (ok) this.sendMasteryDetail(ctx, mp, userId, who);
+        return;
+      }
+      // A school's level (N7): server\schools.js writes the record /schools set writes, and audits it
+      if (action === "setSchool") {
+        const set = (globalThis as any).__dboAdminSetSchool;
+        if (typeof set !== "function") { this.reply(mp, userId, false, "schools.js is not loaded on the server"); return; }
+        const school = String(content["school"] ?? "");
+        const level = Number(content["level"]);
+        if (!Number.isFinite(level) || level < 0 || level > 100) { this.reply(mp, userId, false, "A school level is 0 to 100"); return; }
+        let r: { ok?: boolean; text?: string } | null = null;
+        try { r = set(who.actorId, school, Math.round(level), myActorId); }
+        catch (e) { this.log(`AdminSystem: setSchool ${school} failed: ${e}`); this.reply(mp, userId, false, "Setting the school failed, see server log"); return; }
+        const ok = !!(r && r.ok);
+        if (ok) this.adminLog(`profile ${adminProfile} set ${school} to ${Math.round(level)} for ${whom}`);
+        this.reply(mp, userId, ok, String((r && r.text) || (ok ? "Done" : "That did not work")));
+        if (ok) this.sendMasteryDetail(ctx, mp, userId, who);
         return;
       }
       if (action === "giveItem") {
