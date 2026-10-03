@@ -22,3 +22,17 @@ export const formationWorldOffset = (slot: number, angleZ: number): [number, num
   const rad = (Number(angleZ) || 0) * Math.PI / 180;
   return [x * Math.cos(rad) + y * Math.sin(rad), -x * Math.sin(rad) + y * Math.cos(rad)];
 };
+
+// The point a follower in this slot stands at, in world space, for an owner at ownerPos facing angleZ (height: the owner's)
+export const formationPoint = (slot: number, ownerPos: number[], angleZ: number): [number, number, number] => {
+  const [dx, dy] = formationWorldOffset(slot, angleZ);
+  return [ownerPos[0] + dx, ownerPos[1] + dy, ownerPos[2]];
+};
+
+// How far a follower is from its own place in the formation. The stuck watch and the driven walk measure from here: a
+// back-row follower resting in its slot can stand 1,000 units from the owner, past the stuck watch's 800, and measured
+// from the owner it was lifted, driven to heel and sent back, over and over (review rv3, 3 Oct)
+export const formationGap = (actorPos: number[], slot: number, ownerPos: number[], angleZ: number): number => {
+  const p = formationPoint(slot, ownerPos, angleZ);
+  return Math.hypot(actorPos[0] - p[0], actorPos[1] - p[1], actorPos[2] - p[2]);
+};

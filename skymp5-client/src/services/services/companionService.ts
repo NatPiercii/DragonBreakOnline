@@ -1,7 +1,7 @@
 import { Actor, HitEvent, ObjectReference, Quest, ReferenceAlias, storage } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { companionFightState } from "./companionFightState";
-import { formationOffset, formationWorldOffset } from "./companionFormation";
+import { formationGap, formationOffset, formationPoint, formationWorldOffset } from "./companionFormation";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
@@ -206,8 +206,9 @@ export class CompanionService extends ClientListener {
     this.recordTrail(player);
     this.assist(player, now);
     this.publishHud(now);
-    for (let index = 0; index < this.companions.length; index++) {
-      const c = this.companions[index];
+    // Places in the formation go to the loaded, living companions in list order, so a dead or unloaded one leaves no hole
+    let slot = 0;
+    for (const c of this.companions) {
       const actor = this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.id)));
       if (!actor || actor.isDead() || !actor.is3DLoaded()) {
         if (!actor || !actor.isDead()) this.reportAway(c.id, actor, player, now);
@@ -215,7 +216,7 @@ export class CompanionService extends ClientListener {
       }
       // Set up as an ally at once: the summon's own AI runs before our host grant and would pick a fight with its caster
       const state = this.stateFor(c.id, actor);
-      state.slot = index;
+      state.slot = slot++;
       this.lastPos.set(c.id, [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()]);
       if (actor.getCombatTarget()?.getFormID() === PLAYER_ID) {
         actor.stopCombat();
@@ -278,12 +279,14 @@ export class CompanionService extends ClientListener {
     const before = state.stuckPos;
     state.stuckPos = here;
     const distance = actor.getDistance(player);
-    if (!before || distance <= CompanionService.stuckDistance) {
+    // Measured from its own place in the formation, not from the owner: a back row rests farther than stuckDistance away
+    const gap = formationGap(here, state.slot, [player.getPositionX(), player.getPositionY(), player.getPositionZ()], player.getAngleZ());
+    if (!before || gap <= CompanionService.stuckDistance) {
       state.stuckSince = 0;
       return;
     }
     const moved = Math.hypot(here[0] - before[0], here[1] - before[1], here[2] - before[2]);
-    state.lastGap = distance;
+    state.lastGap = gap;
     if (moved > CompanionService.stuckUnits) {
       state.stuckSince = 0;
       return;
@@ -334,7 +337,10 @@ export class CompanionService extends ClientListener {
     }
     const from = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
     const distance = actor.getDistance(player);
-    if (distance <= CompanionService.followRadius * 2) {
+    // Its own place in the formation is where it is walked to, and where it is at heel
+    const owner = [player.getPositionX(), player.getPositionY(), player.getPositionZ()];
+    const gap = formationGap(from, state.slot, owner, player.getAngleZ());
+    if (gap <= CompanionService.followRadius * 2) {
       state.driven = false;
       state.unstuckAt = 0;
       settleTranslation(actor);
@@ -343,9 +349,9 @@ export class CompanionService extends ClientListener {
       state.followResult = "driven, at heel";
       return;
     }
-    // Head for the owner, taking the height from the nearest ground the owner actually walked on,
+    // Head for its place behind the owner, taking the height from the nearest ground the owner actually walked on,
     // so a step never sinks into a slope or hangs in the air
-    const target = [player.getPositionX(), player.getPositionY(), player.getPositionZ()];
+    const target: number[] = formationPoint(state.slot, owner, player.getAngleZ());
     let nearest = Infinity;
     for (const point of this.trail) {
       const d = Math.hypot(point[0] - from[0], point[1] - from[1]);
@@ -358,14 +364,13 @@ export class CompanionService extends ClientListener {
     const dy = target[1] - from[1];
     const flat = Math.hypot(dx, dy) || 1;
     const facing = ((Math.atan2(dx, dy) * 180 / Math.PI) % 360 + 360) % 360;
-    // Too far to run back: put it behind the owner, since a driven companion has no leash of its own
+    // Too far to run back: put it in its place behind the owner, since a driven companion has no leash of its own
     if (distance > CompanionService.teleportDistance) {
-      actor.setPosition(target[0] - dx / flat * CompanionService.followRadius,
-        target[1] - dy / flat * CompanionService.followRadius, target[2]);
+      actor.setPosition(target[0], target[1], target[2]);
       state.followResult = "driven, caught up from " + Math.round(distance);
       return;
     }
-    const running = distance > CompanionService.catchUpRadius;
+    const running = gap > CompanionService.catchUpRadius;
     const speed = running ? CompanionService.driveRunSpeed : CompanionService.driveWalkSpeed;
     const step = Math.min(speed * CompanionService.applyIntervalMs / 1000, flat);
     // applyMovement throws RespawnNeededError when this does not match the actor's own cell
