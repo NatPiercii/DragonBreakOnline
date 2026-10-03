@@ -1,33 +1,12 @@
 import React, { useEffect, useState } from 'react';
 
 import './styles.scss';
+import { SkillDef, Category, Chosen, PointState, HeldSkill, BAND_FLOORS, DEFAULT_TIERS, SkillList, SkillThread, TierCards } from './parts';
+
+export * from './parts';
 
 // DragonBreak Online skills menu (K): three groups, up to `maxChosen` skills,
 // five tiers each. Data comes from the client's masteryMenu packet mirror.
-
-interface SkillDef {
-  id: string;
-  category: string;
-  label: string;
-  title: string;
-  description: string;
-  tiers: string[];
-  // How this skill is taken up at all: at a station you walk to, or by working at it until the server
-  // offers. `hint` names the station in a player's words. Both come from masterySystem.sendMenu.
-  openable?: 'station' | 'work';
-  hint?: string;
-}
-
-interface Category {
-  id: string;
-  label: string;
-}
-
-interface Chosen {
-  id: string;
-  rank: number;
-  hours: number;
-}
 
 interface Respec {
   open: boolean;
@@ -44,42 +23,6 @@ interface MasteryEvents {
   close: string;
   [key: string]: string;
 }
-
-type LockMode = 'raise' | 'hold' | 'lower';
-
-interface HeldSkill {
-  id: string;
-  level: number;
-  xp: number;
-  tier: number;
-  lock: LockMode;
-}
-
-interface PointState {
-  enabled: boolean;
-  pool: number;
-  used: number;
-  capPerSkill: number;
-  seatAbove: number;
-  seatCount: number;
-  expertAbove: number;
-  expertCount: number;
-  transferFloor: number;
-  held: HeldSkill[];
-  // Skills with no station the server has banked work for and is offering to open (masterySystem
-  // .onTakeUp). Combat was the first family; prayer, reading, lockpicking and harvesting joined it on
-  // 2026-09-20, which is why the offer line is no longer worded for fighting alone.
-  offers?: Array<{ id: string; banked: number }>;
-}
-
-// Masser and Secunda are Lorkhan's sundered flesh, so the moons name what rises and what wanes.
-const LOCKS: Array<{ mode: LockMode; glyph: string; label: string; hint: string }> = [
-  { mode: 'raise', glyph: '◒', label: 'Waxing', hint: 'Rises with use. Gives way only when nothing is waning.' },
-  { mode: 'hold', glyph: '●', label: 'Held', hint: 'Never falls. Held skills are spared when the Wheel takes its due.' },
-  { mode: 'lower', glyph: '◓', label: 'Waning', hint: 'Does not rise with use. The first to give way when another skill rises past your limit.' },
-];
-
-const BAND_FLOORS = [1, 25, 50, 75, 90];
 
 // The Werewolf or Vampire tab (gameplay supernatural.js, Nate 2026-09-30): sent beside the skills for a character who
 // carries the curse, null for anyone else. Every word comes from the server; this only lays it out.
@@ -259,7 +202,6 @@ export interface MasteryData {
   events: MasteryEvents;
 }
 
-const DEFAULT_TIERS = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
 
 const send = (key: string, ...args: unknown[]): void => {
   try {
@@ -288,8 +230,6 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
   const points = data.points && data.points.enabled ? data.points : null;
   const held: HeldSkill[] = points ? points.held || [] : [];
   const heldOf = (id: string): HeldSkill | null => held.filter((h) => h.id === id)[0] || null;
-  const offers = points ? points.offers || [] : [];
-  const offerOf = (id: string) => offers.filter((o) => o.id === id)[0] || null;
   const [viewing, setViewing] = useState(
     points
       ? (held[0] ? held[0].id : (skills[0] ? skills[0].id : ''))
@@ -360,38 +300,8 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
         )}
         <h1 className="mastery__title">{viewingCurse ? (curse as CurseProgress).label : current.label}</h1>
 
-        <nav className="mastery__list mastery__list--grouped">
-          {categories.map((cat) => (
-            <div key={cat.id} className="mastery__group">
-              <div className="mastery__group-name">{cat.label}</div>
-              {skills.filter((s) => s.category === cat.id).map((s) => {
-                const c = chosen.filter((x) => x.id === s.id)[0];
-                return (
-                  <button
-                    key={s.id}
-                    className={
-                      'mastery__item' +
-                      (s.id === viewing ? ' mastery__item--viewing' : '') +
-                      (c ? ' mastery__item--chosen' : '')
-                    }
-                    onClick={() => setViewing(s.id)}
-                  >
-                    {points ? null : c ? <span className="mastery__marker">&#9670;</span> : null}
-                    {points && heldOf(s.id) ? (
-                      <span className={'mastery__moon mastery__moon--' + (heldOf(s.id) as HeldSkill).lock}>
-                        {(LOCKS.filter((l) => l.mode === (heldOf(s.id) as HeldSkill).lock)[0] || LOCKS[0]).glyph}
-                      </span>
-                    ) : null}
-                    {s.label}
-                    {points
-                      ? (heldOf(s.id) ? <span className="mastery__item-level">{(heldOf(s.id) as HeldSkill).level}</span> : null)
-                      : c ? <span className="mastery__item-tier"> {tierNames[c.rank] || ''}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-          {curse ? (
+        <SkillList skills={skills} categories={categories} viewing={viewing} onView={setViewing} points={points} chosen={chosen} tierNames={tierNames}
+          after={curse ? (
             <div className="mastery__group mastery__group--curse">
               <div className="mastery__group-name">{curse.group}</div>
               <button
@@ -404,8 +314,7 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
                   : null}
               </button>
             </div>
-          ) : null}
-        </nav>
+          ) : null} />
 
         {viewingCurse ? <CurseStage curse={curse as CurseProgress} /> : null}
         {viewingCurse ? <CurseRanks ladder={(curse as CurseProgress).ladder} /> : null}
@@ -422,66 +331,8 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
               <p className="mastery__description">{current.description}</p>
               <div className="mastery__stage-foot">
                 {points ? (
-                  (() => {
-                    const h = heldOf(current.id);
-                    const seatTaken = held.filter((x) => x.level > points.seatAbove).length >= points.seatCount && (!h || h.level <= points.seatAbove);
-                    const expertsTaken = held.filter((x) => x.level > points.expertAbove).length >= points.expertCount && (!h || h.level <= points.expertAbove);
-                    const ceiling = seatTaken ? (expertsTaken ? points.expertAbove : points.seatAbove) : points.capPerSkill;
-                    return (
-                      <div className="mastery__thread">
-                        {h ? (
-                          <>
-                            <div className="mastery__level-row">
-                              <span className="mastery__level">{h.level}</span>
-                              <span className="mastery__level-of">of {ceiling}</span>
-                              <span className="mastery__level-tier">{tierNames[h.tier] || ''}</span>
-                            </div>
-                            <span className="mastery__level-bar"><i style={{ width: `${Math.max(2, Math.min(100, h.xp))}%` }} /></span>
-                            <div className="mastery__locks">
-                              {LOCKS.map((l) => (
-                                <button
-                                  key={l.mode}
-                                  title={l.hint}
-                                  className={'mastery__lock' + (h.lock === l.mode ? ' mastery__lock--on' : '')}
-                                  onClick={() => send(ev.lock, current.id, l.mode)}
-                                >
-                                  <span className="mastery__lock-glyph">{l.glyph}</span>
-                                  {l.label}
-                                </button>
-                              ))}
-                            </div>
-                            <p className="mastery__played--muted mastery__played--hint">
-                              {ceiling < points.capPerSkill
-                                ? `Another hand already holds the ${ceiling === points.seatAbove ? 'Seat' : 'mastery'} above ${ceiling}. This craft rises no further until it is given up.`
-                                : 'Work raises it. When the Wheel is full, a waning skill gives way; nothing falls below ' + points.transferFloor + '.'}
-                            </p>
-                          </>
-                        ) : (
-                          offerOf(current.id) ? (
-                            <div className="mastery__offer">
-                              <p className="mastery__offer-line">
-                                {current.category === 'combat'
-                                  ? 'You have fought often enough this way to call it your own.'
-                                  : 'You have done this often enough to call it your own.'}
-                                <span className="mastery__offer-banked">
-                                  {(offerOf(current.id) as { banked: number }).banked} unit(s) of work already stand to your name.
-                                </span>
-                              </p>
-                              <button className="mastery__takeup" disabled={busy} onClick={() => { setBusy(true); send(ev.takeUp, current.id); }}>
-                                Take up {current.label} &mdash; one spoke
-                              </button>
-                            </div>
-                          ) : (
-                          <p className="mastery__played mastery__played--muted">
-                            {current.openable === 'work'
-                              ? 'Untaken. Work at it and it will offer itself once there is a level’s worth to your name.'
-                              : `Untaken. Set your hand to ${current.hint || 'its station'} and the first spoke is yours.`}
-                          </p>
-                          )
-                        )}
-                      </div>
-                    );
-                  })()
+                  <SkillThread skill={current} points={points} tierNames={tierNames} busy={busy}
+                    onLock={(mode) => send(ev.lock, current.id, mode)} onTakeUp={() => { setBusy(true); send(ev.takeUp, current.id); }} />
                 ) : mine ? (
                   <p className="mastery__played">
                     {tierNames[mine.rank] || ''} &middot; {mine.hours} {mine.hours === 1 ? 'hour' : 'hours'} of work
@@ -504,21 +355,9 @@ const MasteryMenu = ({ data }: { data: MasteryData }) => {
             </section>
 
             {schools ? <SchoolMeters progress={schools} onChoose={(s) => setSchoolAsk(s)} /> : (
-            <section className="mastery__ranks mastery__ranks--five">
-              {tierNames.map((tierName, i) => {
-                const h = points ? heldOf(current.id) : null;
-                const reached = points ? !!h && h.tier >= i : !!mine && mine.rank >= i;
-                return (
-                  <div key={tierName} className={'mastery__rank' + (reached ? ' mastery__rank--reached' : '')}>
-                    <h3 className="mastery__rank-name">{tierName}</h3>
-                    <p className="mastery__rank-perk">{current.tiers[i] || ''}</p>
-                    <span className="mastery__rank-cost">
-                      {points ? (i === 0 ? 'the first spoke' : 'level ' + BAND_FLOORS[i]) : (!tierHours[i] ? 'from the start' : tierHours[i] + ' hours')}
-                    </span>
-                  </div>
-                );
-              })}
-            </section>
+            <TierCards skill={current} tierNames={tierNames}
+              reached={(i) => (points ? (() => { const h = heldOf(current.id); return !!h && h.tier >= i; })() : !!mine && mine.rank >= i)}
+              costOf={(i) => (points ? (i === 0 ? 'the first spoke' : 'level ' + BAND_FLOORS[i]) : (!tierHours[i] ? 'from the start' : tierHours[i] + ' hours'))} />
             )}
           </>
         )}
