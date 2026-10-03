@@ -245,6 +245,27 @@ globalThis.__dboJournalRequest(HUB);
 globalThis.__dboJournalFaction(HUB, { type: 'faction', id: 37, nonce: 'f-answer', factions: [] });
 check('a faction answer redraws the hub on Faction with that payload', last(HUB).tab === 'faction' && last(HUB).faction.nonce === 'f-answer' && last(HUB).hub === 1);
 
+// ---- staff: another's journal, read only (__dboJournalOpenFor) ----
+const actsBefore = magicCalls.length, repBefore = reports.length;
+check('OpenFor: refused to a player who is not staff, and for oneself', globalThis.__dboJournalOpenFor(HUB, WOLF) === false && globalThis.__dboJournalOpenFor(STAFF, STAFF) === false);
+check('...staff open the target\'s journal, focused, read only', globalThis.__dboJournalOpenFor(STAFF, WOLF, 'supernatural') === true && widgets[widgets.length - 1].focus === true && last(STAFF).readOnly === 1);
+w = last(STAFF);
+check('...the target\'s tabs and sections (the curse tab is the werewolf\'s), the target\'s name in the header', ids(w) === 'profile,faction,stats,supernatural' && w.tab === 'supernatural' && w.supernatural.kind === 'werewolf' && w.head.name === 'Vilkas', { tabs: ids(w), head: w.head });
+now += 1000;
+fire('journalTab', STAFF, [w.nonce, 'profile']);
+check('...browsing tabs works', last(STAFF).tab === 'profile' && last(STAFF).profile.name === 'Vilkas' && last(STAFF).readOnly === 1);
+now += 10000;
+fire('journalMagic', STAFF, [w.nonce, 'firstSpell', 'Destruction', 'x']);
+fire('journalReport', STAFF, [w.nonce, 'a report from a read-only page']);
+check('...every action is refused, and Fresh says no, so the tabs\' own modules refuse too', magicCalls.length === actsBefore && reports.length === repBefore && globalThis.__dboJournalFresh(STAFF, w.nonce) === false);
+globalThis.__dboJournalFaction(STAFF, { type: 'faction', id: 37, nonce: 'staff-own', factions: [] });
+check('...a faction answer of the staff member\'s own does not draw into it', last(STAFF).readOnly === 1 && (!last(STAFF).faction || last(STAFF).faction.nonce !== 'staff-own'));
+fire('journalClose', STAFF, [w.nonce]);
+now += 5000;
+globalThis.__dboJournalRequest(STAFF);
+check('...closing it leaves the staff member\'s own last tab alone (F3 opens their own journal)', !last(STAFF).readOnly && last(STAFF).head.name === 'Kodlak');
+check('OpenFor from an older journal front: false', globalThis.__dboJournalOpenFor(OLD, HUB) === false);
+
 // ---- a reload keeps the other modules' sections ----
 load();
 check('a hot reload of journal.js keeps the sections other modules registered', !!globalThis.__dboJournalSections.court && !!globalThis.__dboJournalSections.factionStaff && !!globalThis.__dboJournalSections.profile);
@@ -252,7 +273,10 @@ check('a hot reload of journal.js keeps the sections other modules registered', 
 // ---- wired in: gamemode.js passes the tab and isAdmin; guilds.js the cheap tab info ----
 const gm = fs.readFileSync('gamemode.js', 'utf8');
 check('gamemode.js gives journal.js isAdmin', /require\(JOURNAL_JS\)\(\{[^}]*\bisAdmin\b/.test(gm));
-check('guilds.js exports the Faction tab\'s count without building the panel', /globalThis\.__dboFactionTabInfo = \(a\) => \(\{ member: membershipsOf\(a >>> 0\)\.length, invites: invitesOf\(a >>> 0\)\.length, staff: !!isAdmin\(a >>> 0\) \}\);/.test(fs.readFileSync('guilds.js', 'utf8')));
+const gsrc = fs.readFileSync('guilds.js', 'utf8');
+check('guilds.js exports the Faction tab\'s count without building the panel, hold and stronghold factions left to Court',
+  /globalThis\.__dboFactionTabInfo = \(a\) => \(\{ member: membershipsOf\(a >>> 0\)\.filter\(\(m\) => !courtKind\(m\.fid\)\)\.length,/.test(gsrc)
+  && /invites: invitesOf\(a >>> 0\)\.filter\(\(i\) => !courtKind\(i\.fid\)\)\.length/.test(gsrc) && /f\.kind === 'hold' \|\| f\.kind === 'stronghold'/.test(gsrc));
 
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);

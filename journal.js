@@ -270,21 +270,23 @@ module.exports = (api) => {
   };
   const sectionOf = (id) => { const s = SECTIONS[id]; return s && typeof s === 'object' && typeof s.view === 'function' ? s : null; };
   const call = (f, ...args) => { try { return f(...args); } catch (e) { log('journal: a section failed', e.message); return undefined; } };
-  // The tabs this player sees, in ORDER (unknown registered ids before Settings), each with its badge
-  const tabsFor = (a, m) => {
+  // The tabs this player sees, in ORDER (unknown registered ids before Settings), each with its badge. subject: whose
+  // journal it is (a staff member reading another's: the viewer's front decides what can be drawn, the subject what shows)
+  const tabsFor = (a, m, subject) => {
+    const who = subject === undefined ? a : subject;
     const ids = ORDER.filter((id) => id !== 'settings').concat(Object.keys(SECTIONS).filter((id) => !ORDER.includes(id))).concat(['settings']);
     const out = [];
     for (const id of ids) {
       const s = sectionOf(id);
       if (!s || s.tab || !canDraw(a, id)) continue;
-      let vis = typeof s.visible === 'function' ? call(s.visible, a, m) : true;
+      let vis = typeof s.visible === 'function' ? call(s.visible, who, m) : true;
       // A section hosted in this tab can show it (a staff view of an empty Faction tab)
       for (const [xid, x] of Object.entries(SECTIONS)) {
         if (vis || !x || x.tab !== id || typeof x.visible !== 'function' || !canDraw(a, xid)) continue;
-        vis = call(x.visible, a, m);
+        vis = call(x.visible, who, m);
       }
       if (!vis) continue;
-      const t = { id, label: String((typeof s.label === 'function' ? call(s.label, a, m) : s.label) || LABELS[id] || id) };
+      const t = { id, label: String((typeof s.label === 'function' ? call(s.label, who, m) : s.label) || LABELS[id] || id) };
       const badge = vis && typeof vis === 'object' ? Number(vis.badge) || 0 : 0;
       if (badge > 0) t.badge = String(badge);
       if (PINNED.has(id)) t.pinned = true;
@@ -303,16 +305,19 @@ module.exports = (api) => {
   const hubPayload = (a, st, extra) => {
     const x = extra || {};
     const m = {};
-    const tabs = tabsFor(a, m);
+    const subj = st.viewOf || a;
+    const tabs = tabsFor(a, m, subj);
     const want = x.tab || st.tab;
     const tab = tabs.some((t) => t.id === want) ? want : (tabs[0] ? tabs[0].id : 'profile');
     st.tab = tab;
     const out = { type: 'journal', id: WIDGET_ID, nonce: st.nonce, hub: 1, tabs, tab, clock: clockView() };
-    const opts = { staff: !!isAdmin(a), keep: !x.fresh, focus: x.focus, memo: m };
-    const fill = (id) => { if (id in x) { out[id] = x[id]; return; } const s = sectionOf(id); const v = s ? call(s.view, a, opts) : undefined; out[id] = v === undefined ? null : v; };
+    // Read-only: another's faction panel keeps its nonce, so reading it never refuses their own click
+    const opts = { staff: !!isAdmin(subj), keep: st.viewOf ? true : !x.fresh, focus: x.focus, memo: m, readOnly: !!st.viewOf };
+    const fill = (id) => { if (id in x) { out[id] = x[id]; return; } const s = sectionOf(id); const v = s ? call(s.view, subj, opts) : undefined; out[id] = v === undefined ? null : v; };
     fill(tab);
     for (const [xid, xs] of Object.entries(SECTIONS)) if (xs && xs.tab === tab && typeof xs.view === 'function' && canDraw(a, xid)) fill(xid);
-    out.head = headView(a, tab === 'profile' ? out.profile : null);
+    out.head = headView(subj, tab === 'profile' ? out.profile : null);
+    if (st.viewOf) out.readOnly = 1;
     for (const k of ['result', 'resultKind']) if (x[k] !== undefined) out[k] = x[k];
     return out;
   };
@@ -335,13 +340,15 @@ module.exports = (api) => {
     if (hit && hit > (since || 0) && Date.now() - hit < C.combatSeconds * 1000) return 'Not in the middle of a fight.';
     return null;
   };
-  const open = (a, tab) => {
+  // viewOf: a staff member reading another character's journal (__dboJournalOpenFor); every action is refused
+  const open = (a, tab, focus, viewOf) => {
     const why = busyReason(a, 0);
     if (why) { personal(a, why); return; }
     const st = { nonce: mkNonce(a), tab: tab || 'profile', at: Date.now(), hub: isHub(a) };
+    if (viewOf) st.viewOf = viewOf >>> 0;
     J.open.set(a >>> 0, st);
-    if (st.hub) J.lastTab.set(a >>> 0, st.tab);
-    draw(a, st, { tab: st.tab, fresh: true }, true);
+    if (st.hub && !st.viewOf) J.lastTab.set(a >>> 0, st.tab);
+    draw(a, st, Object.assign({ tab: st.tab, fresh: true }, focus && typeof focus === 'object' ? { focus } : {}), true);
     try {
       const def = typeof globalThis.__dboInteractionIdleDef === 'function' ? globalThis.__dboInteractionIdleDef('journal') : null;
       if (typeof globalThis.__dboInteractionIdle === 'function' && globalThis.__dboInteractionIdle(a, 'journal')) J.idleAt.set(a >>> 0, { at: Date.now(), anim: def && def.anim ? String(def.anim) : '' });
@@ -352,21 +359,32 @@ module.exports = (api) => {
   // A hub front opens any tab it can draw and the player may see; asked for one it cannot (a tab from a newer package,
   // or Magic without Arcane Arts or Priest), this is false and the caller opens its own panel. An older journal front
   // opens Profile or Faction as before.
-  const tabOk = (a, tab) => {
+  const tabOk = (a, tab, subject) => {
     const s = sectionOf(tab);
     if (!s || s.tab || !canDraw(a, tab)) return false;
-    return tabsFor(a, {}).some((t) => t.id === tab);
+    return tabsFor(a, {}, subject).some((t) => t.id === tab);
   };
-  globalThis.__dboJournalOpenTab = (a, tab) => {
+  // focus (a hub front): handed to the tab's view, as a journalTab focus is (X's Voice settings names the player)
+  globalThis.__dboJournalOpenTab = (a, tab, focus) => {
     if (!C.enabled || !(typeof hasCap === 'function' && hasCap(a, 'journal'))) return false;
     const id = String(tab || 'profile');
     if (isHub(a)) {
       if (!tabOk(a, id)) return false;
-      open(a >>> 0, id);
+      open(a >>> 0, id, focus);
       return true;
     }
     if (id !== 'profile' && id !== 'faction') return false;
     open(a >>> 0, id);
+    return true;
+  };
+  // Staff: another character's journal, read only (the admin panel's Players tab). The viewer's hub front draws it;
+  // every action in it is refused. True when it opened.
+  globalThis.__dboJournalOpenFor = (staff, target, tab) => {
+    const s = staff >>> 0, t = target >>> 0;
+    if (!C.enabled || !t || s === t || !isAdmin(s) || !isHub(s)) return false;
+    const id = tab && tabOk(s, String(tab), t) ? String(tab) : 'profile';
+    open(s, id, undefined, t);
+    log(`journal: ${display(s)} reads the journal of ${display(t)} (${id})`);
     return true;
   };
   // F3 (gamemode.js factionMenuRequest, which may name a tab): a hub opens the last tab used this session
@@ -386,7 +404,9 @@ module.exports = (api) => {
     if (idle) { try { sendPacket(a, Object.assign({ customPacketType: 'dboIdleStop' }, idle.anim ? { anim: idle.anim } : {})); } catch (e) { /* offline */ } }
   };
   const shut = (a) => { if (!J.open.has(a >>> 0)) return; ended(a); closeWidget(a, WIDGET_ID); };
-  const fresh = (a, args) => { const st = J.open.get(a >>> 0); return st && String((args || [])[0] || '') === st.nonce ? st : null; };
+  // An action's nonce check; a read-only journal (another's) takes none. seen: the same check for browsing (a tab switch)
+  const seen = (a, args) => { const st = J.open.get(a >>> 0); return st && String((args || [])[0] || '') === st.nonce ? st : null; };
+  const fresh = (a, args) => { const st = seen(a, args); return st && !st.viewOf ? st : null; };
   // Closing can do no harm, so a stale nonce (a click while an answer was on its way) still closes
   onUi('journalClose', (a) => shut(a));
   // gamemode.js openWidget: another focused panel (a downed, rob, feed or trade prompt) has just opened; the journal goes
@@ -396,7 +416,7 @@ module.exports = (api) => {
   // guilds.js: while the journal is open a faction answer redraws its Faction tab, not panel 37 (true when it did)
   globalThis.__dboJournalFaction = (a, factionPayload) => {
     const st = J.open.get(a >>> 0);
-    if (!st) return false;
+    if (!st || st.viewOf) return false;
     st.tab = 'faction';
     draw(a, st, { tab: 'faction', faction: factionPayload }, false);
     return true;
@@ -410,17 +430,17 @@ module.exports = (api) => {
   const TAB_GAP_MS = 120;
   onUi('journalTab', (a, args) => {
     const id = a >>> 0;
-    const st = fresh(a, args);
+    const st = seen(a, args);
     if (!st || !st.hub) return;
     const tab = String((args || [])[1] || '');
     const focus = (args || [])[2];
-    if (!tabOk(a, tab)) { draw(a, st, {}, false); return; }
+    if (!tabOk(a, tab, st.viewOf || a)) { draw(a, st, {}, false); return; }
     // A scripted flood gets one answer per gap, the latest one
     const run = () => {
       const s2 = J.open.get(id);
       if (!s2) return;
       s2.tab = tab;
-      J.lastTab.set(id, tab);
+      if (!s2.viewOf) J.lastTab.set(id, tab);
       J.tabAt.set(id, Date.now());
       draw(a, s2, { tab, focus: focus && typeof focus === 'object' ? focus : undefined }, false);
     };

@@ -199,7 +199,10 @@ module.exports = (api) => {
   globalThis.__dboFactionMenu = (a) => openMenu(a >>> 0);
   globalThis.__dboFactionPayload = (a, keepNonce) => menuPayload(a >>> 0, '', '', undefined, !!keepNonce);
   // journal.js (the F3 hub's tab list): whether the Faction tab shows, without building the whole panel
-  globalThis.__dboFactionTabInfo = (a) => ({ member: membershipsOf(a >>> 0).length, invites: invitesOf(a >>> 0).length, staff: !!isAdmin(a >>> 0) });
+  // Hold and stronghold factions show on the Court tab (Nate, F3 Q3), so they do not count here
+  const courtKind = (fid) => { const f = FACTIONS.get(fid); return !!f && (f.kind === 'hold' || f.kind === 'stronghold'); };
+  globalThis.__dboFactionTabInfo = (a) => ({ member: membershipsOf(a >>> 0).filter((m) => !courtKind(m.fid)).length,
+    invites: invitesOf(a >>> 0).filter((i) => !courtKind(i.fid)).length, staff: !!isAdmin(a >>> 0) });
   // realm.js: redraws an open panel with the result of a war action (true when one was open), and checks its nonce
   globalThis.__dboFactionRefresh = (a, text, ok) => { if (!ST.nonces.has(a >>> 0)) return false; openMenu(a >>> 0, text, ok ? 'ok' : 'refused'); return true; };
   globalThis.__dboFactionNonceOk = (a, nonce) => ST.nonces.get(a >>> 0) === String(nonce || '');
