@@ -100,7 +100,7 @@ check('Redguard: stamina x1.25, poison 50% less', near(R.regenFactor(10, 'stamin
 given.length = 0;
 check('Imperial: +10% of 57 gold is 5, given as new coin', R.goldBonus(6, 57, 'contract pay') === 5 && given.length === 1 && given[0][0] === 6 && given[0][1] === 0xf && given[0][2] === 5);
 check('...nobody else gets it', R.goldBonus(8, 100, 'contract pay') === 0 && given.length === 1);
-check('...once per chest key', R.goldBonus(6, 100, 'a chest', 'L:1:c1:6') === 10 && R.goldBonus(6, 100, 'a chest', 'L:1:c1:6') === 0);
+check('...no once-per-key path is left (dungeons.js counts a chest\'s rolled coin instead)', R.goldBonus(6, 100, 'a chest', 'L:1:c1:6') === 10 && R.goldBonus(6, 100, 'a chest', 'L:1:c1:6') === 10);
 
 // ---- 2. the rules ----
 const OFF = make({ enabled: false });
@@ -159,6 +159,49 @@ check('the downed get nothing', near(state[10].pc.stamina, 0.5));
 delete globalThis.__dboIsDowned;
 check('the timer is registered by name, so a reload replaces it', timers.includes('racialRegen'));
 
+// ---- 3b. in a fight the game slows the client's regen (fCombat*RegenRateMult), and the gift's extra with it ----
+// gamemode.js gmstFloat (id, fallback): the record's float, the fallback for 0 or none
+const GMST = { 0x35056: 0, 0x1031d4: 0.33, 0x2dd34: 0.35 };
+const gmstSeen = [];
+const gmstFloat = (id, d) => { gmstSeen.push(id); return id in GMST && GMST[id] > 0 ? GMST[id] : d; };
+globalThis.__dboCombatAt = new Map();
+globalThis.__dboRacialState.highbornUntil.clear(); // the Highborn minute of section 3
+const R4 = make({ enabled: true, tickSeconds: 1, minStep: 0 }, { gmstFloat });
+check('the combat multipliers come from the three GMSTs (health 0, magicka 0.33, stamina 0.35)',
+  R4.COMBAT.health === 0 && near(R4.COMBAT.magicka, 0.33) && near(R4.COMBAT.stamina, 0.35) && [0x35056, 0x1031d4, 0x2dd34].every((id) => gmstSeen.includes(id)), R4.COMBAT);
+race(1, 'altmer', { health: 1, magicka: 0.2, stamina: 1 });
+const outOfCombat = R4.extraPerSecond(1, 'magicka');
+check('Altmer out of combat: 0.25 of the rate (3% a second)', near(outOfCombat, 0.03 * 0.25), outOfCombat);
+globalThis.__dboCombatAt.set(1, Date.now() - 3000);
+check('Altmer in combat: 0.25 x 0.33 of the rate, so the factor stays x1.25 of the slowed regen', R4.fighting(1) && near(R4.extraPerSecond(1, 'magicka'), 0.03 * 0.33 * 0.25), R4.extraPerSecond(1, 'magicka'));
+globalThis.__dboCombatAt.set(1, Date.now() - 11000);
+check('...a blow 11 s ago (combatSeconds 10) is out of combat again', !R4.fighting(1) && near(R4.extraPerSecond(1, 'magicka'), 0.03 * 0.25));
+race(10, 'redguard', { health: 1, magicka: 1, stamina: 0.5 });
+globalThis.__dboCombatAt.set(10, Date.now());
+check('Redguard in combat: 0.25 x 0.35 of the stamina rate', near(R4.extraPerSecond(10, 'stamina'), 0.05 * 0.35 * 0.25), R4.extraPerSecond(10, 'stamina'));
+globalThis.__dboBlessingRegen = () => [{ stat: 'magicka', perSecond: 0.01 }];
+globalThis.__dboCombatAt.set(1, Date.now());
+check('...a blessing\'s share is the server\'s own and is not slowed', near(R4.extraPerSecond(1, 'magicka'), (0.03 * 0.33 + 0.01) * 0.25), R4.extraPerSecond(1, 'magicka'));
+delete globalThis.__dboBlessingRegen;
+race(2, 'argonian', { health: 0.2, magicka: 1, stamina: 1 });
+globalThis.__dboCombatAt.set(2, Date.now());
+check('Argonian below 35% in combat, inCombat false (the default): nothing, as the base game heals nothing in a fight', R4.extraPerSecond(2, 'health') === 0, R4.extraPerSecond(2, 'health'));
+const R5 = make({ enabled: true, argonian: { inCombat: true } }, { gmstFloat });
+check('...inCombat true: the full extra (0.5 of 0.7%)', near(R5.extraPerSecond(2, 'health'), 0.007 * 0.5), R5.extraPerSecond(2, 'health'));
+globalThis.__dboCombatAt.delete(2);
+check('...out of combat, the full extra either way', near(R4.extraPerSecond(2, 'health'), 0.007 * 0.5));
+const R6 = make({ enabled: true, combatSeconds: 2 }, { gmstFloat });
+globalThis.__dboCombatAt.set(1, Date.now() - 3000);
+check('combatSeconds is read from the config', !R6.fighting(1) && R4.fighting(1));
+const R7 = make({ enabled: true });
+globalThis.__dboCombatAt.set(1, Date.now());
+check('no gmstFloat in the api: the fallbacks (0, 0.33, 0.35)', R7.COMBAT.health === 0 && near(R7.COMBAT.magicka, 0.33) && near(R7.COMBAT.stamina, 0.35));
+globalThis.__dboCombatAt.set(10, Date.now());
+state[10].pc = { health: 1, magicka: 1, stamina: 0.5 };
+t += 1000; R4.regenTick(t);
+check('the tick pays the slowed extra in combat', near(state[10].pc.stamina, 0.5 + 0.05 * 0.35 * 0.25), state[10].pc);
+delete globalThis.__dboCombatAt;
+
 // ---- 4. the wiring ----
 const hook = gm.slice(gm.indexOf('const hitDamageAttemptHook'), gm.indexOf('hitDamageAttemptHook.__dbo = true;'));
 check('gamemode: the target\'s side is Defense x the target\'s blessing x the race, capped together',
@@ -169,6 +212,8 @@ check('gamemode: the blessing split keeps the old product', /const blessingDamag
 check('gamemode: racial.js is loaded fresh on every reload', /delete require\.cache\[RACIAL_JS\];\s*racial = require\(RACIAL_JS\)/.test(gm));
 check('gamemode: castHook tells racial.js of a cast', /const castHook = [^\n]*\n\s*try \{ if \(racial\) racial\.onCast\(/.test(gm));
 check('gamemode: the needs chain answers __dboNeedsRateMult', /globalThis\.__dboNeedsRateMult = /.test(gm));
+check('gamemode: racial.js gets gmstFloat (id, fallback), defined before it loads', /racial = require\(RACIAL_JS\)\(\{[^}]*\bgmstFloat\b/.test(gm) && /const gmstFloat = \(id, fallback\) =>/.test(gm) && gm.indexOf('const gmstFloat = ') < gm.indexOf('racial = require(RACIAL_JS)'));
+check('gamemode: __dboCombatAt is stamped on a landed blow', /const combatAt = globalThis\.__dboCombatAt = /.test(gm) && /combatAt\.set\(agg >>> 0, now\)/.test(gm));
 const dg = fs.readFileSync(path.join(SERVER, 'dungeons.js'), 'utf8');
 const wl = fs.readFileSync(path.join(SERVER, 'wildlife.js'), 'utf8');
 const ct = fs.readFileSync(path.join(SERVER, 'contracts.js'), 'utf8');
@@ -179,7 +224,7 @@ check('contracts: the pay, as new coin', /__dboRaceGold\(killerId, paid, 'contra
 const others = fs.readdirSync(SERVER).filter((f) => f.endsWith('.js') && !['racial.js', 'dungeons.js', 'wildlife.js', 'contracts.js'].includes(f));
 check('nothing else pays Imperial Luck (not the bank, trades, refunds or staff grants)', others.every((f) => !fs.readFileSync(path.join(SERVER, f), 'utf8').includes('__dboRaceGold(')), others.filter((f) => fs.readFileSync(path.join(SERVER, f), 'utf8').includes('__dboRaceGold(')));
 const conf = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).racial || {};
-check('gamemode-config: racial on, the approved numbers', conf.enabled === true && conf.reductionCap === 0.75 && conf.altmer.magickaRegen === 1.25 && conf.argonian.lowHealthHealRegen === 1.5
+check('gamemode-config: racial on, the approved numbers', conf.enabled === true && conf.reductionCap === 0.75 && conf.combatSeconds === 10 && conf.argonian.inCombat === false && conf.altmer.magickaRegen === 1.25 && conf.argonian.lowHealthHealRegen === 1.5
   && conf.bosmer.bowDamage === 0.1 && conf.breton.resistMagic === 0.25 && conf.dunmer.resistFire === 0.5 && conf.imperial.goldBonus === 0.1 && conf.khajiit.unarmedDamage === 8
   && conf.nord.coldStaminaRegen === 1.15 && conf.orc.meleeDamage === 0.2 && conf.orc.damageTaken === 0.2 && conf.redguard.staminaRegen === 1.25);
 

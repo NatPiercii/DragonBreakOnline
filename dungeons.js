@@ -41,7 +41,7 @@ module.exports = (api) => {
   const LOCKPICK_BASE = 0x0000000a;
   const GOLD_BASE = 0x0000000f;
   // Imperial Luck (racial.js): an Imperial's extra on coin the lease hands them; once per chest per lease when keyed
-  const raceGold = (a, amount, why, key) => { try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(a, amount, why, key); } catch (e) { log('racial gold failed', e.message); } };
+  const raceGold = (a, amount, why) => { try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(a, amount, why); } catch (e) { log('racial gold failed', e.message); } };
   const SPAWNS_FILE = path.resolve('NPC-Spawns.json');
   const SPAWNED_IDS_FILE = path.resolve('zone-spawns.json');
   const ZONE_PREFIX = 'dungeon:';

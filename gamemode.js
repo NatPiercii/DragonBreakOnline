@@ -4872,7 +4872,7 @@ let racial = null;
 try {
   const RACIAL_JS = path.resolve('racial.js');
   delete require.cache[RACIAL_JS];
-  racial = require(RACIAL_JS)({ mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, cfg });
+  racial = require(RACIAL_JS)({ mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, gmstFloat, cfg });
 } catch (e) { log('racial.js failed to load:', e.stack || e.message); racial = null; globalThis.__dboRaceGold = null; globalThis.__dboRaceOf = null; }
 // How much a Defense tier multiplies a piece's rating: heavy by the tier's factor, light by lightShare of the gain
 const defensePieceMult = (targetId) => {

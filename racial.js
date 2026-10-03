@@ -16,8 +16,11 @@
 //   - gold: an Imperial's share of loot and contract pay, by goldBonus, which dungeons.js, wildlife.js and contracts.js
 //     call where the server hands the coin over.
 // Rules: players only; nothing while a beast form is on (werewolf, Vampire Lord); an always-on regeneration factor is
-// never above alwaysRegenCap, a conditional one never above conditionalRegenCap.
-// Config "racial": { enabled, reductionCap, alwaysRegenCap, conditionalRegenCap, tickSeconds, minStep, <race>: {...} }
+// never above alwaysRegenCap, a conditional one never above conditionalRegenCap. In a fight the game slows the client's
+// own regeneration (the fCombat*RegenRateMult GMSTs), so the gift's extra is slowed the same way and the factor stays the
+// factor: a player counts as fighting for combatSeconds after a landed blow given or taken (gamemode.js __dboCombatAt).
+// Config "racial": { enabled, reductionCap, alwaysRegenCap, conditionalRegenCap, combatSeconds, tickSeconds, minStep,
+// <race>: {...} }
 'use strict';
 
 const RACES = ['altmer', 'argonian', 'bosmer', 'breton', 'dunmer', 'imperial', 'khajiit', 'nord', 'orc', 'redguard'];
@@ -36,9 +39,10 @@ const UNARMED = 0x1f4;
 const HIGHBORN = 0x0e40c8; // PowerHighElfMagickaRegen
 const GOLD = 0xf;
 const DEFAULTS = {
-  enabled: false, reductionCap: 0.75, alwaysRegenCap: 1.25, conditionalRegenCap: 1.5, tickSeconds: 1, minStep: 0.002,
+  enabled: false, reductionCap: 0.75, alwaysRegenCap: 1.25, conditionalRegenCap: 1.5, combatSeconds: 10, tickSeconds: 1, minStep: 0.002,
   altmer: { magickaRegen: 1.25, elementalWeakness: 0 },
-  argonian: { resistPoison: 0.5, lowHealth: 0.35, lowHealthHealRegen: 1.5 },
+  // inCombat: Hist-Blooded keeps its full extra in a fight (the base game heals nothing in combat: off scales it to 0)
+  argonian: { resistPoison: 0.5, lowHealth: 0.35, lowHealthHealRegen: 1.5, inCombat: false },
   bosmer: { bowDamage: 0.1, resistPoison: 0.5 },
   breton: { resistMagic: 0.25 },
   dunmer: { resistFire: 0.5 },
@@ -59,10 +63,10 @@ const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 module.exports = (api) => {
-  const { mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, cfg } = api;
+  const { mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, gmstFloat, cfg } = api;
   const C = merge(cfg && cfg.racial);
   const on = () => C.enabled === true;
-  const S = globalThis.__dboRacialState || (globalThis.__dboRacialState = { owed: new Map(), highbornUntil: new Map(), goldChests: new Map() });
+  const S = globalThis.__dboRacialState || (globalThis.__dboRacialState = { owed: new Map(), highbornUntil: new Map() });
 
   // ---- who ----------------------------------------------------------------------------------------------------------
   const isPlayer = (a) => { try { return profileOf(a >>> 0) >= 0; } catch (e) { return false; } };
@@ -165,6 +169,16 @@ module.exports = (api) => {
     if (race === 'nord' && stat === 'stamina') return inCold(a) ? capOf(R.coldStaminaRegen, true) : 1;
     return 1;
   };
+  // The game's own slowdown of a bar's regeneration in combat (Skyrim.esm GMSTs fCombatHealthRegenRateMult 0x35056,
+  // fCombatMagickaRegenRateMult 0x1031d4, fCombatStaminaRegenRateMult 0x2dd34); gamemode.js gmstFloat keeps the fallback
+  // for a value of 0 or none, so health is 0 either way
+  const gmst = (id, d) => { try { return typeof gmstFloat === 'function' ? num(gmstFloat(id, d), d) : d; } catch (e) { return d; } };
+  const COMBAT = { health: gmst(0x35056, 0), magicka: gmst(0x1031d4, 0.33), stamina: gmst(0x2dd34, 0.35) };
+  const fighting = (a) => {
+    const m = globalThis.__dboCombatAt;
+    const at = m instanceof Map ? Number(m.get(a >>> 0)) || 0 : 0;
+    return at > 0 && Date.now() - at < num(C.combatSeconds, 10) * 1000;
+  };
   const hook = (name, ...args) => { try { const f = globalThis[name]; if (typeof f !== 'function') return 1; const v = Number(f(...args)); return Number.isFinite(v) && v >= 0 ? v : 1; } catch (e) { return 1; } };
   const REGEN_MULT = (() => { try { const v = Number((mp.getServerSettings() || {}).regenerationMultiplier); return Number.isFinite(v) && v >= 0 ? v : 1; } catch (e) { return 1; } })();
   // The share of a bar a second the gift adds: the race's rate through the rest of the chain, times (factor - 1)
@@ -177,7 +191,11 @@ module.exports = (api) => {
     let blessing = 0;
     try { for (const e of (typeof globalThis.__dboBlessingRegen === 'function' ? globalThis.__dboBlessingRegen(a) : []) || []) if (e && e.stat === stat && Number(e.perSecond) > 0) blessing += Number(e.perSecond); } catch (e) { blessing = 0; }
     const chill = Math.min(1, hook('__dboChillRateMult', a, av));
-    return ((raceValue(a, stat) / 100) * REGEN_MULT * chain + blessing) * chill * (f - 1);
+    // The client's own rate is slowed in a fight (the blessing's share is the server's and is not); Hist-Blooded keeps
+    // its full extra there only when argonian.inCombat is on
+    const keepsInCombat = stat === 'health' && raceOf(a) === 'argonian' && C.argonian.inCombat === true;
+    const combat = !keepsInCombat && fighting(a) ? Math.max(0, num(COMBAT[stat], 1)) : 1;
+    return ((raceValue(a, stat) / 100) * REGEN_MULT * chain * combat + blessing) * chill * (f - 1);
   };
   const TICK_MS = Math.max(250, Math.round(num(C.tickSeconds, 1) * 1000));
   const regenTick = (now = Date.now()) => {
@@ -224,15 +242,10 @@ module.exports = (api) => {
   // ---- Imperial Luck --------------------------------------------------------------------------------------------------
   // Only coin the server hands out as loot or pay: a lease's chests and bodies, a camp chest, contract pay. Never the
   // bank, a trade between players, a refund or a staff grant: those never call this. The extra is new coin, given
-  // straight to the Imperial; once per chest per lease (a key), so putting the pile back and taking it again pays nothing.
-  // Returns the extra given.
-  const goldBonus = (a, amount, why, onceKey) => {
+  // straight to the Imperial. A lease chest pays only on the coin it was rolled with (dungeons.js counts that down), so
+  // putting the pile back and taking it again pays nothing. Returns the extra given.
+  const goldBonus = (a, amount, why) => {
     if (raceOf(a) !== 'imperial' || !(amount > 0)) return 0;
-    if (onceKey) {
-      if (S.goldChests.has(onceKey)) return 0;
-      S.goldChests.set(onceKey, Date.now());
-      if (S.goldChests.size > 2048) { const old = Date.now() - 6 * 3600000; for (const [k, t] of S.goldChests) if (t < old) S.goldChests.delete(k); }
-    }
     const extra = Math.floor(amount * Math.max(0, num(C.imperial.goldBonus, 0)));
     if (extra < 1) return 0;
     if (!giveItem(a >>> 0, GOLD, extra)) return 0;
@@ -243,7 +256,7 @@ module.exports = (api) => {
 
   globalThis.__dboRaceGold = goldBonus;
   globalThis.__dboRaceOf = raceOf;
-  return { config: C, raceOf, attackMult, targetMult, capTargetSide, regenFactor, extraPerSecond, regenTick, onCast, goldBonus, inCold };
+  return { config: C, raceOf, attackMult, targetMult, capTargetSide, regenFactor, extraPerSecond, regenTick, onCast, goldBonus, inCold, fighting, COMBAT };
 };
 module.exports.RACES = RACES;
 module.exports.RACE_IDS = RACE_IDS;
