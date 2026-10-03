@@ -125,7 +125,9 @@ module.exports = (api) => {
   // (the actor hex, as the X menu's dboVoicePeer sends it), and how far, so two strangers can be told apart
   const VOICE_NEAR_UNITS = Number(C.voiceNearUnits) || 3200;
   const journalSettings = (a) => typeof globalThis.__dboJournalHasTab === 'function' && globalThis.__dboJournalHasTab(a, 'settings') === true;
-  const voiceNearby = (a) => onlineActors().filter((t) => (t >>> 0) !== (a >>> 0))
+  // Staff walking invisible (AdminSystem's ff_adminModes mirror) are listed only to other staff
+  const invisible = (t) => { const m = get(t, 'ff_adminModes', null); return !!(m && m.invis); };
+  const voiceNearby = (a) => onlineActors().filter((t) => (t >>> 0) !== (a >>> 0) && (isAdmin(a) || !invisible(t)))
     .map((t) => ({ t, d: distance(a, t) })).filter((x) => Number.isFinite(x.d) && x.d <= VOICE_NEAR_UNITS)
     .sort((x, y) => x.d - y.d).slice(0, 24)
     .map((x) => ({ identity: (x.t >>> 0).toString(16), name: nameFor(a, x.t), meters: Math.round(x.d / 70) }));

@@ -222,7 +222,8 @@ module.exports = (api) => {
     ] };
   };
   // keep: a redraw keeps the faction panel's nonce, so a faction click in flight is not refused by the clock tick
-  const factionView = (a, keep) => { try { return typeof globalThis.__dboFactionPayload === 'function' ? globalThis.__dboFactionPayload(a, !!keep) : null; } catch (e) { log('journal: faction view failed', e.message); return null; } };
+  // readOnly: another's faction panel, read by staff: guilds.js makes no nonce for them
+  const factionView = (a, keep, readOnly) => { try { return typeof globalThis.__dboFactionPayload === 'function' ? globalThis.__dboFactionPayload(a, !!keep, !!readOnly) : null; } catch (e) { log('journal: faction view failed', e.message); return null; } };
   const superView = (a) => { try { return typeof globalThis.__dboSuperProgress === 'function' ? globalThis.__dboSuperProgress(a) : null; } catch (e) { return null; } };
 
   const payload = (a, st, extra) => Object.assign({
@@ -244,10 +245,17 @@ module.exports = (api) => {
   const factionTabInfo = (a) => { try { return typeof globalThis.__dboFactionTabInfo === 'function' ? globalThis.__dboFactionTabInfo(a) : null; } catch (e) { return null; } };
   SECTIONS.profile = { visible: () => true, view: (a) => profileView(a) };
   SECTIONS.stats = { visible: () => true, view: (a) => statsView(a) };
-  // A member, someone invited, or staff (who see every faction); without guilds.js's count it shows, as before the hub
+  // A member, someone invited, or staff (who see every faction); without guilds.js's count it shows, as before the hub.
+  // Hold and stronghold memberships count here only when the viewer's front has no Court tab (m.viewer: who is looking)
   SECTIONS.faction = {
-    visible: (a) => { const i = factionTabInfo(a); if (!i) return true; if (!(i.member || i.invites || i.staff)) return false; return i.invites ? { badge: i.invites } : true; },
-    view: (a, o) => factionView(a, !!(o && o.keep)),
+    visible: (a, m) => {
+      const i = factionTabInfo(a); if (!i) return true;
+      const court = canDraw(m && m.viewer !== undefined ? m.viewer : a, 'court');
+      const member = (i.member || 0) + (court ? 0 : i.courtMember || 0), invites = (i.invites || 0) + (court ? 0 : i.courtInvites || 0);
+      if (!(member || invites || i.staff)) return false;
+      return invites ? { badge: invites } : true;
+    },
+    view: (a, o) => factionView(a, !!(o && o.keep), !!(o && o.readOnly)),
   };
   SECTIONS.supernatural = { visible: (a, m) => !!memo(m || {}, 'super', () => superView(a)), view: (a, o) => memo((o && o.memo) || {}, 'super', () => superView(a)),
     label: (a, m) => { const v = memo(m || {}, 'super', () => superView(a)); return (v && v.label) || 'Supernatural'; } };
@@ -278,11 +286,14 @@ module.exports = (api) => {
   // journal it is (a staff member reading another's: the viewer's front decides what can be drawn, the subject what shows)
   const tabsFor = (a, m, subject) => {
     const who = subject === undefined ? a : subject;
+    if (m && typeof m === 'object') m.viewer = a;
     const ids = ORDER.filter((id) => id !== 'settings').concat(Object.keys(SECTIONS).filter((id) => !ORDER.includes(id))).concat(['settings']);
     const out = [];
     for (const id of ids) {
       const s = sectionOf(id);
       if (!s || s.tab || !canDraw(a, id)) continue;
+      // Another's journal shows their character, never their Settings (those belong to their PC, and carry who is near them)
+      if (id === 'settings' && (who >>> 0) !== (a >>> 0)) continue;
       let vis = typeof s.visible === 'function' ? call(s.visible, who, m) : true;
       // A section hosted in this tab can show it (a staff view of an empty Faction tab)
       for (const [xid, x] of Object.entries(SECTIONS)) {
@@ -316,12 +327,14 @@ module.exports = (api) => {
     st.tab = tab;
     const out = { type: 'journal', id: WIDGET_ID, nonce: st.nonce, hub: 1, tabs, tab, clock: clockView() };
     // Read-only: another's faction panel keeps its nonce, so reading it never refuses their own click
-    const opts = { staff: !!isAdmin(subj), keep: st.viewOf ? true : !x.fresh, focus: x.focus, memo: m, readOnly: !!st.viewOf };
+    const opts = { staff: !!isAdmin(a), keep: st.viewOf ? true : !x.fresh, focus: x.focus, memo: m, readOnly: !!st.viewOf };
     const fill = (id) => { if (id in x) { out[id] = x[id]; return; } const s = sectionOf(id); const v = s ? call(s.view, subj, opts) : undefined; out[id] = v === undefined ? null : v; };
     fill(tab);
     for (const [xid, xs] of Object.entries(SECTIONS)) if (xs && xs.tab === tab && typeof xs.view === 'function' && canDraw(a, xid)) fill(xid);
     out.head = headView(subj, tab === 'profile' ? out.profile : null);
-    if (st.viewOf) out.readOnly = 1;
+    // The subject and the opening, so a front reading another's journal starts its section cache afresh for each
+    if (st.viewOf) { out.readOnly = 1; out.subject = (st.viewOf >>> 0).toString(16); }
+    out.opened = st.opened;
     for (const k of ['result', 'resultKind']) if (x[k] !== undefined) out[k] = x[k];
     return out;
   };
@@ -348,7 +361,7 @@ module.exports = (api) => {
   const open = (a, tab, focus, viewOf) => {
     const why = busyReason(a, 0);
     if (why) { personal(a, why); return; }
-    const st = { nonce: mkNonce(a), tab: tab || 'profile', at: Date.now(), hub: isHub(a) };
+    const st = { nonce: mkNonce(a), tab: tab || 'profile', at: Date.now(), hub: isHub(a), opened: ++J.seq };
     if (viewOf) st.viewOf = viewOf >>> 0;
     J.open.set(a >>> 0, st);
     if (st.hub && !st.viewOf) J.lastTab.set(a >>> 0, st.tab);

@@ -48,8 +48,9 @@ require(path.resolve('journal.js'))({ mp, log: () => {}, personal: (a, t) => tol
   cfg: {}, skills: JSON.parse(fs.readFileSync('skills.json', 'utf8')).skills, isAdmin: () => false, hasCap: (a, c) => !!(caps.get(a) && caps.get(a).has(c)) });
 require(path.resolve('playermenu.js'))({ mp, log: () => {}, personal: (a, t) => told.push([a, t]), system: () => {}, onUi, sendPacket: (a, p) => packets.push([a, p]),
   display: (a) => `#${(a >>> 0).toString(16)}`, nameOf, tagOf: (a) => (a >>> 0).toString(16).slice(-4).toUpperCase(), profileOf: (a) => a, onlineActors: () => online,
-  isAdmin: () => false, ranksOf: () => [], giveItem: () => {}, makeProp: () => {}, runCommand: () => {}, cfg: {}, every: () => {}, registerChatCommand: () => {} });
+  isAdmin: (a) => staffSet.has(a), ranksOf: () => [], giveItem: () => {}, makeProp: () => {}, runCommand: () => {}, cfg: {}, every: () => {}, registerChatCommand: () => {} });
 
+const staffSet = new Set();
 // ---- Settings, Voice: who can be heard ----
 globalThis.__dboVoiceEnabled = false;
 globalThis.__dboJournalOpenTab(HUB, 'settings');
@@ -62,6 +63,16 @@ check('voice on: the players within hearing, nearest first, never oneself, not o
 check('...named as this player knows them: Ria (introduced), the others Strangers', s.nearby.map((p) => p.name).join() === 'Stranger,Ria,Stranger');
 check('...with metres, so two strangers can be told apart', s.nearby.map((p) => p.meters).join() === '1,2,10', s.nearby.map((p) => p.meters));
 check('...the identity is the actor hex the voice room uses (as the X menu sends it)', s.nearby[0].identity === 'ff000041');
+
+// ---- staff walking invisible ----
+props.set(`${NEAR}|ff_adminModes`, { god: false, invis: true });
+globalThis.__dboJournalOpenTab(HUB, 'settings');
+check('a staff member walking invisible is not listed to a player', !last(HUB).settings.nearby.some((p) => p.identity === (NEAR >>> 0).toString(16)), last(HUB).settings.nearby);
+staffSet.add(HUB);
+globalThis.__dboJournalOpenTab(HUB, 'settings');
+check('...but is to other staff', last(HUB).settings.nearby.some((p) => p.identity === (NEAR >>> 0).toString(16)));
+staffSet.delete(HUB);
+props.delete(`${NEAR}|ff_adminModes`);
 
 // ---- the X menu ----
 fire('playerMenu', HUB, [OLD]);

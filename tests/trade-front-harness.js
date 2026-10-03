@@ -37,7 +37,7 @@ const t = text(html);
 check('drawn: All and the present categories as chips, All chosen', /trade__chip trade__chip--on"[^>]*>All</.test(html) && /All Weapons Jewellery Food Ingots & ore/.test(t), t.slice(0, 400));
 check('...Sort by Name, Value, Weight', /Sort by Name Value Weight/.test(t));
 check('...each row with its value', (html.match(/trade__item-value/g) || []).length === 6);
-check('...my offer\'s total', /Worth 70 gold · weighs 10/.test(t), t);
+check('...my offer\'s total, named as the base value (no merchant\'s price)', /Base value 70 gold · weighs 10/.test(t) && !/Worth/.test(t), t);
 check('no native select', !/<select/.test(html));
 const old = T.renderToStaticMarkup(T.createElement(T.Widget, { data: Object.assign({}, data, { inventory: inv.map((i) => ({ lineId: i.lineId, baseId: 1, name: i.name, count: i.count })), myOffer: [] }) }));
 check('an older client\'s lines: no chips, no sort, no values, no totals (today\'s window)', !/trade__chip|trade__item-value|trade__totals/.test(old));

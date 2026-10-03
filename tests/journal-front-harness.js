@@ -315,6 +315,24 @@ if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.magic) {
   if (msrc) check('...the actions: journalMagic firstSpell <school> <spell>, prepare and unprepare <spell>', /act\('journalMagic', 'firstSpell', s\.name, c\.id\)/.test(msrc) && /act\('journalMagic', sp\.prepared \? 'unprepare' : 'prepare', sp\.id\)/.test(msrc));
 }
 
+// ---- a journal read by staff (readOnly): the faction panel inert ------------------------------------------------------
+if (typeof J.registerJournalTab === 'function') {
+  const ro = render(Journal, { data: { type: 'journal', id: 50, nonce: 'r1', hub: 1, readOnly: 1, subject: 'ff000010', opened: 4, tab: 'faction',
+    tabs: [{ id: 'profile', label: 'Profile' }, { id: 'faction', label: 'Faction' }], head: { name: 'Vaeliss Dren', title: 'x', race: 'Dunmer' },
+    faction: faction({ invites: [{ factionId: 'mg', name: 'Mages Guild', from: 'Borin' }], factions: [Object.assign({}, faction().factions[0], { canKick: true, canSetRank: true, canInvite: true })] }) } });
+  const buttons = (ro.match(/<button[^>]*class="faction__button[^"]*"[^>]*>/g) || []);
+  check('read only: every faction button is disabled (Join, Decline, Remove, Invite, Leave)', buttons.length >= 4 && buttons.every((b0) => /disabled=""/.test(b0)), buttons);
+  const pickers = (ro.match(/<button[^>]*class="dbo-picker__button[^"]*"[^>]*>/g) || []);
+  check('...the rank Pickers too', pickers.length >= 1 && pickers.every((p0) => /disabled=""/.test(p0)), pickers);
+  check('...and the footer says whose journal it is', /You are reading Vaeliss Dren.s journal\. Nothing can be changed here\./.test(text(ro)));
+  const fsrc = FRONT_SRC('features/faction/index.tsx');
+  if (fsrc) check('...FactionContent sends nothing read only', /const act = \(key: string, \.\.\.args: unknown\[\]\) => \{ if \(readOnly\) return;/.test(fsrc));
+  const jsrc2 = FRONT_SRC('features/journal/index.tsx');
+  if (jsrc2) check('the section cache starts afresh for each opening and each subject', /if \(cacheOf\.current !== opening\) \{ cacheOf\.current = opening; cache\.current = \{\}; \}/.test(jsrc2) && /data\.opened/.test(jsrc2) && /data\.subject/.test(jsrc2));
+  const scss = FRONT_SRC('features/journal/tabs/SettingsTab.scss');
+  if (scss) check('a Picker in Settings opens in the section\'s flow (the d26e2875 rule)', /&__content \.dbo-picker--open \.dbo-picker__list \{ position: static;/.test(scss));
+}
+
 // ---- a payload from the server's own harness (JOURNAL_SAMPLE=<file>, written by journal-harness.js) ------------------
 if (process.env.JOURNAL_SAMPLE && fs.existsSync(process.env.JOURNAL_SAMPLE)) {
   const sample = JSON.parse(fs.readFileSync(process.env.JOURNAL_SAMPLE, 'utf8'));

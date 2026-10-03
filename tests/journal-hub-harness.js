@@ -266,6 +266,46 @@ globalThis.__dboJournalRequest(STAFF);
 check('...closing it leaves the staff member\'s own last tab alone (F3 opens their own journal)', !last(STAFF).readOnly && last(STAFF).head.name === 'Kodlak');
 check('OpenFor from an older journal front: false', globalThis.__dboJournalOpenFor(OLD, HUB) === false);
 
+// ---- a hold-only member: Faction only for a front without Court ----
+const HOLD = 0xff000025;
+props.set(`${HOLD}|appearance`, { name: 'Jarl', raceId: 0x13746 }); props.set(`${HOLD}|private.mastery`, mastery({ blade: 10 }));
+online.push(HOLD);
+tabInfo.set(HOLD, { member: 0, invites: 0, courtMember: 1, courtInvites: 1, staff: false });
+caps.set(HOLD, new Set(HUBCAPS));
+globalThis.__dboJournalRequest(HOLD);
+check('a hold-only member on a front without Court: a Faction tab, the hold invite counted', ids(last(HOLD)).startsWith('profile,faction') && last(HOLD).tabs.find((t) => t.id === 'faction').badge === '1', last(HOLD).tabs);
+caps.get(HOLD).add('journalTab:court');
+const courtVis = globalThis.__dboJournalSections.court.visible;
+globalThis.__dboJournalSections.court.visible = (a) => a === HOLD || courtVis(a);
+globalThis.__dboJournalRequest(HOLD);
+check('...on a front with Court: no Faction tab, Court covers it', !ids(last(HOLD)).includes('faction') && ids(last(HOLD)).includes('court'), ids(last(HOLD)));
+globalThis.__dboJournalSections.court.visible = courtVis;
+
+// ---- read-only extras: no Settings of another, the staff flag is the viewer's, the faction panel read only ----
+caps.get(STAFF).add('journalTab:settings');
+let ffArgs = null;
+const fp = globalThis.__dboFactionPayload;
+globalThis.__dboFactionPayload = (a, keep, ro) => { ffArgs = [a, keep, ro]; return fp(a, keep); };
+globalThis.__dboJournalOpenFor(STAFF, WOLF, 'faction');
+w = last(STAFF);
+check('another\'s journal never shows their Settings', !ids(w).includes('settings'), ids(w));
+check('...their faction panel is asked for read only', ffArgs && ffArgs[0] === WOLF && ffArgs[2] === true, ffArgs);
+check('...and carries the subject and the opening, so the front starts its cache afresh', w.subject === (WOLF >>> 0).toString(16) && typeof w.opened === 'number');
+const firstOpening = w.opened;
+fire('journalClose', STAFF, [w.nonce]);
+globalThis.__dboJournalOpenFor(STAFF, HUB, 'profile');
+check('...a second reading is another opening, of another subject', last(STAFF).opened !== firstOpening && last(STAFF).subject === (HUB >>> 0).toString(16));
+let staffSeen = null;
+globalThis.__dboJournalSections.probeStaff = { visible: () => true, view: (a, o) => { staffSeen = o.staff; return {}; } };
+caps.get(STAFF).add('journalTab:probeStaff');
+fire('journalTab', STAFF, [last(STAFF).nonce, 'probeStaff']);
+check('...the staff flag sections see is the viewer\'s (a player\'s journal read by staff)', staffSeen === true);
+delete globalThis.__dboJournalSections.probeStaff;
+globalThis.__dboFactionPayload = fp;
+fire('journalClose', STAFF, [last(STAFF).nonce]);
+globalThis.__dboJournalRequest(STAFF);
+check('the staff member\'s own journal keeps Settings', ids(last(STAFF)).includes('settings') && !last(STAFF).readOnly && !('subject' in last(STAFF)));
+
 // ---- a reload keeps the other modules' sections ----
 load();
 check('a hot reload of journal.js keeps the sections other modules registered', !!globalThis.__dboJournalSections.court && !!globalThis.__dboJournalSections.factionStaff && !!globalThis.__dboJournalSections.profile);
@@ -274,9 +314,10 @@ check('a hot reload of journal.js keeps the sections other modules registered', 
 const gm = fs.readFileSync('gamemode.js', 'utf8');
 check('gamemode.js gives journal.js isAdmin', /require\(JOURNAL_JS\)\(\{[^}]*\bisAdmin\b/.test(gm));
 const gsrc = fs.readFileSync('guilds.js', 'utf8');
-check('guilds.js exports the Faction tab\'s count without building the panel, hold and stronghold factions left to Court',
-  /globalThis\.__dboFactionTabInfo = \(a\) => \(\{ member: membershipsOf\(a >>> 0\)\.filter\(\(m\) => !courtKind\(m\.fid\)\)\.length,/.test(gsrc)
-  && /invites: invitesOf\(a >>> 0\)\.filter\(\(i\) => !courtKind\(i\.fid\)\)\.length/.test(gsrc) && /f\.kind === 'hold' \|\| f\.kind === 'stronghold'/.test(gsrc));
+check('guilds.js exports the Faction tab\'s count without building the panel, hold and stronghold factions counted apart',
+  /courtMember: ms\.filter\(\(m\) => courtKind\(m\.fid\)\)\.length, courtInvites: inv\.filter\(\(i\) => courtKind\(i\.fid\)\)\.length/.test(gsrc)
+  && /member: ms\.filter\(\(m\) => !courtKind\(m\.fid\)\)\.length/.test(gsrc) && /f\.kind === 'hold' \|\| f\.kind === 'stronghold'/.test(gsrc));
+check('...and the faction panel for a read-only view makes and keeps no nonce for the subject', /const nonce = readOnly \? '' :/.test(gsrc) && /if \(!readOnly\) ST\.nonces\.set\(a >>> 0, nonce\);/.test(gsrc));
 
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);

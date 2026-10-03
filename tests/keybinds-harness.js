@@ -105,6 +105,10 @@ const stubPlugin = {
   launcher.housingMenuKeyCode = DX.R;
   msg('cef::keybinds:get');
   check('a launcher change after an in-game rebind wins at the next launch', lastState().next.housingMenuKeyCode === DX.R);
+  msg('cef::keybinds:save', JSON.stringify({ keys: { masteryMenuKeyCode: 0, personalMenuKeyCode: DX.Escape, emoteWheelKeyCode: DX.Backspace, nametagKeyCode: DX.Enter, hideChatKeyCode: 0 } }));
+  const kept = JSON.parse(files.get('keybinds-no-load').slice(2)).keys;
+  check('a required key is never set to none, and Escape, Backspace and Enter are never bound', !kept.masteryMenuKeyCode && !kept.personalMenuKeyCode && !kept.emoteWheelKeyCode && !kept.nametagKeyCode, kept);
+  check('...while the optional hide-chat key may be none', kept.hideChatKeyCode && kept.hideChatKeyCode.code === 0);
   msg('cef::keybinds:save', 'not json');
   check('a broken save writes nothing new and still answers', !!lastState());
 
