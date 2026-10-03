@@ -11,6 +11,10 @@ interface UiItem {
   name: string;
   tags?: string[];
   equipped?: boolean;
+  // From a newer client (tradeService itemFacts): the category, the base value and the weight of one
+  cat?: string;
+  value?: number;
+  weight?: number;
 }
 
 interface TradeEvents {
@@ -62,6 +66,38 @@ const offerKey = (items: UiItem[]): string =>
 const matches = (items: UiItem[], filter: string): UiItem[] =>
   filter ? (items || []).filter((item) => (item.name || '').toLowerCase().includes(filter)) : items;
 
+// The categories the client sends (tradeService itemFacts), in the order the chips show them (F3 hub, H11)
+export const CATEGORIES: Array<[string, string]> = [['weapons', 'Weapons'], ['armour', 'Armour'], ['clothing', 'Clothing'], ['jewellery', 'Jewellery'],
+  ['potions', 'Potions'], ['poisons', 'Poisons'], ['ingredients', 'Ingredients'], ['food', 'Food'], ['books', 'Books'], ['scrolls', 'Scrolls'],
+  ['soulgems', 'Soul gems'], ['ingots', 'Ingots & ore'], ['keys', 'Keys'], ['misc', 'Misc']];
+export type SortKey = 'name' | 'value' | 'weight';
+
+// The chips worth showing: the categories that have something in them
+export const presentCategories = (items: UiItem[]): Array<[string, string]> => {
+  const have = new Set((items || []).map((i) => i.cat || ''));
+  return CATEGORIES.filter(([id]) => have.has(id));
+};
+export const inCategory = (items: UiItem[], cat: string): UiItem[] => (cat ? (items || []).filter((i) => i.cat === cat) : items);
+export const sortItems = (items: UiItem[], by: SortKey): UiItem[] => {
+  const list = (items || []).slice();
+  if (by === 'value') list.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0) || a.name.localeCompare(b.name));
+  else if (by === 'weight') list.sort((a, b) => (Number(b.weight) || 0) - (Number(a.weight) || 0) || a.name.localeCompare(b.name));
+  else list.sort((a, b) => a.name.localeCompare(b.name));
+  return list;
+};
+// An offer's value and weight, every stack counted (null when the client sends neither)
+export const totals = (items: UiItem[]): { value: number; weight: number } | null => {
+  const list = items || [];
+  if (!list.some((i) => i.value !== undefined || i.weight !== undefined)) return null;
+  return list.reduce((t, i) => ({ value: t.value + (Number(i.value) || 0) * i.count, weight: t.weight + (Number(i.weight) || 0) * i.count }), { value: 0, weight: 0 });
+};
+const weightText = (w: number): string => (Math.round(w * 10) / 10).toString();
+
+const Totals = ({ items }: { items: UiItem[] }) => {
+  const t = totals(items);
+  return t ? <div className="trade__totals" title="The items' base value, before any merchant's price">Base value {Math.round(t.value).toLocaleString('en-US')} gold · weighs {weightText(t.weight)}</div> : null;
+};
+
 interface ItemListProps {
   items: UiItem[];
   filter: string;
@@ -69,7 +105,7 @@ interface ItemListProps {
   onItemClick?: (item: UiItem) => void;
 }
 
-// A scrollable column of "<name> (xN)" rows. Clickable when onItemClick is set.
+// A ledger of stacks: name and tags, count, value. Clickable when onItemClick is set.
 const ItemList = ({ items, filter, emptyText, onItemClick }: ItemListProps) => {
   if (!items || items.length === 0) {
     return <div className="trade__empty">{emptyText}</div>;
@@ -94,6 +130,7 @@ const ItemList = ({ items, filter, emptyText, onItemClick }: ItemListProps) => {
             {item.equipped ? <span className="trade__item-tag">equipped</span> : null}
           </span>
           {item.count > 1 ? <span className="trade__item-count">{item.count}</span> : null}
+          {item.value !== undefined ? <span className="trade__item-value" title="Value of one">{Math.round(Number(item.value) || 0)}</span> : null}
         </div>
       ))}
     </div>
@@ -109,8 +146,10 @@ const Trade = ({ data }: { data: TradeData }) => {
   const [prompt, setPrompt] = useState<CountPrompt | null>(null);
   const [promptCount, setPromptCount] = useState(1);
   const [search, setSearch] = useState('');
+  const [cat, setCat] = useState('');
+  const [sortBy, setSortBy] = useState<SortKey>('name');
 
-  useEffect(() => setSearch(''), [data.partnerName]);
+  useEffect(() => { setSearch(''); setCat(''); }, [data.partnerName]);
 
   const filter = search.trim().toLowerCase();
 
@@ -248,6 +287,10 @@ const Trade = ({ data }: { data: TradeData }) => {
   }
 
   const acceptText = data.iAccepted ? (bothAccepted ? 'Trading...' : 'Accepted') : 'Accept';
+  const cats = presentCategories(data.inventory);
+  const hasFacts = (data.inventory || []).some((i) => i.value !== undefined);
+  // A chosen category emptied by a move shows All
+  const shownCat = cats.some(([id]) => id === cat) ? cat : '';
 
   return (
     <div className="trade">
@@ -273,11 +316,26 @@ const Trade = ({ data }: { data: TradeData }) => {
             <div className="trade__pane-title">
               Your Inventory{' '}
               <span className="trade__lock">
-                ({filter ? matches(data.inventory, filter).length + '/' : ''}{(data.inventory || []).length})
+                ({filter || shownCat ? matches(inCategory(data.inventory, shownCat), filter).length + '/' : ''}{(data.inventory || []).length})
               </span>
             </div>
+            {cats.length > 1 ? (
+              <div className="trade__chips" role="radiogroup" aria-label="Category">
+                {[['', 'All'] as [string, string]].concat(cats).map(([id, label]) => (
+                  <button key={id || 'all'} type="button" className={'trade__chip' + (shownCat === id ? ' trade__chip--on' : '')} onClick={() => setCat(id)}>{label}</button>
+                ))}
+              </div>
+            ) : null}
+            {hasFacts ? (
+              <div className="trade__sort">
+                <span>Sort by</span>
+                {([['name', 'Name'], ['value', 'Value'], ['weight', 'Weight']] as Array<[SortKey, string]>).map(([id, label]) => (
+                  <button key={id} type="button" className={'trade__chip' + (sortBy === id ? ' trade__chip--on' : '')} onClick={() => setSortBy(id)}>{label}</button>
+                ))}
+              </div>
+            ) : null}
             <ItemList
-              items={data.inventory}
+              items={sortItems(inCategory(data.inventory, shownCat), sortBy)}
               filter={filter}
               emptyText="Nothing to trade"
               onItemClick={(item) => clickItem('add', item)}
@@ -332,6 +390,7 @@ const Trade = ({ data }: { data: TradeData }) => {
                 emptyText="(empty)"
                 onItemClick={data.myLocked ? undefined : (item) => clickItem('remove', item)}
               />
+              <Totals items={data.myOffer} />
             </div>
 
             <div className={'trade__pane trade__pane--their-offer' + (data.theirLocked ? ' trade__pane--locked' : '')}>
@@ -341,6 +400,7 @@ const Trade = ({ data }: { data: TradeData }) => {
               </div>
               {theirGold ? <div className="trade__gold trade__gold--theirs">Gold: {theirGold.count}</div> : null}
               <ItemList items={data.theirOffer} filter={filter} emptyText="(empty)" />
+              <Totals items={data.theirOffer} />
             </div>
           </div>
         </div>

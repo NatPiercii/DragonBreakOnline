@@ -2,7 +2,8 @@ import React from 'react';
 import './Tabs.scss';
 
 // A row of tabs for the large panels (the Character Journal first). Mouse, or Left/Right/Home/End on a focused tab.
-export interface TabItem<T extends string> { id: T; label: string; badge?: string }
+// pinned: drawn at the right end of the bar (the journal's Settings)
+export interface TabItem<T extends string> { id: T; label: string; badge?: string; pinned?: boolean }
 
 export function Tabs<T extends string>({ tabs, value, onChange, className }: {
   tabs: Array<TabItem<T>>; value: T; onChange: (id: T) => void; className?: string;
@@ -20,7 +21,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: {
     <div className={'dbo-tabs ' + (className || '')} role="tablist" onKeyDown={onKeyDown}>
       {tabs.map((t) => (
         <button key={t.id} type="button" role="tab" aria-selected={t.id === value}
-          className={'dbo-tabs__tab' + (t.id === value ? ' dbo-tabs__tab--on' : '')} onClick={() => onChange(t.id)}>
+          className={'dbo-tabs__tab' + (t.id === value ? ' dbo-tabs__tab--on' : '') + (t.pinned ? ' dbo-tabs__tab--pinned' : '')} onClick={() => onChange(t.id)}>
           {t.label}{t.badge ? <span className="dbo-tabs__badge">{t.badge}</span> : null}
         </button>
       ))}

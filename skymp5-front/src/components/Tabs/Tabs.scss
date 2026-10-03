@@ -37,3 +37,6 @@
     color: $dbo-gold;
   }
 }
+
+// The first pinned tab and those after it sit at the right end
+.dbo-tabs__tab:not(.dbo-tabs__tab--pinned) + .dbo-tabs__tab--pinned { margin-left: auto; }

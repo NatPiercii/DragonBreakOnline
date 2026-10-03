@@ -227,3 +227,45 @@
 [class="shout"] {
   text-transform: uppercase;
 }
+
+// ---- F3, Settings, Interface (uiSettings.ts): the chat's modes and its look in the hub's style (N18) ----------------
+// Fade when idle: the text goes with the frame after the fade delay, and a new line brings it back
+#chat .chat-list { transition: opacity 1s ease; }
+#chat.chat-mode-fade.chat-idle .chat-list { opacity: 0; }
+// Hidden until T, or hidden by the hide-chat key: invisible but still there, so T and Enter reach the input
+#chat { transition: opacity 0.4s ease; }
+#chat.chat-veiled { opacity: 0; pointer-events: none; }
+
+// The frame: dark ground under the messages and a stone edge, at the chat's own transparency; it fades when idle
+#chat .chat-main .chat-resizable {
+  background: rgba(8, 25, 28, calc(var(--chat-bg-alpha, 0.75) * 0.55));
+  border: 1px solid rgba(93, 107, 110, 0.55);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35);
+  padding: 8px 10px 10px;
+  box-sizing: border-box;
+  transition: background-color 1s ease, border-color 1s ease, box-shadow 1s ease;
+}
+#chat.chat-idle .chat-main .chat-resizable { background-color: transparent; border-color: transparent; box-shadow: none; }
+#chat .chat-input { border-radius: 0; border-color: rgba(93, 107, 110, 0.6); background-image: none; }
+#chat .chat-divider { background: rgba(143, 211, 208, 0.18); }
+// Channel tabs as the journal's: small capitals, the open one underlined in the accent
+#chat .chat-channels .chat-channel,
+#chat .chat-tabs-row .chat-settings-button {
+  font-weight: normal;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  border-bottom: 1px solid transparent;
+}
+#chat .chat-channels .chat-channel.active { border-bottom-color: rgba(143, 211, 208, 0.8); }
+
+// Book lettering: the lines in Georgia with a soft shadow, names kept in Futura; Plain is today's
+#chat.chat-lettering-book .chat-resizable .msg {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: normal;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(8, 25, 28, 0.9);
+  .chat-name { font-family: 'Futura Condensed', Din-pro; font-weight: bold; letter-spacing: 0.04em; }
+}

@@ -1,0 +1,118 @@
+// The journal's Deity tab: a ledger of the gods on the left, the chosen one's page on the right
+@import '../../../dbo-theme.scss';
+
+.jdeity {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: 32px;
+  // Each column scrolls on its own, so the god's page stays in view while the list scrolls
+  height: 100%;
+  min-height: 0;
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 20px;
+    border-right: 1px solid dbo-accent(0.2);
+  }
+
+  &__rows { margin: 0; padding: 0; list-style: none; }
+  // Sixteen Princes and seven faiths read as two columns of short names; the Divines keep one, with Auri-El under Akatosh
+  &__group--daedra &__rows, &__group--faith &__rows { columns: 2; column-gap: 12px; }
+  &__group--daedra &__row, &__group--faith &__row { break-inside: avoid; }
+
+  &__pick {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    min-height: 26px;
+    padding: 2px 8px;
+    background: none;
+    border: none;
+    border-left: 2px solid transparent;
+    color: $dbo-text;
+    font-family: $dbo-ui-font;
+    font-size: 16px;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { background: dbo-accent(0.06); }
+    &:focus-visible { outline: 1px solid $dbo-gold-border; outline-offset: -2px; }
+  }
+
+  &__row--on &__pick { border-left-color: dbo-accent(0.9); background: dbo-accent(0.1); color: $dbo-silver; }
+  &__row--aspect &__pick { padding-left: 26px; font-size: 15px; }
+  &__row--far &__name { color: $dbo-text-dim; }
+
+  &__name { flex: 0 1 auto; min-width: 0; }
+  &__aspect { color: $dbo-text-dim; font-style: italic; }
+
+  &__mark {
+    flex: none;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $dbo-text-dim;
+
+    &--yours { color: dbo-accent(1); }
+    &--unlawful { color: #d9908a; }
+    &--far { margin-left: auto; text-transform: none; letter-spacing: 0; font-style: italic; opacity: 0.8; }
+  }
+
+  &__page { min-width: 0; min-height: 0; max-width: 760px; overflow-y: auto; padding-right: 8px; }
+
+  &__title {
+    margin: 0;
+    font-family: $dbo-title-font;
+    font-weight: 400;
+    font-size: 30px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: $dbo-silver;
+  }
+
+  &__sphere {
+    margin: 8px 0 0;
+    font-family: $dbo-book-font;
+    font-style: italic;
+    font-size: 17px;
+    line-height: 1.5;
+    color: dbo-accent(0.95);
+  }
+
+  &__known { margin: 6px 0 0; font-size: 15px; color: $dbo-text-dim; }
+
+  &__facts {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 10px 20px;
+    margin: 20px 0 0;
+
+    dt { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: $dbo-text-dim; padding-top: 3px; }
+    dd { margin: 0; font-family: $dbo-book-font; font-size: 16px; line-height: 1.5; color: $dbo-text; }
+  }
+
+  &__unlawful { color: #e6b3ad !important; }
+  &__note { font-family: $dbo-ui-font !important; font-size: 14px !important; color: $dbo-text-dim !important; }
+
+  &__state { margin: 0; font-family: $dbo-book-font; font-size: 16px; color: $dbo-text; }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  &__ask { margin-right: auto; font-size: 15px; color: $dbo-gold; }
+}
+
+@media (max-width: 1180px), (max-height: 720px) {
+  .jdeity { grid-template-columns: 320px minmax(0, 1fr); gap: 20px; }
+}

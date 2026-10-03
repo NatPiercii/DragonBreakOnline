@@ -61,11 +61,13 @@ const send = (key: string, ...args: unknown[]): void => {
 const KIND_LABEL: Record<string, string> = { hold: 'Hold', stronghold: 'Stronghold', guild: 'Guild', cult: 'Cult' };
 
 // The menu's content, alone (panel 37) or in the journal's Faction tab without its own Close
-export const FactionContent = ({ data, embedded }: { data: FactionData; embedded?: boolean }) => {
+// readOnly: staff reading another's journal; every control is held disabled and nothing is sent
+export const FactionContent = ({ data, embedded, readOnly }: { data: FactionData; embedded?: boolean; readOnly?: boolean }) => {
   const factions = data.factions || [];
   const [selected, setSelected] = useState<string>(data.selected || (factions[0] ? factions[0].id : ''));
   const [inviteName, setInviteName] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busyState, setBusy] = useState(false);
+  const busy = busyState || !!readOnly;
   const [tab, setTab] = useState<'members' | 'realm' | 'war' | 'treasury'>('members');
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export const FactionContent = ({ data, embedded }: { data: FactionData; embedded
   }, [data.nonce]);
 
   const f = factions.filter((x) => x.id === selected)[0] || null;
-  const act = (key: string, ...args: unknown[]) => { setBusy(true); send(key, data.nonce, ...args); };
+  const act = (key: string, ...args: unknown[]) => { if (readOnly) return; setBusy(true); send(key, data.nonce, ...args); };
 
   return (
     <>

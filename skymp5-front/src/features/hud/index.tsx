@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import './styles.scss';
+import { journalCaps } from '../journal/tabs';
+import { UiSettings, useUiSettings } from '../../utils/uiSettings';
+
+// For tests/hud-settings-harness.js: the settings store the HUD and the chat read
+export { getUiSettings, setUiSettings, UI_DEFAULTS, BEFORE_FILE } from '../../utils/uiSettings';
+import '../journal/sections';
 
 // The widget object pushed through window.skyrimPlatform.widgets by the
 // gamemode's ff_hud property (owner-side code in gamemode.js). Passive, never
@@ -30,25 +36,41 @@ const clampPct = (v: unknown): number => Math.max(0, Math.min(100, Number(v) || 
 const Watermark = ({ on }: { on: boolean }) => (on ? <div className="dboWatermark" /> : null);
 
 // Three etched bars in the Lorkhan idiom: a notched aetherial frame, a rune cap per vital, quarter
-// ticks like the marks of a broken calendar, and a slow sheen across the fill.
-const Vitals = ({ data }: { data: HudData }) => {
-  if (data.vitalsOn === false) return null;
-  const rows: Array<[string, string, number]> = [
-    ['health', 'Health', clampPct(data.health)],
-    ['magicka', 'Magicka', clampPct(data.magicka)],
-    ['stamina', 'Stamina', clampPct(data.stamina)],
-  ];
+// ticks like the marks of a broken calendar, and a slow sheen across the fill. F3, Settings, Interface (uiSettings.ts):
+// Always, Fade when full (gone once all three are full and still for vitalsFadeSeconds, back at once on any drop) or
+// Hidden; Classic or Quiet (thin muted bars, no sheen, gloss or glow).
+export const vitalsShown = (ui: UiSettings, full: boolean, sinceChangeMs: number): boolean =>
+  ui.vitals === 'always' || (ui.vitals === 'fade' && (!full || sinceChangeMs < ui.vitalsFadeSeconds * 1000));
+
+const Vitals = ({ data, ui }: { data: HudData; ui: UiSettings }) => {
+  const h = clampPct(data.health), m = clampPct(data.magicka), s = clampPct(data.stamina);
+  const full = h >= 100 && m >= 100 && s >= 100;
+  const key = `${h}|${m}|${s}`;
+  const changedAt = useRef(Date.now());
+  const lastKey = useRef(key);
+  if (lastKey.current !== key) { lastKey.current = key; changedAt.current = Date.now(); }
+  const [, tick] = useState(0);
+  const shown = vitalsShown(ui, full, Date.now() - changedAt.current);
+  // One redraw when the fade is due, since nothing else moves while the bars are full and still
+  useEffect(() => {
+    if (ui.vitals !== 'fade' || !full || !shown) return undefined;
+    const t = setTimeout(() => tick((n) => n + 1), Math.max(50, ui.vitalsFadeSeconds * 1000 - (Date.now() - changedAt.current) + 20));
+    return () => clearTimeout(t);
+  }, [key, ui.vitals, ui.vitalsFadeSeconds, full, shown]);
+  if (data.vitalsOn === false || ui.vitals === 'hidden') return null;
+  const rows: Array<[string, string, number]> = [['health', 'Health', h], ['magicka', 'Magicka', m], ['stamina', 'Stamina', s]];
+  const quiet = ui.vitalsStyle === 'quiet';
   return (
-    <div className="dboVitals">
-      {rows.map(([key, label, pct]) => (
-        <div className={`dboVitals__row dboVitals__row--${key}`} key={key} title={`${label} ${Math.round(pct)}%`}>
-          <span className={`dboVitals__rune dboVitals__rune--${key}`} />
+    <div className={'dboVitals' + (quiet ? ' dboVitals--quiet' : '') + (shown ? '' : ' dboVitals--faded')}>
+      {rows.map(([k, label, pct]) => (
+        <div className={`dboVitals__row dboVitals__row--${k}`} key={k} title={`${label} ${Math.round(pct)}%`}>
+          <span className={`dboVitals__rune dboVitals__rune--${k}`} />
           <div className="dboVitals__bar">
-            <div className={`dboVitals__fill dboVitals__fill--${key}`} style={{ width: `${pct}%` }}>
-              <span className="dboVitals__sheen" />
+            <div className={`dboVitals__fill dboVitals__fill--${k}`} style={{ width: `${pct}%` }}>
+              {quiet ? null : <span className="dboVitals__sheen" />}
             </div>
-            <span className="dboVitals__ticks" />
-            <span className="dboVitals__gloss" />
+            {quiet ? null : <span className="dboVitals__ticks" />}
+            {quiet ? null : <span className="dboVitals__gloss" />}
           </div>
         </div>
       ))}
@@ -106,8 +128,9 @@ const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 
 const useUiCaps = (): void => {
   useEffect(() => {
     const tell = () => {
+      // The F3 hub and each tab this front draws ('journalHub', 'journalTab:<id>'; features/journal/tabs.ts)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      try { (window as any).skyrimPlatform.sendMessage('dbo:uiCaps', ...UI_CAPS); } catch { /* no bridge */ }
+      try { (window as any).skyrimPlatform.sendMessage('dbo:uiCaps', ...UI_CAPS, ...journalCaps()); } catch { /* no bridge */ }
     };
     tell();
     const t = setInterval(tell, 120000);
@@ -117,6 +140,7 @@ const useUiCaps = (): void => {
 
 const Hud = ({ data }: { data: HudData }) => {
   const { mode: voice, talking } = useVoice();
+  const ui = useUiSettings();
   useUiCaps();
   if (!data) return null;
   const hunger = clampPct(data.hunger);
@@ -148,7 +172,7 @@ const Hud = ({ data }: { data: HudData }) => {
         )}
         <Voice mode={voice} talking={talking} />
       </div>
-      <Vitals data={data} />
+      <Vitals data={data} ui={ui} />
     </>
   );
 };

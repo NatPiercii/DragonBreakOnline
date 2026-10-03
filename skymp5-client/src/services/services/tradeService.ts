@@ -4,7 +4,7 @@ import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, notifyNextUpdate } from "./customPacketUtil";
 import { closeWidget, isMenuHotkeyBlocked, readMenuKeyCode, showUi } from "./widgetMenuUtil";
 import { FunctionInfo } from "../../lib/functionInfo";
-import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, ObjectReference } from "skyrimPlatform";
+import { BrowserMessageEvent, ButtonEvent, DxScanCode, Form, FormType, InputDeviceType, ObjectReference } from "skyrimPlatform";
 import { getInventory, Entry, EnchantmentEffect, effectsKey, isBoundItem, PROPERTY_KEY_BASE_ID } from "../../sync/inventory";
 import { logTrace } from "../../logging";
 import { EmoteService } from "./emoteService";
@@ -49,7 +49,17 @@ interface UiItem {
   name: string;
   tags?: string[];
   equipped?: boolean;
+  // The trade window's category chips, sort and totals (F3 hub, H11): from the base form, once per base id
+  cat?: string;
+  value?: number;
+  weight?: number;
 }
+
+interface ItemFacts { cat: string; value: number; weight: number }
+// Keyword editor ids that sort an armour or misc item further (vanilla keywords, carried by the mods' items too)
+const JEWELLERY_KEYWORDS = ["ArmorJewelry", "VendorItemJewelry"];
+const CLOTHING_KEYWORDS = ["ArmorClothing", "VendorItemClothing"];
+const INGOT_KEYWORDS = ["VendorItemOreIngot"];
 
 // Property keys (housing): the name is the credential
 const keyName = (i: Item): string =>
@@ -465,7 +475,61 @@ export class TradeService extends ClientListener {
     if (tags.length > 0) {
       ui.tags = tags;
     }
+    const facts = this.itemFacts(i.baseId);
+    if (facts) {
+      ui.cat = facts.cat;
+      ui.value = facts.value;
+      ui.weight = facts.weight;
+    }
     return ui;
+  }
+
+  // Category, value and weight of one, read from the base form (FormType from the SkyrimPlatform typings). Native
+  // objects are not kept across frames, only the answer; a failed read is not cached.
+  private itemFacts(baseId: number): ItemFacts | null {
+    const cached = this.factsCache.get(baseId);
+    if (cached) return cached;
+    let facts: ItemFacts | null = null;
+    try {
+      const form = this.sp.Game.getFormEx(baseId);
+      if (!form) return null;
+      const type = form.getType();
+      const keywords = this.keywordsOf(form);
+      const has = (list: string[]) => list.some((k) => keywords.indexOf(k) !== -1);
+      let cat = "misc";
+      if (type === FormType.Weapon || type === FormType.Ammo) cat = "weapons";
+      else if (type === FormType.Armor) cat = has(JEWELLERY_KEYWORDS) ? "jewellery" : has(CLOTHING_KEYWORDS) ? "clothing" : "armour";
+      else if (type === FormType.Potion) {
+        const potion = this.sp.Potion.from(form);
+        cat = potion && potion.isPoison() ? "poisons" : potion && potion.isFood() ? "food" : "potions";
+      }
+      else if (type === FormType.Ingredient) cat = "ingredients";
+      else if (type === FormType.Book) cat = "books";
+      else if (type === FormType.ScrollItem) cat = "scrolls";
+      else if (type === FormType.SoulGem) cat = "soulgems";
+      else if (type === FormType.Key) cat = "keys";
+      else if (type === FormType.Misc && has(INGOT_KEYWORDS)) cat = "ingots";
+      const value = Number(form.getGoldValue());
+      const weight = Number(form.getWeight());
+      facts = { cat, value: Number.isFinite(value) ? Math.max(0, value) : 0, weight: Number.isFinite(weight) ? Math.max(0, Math.round(weight * 100) / 100) : 0 };
+    } catch (e) {
+      return null;
+    }
+    this.factsCache.set(baseId, facts);
+    return facts;
+  }
+
+  private keywordsOf(form: Form): string[] {
+    const out: string[] = [];
+    try {
+      const n = form.getNumKeywords();
+      for (let k = 0; k < n && k < 64; k++) {
+        const kw = form.getNthKeyword(k);
+        const name = kw ? kw.getString() : "";
+        if (name) out.push(name);
+      }
+    } catch (e) { /* no keywords read */ }
+    return out;
   }
 
   // Vanilla-style labels for tempering, enchantment, charge, soul and poison
@@ -631,4 +695,5 @@ export class TradeService extends ClientListener {
   private inviteFocused = false;
   private interactKey: number = DxScanCode.X;
   private nameCache = new Map<number, string>();
+  private factsCache = new Map<number, ItemFacts>();
 }

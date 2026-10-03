@@ -1,0 +1,175 @@
+// The journal's Settings tab: a rail of sections, then the section in two columns of ledger rows
+@import '../../../dbo-theme.scss';
+
+.jset {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 28px;
+  height: 100%;
+  min-height: 0;
+
+  &__rail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 16px;
+    border-right: 1px solid dbo-accent(0.2);
+  }
+
+  &__rail-item {
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    border-left: 2px solid transparent;
+    color: $dbo-text-dim;
+    font-family: $dbo-ui-font;
+    font-size: 16px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { color: $dbo-text; background: dbo-accent(0.06); }
+    &--on { color: $dbo-silver; border-left-color: dbo-accent(0.9); background: dbo-accent(0.1); }
+    &:focus-visible { outline: 1px solid $dbo-gold-border; outline-offset: -2px; }
+  }
+
+  &__content { min-width: 0; min-height: 0; overflow-y: auto; padding-right: 8px; }
+  // A Picker's list opens in the section's flow, not over it: the section scrolls and clips, as the faction roster's did
+  // (d26e2875)
+  &__content .dbo-picker--open { display: block; max-width: 360px; }
+  &__content .dbo-picker--open .dbo-picker__list { position: static; margin-top: 4px; max-height: none; }
+
+  // Two columns of groups where the section is wide enough
+  &__part {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+    gap: 20px 36px;
+    align-items: start;
+  }
+
+  &__group { min-width: 0; }
+  &__part--one { grid-template-columns: minmax(0, 760px); }
+
+  &__key-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  &__key {
+    min-width: 120px;
+    min-height: 28px;
+    padding: 3px 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(140, 154, 156, 0.45);
+    color: $dbo-silver;
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+
+    &:hover { border-color: dbo-accent(0.7); }
+    &--capture { border-color: $dbo-gold-border-strong; color: $dbo-gold; }
+    &--clash { border-color: rgba(214, 84, 84, 0.8); }
+  }
+  &__clash { font-size: 13px; color: #e6b3ad; }
+  &__later { font-size: 13px; color: $dbo-gold; font-style: italic; }
+  &__note { margin: 12px 0 0; font-size: 14px; color: $dbo-text-dim; }
+
+  &__peer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 260px) auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 6px;
+    border-bottom: 1px solid dbo-accent(0.12);
+    border-left: 2px solid transparent;
+
+    &--focus { border-left-color: dbo-accent(0.9); background: dbo-accent(0.08); }
+    .journal__button { padding: 3px 10px; }
+  }
+  &__peer-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: $dbo-text; }
+
+  &__vad { display: flex; flex-direction: column; gap: 6px; }
+  &__vad-meter {
+    position: relative;
+    display: block;
+    max-width: 260px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0 1px rgba(140, 154, 156, 0.3);
+
+    i { position: absolute; left: 0; top: 0; bottom: 0; background: rgb(91, 122, 69); }
+    b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: $dbo-gold; }
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 6px 0;
+    border-bottom: 1px solid dbo-accent(0.12);
+  }
+
+  &__label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 4px;
+    font-size: 15px;
+    color: $dbo-text;
+  }
+
+  &__hint { font-size: 12px; line-height: 1.35; color: $dbo-text-dim; }
+  &__control { min-width: 0; }
+
+  &__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  &__picker { min-width: 140px; font-family: $dbo-ui-font; font-size: 15px; color: $dbo-silver; }
+
+  &__chip {
+    padding: 4px 12px;
+    min-height: 26px;
+    background: rgba(58, 69, 72, 0.4);
+    border: 1px solid rgba(140, 154, 156, 0.3);
+    color: $dbo-text-dim;
+    font-family: $dbo-ui-font;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+
+    &:hover { color: $dbo-text; border-color: dbo-accent(0.6); }
+    &--on { color: $dbo-silver; border-color: dbo-accent(0.9); background: dbo-accent(0.16); }
+    &:focus-visible { outline: 1px solid $dbo-gold-border; outline-offset: 2px; }
+  }
+
+  &__range {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    input { flex: 1 1 auto; max-width: 260px; accent-color: rgb(143, 211, 208); }
+  }
+
+  &__range-value { min-width: 48px; font-size: 14px; color: $dbo-silver; font-variant-numeric: tabular-nums; }
+
+  &__text, &__area {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(140, 154, 156, 0.4);
+    color: $dbo-text;
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+
+    &:focus { outline: none; border-color: $dbo-gold-border-strong; }
+  }
+
+  &__area { font-family: $dbo-book-font; font-size: 16px; line-height: 1.45; resize: vertical; }
+
+  &__prose { margin: 0 0 10px; font-family: $dbo-book-font; font-size: 16px; line-height: 1.5; color: $dbo-text; max-width: 70ch; }
+
+  &__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 10px; .journal__hint { margin-right: auto; } }
+}
+
+@media (max-width: 1180px), (max-height: 720px) {
+  .jset { grid-template-columns: 180px minmax(0, 1fr); gap: 18px; }
+  .jset__part { grid-template-columns: minmax(0, 1fr); }
+}
