@@ -30,6 +30,7 @@ module.exports = (api) => {
   const { mp, log, system, audit, who, display, nameOf, tagOf, onUi, onlineActors, isAdmin, profileOf, cfg,
     zoneList, zoneById, readOfficials, rankTitle, appointCap, appointCheck, appointFrom, seatOfficial, unseatOfficial,
     officialTarget, officialName, accountActors, ranksOf, APPOINT_RULES, findByName } = api;
+  const personal = typeof api.personal === 'function' ? api.personal : () => {};
   const C = Object.assign({
     enabled: true, offerHours: 24,
     // office -> the household rank titles it maps to, the first the faction has ('@leader': the faction's leader rank).
@@ -56,8 +57,15 @@ module.exports = (api) => {
     catch (e) { log('court-offers.json write failed', e.message); }
   };
   const isOnline = (a) => onlineActors().includes(a >>> 0);
+  // An open journal on the Court tab shows a new offer at once (no redraw on another tab: it would take the caret)
+  const redrawCourt = (t) => {
+    try { if (t && typeof globalThis.__dboJournalTabOf === 'function' && globalThis.__dboJournalTabOf(t) === 'court' && typeof globalThis.__dboJournalRedraw === 'function') globalThis.__dboJournalRedraw(t, 'court'); }
+    catch (e) { log('court: redraw failed', e.message); }
+  };
   const onlineOf = (pid) => onlineActors().find((x) => profileOf(x) === Number(pid)) || 0;
 
+  // guilds.js: the household rank titles an office sets keep their title and cannot be removed
+  globalThis.__dboCourtTiedTitles = () => Array.from(new Set([].concat(...Object.values(C.factionRanks || {})).filter((t) => t && t !== '@leader').map((t) => String(t).toLowerCase())));
   // ---- the office keeps the household in step (gamemode.js seatOfficial / unseatOfficial) ---------------------------
   globalThis.__dboCourtOfficeSync = (z, tg, rank, seated) => {
     if (typeof globalThis.__dboCourtSync !== 'function' || !z || !tg) return;
@@ -79,7 +87,8 @@ module.exports = (api) => {
       by: a >>> 0, byPid: profileOf(a), byWho: who(a), byName: display(a), staff: isAdmin(a), overridden: chk && chk.overridden ? chk.overridden : '', at: Date.now() };
     S.offers = others.concat([offer]);
     saveOffers();
-    if (tg.online) system(tg.online, `${display(a)} offers you the post of ${rankTitle(rank)} of ${z.name}. Open your journal (F3), Court, to accept or decline.`);
+    redrawCourt(tg.online);
+    if (tg.online) system(tg.online, `${display(a)} offers you the post of ${rankTitle(rank)} of ${z.name}. Open your journal (F3), Court, to accept or decline, or type /court accept.`);
     audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} offered ${tg.who} the post of ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
     return { text: `You offered ${tg.label} the post of ${rankTitle(rank)} of ${z.name}. They accept it in their journal.` };
   };
@@ -178,6 +187,15 @@ module.exports = (api) => {
   };
   const sections = globalThis.__dboJournalSections || (globalThis.__dboJournalSections = {});
   sections.court = { visible, view };
+  // /court and /officials: true when the hub journal opened on Court. Today's journal opens Profile for any tab, so the
+  // shell (__dboJournalLimited) must be there; a journal that refused (in a fight) stays shut and the chat answers.
+  globalThis.__dboCourtOpen = (a) => {
+    const g = globalThis;
+    try {
+      if (typeof g.__dboJournalLimited !== 'function' || typeof g.__dboJournalOpenTab !== 'function' || !visible(a)) return false;
+      return g.__dboJournalOpenTab(a >>> 0, 'court') === true && (typeof g.__dboJournalIsOpen !== 'function' || g.__dboJournalIsOpen(a >>> 0) === true);
+    } catch (e) { log('court: journal open failed', e.message); return false; }
+  };
 
   // ---- events ---------------------------------------------------------------------------------------------------------
   const fresh = (a, args) => typeof globalThis.__dboJournalFresh === 'function' && !!globalThis.__dboJournalFresh(a, String((args || [])[0] || ''));
@@ -226,8 +244,7 @@ module.exports = (api) => {
       if (had === rank) return { error: `${tg.label} is already ${rankTitle(rank)}.` };
       if (!appointCap(a, z, had)) return { error: `You cannot move a ${rankTitle(had)} of ${z.name}.` };
       const chk = appointCheck(a, z, rank, tg, false); if (chk.error) return chk;
-      // Already in the court's service, so a move needs no acceptance; the old office's household rank goes first
-      globalThis.__dboCourtOfficeSync(z, tg, had, false);
+      // Already in the court's service, so a move needs no acceptance; seatOfficial drops the old office's household rank
       return seatOfficial(z, rank, tg, { who: who(a), staff: isAdmin(a), overridden: chk.overridden, via: `, moved from ${rankTitle(had)}` });
     });
   });
@@ -241,7 +258,7 @@ module.exports = (api) => {
   const guildCall = (name, ...rest) => (typeof globalThis[name] === 'function' ? globalThis[name](...rest) : { error: 'The household cannot be changed just now.' });
   onUi('courtRank', (a, args) => {
     if (!fresh(a, args)) return;
-    answer(a, () => { const h = householdOf(a, args[1]); return h.error ? h : guildCall('__dboGuildSetRank', a, h.fid, Number(args[2]) >>> 0, Math.floor(Number(args[3]))); });
+    answer(a, () => { const h = householdOf(a, args[1]); return h.error ? h : guildCall('__dboGuildSetRank', a, h.fid, Number(args[2]) >>> 0, Math.floor(Number(args[3])), true); });
   });
   onUi('courtKick', (a, args) => {
     if (!fresh(a, args)) return;
@@ -255,6 +272,29 @@ module.exports = (api) => {
       return guildCall('__dboGuildInvite', a, t, h.fid);
     });
   });
+
+  // ---- chat, for a client on today's journal (no Court tab): the panel stays the main way ----------------------------
+  if (typeof api.registerChatCommand === 'function') {
+    api.registerChatCommand('court', (a, args) => {
+      const [sub, ...rest] = String(args || '').trim().split(/\s+/);
+      const s = String(sub || '').toLowerCase();
+      const mine = offersFor(a);
+      const label = (o, i) => { const z = zoneById(o.zone); return `${i + 1}. ${rankTitle(o.rank)} of ${z ? z.name : o.zone}, offered by ${o.byName}`; };
+      if (!s || s === 'offers') {
+        if (!s && globalThis.__dboCourtOpen(a)) return;
+        return personal(a, mine.length ? `Posts offered to you: ${mine.map(label).join(' | ')}. Answer with /court accept <number> or /court decline <number>.` : 'No post is offered to you.');
+      }
+      if (s === 'accept' || s === 'decline') {
+        if (!mine.length) return personal(a, 'No post is offered to you.');
+        const n = rest[0] ? Math.floor(Number(rest[0])) : (mine.length === 1 ? 1 : 0);
+        const o = mine[n - 1];
+        if (!o) return personal(a, `Which one? ${mine.map(label).join(' | ')}. Use /court ${s} <number>.`);
+        const r = answerOffer(a, o.id, s === 'accept');
+        return personal(a, r.error || r.text);
+      }
+      personal(a, 'Usage: /court (your journal\'s Court tab), /court offers, /court accept [number], /court decline [number]');
+    }, { help: '[offers|accept|decline] the posts a court offers you (F3 Court shows them too)' });
+  }
 
   log(`court ${C.enabled ? 'on' : 'off'}: ${zoneList().length} courts, ${live().length} open offers`);
   return { view, visible, offerTo, answerOffer, withdraw };

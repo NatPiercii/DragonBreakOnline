@@ -2814,11 +2814,14 @@ const courtOfficeSync = (z, tg, rank, seated) => { try { if (typeof globalThis._
 // Seats tg as rank of z, one rank per zone. by: { who, staff, overridden?, via? } for the audit. { error } or { text }
 const seatOfficial = (z, rank, tg, by) => {
   const o = readOfficials(); o[z.id] = o[z.id] || {};
+  // One rank per zone: the office being left (a re-seat or a move) gives up its household rank too
+  const had = Object.keys(o[z.id]).find((r) => r !== rank && (o[z.id][r] || []).map(Number).includes(tg.pid)) || null;
   for (const r of Object.keys(o[z.id])) o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== tg.pid);
   o[z.id][rank] = (o[z.id][rank] || []).concat([tg.pid]);
   try { writeOfficials(o); } catch (e) { return { error: 'Could not write officials.json: ' + e.message }; }
   if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
   audit(`${by.staff ? 'GM' : 'OFFICIAL'} ${by.who} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}${by.via || ''}${by.overridden ? ` (Jarl rule overridden by an Owner: ${by.overridden})` : ''}`);
+  if (had) courtOfficeSync(z, tg, had, false);
   courtOfficeSync(z, tg, rank, true);
   return { text: `${tg.label} is now ${rankTitle(rank)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
 };
@@ -2873,7 +2876,7 @@ const officialsLines = (a, zoneArg) => {
 };
 registerChatCommand('officials', (a, args) => {
   // A journal client gets the Court tab (court.js); /officials <zone> still answers in chat
-  if (!args.trim()) { try { if (typeof globalThis.__dboJournalOpenTab === 'function' && globalThis.__dboJournalOpenTab(a >>> 0, 'court')) return; } catch (e) { log('officials: journal open failed', e.message); } }
+  if (!args.trim() && typeof globalThis.__dboCourtOpen === 'function' && globalThis.__dboCourtOpen(a)) return;
   const lines = officialsLines(a, args.trim());
   personal(a, lines.length ? lines.join('  |  ') : 'No officials appointed yet. Admins: /appoint <player> <zone> <rank>.');
   const mine = ranksOf(profileOf(a)); if (mine.length) personal(a, 'You hold: ' + mine.map((m) => `${rankTitle(m.rank)} of ${m.zone.name}`).join(', '));
@@ -5704,7 +5707,7 @@ try {
 try {
   const COURT_JS = path.resolve('court.js');
   delete require.cache[COURT_JS];
-  require(COURT_JS)({ mp, log, system, audit, who, display, nameOf, tagOf, onUi, onlineActors, isAdmin, profileOf, cfg, findByName,
+  require(COURT_JS)({ mp, log, system, personal, registerChatCommand, audit, who, display, nameOf, tagOf, onUi, onlineActors, isAdmin, profileOf, cfg, findByName,
     zoneList, zoneById, readOfficials, rankTitle, appointCap, appointCheck, appointFrom, seatOfficial, unseatOfficial, officialTarget,
     officialName, accountActors, ranksOf, APPOINT_RULES });
 } catch (e) { log('court.js failed to load:', e.stack || e.message); globalThis.__dboCourtOffer = null; globalThis.__dboCourtOfficeSync = null; if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.court; }
