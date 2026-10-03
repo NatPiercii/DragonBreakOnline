@@ -593,7 +593,7 @@ module.exports = (api) => {
   // deadly rite for it, and a fever rite it loses does not kill. Rollback (clientJudged false) is today's rite for all.
   const riteLegacySafe = (a) => riteClientJudged() && String(C.rite.legacyDeadly || 'safe').toLowerCase() !== 'allow'
     && !(typeof hasUiCap === 'function' && hasUiCap(a, 'riteJudge'));
-  const legacyDeclined = (title) => `${title} needs the newer game client, which times every strike on your own machine. Your client can only be timed across the network, and this rite kills, so it stays closed to you until you update.`;
+  const legacyDeclined = (title) => `${title} needs the latest game client. Close and reopen your launcher to update your game, then come back to the shrine.`;
   const showRite = (a, r, result) => {
     const def = RITES[r.type]; const rd = r.current;
     const w = {

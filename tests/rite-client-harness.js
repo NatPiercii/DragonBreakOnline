@@ -202,11 +202,11 @@ const atShrine = (deityId) => { store.clear(); globalThis.__dboRites.clear(); sa
 cfg = {}; load();
 caps.delete('riteJudge');
 atShrine('molagbal'); cmds.rite(A, '');
-ok(!rite() && said.some((t) => /Molag Bal's Embrace needs the newer game client/.test(t)), "a client without riteJudge is told the Embrace needs the update, and nothing waits for /rite confirm", said.slice(-1)[0]);
+ok(!rite() && said.some((t) => /Molag Bal's Embrace needs the latest game client/.test(t)), "a client without riteJudge is told the Embrace needs the update, and nothing waits for /rite confirm", said.slice(-1)[0]);
 said.length = 0; cmds.rite(A, 'confirm');
 ok(!rite() && said.some((t) => /nothing to confirm/.test(t)), '...so /rite confirm begins nothing', said.slice(-1)[0]);
 atShrine('hircine'); cmds.rite(A, '');
-ok(!rite() && said.some((t) => /The Great Hunt needs the newer game client/.test(t)), '...and the same for the Great Hunt', said.slice(-1)[0]);
+ok(!rite() && said.some((t) => /The Great Hunt needs the latest game client/.test(t)), '...and the same for the Great Hunt', said.slice(-1)[0]);
 // Chosen while the client named riteJudge, confirmed after a relog on an older client: the rite itself declines
 caps.add('riteJudge'); atShrine('molagbal'); cmds.rite(A, ''); caps.delete('riteJudge'); cmds.rite(A, 'confirm');
 ok(!rite() && logs.some((l) => /Molag Bal's Embrace declined: the client cannot judge its own strikes/.test(l)), 'an Embrace chosen on a riteJudge client and confirmed without it is declined at the start', logs.slice(-1)[0]);
@@ -216,7 +216,7 @@ ok(!rite() && logs.some((l) => /Molag Bal's Embrace declined: the client cannot 
   atShrine('molagbal'); widgets.length = 0;
   globalThis.__dboShrinePanel(A, 0x5555, { id: 'molagbal', name: 'Molag Bal', shrineName: 'Shrine of Molag Bal' });
   const panel = widgets.filter((w) => w.type === 'shrinePanel').slice(-1)[0] || {};
-  ok(panel.rite && panel.rite.available === false && /newer game client/.test(panel.rite.reason), "the shrine panel's Perform the Rite is unavailable, with the reason", panel.rite);
+  ok(panel.rite && panel.rite.available === false && /latest game client/.test(panel.rite.reason), "the shrine panel's Perform the Rite is unavailable, with the reason", panel.rite);
   globalThis.__dboShrinePanels && globalThis.__dboShrinePanels.clear();
 }
 // A fever rite still runs (the fever has to break), but losing it by arrival does not kill
