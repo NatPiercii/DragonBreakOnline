@@ -537,6 +537,10 @@ $admin-row-gutter: 16px;
     &--active { color: $dbo-text; border-color: dbo-accent(0.7); background: dbo-accent(0.1); box-shadow: 0 0 8px dbo-accent(0.2); }
   }
   &__main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+  // The open tab scrolls, so a Picker's list opens in its flow instead of over it, where the scroll would cut it off
+  // (the faction roster's rule, d26e2875): the Place tab's mod, radius and warband pickers, the target and mod pickers
+  &__main .dbo-picker--open { display: block; }
+  &__main .dbo-picker--open .dbo-picker__list { position: static; margin-top: 4px; max-height: none; }
   &__strip {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     padding: 6px 10px; margin-bottom: 10px; background: rgba(0, 0, 0, 0.35); border: 1px solid dbo-accent(0.2);

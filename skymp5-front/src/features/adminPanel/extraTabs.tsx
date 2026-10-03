@@ -245,7 +245,7 @@ export const PlayerCare = ({ events, who, selfId, name, masteryTarget, canSpawn 
       </div>
       <div className="admin-panel__power">
         <span className="admin-panel__label">Schools of magic <span className="admin-panel__hint">0 to 100; a closed school set above 0 rests at that level</span></span>
-        {!sorted.length ? <span className="admin-panel__hint">{mine ? 'This server sends no school levels yet.' : 'Loading their schools'}</span> : sorted.map((sc) => {
+        {!sorted.length ? <span className="admin-panel__hint">{!mine ? 'Loading their schools' : mine.detail && Array.isArray(mine.detail.schools) ? 'Not a mage yet: no school of magic has opened to them.' : 'This server sends no school levels yet.'}</span> : sorted.map((sc) => {
           const priest = sc.name === 'Restoration';
           const text = levels[sc.name] !== undefined ? levels[sc.name] : String(sc.level);
           const n = Number(text);
