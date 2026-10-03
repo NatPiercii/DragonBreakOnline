@@ -5,6 +5,7 @@ import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { ActiveEffectApplyRemoveEvent, Actor, Armor, ButtonEvent, DxScanCode, GlobalVariable, InputDeviceType, Perk, Race, Shout, Spell, SpellCastEvent, WordOfPower } from "skyrimPlatform";
 import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
+import { adoptHeld } from "./beastLoadout";
 
 // WerewolfChange 92c48, DLC1VampireChange 0200283b, DLC1RevertForm 0200cd5c (load order: Dawnguard is index 02)
 const BEAST_POWERS = new Set([0x00092c48, 0x0200283b, 0x0200cd5c]);
@@ -203,11 +204,16 @@ export class BeastFormService extends ClientListener {
     const player = this.sp.Game.getPlayer();
     if (!a || !player) return;
     const grounded = this.beastRace === VAMPIRE_RACE && this.vampireStance === VL_STATE_WALKING;
+    // A form spell picked through Favourites is the new choice, the power on the Shout key included
+    const heldId = (source: number) => { try { const s = player.getEquippedSpell(source); return s ? s.getFormID() : 0; } catch { return 0; } };
+    this.leftIndex = adoptHeld(a.left, this.leftIndex, heldId(SLOT_LEFT), this.lastSet[SLOT_LEFT]);
+    this.voiceIndex = adoptHeld(a.voice, this.voiceIndex, heldId(SLOT_VOICE), this.lastSet[SLOT_VOICE]);
     const slot = (list: BeastSpell[], index: number, source: number) => {
       const entry = list.length && !(grounded && source !== SLOT_VOICE) ? list[index % list.length] : null;
       if (entry && entry.shout) { this.equipShout(player, entry); return; }
       const current = player.getEquippedSpell(source);
       const want = entry ? Spell.from(this.sp.Game.getFormEx(entry.id)) : null;
+      this.lastSet[source] = want ? want.getFormID() : 0;
       // Only on a difference: this also runs once a second, and re-equipping would cut off a cast
       if (want && current && current.getFormID() === want.getFormID()) return;
       try {
@@ -252,6 +258,8 @@ export class BeastFormService extends ClientListener {
   private lastAbilities: BeastAbilities | null = null;
   private leftIndex = 0;
   private voiceIndex = 0;
+  // The spell applyHands last put in each slot (left, right, voice): anything else there was the player's own pick
+  private lastSet: number[] = [0, 0, 0];
 
   // The camera is forced once on the change; this keeps it there for as long as the form lasts
   private onCameraCheck(): void {
@@ -293,6 +301,8 @@ export class BeastFormService extends ClientListener {
     const a = this.abilities;
     if (!a || !a.voice.length || Date.now() - this.lastPowerAt < 1000) return;
     this.lastPowerAt = Date.now();
+    // A power picked through Favourites a moment ago is the one being cast, before applyHands has seen it
+    try { const p = this.sp.Game.getPlayer(); const s = p ? p.getEquippedSpell(SLOT_VOICE) : null; this.voiceIndex = adoptHeld(a.voice, this.voiceIndex, s ? s.getFormID() : 0, this.lastSet[SLOT_VOICE]); } catch { /* no player */ }
     const entry = a.voice[this.voiceIndex % a.voice.length];
     sendCustomPacket(this.controller, { customPacketType: "dboBeastPower", spell: entry.id });
   }
