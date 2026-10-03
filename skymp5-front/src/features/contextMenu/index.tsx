@@ -26,8 +26,27 @@ export interface ContextMenuData {
   events: ContextMenuEvents;
 }
 
-// Entries only guards, officials and admins receive; shown under their own heading.
-const LAW_ACTIONS = new Set(['search', 'capture', 'release', 'carry', 'putdown']);
+// The X menu's entries under headings, by id (specs/f3-hub-design.md 3.8; the client copies only id and label). An id
+// no group knows (another menu on this widget, salvage's) stays in the first, unheaded group, in its order.
+const GROUPS: Array<{ heading: string; test: (id: string) => boolean }> = [
+  { heading: 'Party', test: (id) => id === 'party' || id === 'partykick' || id === 'partyleave' },
+  { heading: 'Faction', test: (id) => id.startsWith('faction:') },
+  // Guards, officials and staff; a player with rope gets the same ids, headed Rope (no Search without the law)
+  { heading: 'Law', test: (id) => ['search', 'capture', 'release', 'carry', 'putdown', 'ropelead', 'ropeleave', 'ropecut'].includes(id) },
+  { heading: 'Shadows', test: (id) => id === 'pickpocket' || id === 'rob' },
+  { heading: 'Your nature', test: (id) => id.startsWith('super:') },
+  { heading: 'Voice', test: (id) => id.startsWith('voice:') },
+];
+export const groupActions = (actions: MenuAction[]): Array<{ heading: string; actions: MenuAction[] }> => {
+  const out = [{ heading: '', actions: [] as MenuAction[] }].concat(GROUPS.map((g) => ({ heading: g.heading, actions: [] as MenuAction[] })));
+  for (const a of actions) {
+    const at = GROUPS.findIndex((g) => g.test(String(a.id)));
+    out[at + 1].actions.push(a);
+  }
+  const law = out.find((g) => g.heading === 'Law');
+  if (law && law.actions.length && !law.actions.some((a) => a.id === 'search')) law.heading = 'Rope';
+  return out.filter((g) => g.actions.length);
+};
 
 // Gap from the screen centre to the panel's top-left corner, in px.
 const GAP = 18;
@@ -58,8 +77,7 @@ const ContextMenu = ({ data }: { data: ContextMenuData }) => {
   const actions = data.actions || [];
   const lines = data.lines || [];
   const inspect = data.mode === 'inspect';
-  const common = actions.filter((a) => !LAW_ACTIONS.has(a.id));
-  const law = actions.filter((a) => LAW_ACTIONS.has(a.id));
+  const groups = groupActions(actions);
 
   // Where the player last dragged it, if anywhere; otherwise down-right of the crosshair. Either way it is clamped
   // inside the screen before the first paint, so a remembered spot survives a window that has since been resized.
@@ -104,16 +122,12 @@ const ContextMenu = ({ data }: { data: ContextMenuData }) => {
             ))}
           </ul>
             )
-          : (
-          <div className="context-menu__rows">{common.map(row)}</div>
-            )}
-
-        {!inspect && law.length > 0 && (
-          <>
-            <div className="context-menu__section">Guard</div>
-            <div className="context-menu__rows">{law.map(row)}</div>
-          </>
-        )}
+          : groups.map((g, i) => (
+            <React.Fragment key={g.heading || i}>
+              {g.heading ? <div className="context-menu__section">{g.heading}</div> : null}
+              <div className="context-menu__rows">{g.actions.map(row)}</div>
+            </React.Fragment>
+          ))}
 
         <button className="context-menu__close" onClick={() => send(ev.close)}>
           Close

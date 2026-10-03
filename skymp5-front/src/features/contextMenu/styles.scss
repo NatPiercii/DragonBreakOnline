@@ -72,7 +72,7 @@
 
   &__section {
     margin: 12px 0 6px;
-    color: $dbo-amber;
+    color: rgba(215, 227, 227, 0.7);
     font-size: 11px;
     letter-spacing: 0.24em;
     text-transform: uppercase;
@@ -84,7 +84,7 @@
       content: '';
       flex: 1;
       height: 1px;
-      background: rgba(201, 138, 58, 0.45);
+      background: dbo-accent(0.25);
     }
   }
 
