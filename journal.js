@@ -23,6 +23,24 @@
 // filter, whose substrings refuse ordinary words; the refusal names the word (review S3).
 // Stored in the character's journal file (journalstats.js, journal/<actor hex>.json): profile { backstory, origin,
 // titleId, savedAt }. Titles come from journal-titles.json.
+//
+// The F3 hub (specs/f3-hub-design.md section 2; H1), for a front whose dbo:uiCaps lists 'journalHub'. An older front
+// keeps the payload above, unchanged. The hub payload carries the frame and only the open tab's section:
+//     { type: 'journal', id: 50, nonce, hub: 1, tabs: [{ id, label, badge?, pinned? }], tab, clock, head: { name, title, race },
+//       [tab]: <that tab's section>, [extra]: <a section hosted inside that tab>, result?, resultKind? }
+//   Tabs, in this order: profile, faction, court, stats, skills, magic, deity, supernatural, settings (pinned right).
+//   Client -> server: journalTab [nonce, tab, focus?]: answered at once, outside the 3 s rule, and the nonce is kept,
+//   so a click in flight on another tab is not refused. F3 reopens the last tab used this session.
+// Sections come from one registry, globalThis.__dboJournalSections[id] = { visible(a), view(a, opts), label?(a), tab? }
+// (contract agreed with F3-build-b, 3 Oct): visible returns false, true or { badge: n }; view(a, { staff, keep, focus })
+// is called only for the open tab and lands at payload[id]; an entry with tab: '<host>' is no tab of its own but a
+// section drawn inside that host tab (faction's staff view: factionStaff). This file registers profile, faction,
+// stats, supernatural and settings itself. A tab other than those four first ones is offered only to a front that
+// names it in its caps ('journalTab:<id>'), so a newer server never sends a tab an older front cannot draw.
+// Hooks for the modules behind the tabs: __dboJournalFresh(a, nonce), __dboJournalAnswer(a, tab, text, kind),
+// __dboJournalLimited(a, fn) (fn runs inside the 3 s rule; a returned { tab, text, kind } is answered),
+// __dboJournalRedraw(a, tab?) and __dboJournalOpenTab(a, tab) (false when this client cannot draw that tab, so the
+// caller falls back to its own panel).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -30,6 +48,7 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, display, nameOf, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, hasCap, skills, cfg } = api;
   const personal = typeof api.personal === 'function' ? api.personal : () => {};
+  const isAdmin = typeof api.isAdmin === 'function' ? api.isAdmin : () => false;
   const C = Object.assign({ enabled: true, backstoryMax: 4000, originMax: 1000, saveEveryMs: 3000, combatSeconds: 8, watchSeconds: 1, sweepHours: 6, sweepAfterBootMinutes: 30 },
     (cfg && cfg.journal) || {});
   const WIDGET_ID = 50;
@@ -38,7 +57,8 @@ module.exports = (api) => {
   // actor -> { nonce, tab, at }: open journals; savedAt: actor -> last save; idleAt: actor -> when the page-turn began
   // answerAt: actor -> last answer; queued: actor -> the latest request inside the window; gone: file key -> sweeps that listed it
   const J = globalThis.__dboJournal || (globalThis.__dboJournal = { open: new Map(), savedAt: new Map(), idleAt: new Map(), seq: 0 });
-  for (const k of ['answerAt', 'queued', 'gone']) if (!(J[k] instanceof Map)) J[k] = new Map();
+  // lastTab: actor -> the hub tab last opened this session; tabAt: actor -> the last tab answer (a flood guard)
+  for (const k of ['answerAt', 'queued', 'gone', 'lastTab', 'tabAt']) if (!(J[k] instanceof Map)) J[k] = new Map();
 
   const readJson = (file, dflt) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { return dflt; } };
   const TITLES = readJson('journal-titles.json', { ranks: [[0, 'Novice']], minLevel: 25, classes: [], wanderer: 'Wanderer', adventurer: 'Adventurer' });
@@ -202,15 +222,126 @@ module.exports = (api) => {
     ] };
   };
   // keep: a redraw keeps the faction panel's nonce, so a faction click in flight is not refused by the clock tick
-  const factionView = (a, keep) => { try { return typeof globalThis.__dboFactionPayload === 'function' ? globalThis.__dboFactionPayload(a, !!keep) : null; } catch (e) { log('journal: faction view failed', e.message); return null; } };
+  // readOnly: another's faction panel, read by staff: guilds.js makes no nonce for them
+  const factionView = (a, keep, readOnly) => { try { return typeof globalThis.__dboFactionPayload === 'function' ? globalThis.__dboFactionPayload(a, !!keep, !!readOnly) : null; } catch (e) { log('journal: faction view failed', e.message); return null; } };
   const superView = (a) => { try { return typeof globalThis.__dboSuperProgress === 'function' ? globalThis.__dboSuperProgress(a) : null; } catch (e) { return null; } };
 
   const payload = (a, st, extra) => Object.assign({
     type: 'journal', id: WIDGET_ID, nonce: st.nonce, clock: clockView(), profile: profileView(a),
     faction: 'faction' in (extra || {}) ? extra.faction : factionView(a, !(extra && extra.tab === 'profile' && extra.fresh)), supernatural: superView(a), stats: statsView(a),
   }, extra || {}, { fresh: undefined });
+  // ---- the hub: tabs and lazy sections ----------------------------------------------------------------------------
+  const SECTIONS = globalThis.__dboJournalSections && typeof globalThis.__dboJournalSections === 'object'
+    ? globalThis.__dboJournalSections : (globalThis.__dboJournalSections = {});
+  const ORDER = ['profile', 'faction', 'court', 'stats', 'skills', 'magic', 'deity', 'supernatural', 'settings'];
+  const LABELS = { profile: 'Profile', faction: 'Faction', court: 'Court', stats: 'Stats', skills: 'Skills', magic: 'Magic', deity: 'Deity', supernatural: 'Supernatural', settings: 'Settings' };
+  const PINNED = new Set(['settings']);
+  // Every journalHub front draws these; any other tab needs the front to name it ('journalTab:<id>')
+  const CORE = new Set(['profile', 'faction', 'stats', 'supernatural']);
+  const isHub = (a) => typeof hasCap === 'function' && hasCap(a, 'journalHub');
+  const canDraw = (a, id) => CORE.has(id) || (typeof hasCap === 'function' && hasCap(a, `journalTab:${id}`));
+  // One draw asks each module once: visible() and view() of the supernatural tab share their answer
+  const memo = (m, k, f) => (k in m ? m[k] : (m[k] = f()));
+  const factionTabInfo = (a) => { try { return typeof globalThis.__dboFactionTabInfo === 'function' ? globalThis.__dboFactionTabInfo(a) : null; } catch (e) { return null; } };
+  SECTIONS.profile = { visible: () => true, view: (a) => profileView(a) };
+  SECTIONS.stats = { visible: () => true, view: (a) => statsView(a) };
+  // A member, someone invited, or staff (who see every faction); without guilds.js's count it shows, as before the hub.
+  // Hold and stronghold memberships count here only when the viewer's front has no Court tab (m.viewer: who is looking)
+  SECTIONS.faction = {
+    visible: (a, m) => {
+      const i = factionTabInfo(a); if (!i) return true;
+      const court = canDraw(m && m.viewer !== undefined ? m.viewer : a, 'court');
+      const member = (i.member || 0) + (court ? 0 : i.courtMember || 0), invites = (i.invites || 0) + (court ? 0 : i.courtInvites || 0);
+      if (!(member || invites || i.staff)) return false;
+      return invites ? { badge: invites } : true;
+    },
+    view: (a, o) => factionView(a, !!(o && o.keep), !!(o && o.readOnly)),
+  };
+  SECTIONS.supernatural = { visible: (a, m) => !!memo(m || {}, 'super', () => superView(a)), view: (a, o) => memo((o && o.memo) || {}, 'super', () => superView(a)),
+    label: (a, m) => { const v = memo(m || {}, 'super', () => superView(a)); return (v && v.label) || 'Supernatural'; } };
+  // Magic (L4's schools.js on magic-flow-2: __dboMagicView, { open: false } off the Wheel; specs 3.3). Its own cheap
+  // __dboMagicOpen(a) is asked first when schools.js has one; otherwise the view is built, once per draw (memo)
+  const magicView = (a) => (typeof globalThis.__dboMagicView === 'function' ? globalThis.__dboMagicView(a) : null);
+  SECTIONS.magic = {
+    visible: (a, m) => {
+      if (typeof globalThis.__dboMagicOpen === 'function') return !!globalThis.__dboMagicOpen(a);
+      const v = memo(m || {}, 'magic', () => magicView(a)); return !!(v && v.open);
+    },
+    view: (a, o) => memo((o && o.memo) || {}, 'magic', () => magicView(a)),
+  };
+  // Settings belong to the player's PC: the server sends only what the page cannot know (H3-H5 add to it)
+  SECTIONS.settings = { visible: () => true, view: (a, o) => settingsView(a, o) };
+  // focus { section, peer }: X's "Voice settings for <name>" opens Voice on that player
+  const settingsView = (a, o) => {
+    const v = { staff: !!isAdmin(a) };
+    try { if (typeof globalThis.__dboJournalSettingsExtra === 'function') Object.assign(v, globalThis.__dboJournalSettingsExtra(a, o) || {}); } catch (e) { log('journal: settings extra failed', e.message); }
+    const f = o && o.focus && typeof o.focus === 'object' ? o.focus : null;
+    if (f && typeof f.section === 'string' && /^[a-z]{1,16}$/.test(f.section)) v.section = f.section;
+    if (f && typeof f.peer === 'string' && /^[0-9a-f]{1,8}$/.test(f.peer)) v.focusPeer = f.peer;
+    return v;
+  };
+  const sectionOf = (id) => { const s = SECTIONS[id]; return s && typeof s === 'object' && typeof s.view === 'function' ? s : null; };
+  const call = (f, ...args) => { try { return f(...args); } catch (e) { log('journal: a section failed', e.message); return undefined; } };
+  // The tabs this player sees, in ORDER (unknown registered ids before Settings), each with its badge. subject: whose
+  // journal it is (a staff member reading another's: the viewer's front decides what can be drawn, the subject what shows)
+  const tabsFor = (a, m, subject) => {
+    const who = subject === undefined ? a : subject;
+    if (m && typeof m === 'object') m.viewer = a;
+    const ids = ORDER.filter((id) => id !== 'settings').concat(Object.keys(SECTIONS).filter((id) => !ORDER.includes(id))).concat(['settings']);
+    const out = [];
+    for (const id of ids) {
+      const s = sectionOf(id);
+      if (!s || s.tab || !canDraw(a, id)) continue;
+      // Another's journal shows their character, never their Settings (those belong to their PC, and carry who is near them)
+      if (id === 'settings' && (who >>> 0) !== (a >>> 0)) continue;
+      let vis = typeof s.visible === 'function' ? call(s.visible, who, m) : true;
+      // A section hosted in this tab can show it (a staff view of an empty Faction tab)
+      for (const [xid, x] of Object.entries(SECTIONS)) {
+        if (vis || !x || x.tab !== id || typeof x.visible !== 'function' || !canDraw(a, xid)) continue;
+        vis = call(x.visible, who, m);
+      }
+      if (!vis) continue;
+      const t = { id, label: String((typeof s.label === 'function' ? call(s.label, who, m) : s.label) || LABELS[id] || id) };
+      const badge = vis && typeof vis === 'object' ? Number(vis.badge) || 0 : 0;
+      if (badge > 0) t.badge = String(badge);
+      if (PINNED.has(id)) t.pinned = true;
+      out.push(t);
+    }
+    return out;
+  };
+  const headView = (a, profile) => {
+    if (profile) return { name: profile.name, title: profile.title, race: profile.race };
+    const levels = skillLevels(a);
+    const titles = titlesFor(a, levels);
+    const p = profileDoc(a) || {};
+    const chosen = titles.find((t) => t.id === p.titleId) || titles[0];
+    return { name: String(nameOf(a) || ''), title: chosen.label, race: raceName((get(a, 'appearance', {}) || {}).raceId) };
+  };
+  const hubPayload = (a, st, extra) => {
+    const x = extra || {};
+    const m = {};
+    const subj = st.viewOf || a;
+    const tabs = tabsFor(a, m, subj);
+    const want = x.tab || st.tab;
+    const tab = tabs.some((t) => t.id === want) ? want : (tabs[0] ? tabs[0].id : 'profile');
+    st.tab = tab;
+    const out = { type: 'journal', id: WIDGET_ID, nonce: st.nonce, hub: 1, tabs, tab, clock: clockView() };
+    // Read-only: another's faction panel keeps its nonce, so reading it never refuses their own click
+    const opts = { staff: !!isAdmin(a), keep: st.viewOf ? true : !x.fresh, focus: x.focus, memo: m, readOnly: !!st.viewOf };
+    const fill = (id) => { if (id in x) { out[id] = x[id]; return; } const s = sectionOf(id); const v = s ? call(s.view, subj, opts) : undefined; out[id] = v === undefined ? null : v; };
+    fill(tab);
+    for (const [xid, xs] of Object.entries(SECTIONS)) if (xs && xs.tab === tab && typeof xs.view === 'function' && canDraw(a, xid)) fill(xid);
+    out.head = headView(subj, tab === 'profile' ? out.profile : null);
+    // The subject and the opening, so a front reading another's journal starts its section cache afresh for each
+    if (st.viewOf) { out.readOnly = 1; out.subject = (st.viewOf >>> 0).toString(16); }
+    out.opened = st.opened;
+    for (const k of ['result', 'resultKind']) if (x[k] !== undefined) out[k] = x[k];
+    return out;
+  };
   // focus only on opening: a redraw is data only and never moves the keyboard (the relay's refresh)
-  const draw = (a, st, extra, focus) => { try { openWidget(a, payload(a, st, extra), !!focus); } catch (e) { log('journal: draw failed for', display(a), e.message); } };
+  const draw = (a, st, extra, focus) => {
+    try { openWidget(a, st.hub ? hubPayload(a, st, extra) : payload(a, st, extra), !!focus); } catch (e) { log('journal: draw failed for', display(a), e.message); }
+  };
 
   // ---- opening and closing --------------------------------------------------------------------------------------
   // Why the journal cannot be open now: dead, downed, bound or carried, or in a fight (a blow given or taken lately)
@@ -226,12 +357,15 @@ module.exports = (api) => {
     if (hit && hit > (since || 0) && Date.now() - hit < C.combatSeconds * 1000) return 'Not in the middle of a fight.';
     return null;
   };
-  const open = (a, tab) => {
+  // viewOf: a staff member reading another character's journal (__dboJournalOpenFor); every action is refused
+  const open = (a, tab, focus, viewOf) => {
     const why = busyReason(a, 0);
     if (why) { personal(a, why); return; }
-    const st = { nonce: mkNonce(a), tab: tab || 'profile', at: Date.now() };
+    const st = { nonce: mkNonce(a), tab: tab || 'profile', at: Date.now(), hub: isHub(a), opened: ++J.seq };
+    if (viewOf) st.viewOf = viewOf >>> 0;
     J.open.set(a >>> 0, st);
-    draw(a, st, { tab: st.tab, fresh: true }, true);
+    if (st.hub && !st.viewOf) J.lastTab.set(a >>> 0, st.tab);
+    draw(a, st, Object.assign({ tab: st.tab, fresh: true }, focus && typeof focus === 'object' ? { focus } : {}), true);
     try {
       const def = typeof globalThis.__dboInteractionIdleDef === 'function' ? globalThis.__dboInteractionIdleDef('journal') : null;
       if (typeof globalThis.__dboInteractionIdle === 'function' && globalThis.__dboInteractionIdle(a, 'journal')) J.idleAt.set(a >>> 0, { at: Date.now(), anim: def && def.anim ? String(def.anim) : '' });
@@ -239,12 +373,44 @@ module.exports = (api) => {
   };
   // F3 (gamemode.js factionMenuRequest) and /faction (guilds.js, tab 'faction'): true when the journal took it, refused
   // or not, so a journal client never gets panel 37
-  globalThis.__dboJournalOpenTab = (a, tab) => {
+  // A hub front opens any tab it can draw and the player may see; asked for one it cannot (a tab from a newer package,
+  // or Magic without Arcane Arts or Priest), this is false and the caller opens its own panel. An older journal front
+  // opens Profile or Faction as before.
+  const tabOk = (a, tab, subject) => {
+    const s = sectionOf(tab);
+    if (!s || s.tab || !canDraw(a, tab)) return false;
+    return tabsFor(a, {}, subject).some((t) => t.id === tab);
+  };
+  // focus (a hub front): handed to the tab's view, as a journalTab focus is (X's Voice settings names the player)
+  globalThis.__dboJournalOpenTab = (a, tab, focus) => {
     if (!C.enabled || !(typeof hasCap === 'function' && hasCap(a, 'journal'))) return false;
-    open(a >>> 0, tab === 'faction' ? 'faction' : 'profile');
+    const id = String(tab || 'profile');
+    if (isHub(a)) {
+      if (!tabOk(a, id)) return false;
+      open(a >>> 0, id, focus);
+      return true;
+    }
+    if (id !== 'profile' && id !== 'faction') return false;
+    open(a >>> 0, id);
     return true;
   };
-  globalThis.__dboJournalRequest = (a) => globalThis.__dboJournalOpenTab(a, 'profile');
+  // Staff: another character's journal, read only (the admin panel's Players tab). The viewer's hub front draws it;
+  // every action in it is refused. True when it opened.
+  globalThis.__dboJournalOpenFor = (staff, target, tab) => {
+    const s = staff >>> 0, t = target >>> 0;
+    if (!C.enabled || !t || s === t || !isAdmin(s) || !isHub(s)) return false;
+    const id = tab && tabOk(s, String(tab), t) ? String(tab) : 'profile';
+    open(s, id, undefined, t);
+    log(`journal: ${display(s)} reads the journal of ${display(t)} (${id})`);
+    return true;
+  };
+  // F3 (gamemode.js factionMenuRequest, which may name a tab): a hub opens the last tab used this session
+  globalThis.__dboJournalRequest = (a, tab) => {
+    if (tab && globalThis.__dboJournalOpenTab(a, tab)) return true;
+    const last = isHub(a) ? J.lastTab.get(a >>> 0) : null;
+    if (last && last !== 'profile' && globalThis.__dboJournalOpenTab(a, last)) return true;
+    return globalThis.__dboJournalOpenTab(a, 'profile');
+  };
   const ended = (a) => {
     const id = a >>> 0;
     J.open.delete(id);
@@ -255,7 +421,9 @@ module.exports = (api) => {
     if (idle) { try { sendPacket(a, Object.assign({ customPacketType: 'dboIdleStop' }, idle.anim ? { anim: idle.anim } : {})); } catch (e) { /* offline */ } }
   };
   const shut = (a) => { if (!J.open.has(a >>> 0)) return; ended(a); closeWidget(a, WIDGET_ID); };
-  const fresh = (a, args) => { const st = J.open.get(a >>> 0); return st && String((args || [])[0] || '') === st.nonce ? st : null; };
+  // An action's nonce check; a read-only journal (another's) takes none. seen: the same check for browsing (a tab switch)
+  const seen = (a, args) => { const st = J.open.get(a >>> 0); return st && String((args || [])[0] || '') === st.nonce ? st : null; };
+  const fresh = (a, args) => { const st = seen(a, args); return st && !st.viewOf ? st : null; };
   // Closing can do no harm, so a stale nonce (a click while an answer was on its way) still closes
   onUi('journalClose', (a) => shut(a));
   // gamemode.js openWidget: another focused panel (a downed, rob, feed or trade prompt) has just opened; the journal goes
@@ -265,12 +433,42 @@ module.exports = (api) => {
   // guilds.js: while the journal is open a faction answer redraws its Faction tab, not panel 37 (true when it did)
   globalThis.__dboJournalFaction = (a, factionPayload) => {
     const st = J.open.get(a >>> 0);
-    if (!st) return false;
+    if (!st || st.viewOf) return false;
     st.tab = 'faction';
     draw(a, st, { tab: 'faction', faction: factionPayload }, false);
     return true;
   };
   globalThis.__dboJournalIsOpen = (a) => J.open.has(a >>> 0);
+  // The tab the open journal shows ('' when closed), so a module redraws only when its tab is in view
+  globalThis.__dboJournalTabOf = (a) => { const st = J.open.get(a >>> 0); return st ? st.tab : ''; };
+  // Whether this player's front draws that tab and they may see it (playermenu.js offers Voice settings… on it)
+  globalThis.__dboJournalHasTab = (a, tab) => !!C.enabled && typeof hasCap === 'function' && hasCap(a, 'journal') && isHub(a) && tabOk(a >>> 0, String(tab || ''));
+
+  // ---- a tab switch -------------------------------------------------------------------------------------------------
+  // The nonce asked for is the open journal's: tab answers keep it, so only a save's answer moves it on
+  const TAB_GAP_MS = 120;
+  onUi('journalTab', (a, args) => {
+    const id = a >>> 0;
+    const st = seen(a, args);
+    if (!st || !st.hub) return;
+    const tab = String((args || [])[1] || '');
+    const focus = (args || [])[2];
+    if (!tabOk(a, tab, st.viewOf || a)) { draw(a, st, {}, false); return; }
+    // A scripted flood gets one answer per gap, the latest one
+    const run = () => {
+      const s2 = J.open.get(id);
+      if (!s2) return;
+      s2.tab = tab;
+      if (!s2.viewOf) J.lastTab.set(id, tab);
+      J.tabAt.set(id, Date.now());
+      draw(a, s2, { tab, focus: focus && typeof focus === 'object' ? focus : undefined }, false);
+    };
+    const wait = TAB_GAP_MS - (Date.now() - (J.tabAt.get(id) || 0));
+    if (wait <= 0) return run();
+    const had = st.tabQueued;
+    st.tabQueued = run;
+    if (!had) setTimeout(() => { const s2 = J.open.get(id); const f = s2 && s2.tabQueued; if (s2) s2.tabQueued = null; if (f) f(); }, wait);
+  });
 
   // ---- the profile ------------------------------------------------------------------------------------------------
   // Newlines stay; every other control character goes
@@ -287,6 +485,34 @@ module.exports = (api) => {
     J.queued.set(id, run);
     if (!had) setTimeout(() => { const f = J.queued.get(id); J.queued.delete(id); if (!f || !J.open.has(id)) return; J.answerAt.set(id, Date.now()); f(); }, wait);
   };
+  // The hooks the tabs' own modules answer through (contract with F3-build-b, 3 Oct)
+  globalThis.__dboJournalFresh = (a, nonce) => !!fresh(a, [nonce]);
+  globalThis.__dboJournalAnswer = (a, tab, text, kind) => {
+    if (!J.open.has(a >>> 0)) return false;
+    limited(a, () => { const st = J.open.get(a >>> 0); if (!st) return; if (tab) st.tab = String(tab); answer(a, st, String(text || ''), kind || 'ok'); });
+    return true;
+  };
+  // fn runs inside the 3 s rule (an action's body, not only its answer); what it returns, { tab, text, kind }, is answered
+  globalThis.__dboJournalLimited = (a, fn) => {
+    if (!J.open.has(a >>> 0) || typeof fn !== 'function') return false;
+    limited(a, () => {
+      const st = J.open.get(a >>> 0); if (!st) return;
+      let r;
+      try { r = fn(); } catch (e) { log('journal: an action failed for', display(a), e.message); r = { text: 'That could not be done just now.', kind: 'refused' }; }
+      if (!r || typeof r !== 'object' || r.text === undefined) return;
+      if (r.tab) st.tab = String(r.tab);
+      answer(a, st, String(r.text), r.kind || 'ok');
+    });
+    return true;
+  };
+  // Data only, the nonce kept: a module whose state changed while its tab is open (an offer arriving)
+  globalThis.__dboJournalRedraw = (a, tab) => {
+    const st = J.open.get(a >>> 0);
+    if (!st || (tab && st.tab !== String(tab))) return false;
+    draw(a, st, {}, false);
+    return true;
+  };
+
   // The first word of the text that is on the prose list, as the writer wrote it; null when there is none
   const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i' };
   const foldWord = (w) => String(w).toLowerCase().replace(/./gu, (c) => LEET[c] || c).replace(/[^\p{L}]/gu, '');
@@ -319,6 +545,34 @@ module.exports = (api) => {
       answer(a, st, 'Your story is saved.', 'ok');
     });
   });
+  // The Magic tab's actions: [nonce, op, ...] (firstSpell <school> <spell desc>, prepare <spell desc>, unprepare <spell desc>),
+  // to schools.js __dboMagicAction, inside the 3 s rule (L4's hook, moved here from magic-flow-2 so the two edits are one)
+  onUi('journalMagic', (a, args) => {
+    const st0 = fresh(a, args);
+    if (!st0 || !st0.hub) return;
+    limited(a, () => {
+      const st = J.open.get(a >>> 0); if (!st) return;
+      let r;
+      try { r = typeof globalThis.__dboMagicAction === 'function' ? globalThis.__dboMagicAction(a, String(args[1] || ''), args.slice(2)) : null; } catch (e) { log('journal: a magic action failed', e.message); r = null; }
+      if (!r) r = { ok: false, text: 'Magic is not open just now.' };
+      st.tab = 'magic';
+      answer(a, st, String(r.text || ''), r.ok ? 'ok' : 'refused');
+    });
+  });
+  // Settings, Help: Report a problem, the same report as /bug (debugsnap.js), answered in the footer
+  onUi('journalReport', (a, args) => {
+    const st0 = fresh(a, args);
+    if (!st0 || !st0.hub) return;
+    const text = clean((args || [])[1], 500);
+    limited(a, () => {
+      const st = J.open.get(a >>> 0); if (!st) return;
+      let r;
+      try { r = typeof globalThis.__dboBugReport === 'function' ? globalThis.__dboBugReport(a, text) : null; } catch (e) { log('journal: a report failed', e.message); r = null; }
+      if (!r) r = { ok: false, text: 'Reports cannot be sent just now; type /bug in chat instead.' };
+      st.tab = 'settings';
+      answer(a, st, String(r.text || ''), r.ok ? 'ok' : 'refused');
+    });
+  });
   onUi('journalTitle', (a, args) => {
     if (!fresh(a, args)) return;
     limited(a, () => chooseTitle(a, args));
@@ -339,6 +593,7 @@ module.exports = (api) => {
   // redrawn: see F1 above)
   every('journalWatch', C.watchSeconds * 1000, () => {
     const online = new Set(onlineActors().map((x) => x >>> 0));
+    for (const a of [...J.lastTab.keys()]) if (!online.has(a)) { J.lastTab.delete(a); J.tabAt.delete(a); }
     for (const [a, st] of J.open) {
       if (!online.has(a)) { ended(a); continue; }
       const why = busyReason(a, st.at);
@@ -374,5 +629,5 @@ module.exports = (api) => {
   every('journalSweep', C.sweepHours * 3600000, sweep);
 
   log(`journal ${C.enabled ? 'on' : 'off'}: widget ${WIDGET_ID}, ${(TITLES.classes || []).length} title classes, ${J.open.size} open`);
-  return { titlesFor, clockView, profileView, statsView, payload, open, proseProblem, sweep, busyReason };
+  return { titlesFor, clockView, profileView, statsView, payload, hubPayload, tabsFor, open, proseProblem, sweep, busyReason };
 };

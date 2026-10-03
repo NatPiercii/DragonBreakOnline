@@ -120,6 +120,22 @@ module.exports = (api) => {
     return out;
   };
 
+  // ---- the journal's Settings, Voice (F3 hub, H5): the players this one can hear ---------------------------------------
+  // Names as this player knows them (Stranger otherwise, as the X menu says), the identity as the voice room knows them
+  // (the actor hex, as the X menu's dboVoicePeer sends it), and how far, so two strangers can be told apart
+  const VOICE_NEAR_UNITS = Number(C.voiceNearUnits) || 3200;
+  const journalSettings = (a) => typeof globalThis.__dboJournalHasTab === 'function' && globalThis.__dboJournalHasTab(a, 'settings') === true;
+  // Staff walking invisible (AdminSystem's ff_adminModes mirror) are listed only to other staff
+  const invisible = (t) => { const m = get(t, 'ff_adminModes', null); return !!(m && m.invis); };
+  const voiceNearby = (a) => onlineActors().filter((t) => (t >>> 0) !== (a >>> 0) && (isAdmin(a) || !invisible(t)))
+    .map((t) => ({ t, d: distance(a, t) })).filter((x) => Number.isFinite(x.d) && x.d <= VOICE_NEAR_UNITS)
+    .sort((x, y) => x.d - y.d).slice(0, 24)
+    .map((x) => ({ identity: (x.t >>> 0).toString(16), name: nameFor(a, x.t), meters: Math.round(x.d / 70) }));
+  globalThis.__dboJournalSettingsExtra = (a) => {
+    const on = globalThis.__dboVoiceEnabled === true;
+    return { voiceOn: on, nearby: on ? voiceNearby(a) : [] };
+  };
+
   // ---- the menu -------------------------------------------------------------------------------------
   const menuFor = (a, t) => {
     const entries = [{ id: 'trade', label: 'Trade' }];
@@ -145,9 +161,11 @@ module.exports = (api) => {
     try { if (globalThis.__dboRopeCapture === true && typeof globalThis.__dboRopeMenuEntries === 'function') entries.push(...globalThis.__dboRopeMenuEntries(a, t)); } catch (e) { /* rope not loaded */ }
     // Carry is off the menu (Nat, 2026-09-22); Put down stays so a carry already under way can end
     if (r.carried && Number(r.carrierActorId) >>> 0 === a >>> 0) entries.push({ id: 'putdown', label: 'Put down' });
-    // Voice volume is a preference on the listener's own PC; offered only while voice chat is on (voiceSystem.ts)
+    // Voice volume is a preference on the listener's own PC; offered only while voice chat is on (voiceSystem.ts). A front
+    // with the journal's Settings gets one entry that opens it on this player (F3 hub, N19); any other the three steps
     if (globalThis.__dboVoiceEnabled === true) {
-      entries.push({ id: 'voice:louder', label: 'Voice louder' }, { id: 'voice:quieter', label: 'Voice quieter' }, { id: 'voice:mute', label: 'Mute voice' });
+      if (journalSettings(a)) entries.push({ id: 'voice:settings', label: `Voice settings for ${nameFor(a, t)}…` });
+      else entries.push({ id: 'voice:louder', label: 'Voice louder' }, { id: 'voice:quieter', label: 'Voice quieter' }, { id: 'voice:mute', label: 'Mute voice' });
     }
     return entries;
   };
@@ -178,6 +196,10 @@ module.exports = (api) => {
     if (id === 'party') return runCommand(a, 'party', `invite #${tagOf(t)}`);
     if (id === 'partykick') return runCommand(a, 'party', `kick #${tagOf(t)}`);
     if (id === 'partyleave') return runCommand(a, 'leave', '');
+    if (id === 'voice:settings') {
+      if (journalSettings(a) && globalThis.__dboJournalOpenTab(a, 'settings', { section: 'voice', peer: (t >>> 0).toString(16) })) return;
+      return personal(a, 'Your journal cannot be opened just now.');
+    }
     if (id.startsWith('voice:')) return sendPacket(a, { customPacketType: 'dboVoicePeer', identity: (t >>> 0).toString(16), op: id.slice(6), name: nameFor(a, t) });
     if (typeof globalThis.__dboPickpocketAction === 'function' && globalThis.__dboPickpocketAction(a, id, t, nameFor)) return;
     if (typeof globalThis.__dboRobAction === 'function' && globalThis.__dboRobAction(a, id, t, nameFor)) return;

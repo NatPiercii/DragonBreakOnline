@@ -171,9 +171,10 @@ module.exports = (api) => {
   // The panel's content, also the Character Journal's Faction tab (journal.js); keepNonce: a journal redraw keeps the
   // nonce the front already holds
   const CHARTER_HINT = 'To found a faction or a cult of your own, type /charter found <name> or /charter cult <name> in chat. Your co-founders confirm it, then a GM approves it.';
-  const menuPayload = (a, result, resultKind, focusFid, keepNonce) => {
-    const nonce = keepNonce && ST.nonces.get(a >>> 0) ? ST.nonces.get(a >>> 0) : `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
-    ST.nonces.set(a >>> 0, nonce);
+  // readOnly: a staff member reading `a`'s journal; no nonce is made or kept for `a`, so nothing in it can act for them
+  const menuPayload = (a, result, resultKind, focusFid, keepNonce, readOnly) => {
+    const nonce = readOnly ? '' : keepNonce && ST.nonces.get(a >>> 0) ? ST.nonces.get(a >>> 0) : `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
+    if (!readOnly) ST.nonces.set(a >>> 0, nonce);
     const mine = membershipsOf(a).map((m) => m.fid);
     // Nate, 2026-09-26: a werewolf pack's members also see the other packs, a vampire clan's the other clans (their circle);
     // cults and everyone else see only their own. Members of a faction outside your own stay hidden (factionView).
@@ -197,7 +198,16 @@ module.exports = (api) => {
     openWidget(a, p, true);
   };
   globalThis.__dboFactionMenu = (a) => openMenu(a >>> 0);
-  globalThis.__dboFactionPayload = (a, keepNonce) => menuPayload(a >>> 0, '', '', undefined, !!keepNonce);
+  globalThis.__dboFactionPayload = (a, keepNonce, readOnly) => menuPayload(a >>> 0, '', '', undefined, !!keepNonce, !!readOnly);
+  // journal.js (the F3 hub's tab list): whether the Faction tab shows, without building the whole panel
+  // Hold and stronghold factions show on the Court tab (Nate, F3 Q3): counted apart, so journal.js counts them on Faction
+  // only for a front that has no Court tab
+  const courtKind = (fid) => { const f = FACTIONS.get(fid); return !!f && (f.kind === 'hold' || f.kind === 'stronghold'); };
+  globalThis.__dboFactionTabInfo = (a) => {
+    const ms = membershipsOf(a >>> 0), inv = invitesOf(a >>> 0);
+    return { member: ms.filter((m) => !courtKind(m.fid)).length, invites: inv.filter((i) => !courtKind(i.fid)).length,
+      courtMember: ms.filter((m) => courtKind(m.fid)).length, courtInvites: inv.filter((i) => courtKind(i.fid)).length, staff: !!isAdmin(a >>> 0) };
+  };
   // realm.js: redraws an open panel with the result of a war action (true when one was open), and checks its nonce
   globalThis.__dboFactionRefresh = (a, text, ok) => { if (!ST.nonces.has(a >>> 0)) return false; openMenu(a >>> 0, text, ok ? 'ok' : 'refused'); return true; };
   globalThis.__dboFactionNonceOk = (a, nonce) => ST.nonces.get(a >>> 0) === String(nonce || '');

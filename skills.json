@@ -1277,7 +1277,7 @@
      "61b59:BSHeartland.esm"
     ],
     "blessing": "1209c1:DragonBreak Online Edits.esp",
-    "note": "Openly worshipping Talos is a crime in Cyrodiil in 4E 201. prayer.js warns a Talos worshipper the first time they pray, and nothing else happens: whether the guards care is a faction decision for Nat, not a prayer one. private.dboLawful already exists if it should.",
+    "note": "Openly worshipping Talos is a crime in Cyrodiil in 4E 211. prayer.js warns a Talos worshipper the first time they pray, and nothing else happens: whether the guards care is a faction decision for Nat, not a prayer one. private.dboLawful already exists if it should.",
     "placements": 56,
     "inPlaytest": 6,
     "inBruma": 4,
@@ -1289,7 +1289,7 @@
     ],
     "blessingSource": "vanilla",
     "lawful": false,
-    "unlawfulWhere": "The Empire, under the White-Gold Concordat. Bruma is Imperial and the Thalmor keep a Justiciar presence.",
+    "unlawfulWhere": "Under the White-Gold Concordat the worship of Talos is outlawed throughout the Empire, and Bruma is Imperial land; the Thalmor keep a Justiciar here. North of the Jerall Mountains each Jarl now decides for their own hold.",
     "replacedBoon": "Shouts return 20% sooner - dead, or at least unconfirmed: nobody has established that shouts work on this server at all, and a boon nobody can verify is not a boon.",
     "blessingEditorId": "DBO_BlessingOfTalos"
    },

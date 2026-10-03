@@ -107,21 +107,26 @@ module.exports = (api) => {
     return out;
   };
 
-  registerChatCommand('bug', (a, args) => {
+  // /bug and the journal's Settings, Help (journalReport): { ok, text }, the reply for the player
+  const fileBug = (a, args) => {
     // One line: a newline in the text would forge lines in the server log (review 2026-09-25)
     const text = String(args || '').replace(/\s+/g, ' ').trim();
-    if (text.length < 5) return personal(a, 'Say what went wrong: /bug the wolf near me is floating. Where you stand and what is around you are saved with it.');
+    if (text.length < 5) return { ok: false, text: 'Say what went wrong: /bug the wolf near me is floating. Where you stand and what is around you are saved with it.' };
     const last = S.bugAt.get(profileOf(a)) || 0;
-    if (!isAdmin(a) && Date.now() - last < C.bugEveryMs) return personal(a, 'Your last report was a moment ago; wait a minute before the next.');
+    if (!isAdmin(a) && Date.now() - last < C.bugEveryMs) return { ok: false, text: 'Your last report was a moment ago; wait a minute before the next.' };
     S.bugAt.set(profileOf(a), Date.now());
-    let view; try { view = playerView(a); } catch (e) { return personal(a, 'Your position could not be read; try again in a moment.'); }
+    let view; try { view = playerView(a); } catch (e) { return { ok: false, text: 'Your position could not be read; try again in a moment.' }; }
     const needles = [display(a).replace(/ #.*/, ''), hex(a)].concat(view.npcs.slice(0, 12).map((n) => n.id));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const file = path.join(C.dir, 'bugs', `${stamp}-${tagOf(a)}.json`);
     const ok = write(file, { at: new Date().toISOString(), by: display(a), text: text.slice(0, 500), view, log: recentLog(needles), voice: voiceNear(a, view) });
     // The whole text as saved (500): dbo-monitor copies this line into the #bug-tracker thread, which allows 1500
     log(`BUGREPORT ${display(a)} ${path.basename(file)}: ${text.slice(0, 500)}`);
-    personal(a, ok ? 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.' : 'The report could not be saved; please tell staff.');
+    return { ok, text: ok ? 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.' : 'The report could not be saved; please tell staff.' };
+  };
+  globalThis.__dboBugReport = (a, text) => fileBug(a, text);
+  registerChatCommand('bug', (a, args) => {
+    personal(a, fileBug(a, args).text);
   }, { help: '<what went wrong>: report a bug; where you are and what is around you are saved with it' });
 
   log(`debugsnap: live snapshot every ${C.snapMs / 1000} s to ${C.dir}/live.json, /bug reports to ${C.dir}/bugs`);

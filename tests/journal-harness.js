@@ -88,8 +88,8 @@ check('...and plays the page-turn idle', idles.some(([a, k]) => a === P && k ===
 check('...with a fresh faction nonce on opening', lastFactionKeep === false && w.faction.nonce === 'f-1', w.faction);
 check('no internal marker reaches the client', !('fresh' in JSON.parse(JSON.stringify(w))));
 const gm = fs.readFileSync('gamemode.js', 'utf8');
-const f3 = gm.slice(gm.indexOf("content.customPacketType === 'factionMenuRequest'"), gm.indexOf("content.customPacketType === 'factionMenuRequest'") + 700);
-check('gamemode.js asks the journal first on F3 and falls back to panel 37', f3.indexOf('__dboJournalRequest(a)') > 0 && f3.indexOf('__dboJournalRequest(a)') < f3.indexOf('__dboFactionMenu(a)') && /if \(!journal && /.test(f3));
+const f3 = gm.slice(gm.indexOf("content.customPacketType === 'factionMenuRequest'"), gm.indexOf("content.customPacketType === 'factionMenuRequest'") + 1000);
+check('gamemode.js asks the journal first on F3 (with the tab a newer client names) and falls back to panel 37', f3.indexOf('__dboJournalRequest(a, tab)') > 0 && f3.indexOf('__dboJournalRequest(a, tab)') < f3.indexOf('__dboFactionMenu(a)') && /if \(!journal && /.test(f3));
 
 // ---- the payload ----
 check('clock: date and time in words, and the moons', w.clock.date === '17th of Last Seed, 4E 211' && w.clock.time === '9:42 in the evening' && w.clock.moons === 'The moons are waxing crescent.', w.clock);
@@ -197,7 +197,7 @@ check('...and with the journal closed it is not taken (panel 37 opens)', globalT
 check('/faction opens the journal on its Faction tab for a journal client', globalThis.__dboJournalOpenTab(P, 'faction') === true && last(P).w.tab === 'faction' && last(P).focus === true);
 check('...and not for an older client (panel 37 as before)', globalThis.__dboJournalOpenTab(NOCAP, 'faction') === false);
 const gd = fs.readFileSync('guilds.js', 'utf8');
-check('guilds.js: /faction asks the journal first; faction answers redraw the journal while it is open', /__dboJournalOpenTab\(a >>> 0, 'faction'\)\) return;/.test(gd) && /__dboJournalFaction\(a >>> 0, p\)\) return;/.test(gd) && /globalThis\.__dboFactionPayload = \(a, keepNonce\) => menuPayload\(/.test(gd));
+check('guilds.js: /faction asks the journal first; faction answers redraw the journal while it is open', /__dboJournalOpenTab\(a >>> 0, 'faction'\)\) return;/.test(gd) && /__dboJournalFaction\(a >>> 0, p\)\) return;/.test(gd) && /globalThis\.__dboFactionPayload = \(a, keepNonce(, readOnly)?\) => menuPayload\(/.test(gd));
 
 // ---- closing ----
 closed.length = 0; sent.length = 0;

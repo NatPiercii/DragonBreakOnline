@@ -1518,7 +1518,9 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       const a = actorOf(userId);
       if (!a) return;
       let journal = false;
-      try { journal = typeof globalThis.__dboJournalRequest === 'function' && globalThis.__dboJournalRequest(a) === true; } catch (e) { log('journal open failed', e.message); }
+      // A newer client may name the tab it wants (K hands over to Skills); the hub otherwise reopens the last one
+      const tab = typeof content.tab === 'string' ? content.tab.slice(0, 32) : undefined;
+      try { journal = typeof globalThis.__dboJournalRequest === 'function' && globalThis.__dboJournalRequest(a, tab) === true; } catch (e) { log('journal open failed', e.message); }
       if (!journal && typeof globalThis.__dboFactionMenu === 'function') globalThis.__dboFactionMenu(a);
       return;
     }
@@ -5741,7 +5743,7 @@ try {
 try {
   const JOURNAL_JS = path.resolve('journal.js');
   delete require.cache[JOURNAL_JS];
-  require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
+  require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg, isAdmin,
     skills: SKILLS_DEF.skills || [], hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
 } catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; }
 
