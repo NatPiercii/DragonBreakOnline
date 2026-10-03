@@ -876,6 +876,21 @@ r = activate(AKATOSH_SHRINE);
 check('touching the shrine during a live round draws the same round again (a lost panel)', !!r.w && r.w.nonce === f.w.nonce, r.w ? r.w.nonce : 'no widget');
 playC(f, { noStart: true, reportArrive: f.start + 20000 });
 
+// A carrier is warned before a prayer that would cure the disease (supernatural.js), and the cure hears where it was said
+{
+  let warnings = 0; const prayed = [];
+  globalThis.__dboSuperPrayWarning = (a, deityId) => (warnings++ === 0 ? `${deityId} will cure the fever` : '');
+  globalThis.__dboSuperPrayed = (a, deityId, where) => prayed.push([deityId, where]);
+  wallClock += 61 * 60000; virtual += 1000000; nearM = 2;
+  const first = activate(AKATOSH_SHRINE);
+  check('the first touch of a carrier warns and opens no round', first.ok === true && !first.w && /akatosh will cure the fever/.test(first.said), first.said);
+  const fw = freshC();
+  check('the next touch prays', !!fw.w, JSON.stringify(fw.w || null).slice(0, 80));
+  playC(fw);
+  check('a won shrine prayer tells supernatural.js it was at a shrine', prayed.length === 1 && prayed[0][0] === 'akatosh' && prayed[0][1] && prayed[0][1].atShrine === true, JSON.stringify(prayed));
+  delete globalThis.__dboSuperPrayWarning; delete globalThis.__dboSuperPrayed;
+}
+
 // Rollback: clientJudged false refuses on lag exactly as before
 api.cfg = { prayer: { clientJudged: false } };
 load();

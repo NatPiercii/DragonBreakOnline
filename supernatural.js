@@ -1044,23 +1044,35 @@ module.exports = (api) => {
       ? 'The fever breaks. Something in what you just ate cures disease.'
       : 'The fever breaks. What you just took cures disease.');
   };
-  // A completed prayer to a Divine or an older faith breaks the fever; one to a Daedric Prince does not. The Princes are
-  // read from skills.json (kind "daedra"), as prayer.js reads the faiths: a hand list here had "mehrunesdagon" for the id
-  // "mehrunes", so a prayer to Mehrunes Dagon cured the fever (Worker E, 30 Sep)
+  // A completed prayer at a shrine of the Divines breaks the fever (Nate, 3 Oct); a Prince, an older faith or a prayer
+  // said anywhere does not. The Divines are read from skills.json (kind "divine"), as prayer.js reads the faiths: a hand
+  // list here once had "mehrunesdagon" for the id "mehrunes" (Worker E, 30 Sep)
   const FAITH_NAMES = new Map();
-  const DAEDRIC = (() => {
+  const DIVINE = (() => {
     try {
       const choices = ((JSON.parse(fs.readFileSync(path.resolve('skills.json'), 'utf8')).deities || {}).choices || []).filter(Boolean);
       for (const c of choices) if (c.name) FAITH_NAMES.set(String(c.id), String(c.name));
-      const ids = choices.filter((c) => c.kind === 'daedra').map((c) => String(c.id));
+      const ids = choices.filter((c) => c.kind === 'divine').map((c) => String(c.id));
       if (ids.length) return new Set(ids);
-    } catch (e) { log('supernatural: skills.json unreadable, the Princes come from the fallback list', e.message); }
-    return new Set(['molagbal', 'hircine', 'boethiah', 'namira', 'vaermina', 'sanguine', 'peryite', 'mehrunes', 'mephala', 'clavicusvile', 'hermaeusmora', 'nocturnal', 'sheogorath', 'meridia', 'azura', 'malacath']);
+    } catch (e) { log('supernatural: skills.json unreadable, the Divines come from the fallback list', e.message); }
+    return new Set(['akatosh', 'arkay', 'dibella', 'julianos', 'kynareth', 'mara', 'stendarr', 'talos', 'zenithar', 'auriel']);
   })();
-  globalThis.__dboSuperPrayed = (a, deityId) => {
-    if (DAEDRIC.has(String(deityId))) return;
+  const diseaseName = (kind) => (kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus');
+  // prayer.js asks before a carrier prays at a Divine's shrine: the first try warns, another within warnSeconds prays
+  const prayWarned = globalThis.__dboSuperPrayWarned || (globalThis.__dboSuperPrayWarned = new Map()); // actorId -> ms
+  globalThis.__dboSuperPrayWarning = (a, deityId) => {
+    const s = stateOf(a);
+    if (!s || !s.disease || !DIVINE.has(String(deityId))) return '';
+    const at = prayWarned.get(a >>> 0) || 0;
+    if (Date.now() - at < 60000) return '';
+    prayWarned.set(a >>> 0, Date.now());
+    return `${FAITH_NAMES.get(String(deityId)) || 'This god'} will cure the ${diseaseName(s.disease.kind)} in your blood if you pray here. Pray again within a minute to go on.`;
+  };
+  globalThis.__dboSuperPrayed = (a, deityId, where) => {
+    if (!DIVINE.has(String(deityId)) || (where && where.atShrine === false)) return;
+    prayWarned.delete(a >>> 0);
     const god = FAITH_NAMES.get(String(deityId)) || 'The god';
-    cureDisease(a, `a prayer to ${god}`, `${god} hears your prayer, and the fever breaks. A shrine of the Divines cures disease.`);
+    cureDisease(a, `a prayer to ${god}`, `${god} hears your prayer, and the fever breaks.`);
   };
   const deathAt = globalThis.__dboSuperDeaths || (globalThis.__dboSuperDeaths = new Map()); // actorId -> ms
   const killedBy = globalThis.__dboSuperKilledBy || (globalThis.__dboSuperKilledBy = new Map()); // actorId -> killer

@@ -80,6 +80,17 @@ fevered('vampire'); globalThis.__dboSuperPrayed(P, 'arkay');
 ok(!hasFever() && /^Arkay hears your prayer, and the fever breaks/.test(lastSaid()) && /a prayer to Arkay/.test(lastLog()), 'a prayer to Arkay breaks it, and says so', lastSaid());
 fevered('vampire'); globalThis.__dboSuperPrayed(P, 'molagbal');
 ok(hasFever(), 'a prayer to a Prince does not');
+fevered('vampire'); globalThis.__dboSuperPrayed(P, 'hist');
+ok(hasFever(), 'nor one to an older faith (the Hist)');
+fevered('werewolf'); globalThis.__dboSuperPrayed(P, 'mara', { atShrine: false });
+ok(hasFever(), 'nor a prayer to a Divine said away from a shrine');
+fevered('vampire');
+const warn = globalThis.__dboSuperPrayWarning(P, 'mara');
+ok(/Mara will cure the Sanguinare Vampiris in your blood/.test(warn), 'a carrier is warned before praying at a Divine shrine', warn);
+ok(globalThis.__dboSuperPrayWarning(P, 'mara') === '', '...and the next try within the minute prays');
+ok(globalThis.__dboSuperPrayWarning(P, 'hircine') === '', 'no warning at a Prince');
+state({ kind: null, disease: null });
+ok(globalThis.__dboSuperPrayWarning(P, 'arkay') === '', 'no warning without a fever');
 
 const allow = (key) => globalThis.__dboBeastAllow(P, key, false);
 fevered('werewolf');
