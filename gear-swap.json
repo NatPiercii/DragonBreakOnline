@@ -43878,6 +43878,168 @@
 "toEdid": "IngotSteel"
 }
 },
+"ammo": {
+"139bb:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "OrcishArrow",
+"toEdid": "IronArrow"
+},
+"139bc:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "DwarvenArrow",
+"toEdid": "IronArrow"
+},
+"139bd:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "ElvenArrow",
+"toEdid": "IronArrow"
+},
+"139be:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "GlassArrow",
+"toEdid": "IronArrow"
+},
+"139bf:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "EbonyArrow",
+"toEdid": "IronArrow"
+},
+"139c0:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "DaedricArrow",
+"toEdid": "IronArrow"
+},
+"13f0c:immersive weapons.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "IWExoticArrow",
+"toEdid": "IronArrow"
+},
+"176f4:dawnguard.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "DLC1DragonboneArrow",
+"toEdid": "IronArrow"
+},
+"2329:immersive weapons.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "IWSeekerArrow",
+"toEdid": "IronArrow"
+},
+"26239:dragonborn.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "DLC2StalhrimArrow",
+"toEdid": "IronArrow"
+},
+"2623b:dragonborn.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "DLC2NordicArrow",
+"toEdid": "IronArrow"
+},
+"4d72:immersive weapons.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "IWJusticiarArrow",
+"toEdid": "IronArrow"
+},
+"5bc3b:bsheartland.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "CYRAncientImperialArrow",
+"toEdid": "IronArrow"
+},
+"5f035:bsheartland.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "CYRAyleidArrow",
+"toEdid": "IronArrow"
+},
+"63a7:immersive weapons.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "IWDragonsteelArrow",
+"toEdid": "IronArrow"
+},
+"71d92:immersive weapons.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "IWAnXileelArrow",
+"toEdid": "IronArrow"
+},
+"82a:ccbgssse025-advdsgs.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "ccBGSSSE025_DarkSeducerArrow",
+"toEdid": "IronArrow"
+},
+"82b:ccbgssse025-advdsgs.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "ccBGSSSE025_GoldenSaintArrow",
+"toEdid": "IronArrow"
+},
+"840:ccbgssse037-curios.esl": {
+"to": "bb3:Dawnguard.esm",
+"edid": "ccBGSSSE037_BonemoldBolt",
+"toEdid": "DLC1BoltSteel"
+},
+"841:ccbgssse037-curios.esl": {
+"to": "bb3:Dawnguard.esm",
+"edid": "ccBGSSSE037_OrcishBolt",
+"toEdid": "DLC1BoltSteel"
+},
+"856aa:journey to baan malur.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "DaedricArrowXivkyn",
+"toEdid": "IronArrow"
+},
+"bec:ccbgssse025-advdsgs.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "ccBGSSSE025_AmberArrow",
+"toEdid": "IronArrow"
+},
+"bed:ccbgssse025-advdsgs.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "ccBGSSSE025_MadnessArrow",
+"toEdid": "IronArrow"
+},
+"d099:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltDwarven",
+"toEdid": "DLC1BoltSteel"
+},
+"d74:immersive weapons.esp": {
+"to": "1397d:Skyrim.esm",
+"edid": "IWDariitArrow",
+"toEdid": "IronArrow"
+},
+"eafdf:skyrim.esm": {
+"to": "1397d:Skyrim.esm",
+"edid": "NordHeroArrow",
+"toEdid": "IronArrow"
+},
+"f1a0:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltSteelExplodingFire",
+"toEdid": "DLC1BoltSteel"
+},
+"f1b1:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltDwarvenExplodingFire",
+"toEdid": "DLC1BoltSteel"
+},
+"f1b7:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltDwarvenExplodingIce",
+"toEdid": "DLC1BoltSteel"
+},
+"f1b9:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltDwarvenExplodingShock",
+"toEdid": "DLC1BoltSteel"
+},
+"f1bb:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltSteelExplodingIce",
+"toEdid": "DLC1BoltSteel"
+},
+"f1bc:dawnguard.esm": {
+"to": "bb3:Dawnguard.esm",
+"edid": "DLC1BoltSteelExplodingShock",
+"toEdid": "DLC1BoltSteel"
+}
+},
 "unmapped": {
 "10b2d7:skyrim.esm": "SkinDwarvenSpiderCenturionFX",
 "1d8e:hothtrooper44_armorcompilation.esp": "IAFurHoodWhiteScarf",
