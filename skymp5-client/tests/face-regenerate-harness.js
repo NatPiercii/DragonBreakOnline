@@ -27,7 +27,7 @@ const STUBS = {
       TESModPlatform: { setNpcSex() {}, setNpcRace() {}, setNpcSkinColor() {}, setNpcHairColor() {}, resizeHeadpartsArray() {},
         clearTintMasks() {}, pushTintMask() {}, setFormIdUnsafe() {}, createNpc: () => null },
       Race: { from: () => null }, HeadPart: { from: () => null }, TextureSet: { from: () => null }, VoiceType: { from: () => null },
-      printConsole() {}, once() {}, Utility: { wait: () => ({ then() {} }) }, ObjectReference: {},
+      printConsole() {}, once() {}, on() {}, Utility: { wait: () => ({ then() {} }) }, ObjectReference: {},
       writeLogs: (name, line) => globalThis.__face.diag.push([name, line]),
     };`,
 };
