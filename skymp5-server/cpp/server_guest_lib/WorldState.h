@@ -258,6 +258,8 @@ public:
   void SetBlockedSpells(const std::set<uint32_t>& spells);
   // Callable from ActionListener (not a friend), so it lives in this public section
   [[nodiscard]] bool IsSpellBlocked(uint32_t spellId) const noexcept;
+  // Internal around a form's destruction; public so a unit test can skip the 10 s hold
+  void ReleaseHeldFormIdx(bool all);
   void SetCastRelayBlockedRaces(const std::set<uint32_t>& races);
   [[nodiscard]] bool HasCastRelayBlockedRaces() const noexcept;
   [[nodiscard]] bool IsCastRelayBlockedRace(uint32_t raceId) const noexcept;
@@ -330,7 +332,6 @@ private:
   [[nodiscard]] uint32_t GetFileIdx(uint32_t formId) const noexcept;
   [[nodiscard]] bool IsRelootForbidden(std::string type) const noexcept;
   void HoldBackFormIdx(uint32_t idx);
-  void ReleaseHeldFormIdx(bool all);
   void NoteDestroyedFormIdx(uint32_t formId, uint32_t idx);
 
 private:
