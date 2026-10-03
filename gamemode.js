@@ -1522,7 +1522,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     if (content.customPacketType === 'adminAction') {
       const a = actorOf(userId); if (!a || !isAdmin(a)) return;
       const shown = (k) => (k === 'item' && adminItemName(content.item) ? `${adminItemName(content.item)} (${content.item})` : content[k]);
-      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${shown(k)}`).join(' ');
+      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier', 'kind', 'school', 'level'].filter(k => content[k] !== undefined).map(k => `${k}=${shown(k)}`).join(' ');
       // A staff grant of dragon bone or scales is allowed, and named as one (dragon-materials.json)
       const dragon = content.item && isDragonMaterialDesc(String(content.item)) ? ' DRAGON MATERIAL (staff grant)' : '';
       audit(`GM ${who(a)} admin panel: ${content.action} ${extra}${dragon}`.trim());
