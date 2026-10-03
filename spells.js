@@ -445,6 +445,19 @@ module.exports = (api) => {
   globalThis.__dboSpellsBook = (a) => [].concat(...SPELL_SKILLS.map((s) => studiedIds(a, s.id).map((id) => { const sp = classifySpell(id); return sp ? Object.assign({ book: s.id }, sp) : null; }))).filter(Boolean);
   globalThis.__dboSpellsKnown = (a) => { const ids = new Set(learnedIds(a) || []); for (const id of knownIds(a)) ids.add(id); return [...ids].map(classifySpell).filter(Boolean); };
   globalThis.__dboSpellsClassify = (id) => classifySpell(Number(id) >>> 0);
+  // A spell given outright into one skill's book, as a lesson adds it (schools.js: a new mage's first spell). No tier or
+  // school check: the giver has decided. { ok, name, line }, or null when the spell is unknown here.
+  globalThis.__dboSpellsGrant = (a, spellId, skillId) => {
+    const sp = classifySpell(Number(spellId) >>> 0);
+    const skill = skillDef(String(skillId || 'arcane'));
+    if (!sp || !skill) return null;
+    if (inBook(a, sp.id)) return { ok: false, name: sp.name, line: `${sp.name} is already in your spellbook.` };
+    migrate(a);
+    writeStudied(a, skill.id, studiedIds(a, skill.id).concat([sp.id]));
+    const line = settleNew(a, sp, knows(a, sp.id));
+    audit(`SPELL ${who(a)} was given ${descOf(sp.id)} ${sp.name} into ${skill.id} (book ${knownIds(a).length}, prepared ${preparedIds(a).length}/${MAXP()})`);
+    return { ok: true, name: sp.name, line };
+  };
 
   // Bringing a character over: the first time the server sees them after this change, the spells of their book the
   // engine holds become prepared, up to the limit in the order they were learned; any beyond it are taken back into

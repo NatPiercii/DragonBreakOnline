@@ -132,7 +132,9 @@ const mkApi = (cfg) => ({
   profileOf: (a) => { const v = props.get(a + '|profileId'); return v === undefined ? -1 : v; },
   takeGold: () => false, giveItem: () => true, depositToTreasury: (z, n) => n,
 });
-const schoolsCfg = Object.assign({}, CONFIG.schools, { enabled: true });
+// The school chosen at any level with no starter, as before Swag's first spell (firstSchoolAt 0): these checks keep the
+// paths that did not change. tests/first-spell-harness.js runs the first spell at Arcane Arts 25.
+const schoolsCfg = Object.assign({}, CONFIG.schools, { enabled: true, firstSchoolAt: 0, starters: {} });
 const load = (overrides, schoolsFile) => {
   handlers.clear(); commands.clear();
   // The Conclave's table is given here even while the tracked config leaves it open (Nate, 30 Sep), so the gate is still tested
@@ -171,7 +173,7 @@ const advance = (ms) => { wallClock += ms; };
 (async () => {
 
 // ---- boot and the client gate ----
-check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
+check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; first spell at Arcane Arts any level \(Destruction \?, Illusion \?, Conjuration \?, Alteration \?\); secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
 // On from 30 Sep (Nate), with client 0.3.71: only a client that reports the 'schools' capability gets the gate and the panels
 check('the tracked config ships it on, for clients that draw the panels', CONFIG.schools.enabled === true && CONFIG.schools.requireClient === true);
 check('...and leaves the Synod Conclave\'s enchanting table open until the guilds have members (Nate: "leave the table open")', Array.isArray(CONFIG.spells.guildWorkshops) && CONFIG.spells.guildWorkshops.length === 0);
