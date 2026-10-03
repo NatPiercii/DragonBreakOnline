@@ -4318,6 +4318,8 @@ const castHook = (casterId, spellId, ...rest) => {
   if (prev) { try { verdict = prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
   // A cast the chain let through counts toward its school of magic (schools.js)
   if (verdict !== false && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
+  // A Flesh spell's armour counts on the server while it lasts (fleshCast, below; called at the cast, defined by then)
+  if (verdict !== false && typeof globalThis.__dboFleshCast === 'function') { try { globalThis.__dboFleshCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('flesh cast failed', e.message); } }
   return verdict;
 };
 castHook.__dbo = true;
@@ -4902,6 +4904,79 @@ const defenseDamageMult = (targetId) => {
   const kept = (rating) => 1 - Math.min(rating * scale, cap) / 100;
   return kept(counted) / kept(bare);
 };
+// Alteration's Flesh spells (Oakflesh 40, Stoneflesh 60, Ironflesh 80, Ebonyflesh 100, for 60 s) raise the caster's
+// armour rating while they last; the engine's hit formula (TES5DamageFormula) reads worn armour only, so they did nothing
+// server-side (Nate, 3 Oct: "they must count"). A self-delivered fire-and-forget spell whose visible effects raise
+// DamageResist (MGEF DATA archetype 0 or 34 at 0x40, actor value 39 at 0x44, not hostile or detrimental) is noted at its
+// cast, and its rating counts on top of worn armour for weapon and unarmed hits, as armour does (spell damage reads no
+// armour). Effects marked HideInUI are perk riders (Mage Armor) the server does not run. A new one replaces the old: they
+// never stack. Config "fleshSpells": { enabled }.
+const FLESH = Object.assign({ enabled: true }, cfg.fleshSpells || {});
+const FLESH_AV = 39, FLESH_ARCHETYPES = [0, 34], FLESH_HIDDEN = 0x8000, FLESH_BAD = 0x1 | 0x4;
+const fleshSpellCache = globalThis.__dboFleshSpells instanceof Map ? globalThis.__dboFleshSpells : (globalThis.__dboFleshSpells = new Map());
+const fleshActive = globalThis.__dboFleshActive instanceof Map ? globalThis.__dboFleshActive : (globalThis.__dboFleshActive = new Map()); // actor -> { spell, armor, until }
+// { armor, seconds } of a Flesh spell, or null
+const fleshOfSpell = (spellId) => {
+  if (fleshSpellCache.has(spellId)) return fleshSpellCache.get(spellId);
+  let out = null;
+  try {
+    const r = recordOf(spellId);
+    const spit = r && String(r.record.type) === 'SPEL' ? fieldsOf(r, 'SPIT')[0] : null;
+    // SPIT: type 0 (spell) at 0x08, cast type 1 (fire and forget) at 0x10, delivery 0 (self) at 0x14
+    if (spit && spit.data.byteLength >= 0x18 && u32At(spit, 0x08) === 0 && u32At(spit, 0x10) === 1 && u32At(spit, 0x14) === 0) {
+      const efids = fieldsOf(r, 'EFID'), efits = fieldsOf(r, 'EFIT');
+      let armor = 0, seconds = 0;
+      for (let i = 0; i < efids.length && i < efits.length; i++) {
+        const data = fieldsOf(recordOf(globalAt(r, u32At(efids[i], 0))), 'DATA')[0];
+        if (!data || data.data.byteLength < 0x48 || efits[i].data.byteLength < 12) continue;
+        const flags = u32At(data, 0);
+        if ((flags & FLESH_BAD) || (flags & FLESH_HIDDEN) || !FLESH_ARCHETYPES.includes(u32At(data, 0x40)) || u32At(data, 0x44) !== FLESH_AV) continue;
+        const mag = new DataView(efits[i].data.buffer, efits[i].data.byteOffset, 4).getFloat32(0, true), dur = u32At(efits[i], 8);
+        if (!(mag > 0) || !(dur > 0)) continue;
+        armor += mag; seconds = Math.max(seconds, dur);
+      }
+      if (armor > 0) out = { armor, seconds };
+    }
+  } catch (e) { out = null; }
+  fleshSpellCache.set(spellId, out);
+  return out;
+};
+// From castHook, for a cast the chain let through
+const fleshCast = (casterId, spellId) => {
+  if (!FLESH.enabled) return;
+  const f = fleshOfSpell(spellId >>> 0);
+  if (!f) return;
+  fleshActive.set(casterId >>> 0, { spell: spellId >>> 0, armor: f.armor, until: Date.now() + f.seconds * 1000 });
+  if (fleshActive.size > 256) { const now = Date.now(); for (const [k, v] of fleshActive) if (v.until <= now) fleshActive.delete(k); }
+};
+// The rating a Flesh spell adds to `a` now, 0 when none
+const fleshArmorOf = (a) => {
+  const f = fleshActive.get(a >>> 0);
+  if (!f) return 0;
+  if (!FLESH.enabled || f.until <= Date.now()) { fleshActive.delete(a >>> 0); return 0; }
+  return f.armor;
+};
+globalThis.__dboFleshArmor = fleshArmorOf;
+globalThis.__dboFleshCast = fleshCast;
+// Below 1 when a Flesh spell holds on the target and the hit is a weapon's or a fist's: the rating counted with it over
+// the rating counted without it, by the engine's own reduction (fArmorScalingFactor, capped at fMaxArmorRating)
+const fleshDamageMult = (targetId, sourceId) => {
+  const extra = fleshArmorOf(targetId);
+  if (!(extra > 0)) return 1;
+  const physical = (sourceId >>> 0) === 0x1f4 || (() => { const r = recordOf(sourceId >>> 0); return !!r && String(r.record.type) === 'WEAP'; })();
+  if (!physical) return 1;
+  const pm = defensePieceMult(targetId);
+  let counted = 0;
+  try {
+    for (const w of wornWithHealth(targetId)) {
+      const p = armorPieceOf(w.baseId); if (!p) continue;
+      counted += ((p.counted || p.rating) + temperBonus(w.health, p.chest)) * (p.heavy ? pm.heavy : pm.light);
+    }
+  } catch (e) { counted = 0; }
+  const scale = gmstFloat(0x21a72, 0.12), cap = gmstFloat(0x37deb, 80);
+  const kept = (rating) => 1 - Math.min(rating * scale, cap) / 100;
+  return kept(counted + extra) / kept(counted);
+};
 // A werewolf in beast form hits harder and takes less by its rank in the Great Hunt (greathunt.js), a vampire hits harder
 // at night by its rank (bloodranks.js)
 const rankHook = (hook, ...args) => { try { const m = typeof globalThis[hook] === 'function' ? Number(globalThis[hook](...args)) : 1; return Number.isFinite(m) && m > 0 ? m : 1; } catch (e) { return 1; } };
@@ -5138,7 +5213,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     // so a werewolf also took the Master fist bonus, the fist's stamina drain and its disarm (combat review, 2026-09-29)
     let beastAgg = false; try { const b = mp.get(agg, 'private.beast'); beastAgg = !!(b && b.form); } catch (e) { /* not an actor */ }
     // The target's side (Defense, a blessing, the race's resistance) is capped together: racial.js reductionCap
-    let targetSide = defenseDamageMult(tgt) * blessingTargetMult(tgt, src);
+    let targetSide = defenseDamageMult(tgt) * fleshDamageMult(tgt, src) * blessingTargetMult(tgt, src);
     if (racial) { try { targetSide = racial.capTargetSide(targetSide * racial.targetMult(agg, tgt, src)); } catch (e) { log('racial target failed', e.message); } }
     let raceAtk = 1;
     if (racial && !beastAgg) { try { raceAtk = racial.attackMult(agg, tgt, src, dmg); } catch (e) { log('racial attack failed', e.message); } }
@@ -5727,7 +5802,7 @@ try {
   const SPELLS_JS = path.resolve('spells.js');
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
-} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop']) globalThis[k] = null; }
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop', '__dboSpellsGrant', '__dboSpellsTab', '__dboSpellsRankCap', '__dboSpellsChangePrepared', '__dboSpellsTomesFor']) globalThis[k] = null; }
 // ---- smithing manuals and smithing skill books (server\manuals.js, manuals.json, config "manuals"): spells.js's read hook,
 // the Scholar's reading, dungeons.js's boss chests and salvage.js's Scholars' Ledger ask it at runtime ----
 try {
@@ -5740,7 +5815,7 @@ try {
   const SCHOOLS_JS = path.resolve('schools.js');
   delete require.cache[SCHOOLS_JS];
   require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
-} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin']) globalThis[k] = null; }
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin', '__dboSchoolsLedgerActions', '__dboSchoolsLedgerChoose', '__dboMagicTab', '__dboMagicView', '__dboMagicAction', '__dboAdminSetSchool']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {

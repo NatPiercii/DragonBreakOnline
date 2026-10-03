@@ -1,8 +1,11 @@
-// Scripted test for Swag's first spell in server\schools.js (Nate, 1 Oct 2026), with the real spells.js: the school of
-// magic opens at Arcane Arts 25 and the choice gives the school's starter spell. Before 25: no choice on K, school tomes
-// refused, Study Magic takes Arcane Arts up and pays it through the Wheel's award. At 25: the line once; at a shelf the
-// choice opens there, in the field K has it, at login a panel of its own. A mage who chose a school before this and has
-// no spell gets the starter once. tests/schools-harness.js keeps the rest of the schools at firstSchoolAt 0.
+// Scripted test for Swag's first spell in server\schools.js (Nate, 1 Oct 2026; magic-flow-2, 3 Oct), with the real
+// spells.js: the school of magic opens at Arcane Arts 25, and at 25 in a school its first spell is chosen from Nate's
+// list (Destruction Flames/Sparks/Frostbite, Illusion Courage/Fury, Conjuration Bound Sword/Conjure Familiar, Alteration
+// Oakflesh/Candlelight). Before 25: no choice on K, school tomes refused, Study Magic takes Arcane Arts up and pays it
+// through the Wheel's award. At 25: the line once; at a shelf the choice opens there, in the field K has it, at login a
+// panel of its own; the school starts at 25, so the pick follows the choice in the same panel. Known spells are not
+// offered. A mage given update-1003's fixed starter has made that pick. tests/magic-flow-2-harness.js has Restoration,
+// the change of school and the Magic tab; tests/schools-harness.js keeps the rest of the schools at firstSchoolAt 0.
 // No server and no game: run it from this folder's parent with
 //
 //   node tests/first-spell-harness.js
@@ -42,6 +45,7 @@ const T = {
   boundSword: ['9e2a9:Skyrim.esm', '211eb:Skyrim.esm'], courage: ['9e2ad:Skyrim.esm', '4dee8:Skyrim.esm'],
   calm: ['a2711:Skyrim.esm', '4dee9:Skyrim.esm'], candlelight: ['9e2a7:Skyrim.esm', '43324:Skyrim.esm'],
   oakflesh: ['9e2a8:Skyrim.esm', '5ad5c:Skyrim.esm'], frostbite: ['9cd52:Skyrim.esm', '2b96b:Skyrim.esm'],
+  sparks: ['9cd53:Skyrim.esm', '2dd2a:Skyrim.esm'], fury: ['9e2ac:Skyrim.esm', '4deeb:Skyrim.esm'], familiar: ['9e2ab:Skyrim.esm', '640b6:Skyrim.esm'],
   // Spectral Arrow: Conjuration Apprentice by its first, costliest effect (#bugs 1555203751822762084: spell-tomes.json had it
   // Restoration Novice, by its free stagger effect, so a Destruction mage learned it and took up Priest)
   spectral: ['b3165:Skyrim.esm', 'ab23d:Skyrim.esm'],
@@ -177,7 +181,7 @@ for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
 const FIRST_LINE = "You've dedicated yourself to the study of magic and are now finally able to learn your first spell and choose your school.";
 const widgetsOf = (a, id) => out.widgets.filter((w) => w.a === a && w.w.id === id);
 
-check('the boot line names the first spell at 25 and the four starters', out.logs.some((l) => /first spell at Arcane Arts 25 \(Destruction Frostbite, Illusion Courage, Conjuration Bound Sword, Alteration Candlelight\)/.test(l)), out.logs.filter((l) => /schools on/.test(l)));
+check('the boot line names the school at 25 and every first spell', out.logs.some((l) => /school at Arcane Arts 25; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing\)/.test(l)), out.logs.filter((l) => /schools on/.test(l)));
 check('the tracked config leaves firstSchoolAt to the code (25)', CONFIG.schools.firstSchoolAt === undefined);
 
 // ---- before Arcane Arts 25 ----
@@ -209,28 +213,38 @@ const before = widgetsOf(NOVICE, 73).length;
 advance(60000); tick('schools.tick');
 w = lastWidget(NOVICE, 'studyMagic');
 check('at 25 the books close and Swag\'s line is said', !globalThis.__dboSchoolsState.studying.has(NOVICE) && saidAny(NOVICE, new RegExp('^' + FIRST_LINE.replace(/[.?]/g, '\\$&') + '$')), out.said.filter((x) => x[0] === NOVICE).slice(-3));
-check('...and the choice opens there, each school naming its starter', widgetsOf(NOVICE, 73).length > before && w.mode === 'choose' && w.choices.map((c) => c.name).join() === 'Destruction,Illusion,Conjuration,Alteration'
-  && /You begin with Frostbite\.$/.test(w.choices[0].blurb) && /You begin with Courage\.$/.test(w.choices[1].blurb) && /You begin with Bound Sword\.$/.test(w.choices[2].blurb) && /You begin with Candlelight\.$/.test(w.choices[3].blurb), w.choices);
-check('...the confirm names the spell', w.choices[0].confirm === 'Do you want to choose Destruction as your school of magic? You will learn Frostbite, and the other schools will be closed to you.', w.choices[0].confirm);
-check('...Conjure Familiar (blocked on the server) is no starter', !w.choices.some((c) => /Familiar/.test(c.blurb)));
+check('...and the choice opens there, each school naming its first spells', widgetsOf(NOVICE, 73).length > before && w.mode === 'choose' && w.choices.map((c) => c.name).join() === 'Destruction,Illusion,Conjuration,Alteration'
+  && /Your first spell: Flames, Sparks or Frostbite\.$/.test(w.choices[0].blurb) && /Your first spell: Courage or Fury\.$/.test(w.choices[1].blurb) && /Your first spell: Bound Sword or Conjure Familiar\.$/.test(w.choices[2].blurb) && /Your first spell: Oakflesh or Candlelight\.$/.test(w.choices[3].blurb), w.choices);
+check('...the confirm names them', w.choices[0].confirm === 'Do you want to choose Destruction as your school of magic? You will choose your first spell from Flames, Sparks or Frostbite, and the other schools will be closed to you.', w.choices[0].confirm);
+check('...no lead line of its own: the client\'s school line', !w.lead);
 const lines = out.said.filter((x) => x[0] === NOVICE).length;
 tick('schools.first'); tick('schools.first');
 check('the line is said once: the 10 s check does not repeat it', out.said.filter((x) => x[0] === NOVICE).length === lines && rec(NOVICE).firstOffered > 0);
 p = progress(NOVICE);
-check('K now offers each school, with its starter', p.schools.every((x) => x.choose && x.choose.as === 'primary') && p.schools[0].hint === 'Begins with Frostbite' && /it brings you its first spell/.test(p.note), p.schools.map((x) => x.hint));
+check('K now offers each school, with its first spells', p.schools.every((x) => x.choose && x.choose.as === 'primary') && p.schools[0].hint === 'First spell: Flames, Sparks or Frostbite' && /you choose its first spell at once/.test(p.note), p.schools.map((x) => x.hint));
 
-// Choosing at the shelf gives the starter
+// Choosing at the shelf: the school at 25, then its first spell in the same panel
 ui('schoolChoose', NOVICE, [w.nonce, 'Destruction', 'primary']);
 w = lastWidget(NOVICE, 'studyMagic');
-check('Destruction chosen at 25: the school starts at 25, Apprentice', rec(NOVICE).primary === 'Destruction' && level(NOVICE, 'Destruction') === 25, rec(NOVICE));
-check('...Frostbite is in the Arcane Arts book and prepared', studied(NOVICE).includes(T.frostbite[1]) && known(NOVICE).has(idOf(T.frostbite[1])) && (props.get(NOVICE + '|private.dboPrepared') || []).includes(T.frostbite[1]), [studied(NOVICE), props.get(NOVICE + '|private.dboPrepared')]);
-check('...the player is told', /^Destruction is your school of magic\. You learn Frostbite\. It is prepared\./.test(said(NOVICE)), said(NOVICE));
-check('...the shelf shows it and no new sitting begins: the first spell closes Study Magic', w.mode === 'idle' && w.resultKind === 'ok' && /You learn Frostbite/.test(w.result) && /You have learned Frostbite/.test(w.whyNot) && !globalThis.__dboSchoolsState.studying.has(NOVICE), w);
-check('...and it is audited', out.audits.some((l) => /SCHOOLS P17 was given the Destruction starter 2b96b:Skyrim\.esm Frostbite/.test(l)) && out.audits.some((l) => /SPELL P17 was given 2b96b:Skyrim\.esm Frostbite into arcane/.test(l)));
+check('Destruction chosen at 25: the school starts at 25, Apprentice, and no spell is given yet', rec(NOVICE).primary === 'Destruction' && level(NOVICE, 'Destruction') === 25 && !studied(NOVICE).length, rec(NOVICE));
+check('...the pick opens in the same panel: Your First Spell, the lead line, Flames, Sparks and Frostbite', w.title === 'Your First Spell' && w.mode === 'choose' && w.lead === 'Your study of Destruction has reached 25: choose your first spell of Destruction. It goes into your spellbook, no tome needed.'
+  && w.choices.map((c) => c.name).join() === 'Flames,Sparks,Frostbite' && w.events.choose === 'dbo:firstSpellPick' && /Destruction is your school of magic\. Now choose its first spell\./.test(w.result) && lastSent(NOVICE, 'studyMagic').focus === true, w);
+check('...each with a line and a confirm', /fire/.test(w.choices[0].blurb) && w.choices[1].confirm === 'Do you want Sparks as your first spell of Destruction? The others you can still learn from a tome or a teacher.', w.choices);
+ui('firstSpellPick', NOVICE, ['stale', 'Sparks']);
+check('a stale nonce changes nothing', !studied(NOVICE).length);
+ui('firstSpellPick', NOVICE, [w.nonce, 'Sparks']);
+w = lastWidget(NOVICE, 'studyMagic');
+check('Sparks chosen: in the Arcane Arts book and prepared', studied(NOVICE).includes(T.sparks[1]) && known(NOVICE).has(idOf(T.sparks[1])) && (props.get(NOVICE + '|private.dboPrepared') || []).includes(T.sparks[1]), [studied(NOVICE), props.get(NOVICE + '|private.dboPrepared')]);
+check('...the player is told', /^You learn Sparks, your first spell of Destruction\. It is prepared\./.test(said(NOVICE)), said(NOVICE));
+check('...the shelf shows it and no new sitting begins: the first spell closes Study Magic', w.title === 'Study Magic' && w.mode === 'idle' && w.resultKind === 'ok' && /You learn Sparks/.test(w.result) && /You have learned Sparks/.test(w.whyNot) && !globalThis.__dboSchoolsState.studying.has(NOVICE), w);
+check('...and it is audited', out.audits.some((l) => /SCHOOLS P17 chose 2dd2a:Skyrim\.esm Sparks as their first spell of Destruction/.test(l)) && out.audits.some((l) => /SPELL P17 was given 2dd2a:Skyrim\.esm Sparks into arcane/.test(l)));
+check('the pick is on the record', rec(NOVICE).picks.Destruction.spell === '2dd2a:Skyrim.esm' && rec(NOVICE).picks.Destruction.how === 'chose');
 check('an Apprentice Destruction tome is open at once', (await read(NOVICE, T.firebolt)) !== false && studied(NOVICE).includes(T.firebolt[1]), said(NOVICE));
-const grants = out.audits.filter((l) => /was given the/.test(l)).length;
+const grants = out.audits.filter((l) => /as their first spell/.test(l)).length;
 tick('schools.first'); globalThis.__dboSchoolsLogin(NOVICE);
-check('the starter is given once', out.audits.filter((l) => /was given the/.test(l)).length === grants);
+check('the first spell is chosen once', out.audits.filter((l) => /as their first spell/.test(l)).length === grants);
+ui('firstSpellPick', NOVICE, [w.nonce, 'Flames']);
+check('...and a second pick sent anyway is refused', !studied(NOVICE).includes(T.flames[1]));
 
 // ---- reaching 25 in the field ----
 arcane(ADEPT, 25);
@@ -244,32 +258,75 @@ globalThis.__dboSchoolsLogin(ADEPT);
 w = lastWidget(ADEPT, 'studyMagic');
 check('at the next login: a short line and the choice opens on its own', said(ADEPT) === 'Your first spell and your school of magic wait to be chosen.' && w && w.mode === 'choose' && lastSent(ADEPT, 'studyMagic').focus === true, [said(ADEPT), w && w.mode]);
 ui('schoolChoose', ADEPT, [w.nonce, 'Conjuration', 'primary']);
-check('...chosen there: Conjuration with Bound Sword, and the panel closes', rec(ADEPT).primary === 'Conjuration' && studied(ADEPT).includes(T.boundSword[1]) && out.closed.some(([x, id]) => x === ADEPT && id === 73), [rec(ADEPT), studied(ADEPT)]);
+w = lastWidget(ADEPT, 'studyMagic');
+check('...chosen there: Conjuration, and its pick follows (Bound Sword, Conjure Familiar)', rec(ADEPT).primary === 'Conjuration' && w.title === 'Your First Spell' && w.choices.map((c) => c.name).join() === 'Bound Sword,Conjure Familiar', [rec(ADEPT).primary, w]);
+ui('firstSpellPick', ADEPT, [w.nonce, 'Conjure Familiar']);
+check('...Conjure Familiar chosen (unblocked 3 Oct), and the panel closes', studied(ADEPT).includes(T.familiar[1]) && out.closed.some(([x, id]) => x === ADEPT && id === 73), [studied(ADEPT), out.closed.filter(([x]) => x === ADEPT)]);
 check('Illusion and Alteration are untouched for them', !rec(ADEPT).levels.Illusion && !rec(ADEPT).levels.Alteration);
 
-// ---- on K at 25 ----
+// ---- on K at 40 ----
 arcane(ALTMAGE, 40);
 p = progress(ALTMAGE);
 ui('schoolChoose', ALTMAGE, [p.nonce, 'Alteration', 'primary']);
-check('chosen on K at Arcane Arts 40: Alteration at 40 with Candlelight', rec(ALTMAGE).primary === 'Alteration' && level(ALTMAGE, 'Alteration') === 40 && studied(ALTMAGE).includes(T.candlelight[1]) && /You learn Candlelight/.test(said(ALTMAGE)), [rec(ALTMAGE), said(ALTMAGE)]);
+w = lastWidget(ALTMAGE, 'studyMagic');
+check('chosen on K at Arcane Arts 40: Alteration at 40, and the pick opens over K', rec(ALTMAGE).primary === 'Alteration' && level(ALTMAGE, 'Alteration') === 40 && w && w.title === 'Your First Spell' && w.choices.map((c) => c.name).join() === 'Oakflesh,Candlelight', [rec(ALTMAGE), w]);
+check('...Oakflesh\'s line says its armour counts', /40 more armour for a minute/.test(w.choices[0].blurb), w.choices[0]);
+ui('firstSpellPick', ALTMAGE, [w.nonce, 'oakflesh']);
+check('...picked by name, any case: Oakflesh in the book', studied(ALTMAGE).includes(T.oakflesh[1]) && /You learn Oakflesh/.test(said(ALTMAGE)), [studied(ALTMAGE), said(ALTMAGE)]);
+p = progress(ALTMAGE);
+check('...and K stays as it was for a chosen school', p.schools.find((x) => x.name === 'Alteration').role === 'primary');
 
 // ---- a mage who chose a school before this and never got a spell ----
 arcane(ILLUSIONIST, 3);
 put(ILLUSIONIST, 'private.dboSchools', { v: 1, primary: 'Illusion', secondary: null, grandfathered: [], levels: { Illusion: { level: 25, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
 globalThis.__dboSchoolsLogin(ILLUSIONIST);
-check('an old Illusion mage with no spell gets Courage once, at login, with a short line', studied(ILLUSIONIST).includes(T.courage[1]) && /^Your study of Illusion brings you your first spell\. You learn Courage\./.test(said(ILLUSIONIST)) && rec(ILLUSIONIST).starter === '4dee8:Skyrim.esm', [said(ILLUSIONIST), studied(ILLUSIONIST)]);
+w = lastWidget(ILLUSIONIST, 'studyMagic');
+check('an old Illusion mage with no spell: at login the line and the pick (Courage, Fury)', said(ILLUSIONIST) === 'Your study of Illusion has reached 25: you may choose your first spell of Illusion (Courage or Fury).' && w.title === 'Your First Spell' && w.choices.map((c) => c.name).join() === 'Courage,Fury', [said(ILLUSIONIST), w]);
+ui('firstSpellClose', ILLUSIONIST, []);
+check('...closed unchosen: nothing given, the panel shut', !studied(ILLUSIONIST).length && out.closed.some(([x, id]) => x === ILLUSIONIST && id === 73));
 const il = out.said.filter((x) => x[0] === ILLUSIONIST).length;
-globalThis.__dboSchoolsLogin(ILLUSIONIST); tick('schools.first');
-check('...and only once', out.said.filter((x) => x[0] === ILLUSIONIST).length === il && studied(ILLUSIONIST).filter((d) => d === T.courage[1]).length === 1);
-check('...their school is kept though Arcane Arts is below 25', rec(ILLUSIONIST).primary === 'Illusion' && level(ILLUSIONIST, 'Illusion') === 25);
+tick('schools.first');
+check('...the 10 s check does not repeat the line', out.said.filter((x) => x[0] === ILLUSIONIST).length === il);
+globalThis.__dboSchoolsLogin(ILLUSIONIST);
+w = lastWidget(ILLUSIONIST, 'studyMagic');
+check('...the next login: a short line and the pick again', said(ILLUSIONIST) === 'Your first spell of Illusion waits to be chosen.' && w.title === 'Your First Spell', said(ILLUSIONIST));
+ui('firstSpellPick', ILLUSIONIST, [w.nonce, 'Fury']);
+check('...Fury chosen; their school is kept though Arcane Arts is below 25', studied(ILLUSIONIST).includes(T.fury[1]) && rec(ILLUSIONIST).primary === 'Illusion' && level(ILLUSIONIST, 'Illusion') === 25);
 
-// ---- a mage who already has a spell ----
+// ---- a mage who already knows a spell of their school ----
 arcane(OLDMAGE, 30);
 put(OLDMAGE, 'private.dboStudied', { arcane: [T.flames[1]] });
-put(OLDMAGE, 'private.dboSchools', { v: 1, primary: 'Destruction', secondary: null, grandfathered: [T.flames[1]], levels: { Destruction: { level: 30, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
-const om = out.said.filter((x) => x[0] === OLDMAGE).length;
+known(OLDMAGE).add(idOf(T.flames[1]));
+put(OLDMAGE, 'private.dboSchools', { v: 1, primary: 'Destruction', secondary: null, grandfathered: [T.flames[1]], levels: { Destruction: { level: 30, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, starter: 'had' });
 globalThis.__dboSchoolsLogin(OLDMAGE);
-check('a mage with a spell of their school gets nothing, and is marked so the check stops looking', out.said.filter((x) => x[0] === OLDMAGE).length === om && studied(OLDMAGE).length === 1 && rec(OLDMAGE).starter === 'had', [studied(OLDMAGE), rec(OLDMAGE).starter]);
+w = lastWidget(OLDMAGE, 'studyMagic');
+check('a mage who knows Flames: offered Sparks and Frostbite only', w && w.title === 'Your First Spell' && w.choices.map((c) => c.name).join() === 'Sparks,Frostbite', w);
+ui('firstSpellPick', OLDMAGE, [w.nonce, 'Flames']);
+check('...a known spell sent anyway is refused, and the pick stays open', studied(OLDMAGE).length === 1 && /not one of Destruction's first spells/.test(said(OLDMAGE)) && lastWidget(OLDMAGE, 'studyMagic').resultKind === 'refused', said(OLDMAGE));
+
+// ---- update-1003's fixed starter counts as the pick ----
+{
+  const OLDSTARTER = 0x22; put(OLDSTARTER, 'profileId', OLDSTARTER); at(OLDSTARTER, SYNOD, [0, 0, 0]); online.push(OLDSTARTER); ui('uiCaps', OLDSTARTER, ['bank', 'spellbook', 'schools']); arcane(OLDSTARTER, 25);
+  put(OLDSTARTER, 'private.dboStudied', { arcane: [T.frostbite[1]] }); known(OLDSTARTER).add(idOf(T.frostbite[1]));
+  put(OLDSTARTER, 'private.dboSchools', { v: 1, primary: 'Destruction', secondary: null, grandfathered: [], levels: { Destruction: { level: 25, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, starter: '2b96b:Skyrim.esm', firstOffered: 1 });
+  const n0 = out.said.filter((x) => x[0] === OLDSTARTER).length;
+  globalThis.__dboSchoolsLogin(OLDSTARTER); tick('schools.first');
+  check('a mage given today\'s Frostbite starter has made the Destruction pick: no offer', out.said.filter((x) => x[0] === OLDSTARTER).length === n0 && rec(OLDSTARTER).picks.Destruction.how === 'starter' && rec(OLDSTARTER).picks.Destruction.spell === '2b96b:Skyrim.esm', rec(OLDSTARTER).picks);
+}
+
+// ---- every first spell already known ----
+{
+  const ALLKNOWN = 0x23; put(ALLKNOWN, 'profileId', ALLKNOWN); at(ALLKNOWN, SYNOD, [0, 0, 0]); online.push(ALLKNOWN); ui('uiCaps', ALLKNOWN, ['bank', 'spellbook', 'schools']); arcane(ALLKNOWN, 30);
+  // Courage in the book, Fury held by the engine outside it (a staff grant): both count as known
+  put(ALLKNOWN, 'private.dboStudied', { arcane: [T.courage[1]] }); known(ALLKNOWN).add(idOf(T.courage[1])); known(ALLKNOWN).add(idOf(T.fury[1]));
+  put(ALLKNOWN, 'private.dboSchools', { v: 1, primary: 'Illusion', secondary: null, grandfathered: [], levels: { Illusion: { level: 30, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
+  const panels = widgetsOf(ALLKNOWN, 73).length;
+  tick('schools.first');
+  check('knowing every first spell of Illusion: told once, no panel, the pick marked none', said(ALLKNOWN) === 'Your study of Illusion has reached 25. You already know every first spell of Illusion, so there is none to choose.' && widgetsOf(ALLKNOWN, 73).length === panels && rec(ALLKNOWN).picks.Illusion.how === 'none', [said(ALLKNOWN), rec(ALLKNOWN).picks]);
+  const n1 = out.said.filter((x) => x[0] === ALLKNOWN).length;
+  tick('schools.first'); globalThis.__dboSchoolsLogin(ALLKNOWN);
+  check('...and never again', out.said.filter((x) => x[0] === ALLKNOWN).length === n1);
+}
 
 // ---- an old client ----
 {
@@ -284,7 +341,7 @@ load();
 for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
 const n1 = out.said.length;
 tick('schools.first');
-check('a reload says nothing again: the offer and the starter are on the character', out.said.length === n1, out.said.slice(n1));
+check('a reload says nothing again: the offers and the picks are on the character', out.said.length === n1, out.said.slice(n1));
 
 console.log(`${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

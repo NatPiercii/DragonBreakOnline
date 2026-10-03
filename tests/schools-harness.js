@@ -173,7 +173,7 @@ const advance = (ms) => { wallClock += ms; };
 (async () => {
 
 // ---- boot and the client gate ----
-check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; first spell at Arcane Arts any level \(Destruction \?, Illusion \?, Conjuration \?, Alteration \?\); secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
+check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; school at Arcane Arts any level; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing\); casts 0\.2 a day 40, classes 25; change school every 7 days at 0\.5; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
 // On from 30 Sep (Nate), with client 0.3.71: only a client that reports the 'schools' capability gets the gate and the panels
 check('the tracked config ships it on, for clients that draw the panels', CONFIG.schools.enabled === true && CONFIG.schools.requireClient === true);
 check('...and leaves the Synod Conclave\'s enchanting table open until the guilds have members (Nate: "leave the table open")', Array.isArray(CONFIG.spells.guildWorkshops) && CONFIG.spells.guildWorkshops.length === 0);
@@ -225,10 +225,10 @@ check('...and learned once the school reaches Apprentice', (await read(MAGE, T.f
 const before = JSON.stringify(rec(MAGE).levels.Destruction);
 globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
 const one = rec(MAGE).levels.Destruction;
-check('a Destruction cast adds half a unit (2.5 xp at Apprentice)', one.level === 26 && Math.abs(one.xp - 2.5) < 1e-9, [before, one]);
+check('a Destruction cast adds a fifth of a unit (1 xp at Apprentice; Nate 3 Oct: a third of the first pace)', one.level === 26 && Math.abs(one.xp - 1) < 1e-9, [before, one]);
 for (let i = 0; i < 8; i++) globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
 const nine = rec(MAGE).levels.Destruction.xp;
-check('the same spell again within the hour is worth less', nine < 9 * 2.5 && nine > 2.5 * 5, nine);
+check('the same spell again within the hour is worth less', nine < 9 * 1 && nine > 1 * 5, nine);
 globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
 check('an Illusion cast (a closed school) adds nothing', !rec(MAGE).levels.Illusion);
 globalThis.__dboSchoolsCast(MAGE, idOf(HEALING));
@@ -238,11 +238,11 @@ globalThis.__dboSchoolsCast(NPC, idOf(T.flames[1]));
 check('an NPC cast is ignored', !props.get(NPC + '|private.dboSchools') && out.audits.length === npcBefore);
 advance(2 * HOUR);
 for (let i = 0; i < 700; i++) globalThis.__dboSchoolsCast(MAGE, idOf(i % 2 ? T.flames[1] : T.firebolt[1]));
-check('casting stops paying at the daily cap of 120 units a school', Math.abs(rec(MAGE).cast.units.Destruction - 120) < 1e-9, rec(MAGE).cast);
+check('casting stops paying at the daily cap of 40 units a school', Math.abs(rec(MAGE).cast.units.Destruction - 40) < 1e-9, rec(MAGE).cast);
 advance(24 * HOUR);
 const capLevel = level(MAGE, 'Destruction');
 globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
-check('...and pays again the next day', rec(MAGE).cast.units.Destruction === 0.5 && level(MAGE, 'Destruction') >= capLevel, rec(MAGE).cast);
+check('...and pays again the next day', rec(MAGE).cast.units.Destruction === 0.2 && level(MAGE, 'Destruction') >= capLevel, rec(MAGE).cast);
 
 // ---- Study Magic ----
 check('another bookcase in the Conclave is not a study point', activate(OTHER_SHELF, NOVICE) === false);
@@ -278,7 +278,8 @@ ui('studyStop', NOVICE, [lastWidget(NOVICE, 'studyMagic').nonce]);
 check('Stop ends it and leaves the panel open to study again', !globalThis.__dboSchoolsState.studying.has(NOVICE) && lastWidget(NOVICE, 'studyMagic').mode === 'idle' && lastWidget(NOVICE, 'studyMagic').events.start === 'dbo:studyStart');
 put(NOVICE, 'private.dboStudied', { arcane: [T.boundSword[1]] });
 activate(BOOKCASE, NOVICE);
-check('once a school spell is in the spellbook, studying is closed for good', !globalThis.__dboSchoolsState.studying.has(NOVICE) && /You have learned Bound Sword; the shelves have nothing more to teach you/.test(lastWidget(NOVICE, 'studyMagic').whyNot), lastWidget(NOVICE, 'studyMagic'));
+check('once a school spell is in the spellbook, studying is closed for good: the shelf says so over its magic menu (change school, leave)', !globalThis.__dboSchoolsState.studying.has(NOVICE) && /You have learned Bound Sword; the shelves have nothing more to teach you/.test(lastWidget(NOVICE, 'contextMenu').targetName)
+  && lastWidget(NOVICE, 'contextMenu').id === 77 && lastWidget(NOVICE, 'contextMenu').actions.map((x) => x.label).join() === 'Change your school of magic,Leave', lastWidget(NOVICE, 'contextMenu'));
 known(MAGE).add(idOf(HEALING));
 check('the race\'s own spells (Flames, Healing) are no first spell: MAGE learned Flames by tome, so closed; a fresh mage is not', (() => { put(ILLUSIONIST, 'private.dboSchools', null); known(ILLUSIONIST).add(idOf(T.flames[1])); known(ILLUSIONIST).add(idOf(HEALING)); activate(BOOKCASE, ILLUSIONIST); return lastWidget(ILLUSIONIST, 'studyMagic').mode === 'choose'; })());
 
@@ -333,10 +334,11 @@ advance(20 * MIN); tick('schools.classes');
 w = lastWidget(TEACHER, 'classLectern');
 check('after 30 minutes the teacher is told and End Class opens', saidAny(TEACHER, /Your class has run its course/) && w.canEnd === true && w.status === 'The class has run its course.', w);
 check('...and the crosshair says it may be ended', lastPacket(ADEPT, 'refDecor').refs[0].name === 'Class Lectern: the class may be ended');
-const adeptBefore = level(ADEPT, 'Destruction');
+const lvx = (a, school) => { const l = rec(a).levels[school]; return l ? l.level * 1000 + l.xp : 0; };
+const adeptBefore = lvx(ADEPT, 'Destruction');
 const wheelBefore = wheelEvents.length;
 ui('lecternEnd', TEACHER, [w.nonce]);
-check('End Class pays the Adept 70% of 60 units in Destruction', level(ADEPT, 'Destruction') > adeptBefore && saidAny(ADEPT, /You took 70% of the lesson: your study of Destruction stands at \d+/), [adeptBefore, level(ADEPT, 'Destruction'), said(ADEPT)]);
+check('End Class pays the Adept 70% of 25 units in Destruction (17.5 units, 43.75 xp at Adept)', Math.abs(lvx(ADEPT, 'Destruction') - adeptBefore - 43.75) < 1e-6 && saidAny(ADEPT, /You took 70% of the lesson: your study of Destruction stands at \d+/), [adeptBefore, lvx(ADEPT, 'Destruction'), said(ADEPT)]);
 const paidWheel = wheelEvents.slice(wheelBefore);
 check('...and credits Arcane Arts with 6 casts of Incinerate (8 x 0.7) through the Wheel', paidWheel.length === 6 && paidWheel.every((e) => e.a === ADEPT && e.kind === 'cast' && e.detail.spellId === idOf(T.incinerate[1])), paidWheel);
 check('the class is gone and the crosshair name is handed back', !globalThis.__dboSchoolsState.classes.has(LECTERN) && lastPacket(ADEPT, 'refDecor').refs[0].name === null);
@@ -449,7 +451,8 @@ load();
 
 // ---- the rolling study window ----
 {
-  const r = rec(NOVICE); r.study = { log: [] }; put(NOVICE, 'private.dboSchools', r); put(NOVICE, 'private.dboStudied', {});
+  // Conjuration's first spell is taken as chosen, so reaching 25 at the books does not stop the sitting for the pick
+  const r = rec(NOVICE); r.study = { log: [] }; r.picks = { Conjuration: { spell: T.boundSword[1], how: 'chose', at: 0 } }; put(NOVICE, 'private.dboSchools', r); put(NOVICE, 'private.dboStudied', {});
   const sit = (minutes) => { activate(BOOKCASE, NOVICE); for (let i = 0; i < minutes * 2; i++) { advance(30000); tick('schools.tick'); } ui('studyClose', NOVICE, []); };
   sit(10); advance(2 * HOUR); sit(12);
   check('rolling: 10 minutes, then 2 hours later 10 more fill the 20, and the next room is about 2 hours away', Math.abs(studiedMs(NOVICE) - 20 * MIN) <= 10000 && saidAny(NOVICE, /Come back in 2 hours/), [studiedMs(NOVICE), said(NOVICE)]);
@@ -782,9 +785,9 @@ check('scale: Master full, none below', S[4].join() === '0,0,0,0,1');
     load();
     check('new: the hot reload keeps the live class, its students and its lectern panels', globalThis.__dboSchoolsState.classes.get(LECTERN) === liveClass && liveClass.students.has(ADEPT));
     advance(31 * MIN); tick('schools.classes');
-    const before = level(ADEPT, 'Destruction');
+    const before = lvx(ADEPT, 'Destruction');
     ui('lecternEnd', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
-    check('new: the live class ends and pays under the new engine', !globalThis.__dboSchoolsState.classes.has(LECTERN) && level(ADEPT, 'Destruction') > before && saidAny(ADEPT, /class on Incinerate is over/), [before, level(ADEPT, 'Destruction')]);
+    check('new: the live class ends and pays under the new engine', !globalThis.__dboSchoolsState.classes.has(LECTERN) && lvx(ADEPT, 'Destruction') > before && saidAny(ADEPT, /class on Incinerate is over/), [before, lvx(ADEPT, 'Destruction')]);
     activate(PULPIT, PREACHER2);
     check('new: the same pulpit now opens the Sermon panel', pw(PREACHER2).title === 'Sermon');
     ui('preachClose', PREACHER2);

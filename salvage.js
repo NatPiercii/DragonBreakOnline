@@ -230,10 +230,12 @@ module.exports = (api) => {
     log(`salvage: ${who(a)} opened the ${station.label} menu at ${descOf(target)}${note ? ` (${note})` : ''}`);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: note || station.label,
-      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }, { id: 'books', label: 'Break down old books' }].concat(manualActions(a)),
+      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }].concat(schoolActions(a), [{ id: 'books', label: 'Break down old books' }], manualActions(a)),
       events: { action: 'dbo:salvageChoose', close: 'dbo:salvageClose' },
     }, true);
   };
+  // The schools of magic (schools.js): a first spell waiting to be chosen, a change of school
+  const schoolActions = (a) => { try { return typeof globalThis.__dboSchoolsLedgerActions === 'function' ? (globalThis.__dboSchoolsLedgerActions(a) || []) : []; } catch (e) { return []; } };
   // Smithing manuals (manuals.js): the Synod sells some at its own ledger, and a Scholar copies the ones they learned
   const manualActions = (a) => {
     const out = [];
@@ -302,6 +304,16 @@ module.exports = (api) => {
       const r = typeof fn === 'function' ? fn(a, Number(id.slice(3)) >>> 0) : { ok: false, text: 'Manuals are not handled here just now.' };
       log(`salvage: ${who(a)} ${buying ? 'bought' : 'copied'} a manual at the ${station.label}: ${r.text}`);
       return openLedgerMenu(a, p.target, station, r.text);
+    }
+    if (station.dedicated && id.startsWith('school:')) {
+      try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
+      log(`salvage: ${who(a)} chose ${id} at the ${station.label}`);
+      // schools.js opens its panel first and takes the cursor; this menu closes after it (panel handoff)
+      const done = typeof globalThis.__dboSchoolsLedgerChoose === 'function' && globalThis.__dboSchoolsLedgerChoose(a, id, p.target);
+      if (!done) return openLedgerMenu(a, p.target, station, 'That is not done here just now.');
+      S.pending.delete(a >>> 0);
+      closeWidget(a, WIDGET_ID);
+      return;
     }
     if (station.dedicated && (id === 'spellbook' || id === 'books')) {
       log(`salvage: ${who(a)} chose ${id} at the ${station.label}`);

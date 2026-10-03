@@ -10,7 +10,7 @@
 // at most `prepared` (3) of them, whatever their school, are on the character at a time (Actor.AddSpell / RemoveSpell).
 // The spellbook panel (/spells, front widget "spellbook") shows them all; the prepared ones are changed only at a magic
 // college (prepareCells: the Synod Conclave, the College of Winterhold; the College of Whispers has no hall yet).
-// Spells known before study (race, start) are the engine's and take no place. /forget is retired.
+// Spells the engine holds outside the book (granted outright, never studied) take no place. /forget is retired.
 // /teach passes a spell to a nearby player, /tomes is the college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
 // tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
 // shopProvince; /teach carries a spell anywhere.
@@ -672,6 +672,49 @@ module.exports = (api) => {
   });
   onUi('spellsClose', (a) => closeMenu(a));
   onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); if (widgetId === BOOK_ID) { bookNonces.delete(a >>> 0); bookLedger.delete(a >>> 0); } });
+
+  // For the F3 Magic tab (schools.js __dboMagicTab): the book, the prepared spells and the spells held outside the book
+  // (granted outright, never studied: they take no prepared place), and whether they may be changed where `a` stands
+  globalThis.__dboSpellsTab = (a) => {
+    const prep = preparedIds(a);
+    const book = knownIds(a);
+    const outside = (learnedIds(a) || []).filter((id) => !book.includes(id)).map(classifySpell).filter(Boolean)
+      .map((sp) => ({ id: descOf(sp.id), name: sp.name, school: sp.school, rank: sp.rank, rankName: RANKS[sp.rank] || '' }));
+    const college = atCollege(a);
+    return {
+      max: MAXP(), canPrepare: college, hint: college ? '' : COLLEGE_HINT,
+      prepared: prep.map((id) => entryOf(id, true)),
+      known: book.map((id) => entryOf(id, prep.includes(id))).sort((x, y) => x.school.localeCompare(y.school) || x.rank - y.rank || x.name.localeCompare(y.name)),
+      outside,
+    };
+  };
+  // The highest spell rank `skillId`'s tier lets `a` learn, -1 when the skill is not taken up
+  globalThis.__dboSpellsRankCap = (a, skillId) => maxRankFor(String(skillId), tierOf(a, String(skillId)));
+  // The Magic tab's prepare and put-away (the spellbook's rule: at a college or beside a Scholars' Ledger); { ok, text }
+  globalThis.__dboSpellsChangePrepared = (a, spellDesc, want) => {
+    if (!CFG.enabled) return { ok: false, text: 'Spell study is closed.' };
+    migrate(a);
+    const r = changePrepared(a, idOf(String(spellDesc || '')), !!want);
+    return { ok: !!r.ok, text: r.text };
+  };
+  // Tomes of `school` up to the rank `skillId`'s tier allows (and `maxRank`), whose spell `a` does not know, lowest rank
+  // first, with where they are sold: [{ spell, school, rank, rankName, where }]
+  globalThis.__dboSpellsTomesFor = (a, school, skillId, maxRank, limit) => {
+    const cap = Math.min(maxRankFor(String(skillId), tierOf(a, String(skillId))), Number.isFinite(Number(maxRank)) ? Number(maxRank) : 4);
+    if (cap < 0) return [];
+    const have = new Set([].concat(learnedIds(a) || [], knownIds(a)));
+    const R = regions();
+    const seen = new Set();
+    const pref = (t) => { const i = (CFG.shopPreferPlugins || []).indexOf(t.plugin); return i < 0 ? 99 : i; };
+    const shop = new Set(SHOP.map((t) => t.bookId));
+    return [...TOMES.values()]
+      .filter((t) => t.school === school && t.rank <= cap && !have.has(t.spellId) && !(CFG.shopExcludePlugins || []).includes(t.plugin) && !(excluded && excluded.test(t.edid)))
+      .sort((x, y) => x.rank - y.rank || (shop.has(y.bookId) && soldHere(R, y) ? 1 : 0) - (shop.has(x.bookId) && soldHere(R, x) ? 1 : 0) || pref(x) - pref(y) || x.name.localeCompare(y.name))
+      .filter((t) => (seen.has(t.spellId) ? false : seen.add(t.spellId)))
+      .slice(0, Math.max(1, Number(limit) || 6))
+      .map((t) => ({ spell: t.name, school: t.school, rank: t.rank, rankName: RANKS[t.rank],
+        where: shop.has(t.bookId) && soldHere(R, t) ? 'Sold by the Synod in Bruma (members of the Synod or a College)' : soldIn(R, t) ? `Sold in ${soldIn(R, t)}` : 'Found, not sold' }));
+  };
 
   const R0 = regions();
   log(`spells ${CFG.enabled ? 'on' : 'off'}: ${TOMES.size} tomes known, ${STUDY_POINTS.length} study point(s), ${SHOP.length} tomes in the Synod shop, ${MAXP()} prepared, changed in ${COLLEGE_CELLS.size} college cell(s)${R0 ? `, ${SHOP.filter((t) => soldHere(R0, t)).length} stocked for ${R0.provinceName(CFG.shopProvince)}` : ''}`);
