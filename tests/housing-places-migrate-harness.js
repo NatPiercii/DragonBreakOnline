@@ -170,6 +170,44 @@ try {
     sys.restorePlaces(ctx, f4[0]);
     ok(!!rec(E1).place, '...and the next boot restores nothing either while it cannot be written');
   } finally { fs.writeFileSync = realWrite; }
+  // Review M: a failed write leaves the restore "incomplete", the next boot runs it again; "started" (a crash) runs again;
+  // only "done" with no failures stops it; a rerun does not list the entrance it already released
+  clean();
+  sys = build('apply');
+  sys.dryRunPlaces(ctx, false);
+  const f5 = backups()[0];
+  sys.placeMigration = 'dryrun';
+  const realSet = mp.set;
+  mp.set = (id, k, v) => { if ((id >>> 0) === BOX && k === 'private.housing') throw new Error('changeform busy'); return realSet(id, k, v); };
+  try { sys.restorePlaces(ctx, f5); } finally { mp.set = realSet; }
+  let mk = JSON.parse(fs.readFileSync(f5 + '.restored', 'utf8'));
+  ok(mk.state === 'incomplete' && JSON.stringify(mk.failed) === JSON.stringify([hx(BOX)]) && rec(BOX).memberOf === E1 && logs.some((l) => /INCOMPLETE.*1 FAILED \(8000110\)/.test(l)), 'a write that fails: the marker says "incomplete" with the ref, and the log says so', mk);
+  const n5 = logs.length;
+  sys.restorePlaces(ctx, f5);
+  mk = JSON.parse(fs.readFileSync(f5 + '.restored', 'utf8'));
+  ok(mk.state === 'done' && mk.failed.length === 0 && !rec(BOX).memberOf && logs.slice(n5).some((l) => /says "incomplete", 1 failed; running it again/.test(l)), '...the next boot runs it again and finishes it', mk);
+  ok(!mk.changed.some((c) => c.ref === hx(E2)), "...without listing the entrance the first run already released as changed (nit)", mk.changed);
+  const n6 = logs.length;
+  sys.restorePlaces(ctx, f5);
+  ok(logs.slice(n6).some((l) => /restored already .*says done/.test(l)), '...and then "done" stops a third run');
+  fs.writeFileSync(f5 + '.restored', JSON.stringify({ at: 'x', state: 'started' }));
+  const n7 = logs.length;
+  sys.restorePlaces(ctx, f5);
+  ok(logs.slice(n7).some((l) => /says "started"; running it again/.test(l)) && JSON.parse(fs.readFileSync(f5 + '.restored', 'utf8')).state === 'done', 'a marker left at "started" by a crash runs again (it is safe to repeat)');
+
+  // Review H in the plan: a cellar behind Tavia's claimed inner door is not Augustine's
+  clean();
+  sys = build('dryrun');
+  const C1d = H(0x140), C2d = H(0x141), CELLAR = '67652a:BSHeartland.esm';
+  REFS.push({ id: C1d, cell: HOUSE, type: 'DOOR', partner: C2d }, { id: C2d, cell: CELLAR, type: 'DOOR', partner: C1d });
+  byId.set(C1d, REFS[REFS.length - 2]); byId.set(C2d, REFS[REFS.length - 1]);
+  put(C1d, base({ owner: 9, ownerName: 'Tavia', partner: C2d }));
+  sys.claimed.push(C1d);
+  sys.dryRunPlaces(ctx, false);
+  const dh = plan().details.find((x) => x.root === E1);
+  ok(dh && dh.cells.indexOf(CELLAR) === -1 && dh.cells.indexOf(HOUSE) !== -1, "the plan: the cellar behind Tavia's claimed door is not part of Augustine's house", dh && dh.cells);
+  REFS.splice(REFS.length - 2, 2); byId.delete(C1d); byId.delete(C2d);
+
   // A staff profile's street door into the same interior (staff houses are left out of the plan, review round 2)
   clean();
   fs.writeFileSync('gamemode-config.json', JSON.stringify({ housingPlaces: { staffProfiles: [4] } }));

@@ -36,6 +36,12 @@ const SHARED = '67670:BSHeartland.esm', STAFFHALL = '67680:BSHeartland.esm';
 const T1 = ref(0x400, WORLD, 'DOOR', 0x401), T2 = ref(0x401, SHARED, 'DOOR', 0x400), U1 = ref(0x402, WORLD, 'DOOR', 0x403), U2 = ref(0x403, SHARED, 'DOOR', 0x402);
 const SHAREDBOX = ref(0x404, SHARED, 'CONT');
 const K1 = ref(0x410, WORLD, 'DOOR', 0x411), K2 = ref(0x411, STAFFHALL, 'DOOR', 0x410), V1 = ref(0x412, WORLD, 'DOOR', 0x413), V2 = ref(0x413, STAFFHALL, 'DOOR', 0x412);
+// An inn (review H): the street door into the hall, Tavia's claimed room door off the hall, a staff-held door to a cellar
+const INN = '67690:BSHeartland.esm', ROOM = '67691:BSHeartland.esm', STORE = '67692:BSHeartland.esm';
+const N1 = ref(0x500, WORLD, 'DOOR', 0x501), N2 = ref(0x501, INN, 'DOOR', 0x500);
+const RD1 = ref(0x502, INN, 'DOOR', 0x503), RD2 = ref(0x503, ROOM, 'DOOR', 0x502), ROOMBOX = ref(0x504, ROOM, 'CONT');
+const SD1 = ref(0x505, INN, 'DOOR', 0x506), SD2 = ref(0x506, STORE, 'DOOR', 0x505), STOREBOX = ref(0x507, STORE, 'CONT');
+const HALLBOX = ref(0x508, INN, 'CONT');
 const byId = new Map(REFS.map((r) => [r.id, r]));
 const STEWARD = 0xff000041, NEWBIE = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004;
 const PROFILE = { [STEWARD]: 41, [NEWBIE]: 9, [STRANGER]: 51, [AKATOSH]: 4 };
@@ -139,6 +145,14 @@ try {
   sys.claimed.push(K1);
   request(sys, STEWARD, 'claim', V1);
   ok(rec(V1) && !rec(V1).place, "an interior a staff profile's door opens onto counts as another owner's too");
+  // Review H: the walk never passes a door someone else holds; that room is theirs
+  sys = build('apply');
+  const own = (r, o, name, partner) => { props.set(`${r}:private.housing`, { owner: o, ownerName: name, name: null, locked: false, serial: 1, partner, containers: [], issued: [] }); props.set(`${partner}:private.housing`, { primary: r }); sys.claimed.push(r); };
+  own(RD1, 77, 'Tavia', RD2);
+  own(SD1, 4, 'Akatosh', SD2);
+  request(sys, STEWARD, 'claim', N1);
+  ok(rec(N1) && rec(N1).place && JSON.stringify(rec(N1).place.cells) === JSON.stringify([INN]), "a granted inn hall: its place is the hall alone, not Tavia's room nor the staff-held store behind their own doors", rec(N1) && rec(N1).place);
+  ok(sys.onActivate(ctx, ROOMBOX, STRANGER) === true && sys.onActivate(ctx, STOREBOX, STRANGER) === true && sys.onActivate(ctx, HALLBOX, STRANGER) === false, "...the chests in Tavia's room and the store are not the hall owner's; the hall's own chest is");
   // The tenancy grant builds the place too
   sys = build('apply');
   sys.exposeTenancy(ctx);
