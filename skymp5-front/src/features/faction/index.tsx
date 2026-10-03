@@ -96,8 +96,8 @@ export const FactionContent = ({ data, embedded }: { data: FactionData; embedded
 
   return (
     <>
-        <h1 className="faction__title">{f ? f.name : 'Factions'}</h1>
-        {f && (
+        {staffView ? null : <h1 className="faction__title">{f ? f.name : 'Factions'}</h1>}
+        {f && !staffView && (
           <p className="faction__subtitle">
             {KIND_LABEL[f.kind] || f.kind}{f.prince ? ' of ' + f.prince : ''}{f.secret ? ' · secret' : ''}
             {f.myTitle ? ' · you are ' + f.myTitle : (data.admin ? ' · admin view' : '')}
@@ -120,7 +120,7 @@ export const FactionContent = ({ data, embedded }: { data: FactionData; embedded
         {tab === 'war' && <div className="faction__body faction__body--wide"><WarTab realm={data.realm || null} act={act} busy={busy} /></div>}
         {tab === 'treasury' && <div className="faction__body faction__body--wide"><TreasuryTab economy={data.economy || null} act={act} busy={busy} /></div>}
 
-        {tab === 'members' && staffView && <div className="faction__body faction__body--wide"><FactionStaffView data={data} busy={busy} act={act} /></div>}
+        {tab === 'members' && staffView && <div className="faction__body faction__body--wide faction__body--staff"><FactionStaffView data={data} busy={busy} act={act} /></div>}
         {tab === 'members' && !staffView && <div className="faction__body">
           <div className="faction__list">
             {(data.invites || []).map((i) => (

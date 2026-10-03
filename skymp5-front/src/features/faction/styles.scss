@@ -335,3 +335,7 @@
 .faction-staff__role { color: $dbo-text-dim; font-size: 13px; min-width: 80px; }
 .faction-staff__held { color: $dbo-text-dim; font-size: 12px; min-width: 16px; text-align: right; }
 .faction-staff__rank-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+// In the journal the staff view fills the page and its three columns scroll on their own (without :has the page scrolls)
+.journal__faction:has(.faction__body--staff) { height: 100%; min-height: 0; }
+.faction__body--staff { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.faction__body--staff > .faction-staff { height: 100%; }
