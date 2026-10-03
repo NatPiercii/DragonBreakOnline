@@ -1,5 +1,6 @@
 import { Actor, HitEvent, ObjectReference, Quest, ReferenceAlias, storage } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
+import { companionFightState } from "./companionFightState";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
@@ -620,6 +621,7 @@ export class CompanionService extends ClientListener {
         cell: whereOf(actor), ownerCell: whereOf(player),
         localId: actor.getFormID().toString(16), at: here.map(Math.round), owner: [player.getPositionX(), player.getPositionY(), player.getPositionZ()].map(Math.round),
         package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
+        fight: companionFightState(actor, state.fightingTarget ? Actor.from(this.sp.Game.getFormEx(state.fightingTarget)) : null),
       }],
     });
   }
