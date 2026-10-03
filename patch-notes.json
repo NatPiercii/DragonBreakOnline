@@ -209,6 +209,20 @@
     ]
   },
   {
+    "title": "See your fever grow",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Vampires and werewolves",
+        "items": [
+          "Caught Sanies Lupinus or Sanguinare Vampiris? The skills menu (K) now has a Fever tab: how far it has grown, how much play time is left before it peaks, the trial that comes then, and how to cure it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Apprentice locks for everyone too",
     "date": "2026-10-02",
     "version": "Server update",
