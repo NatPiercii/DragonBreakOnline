@@ -92,6 +92,7 @@ check('...a full office has no offer row (Guard Captain 1 / 1)', /Guard Captain 
 check('...the offers waiting, with Withdraw', /Offers waiting/.test(t) && /Bran Hollow #BRN1: Guard/.test(t) && /Withdraw/.test(t));
 check('...the household with rank pickers, Remove, Invite and who is invited', /County of Bruma/.test(t) && /dbo-picker/.test(html) && /Remove/.test(t) && /Invite/.test(t) && /Invited: Kesta/.test(t));
 check('...no native <select> anywhere', !/<select/.test(html));
+check('...the head (the Count) shows a title, not a rank picker; the other member keeps theirs', (html.match(/court__rank/g) || []).length === 1 && /court__member-title">Count</.test(html), (html.match(/court__rank/g) || []).length);
 html = render(hub('court', { court: court({ staff: true, outright: true, offers: [] }) }));
 t = text(html);
 check('staff: a search over the courts, and Appoint beside Offer', /Search courts/.test(html) && /Holds/.test(t) && />Appoint</.test(html));
