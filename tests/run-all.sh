@@ -93,6 +93,7 @@ declare -A NEEDS=(
   [journal-front]=front:skymp5-front/src/features/journal/index.tsx
   [hud-settings]=front:skymp5-front/src/features/hud/index.tsx
   [context-menu-front]=front:skymp5-front/src/features/contextMenu/index.tsx
+  [trade-front]=front:skymp5-front/src/features/trade/index.tsx
   [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
 )
@@ -111,7 +112,7 @@ bundle() {
     [ -d "$mods" ] || mods="$HOME/dragonbreak/fork/skymp5-front/node_modules"
     # The widget's named exports come too, so a harness can render a part that only a click would show
     printf "export * from '%s';\nexport { default as Widget } from '%s';\nexport { renderToStaticMarkup } from 'react-dom/server';\nexport { createElement } from 'react';\n" "$root/$entry" "$root/$entry" > "$wrap"
-    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.scss=empty --loader:.png=empty --loader:.jpg=empty --loader:.gif=empty --loader:.svg=empty --outfile="$out" --log-level=error || return 1
+    [ -f "$out" ] || NODE_PATH="$mods" "$ESBUILD" "$wrap" --bundle --platform=node --format=cjs --loader:.js=jsx --loader:.scss=empty --loader:.png=empty --loader:.jpg=empty --loader:.gif=empty --loader:.svg=empty --outfile="$out" --log-level=error || return 1
     echo "$out"; return 0
   fi
   local out="$OUT/$side-$(basename "${entry%.ts}").js"
