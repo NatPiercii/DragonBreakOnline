@@ -171,7 +171,8 @@ if (typeof J.registerJournalTab !== 'function') {
   check('a registered tab draws its component with its section, in its own hue', /class="probe">probe 7</.test(html) && /journal__body--probe" data-domain="aedric"/.test(html));
   check('...the pinned tab (Settings) carries the pinned class when drawn', !known.includes('settings') || /dbo-tabs__tab--pinned/.test(render(Journal, { data: hubData() })));
   check('the caps the HUD sends: journalHub and one journalTab:<id> per registered tab', JSON.stringify(J.journalCaps().slice(0, 1)) === '["journalHub"]' && J.journalCaps().includes('journalTab:probe'));
-  const jsrc0 = fs.readFileSync(bundle, 'utf8');
+  // From the source when $FORK is set (the bundle renames locals), else from the bundle
+  const jsrc0 = FRONT_SRC('features/journal/index.tsx') || fs.readFileSync(bundle, 'utf8');
   check('a tab click asks the server for that tab under the journal nonce (dbo:journalTab)', /send\d*\(["']dbo:journalTab["'], nonce\.current, id\)/.test(jsrc0) && /send\d*\(["']dbo:journalTab["'], nonce\.current, id, focus\)/.test(jsrc0));
   check('...and a redraw on another tab does not pull the view back while that answer is on its way', /if \(w && w\.tab !== data\.tab && Date\.now\(\) - w\.at < WANT_MS\) return;/.test(jsrc0));
 }
@@ -212,6 +213,32 @@ if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.deity) {
   check('a faith needs no shrine (its shrines line)', J.JOURNAL_TABS.deity && /kneel anywhere/.test(text(render(J.JOURNAL_TABS.deity.component, { section: deity({ choices: deity().choices.filter((c) => c.id === 'hist'), current: 'hist' }), sections: {}, nonce: 'd', busy: false, act: () => {}, openTab: () => {} }))));
   const dsrc = FRONT_SRC('features/journal/tabs/DeityTab.tsx');
   if (dsrc) check('Turn asks once more, then sends journalDeity with the god\'s id', /onClick=\{\(\) => setConfirm\(true\)\}/.test(dsrc) && /onClick=\{\(\) => act\('journalDeity', shown\.id\)\}/.test(dsrc));
+}
+
+// ---- the Settings tab (piece H3; General and Voice come with H4 and H5) ----------------------------------------------
+if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.settings) {
+  require('./expect')('journal-front', 'this front has no Settings tab');
+  console.log('ok   (this front has no Settings tab yet: its checks are skipped)');
+} else {
+  const sData = (sec) => ({ type: 'journal', id: 50, nonce: 's1', hub: 1, tab: 'settings', tabs: [{ id: 'profile', label: 'Profile' }, { id: 'settings', label: 'Settings', pinned: true }],
+    head: { name: 'Aela', title: 'Wanderer', race: 'Nord' }, settings: sec || { staff: false } });
+  html = render(Journal, { data: sData() });
+  t = text(html);
+  check('Settings: pinned right, in the aqua', /dbo-tabs__tab dbo-tabs__tab--on dbo-tabs__tab--pinned/.test(html) && /journal__body--settings" data-domain="aqua"/.test(html));
+  const rail = (html.match(/jset__rail-item[^"]*"[^>]*>[^<]*/g) || []).map((x) => x.replace(/.*>/, ''));
+  check('...a rail of sections in order, Controls, Interface and Help among them, Interface open first', ['Controls', 'Interface', 'Help'].every((l) => rail.includes(l))
+    && rail.indexOf('Controls') < rail.indexOf('Interface') && rail.indexOf('Interface') < rail.indexOf('Help') && /jset__rail-item jset__rail-item--on"[^>]*>Interface/.test(html), rail);
+  check('...Interface: size, panel sizes, the bars, the chat and the names over heads', /Interface size/.test(t) && /Reset every panel/.test(t) && /Show the bars/.test(t) && /Fade when full/.test(t)
+    && /Show the chat/.test(t) && /Hidden until T/.test(t) && /Lettering/.test(t) && /Text size/.test(t) && /Transparency/.test(t) && /Highlight words/.test(t) && /Player names/.test(t));
+  check('...the defaults chosen: Fade when full, Quiet, Fade when idle, Book', /jset__chip jset__chip--on"[^>]*>Fade when full</.test(html) && /jset__chip jset__chip--on"[^>]*>Quiet</.test(html)
+    && /jset__chip jset__chip--on"[^>]*>Fade when idle</.test(html) && /jset__chip jset__chip--on"[^>]*>Book</.test(html));
+  check('...no native select anywhere (the size is a Picker)', !/<select/.test(html) && /class="dbo-picker jset__picker"|dbo-picker jset__picker|jset__picker/.test(html));
+  const ssrc = FRONT_SRC('features/journal/tabs/SettingsTab.tsx');
+  if (ssrc) {
+    check('Help sends the report as journalReport; Controls points to the launcher', /act\('journalReport', text\)/.test(ssrc) && /Change these in the launcher \(Settings\), then restart the game\./.test(ssrc));
+    check('...text fields keep their keys from the game (stopKeys)', (ssrc.match(/onKeyDown=\{stopKeys\}/g) || []).length >= 2 && /e\.stopPropagation\(\);/.test(ssrc));
+    check('...the size goes through dboSetUiScaleInGame (the launcher snapshot rule)', /w\(\)\.dboSetUiScaleInGame\(v\)/.test(ssrc) && /window\.dboSetUiScaleInGame = /.test(FRONT_SRC('utils/UiScale.js')));
+  }
 }
 
 // ---- a payload from the server's own harness (JOURNAL_SAMPLE=<file>, written by journal-harness.js) ------------------

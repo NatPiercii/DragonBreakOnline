@@ -224,6 +224,17 @@ fire('journalMagic', OLD, [last(OLD).nonce, 'firstSpell', 'Destruction', 'x']);
 check('...nor from an older journal front', magicCalls.length === 1);
 check('an older journal front never gets a magic section', !('magic' in last(OLD)));
 
+// ---- Settings, Help: Report a problem (debugsnap.js __dboBugReport) ----
+const reports = [];
+globalThis.__dboBugReport = (a, t) => { reports.push([a, t]); return t.length >= 5 ? { ok: true, text: 'Thanks, the staff team has your report.' } : { ok: false, text: 'Say what went wrong.' }; };
+globalThis.__dboJournalOpenTab(NEWER, 'settings');
+check('Settings opens for a front that draws it, with the staff flag', last(NEWER).tab === 'settings' && last(NEWER).settings && last(NEWER).settings.staff === false);
+now += 10000;
+fire('journalReport', NEWER, [last(NEWER).nonce, 'the wolf\nis floating\u0007 badly']);
+check('journalReport files the report as /bug does and answers on Settings', reports.length === 1 && reports[0][1] === 'the wolf\nis floating badly' && last(NEWER).result === 'Thanks, the staff team has your report.' && last(NEWER).tab === 'settings');
+fire('journalReport', NEWER, ['stale', 'x x x x x']);
+check('...never under a stale nonce', reports.length === 1);
+
 // ---- a section that throws ----
 globalThis.__dboJournalSections.court.view = () => { throw new Error('court broke'); };
 globalThis.__dboJournalOpenTab(NEWER, 'court');

@@ -520,6 +520,20 @@ module.exports = (api) => {
       answer(a, st, String(r.text || ''), r.ok ? 'ok' : 'refused');
     });
   });
+  // Settings, Help: Report a problem, the same report as /bug (debugsnap.js), answered in the footer
+  onUi('journalReport', (a, args) => {
+    const st0 = fresh(a, args);
+    if (!st0 || !st0.hub) return;
+    const text = clean((args || [])[1], 500);
+    limited(a, () => {
+      const st = J.open.get(a >>> 0); if (!st) return;
+      let r;
+      try { r = typeof globalThis.__dboBugReport === 'function' ? globalThis.__dboBugReport(a, text) : null; } catch (e) { log('journal: a report failed', e.message); r = null; }
+      if (!r) r = { ok: false, text: 'Reports cannot be sent just now; type /bug in chat instead.' };
+      st.tab = 'settings';
+      answer(a, st, String(r.text || ''), r.ok ? 'ok' : 'refused');
+    });
+  });
   onUi('journalTitle', (a, args) => {
     if (!fresh(a, args)) return;
     limited(a, () => chooseTitle(a, args));
