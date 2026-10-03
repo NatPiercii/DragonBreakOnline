@@ -5,3 +5,5 @@ import './tabs/MagicTab';
 import './tabs/SettingsTab';
 import './tabs/SettingsKeys';
 import './tabs/SettingsVoice';
+import './skillsTab';
+import '../court';

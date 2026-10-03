@@ -314,3 +314,32 @@
 .treasury__suffix { font-size: 12px; color: $dbo-text-dim; }
 .treasury__wages { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 14px; }
 .treasury__wage { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+
+// ---- the journal's staff view and the rank editor (staff.tsx; F3 design 3.5, H8) ------------------------------------
+.faction-staff {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  gap: 16px;
+  min-height: 0;
+  height: 100%;
+
+  &__list, &__members, &__side { min-height: 0; overflow-y: auto; }
+  &__list { border-right: 1px solid dbo-accent(0.2); padding-right: 10px; }
+  &__side { border-left: 1px solid dbo-accent(0.2); padding-left: 12px; }
+  &__heading { margin: 0 0 8px; color: $dbo-text-dim; font-size: 13px; font-weight: 400; letter-spacing: 0.18em; text-transform: uppercase; }
+  &__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+}
+.faction-staff__ranks { margin-top: 12px; }
+.faction-staff__rank { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.faction-staff__rank-title { flex: 1; min-width: 0; }
+.faction-staff__role { color: $dbo-text-dim; font-size: 13px; min-width: 80px; }
+.faction-staff__held { color: $dbo-text-dim; font-size: 12px; min-width: 16px; text-align: right; }
+.faction-staff__rank-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+// In the journal the staff view fills the page and its three columns scroll on their own (without :has the page scrolls)
+.journal__faction:has(.faction__body--staff) { height: 100%; min-height: 0; }
+.faction__body--staff { flex: 1 1 0; min-height: 0; overflow: hidden; }
+.faction__body--staff > .faction-staff { height: 100%; }
+.faction-staff__ranks {
+  .dbo-picker--open { display: block; }
+  .dbo-picker--open .dbo-picker__list { position: static; margin-top: 4px; max-height: none; }
+}

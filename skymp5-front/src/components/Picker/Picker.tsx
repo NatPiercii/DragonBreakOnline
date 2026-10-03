@@ -12,10 +12,13 @@ export interface PickerOption<V extends string | number> { value: V; label: stri
 // V is taken from value and options only: a useState setter passed as onChange would otherwise widen it
 type NoInfer<T> = [T][T extends unknown ? 0 : never];
 
-export function Picker<V extends string | number>({ value, options, onChange, className, disabled, title }: {
-  value: V; options: Array<PickerOption<V>>; onChange: (value: NoInfer<V>) => void; className?: string; disabled?: boolean; title?: string;
+// commit: for a picker whose choice is an action (move an official, set a rank), the arrow keys open the list and move a
+// highlight, and only Enter or a click chooses; without it they step through the values at once, as a <select> does.
+export function Picker<V extends string | number>({ value, options, onChange, className, disabled, title, commit }: {
+  value: V; options: Array<PickerOption<V>>; onChange: (value: NoInfer<V>) => void; className?: string; disabled?: boolean; title?: string; commit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(-1);
   const root = useRef<HTMLSpanElement>(null);
   const index = options.findIndex((o) => o.value === value);
   const current = index >= 0 ? options[index] : null;
@@ -30,6 +33,7 @@ export function Picker<V extends string | number>({ value, options, onChange, cl
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
+  useEffect(() => { if (!open) setHi(-1); }, [open]);
 
   const pick = (o: PickerOption<V>): void => {
     setOpen(false);
@@ -40,9 +44,19 @@ export function Picker<V extends string | number>({ value, options, onChange, cl
     const o = options[Math.max(0, Math.min(options.length - 1, to))];
     if (o.value !== value) onChange(o.value);
   };
+  const highlight = (to: number): void => { setOpen(true); setHi(Math.max(0, Math.min(options.length - 1, to))); };
   const onKeyDown = (e: React.KeyboardEvent): void => {
     if (disabled) return;
-    const keys: Record<string, () => void> = {
+    const at = hi >= 0 ? hi : index;
+    const keys: Record<string, () => void> = commit ? {
+      ArrowDown: () => highlight(at + 1),
+      ArrowUp: () => highlight(at - 1),
+      Home: () => highlight(0),
+      End: () => highlight(options.length - 1),
+      Enter: () => { if (open && hi >= 0 && options[hi]) pick(options[hi]); else { setHi(index); setOpen(!open); } },
+      ' ': () => { setHi(index); setOpen(!open); },
+      Escape: () => setOpen(false),
+    } : {
       ArrowDown: () => step(index + 1),
       ArrowUp: () => step(index - 1),
       Home: () => step(0),
@@ -69,7 +83,7 @@ export function Picker<V extends string | number>({ value, options, onChange, cl
         <ul className="dbo-picker__list" role="listbox">
           {options.map((o) => (
             <li key={String(o.value)} role="option" aria-selected={o.value === value}
-              className={'dbo-picker__option' + (o.value === value ? ' dbo-picker__option--selected' : '')}
+              className={'dbo-picker__option' + (o.value === value ? ' dbo-picker__option--selected' : '') + (commit && options[hi] === o ? ' dbo-picker__option--hi' : '')}
               onMouseDown={(e) => { e.preventDefault(); pick(o); }}>
               {o.label}
             </li>
