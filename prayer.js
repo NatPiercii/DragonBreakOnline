@@ -773,6 +773,10 @@ module.exports = (api) => {
     return startRound(casterId, roundFor(casterId, d, targetId, shrineNameOf(baseId, d)));
   };
 
+  // A carrier is told before a prayer that would cure the disease (supernatural.js), and prays on the next try
+  const superWarning = (a, d) => {
+    try { return d && typeof globalThis.__dboSuperPrayWarning === 'function' ? String(globalThis.__dboSuperPrayWarning(a, d.id) || '') : ''; } catch (e) { return ''; }
+  };
   globalThis.__dboPrayerActivate = (targetId, casterId) => {
     if (!CFG.enabled || targetId >= 0xff000000) return false;
     const baseId = baseIdOf(targetId);
@@ -788,7 +792,7 @@ module.exports = (api) => {
     if (typeof globalThis.__dboShrinePanel === 'function') {
       try { if (globalThis.__dboShrinePanel(casterId, targetId, { id: d.id, name: d.name, shrineName: shrineNameOf(baseId, d) })) return true; } catch (e) { log('shrine panel failed', e.message); }
     }
-    const why = prayRefusal(casterId, targetId, d);
+    const why = prayRefusal(casterId, targetId, d) || superWarning(casterId, d);
     if (why) return deny(casterId, why);
     return prayAt(casterId, targetId, baseId, d);
   };
@@ -804,6 +808,8 @@ module.exports = (api) => {
     if (why) return why;
     { const live = liveRound(casterId); if (live) { reshow(casterId, live); return ''; } }
     const baseId = baseIdOf(targetId);
+    const warn = superWarning(casterId, shrineAt(targetId, baseId));
+    if (warn) return warn;
     prayAt(casterId, targetId, baseId, shrineAt(targetId, baseId));
     return '';
   };
@@ -1105,7 +1111,7 @@ module.exports = (api) => {
       }
     }
     finish(a, round, true, text, 'win', true, show);
-    try { if (globalThis.__dboSuperPrayed) globalThis.__dboSuperPrayed(a, d.id); } catch (e) { /* no curses */ }
+    try { if (globalThis.__dboSuperPrayed) globalThis.__dboSuperPrayed(a, d.id, { atShrine: round.refId !== ANYWHERE_REF }); } catch (e) { /* no curses */ }
   });
 
   const daysLeft = (faith) => {

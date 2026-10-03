@@ -1,9 +1,9 @@
 // DragonBreak Online: vampirism and lycanthropy. Loaded by gamemode.js on every hot reload.
 //
 // Lore basis (UESP; design page "Vampires and Werewolves"):
-//   Infection  a vampire's hit (10%) carries Sanguinare Vampiris, a werewolf's bite (2%, Nate 2026-09-27) Sanies Lupinus; both incubate
+//   Infection  a vampire's hit (3%) carries Sanguinare Vampiris, a werewolf's bite (0.5%, Nate 2026-10-03) Sanies Lupinus; both incubate
 //              three game days of the carrier's own play (Nate 2026-09-29: time offline does not count) and are cured by a
-//              Cure Disease potion or a prayer at a Divine shrine.
+//              Cure Disease potion, an ingredient whose first effect cures, or a prayer at a Divine shrine.
 //   Turning    when the fever peaks the Blood Fever / Hircine's Hunt trial opens (front widget "rite"); failing kills
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
 //              and failing those can end the character for good (private.permaDead). Surviving Hircine's rite gives Sanies
@@ -19,7 +19,8 @@
 //              silver hurts. The leader of a pack (guild-defs kind "pack") runs with the pale spirit coat. The Great
 //              Hunt (greathunt.js) sets these numbers by rank when it is loaded, and a werewolf in beast form feeds on
 //              any fresh corpse, beast or person.
-//   Cures      a filled black soul gem at a shrine of Arkay or Stendarr (/rite); each curse also ends the other.
+//   Cures      a filled black soul gem (Skyrim 02E504) offered at a shrine of Arkay or Stendarr (/rite) lifts a curse; the fever
+//              is cured by a Cure Disease potion, an ingredient whose first effect cures, or a prayer at a shrine of the Divines.
 // State: private.supernatural on the character; the Blood Crown in supernatural.json (runtime, gitignored).
 'use strict';
 
@@ -51,8 +52,8 @@ module.exports = (api) => {
     clientJudged: true, lateWindowMs: 250, earlyWindowMs: 160, legacyExtraMs: 2500, graceMs: 100, silentMs: 120000, replayCheck: 'log',
     legacyDeadly: 'safe' };
   const C = Object.assign({
-    // Werewolf harder to come by than vampirism (Nate, 2026-09-27: 5% -> 2%)
-    infectVampire: 0.10, infectWerewolf: 0.02, infectFeed: 0.10,
+    // Both rare, lycanthropy rarest (Nate 2026-10-03: a bite 2% -> 0.5%, a vampire's hit 10% -> 3%, a feed 10% -> 5%)
+    infectVampire: 0.03, infectWerewolf: 0.005, infectFeed: 0.05,
     // Game days the fever takes to peak, counted only while the carrier is online and alive (Nate 2026-09-29): at the
     // default time scale a game day is 4 real hours, so 3 days is 12 hours of play
     incubationDays: 3,
@@ -68,8 +69,8 @@ module.exports = (api) => {
     permaDeathChance: 0.33,
     // Nat: a failed rite at Molag Bal's or Hircine's shrine waits a real day before another try
     riteFailCooldownHours: 24,
-    // Nate 2026-09-26: surviving Hircine's Hunt is a chance at Sanies Lupinus, not a promise
-    huntMarkChance: 0.25,
+    // Nate 2026-09-26: surviving Hircine's Hunt is a chance at Sanies Lupinus, not a promise (2026-10-03: 25% -> 10%)
+    huntMarkChance: 0.10,
     // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
     // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
     feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
@@ -156,7 +157,14 @@ module.exports = (api) => {
   const effectsOf = (id) => fieldIds(recordOf(id), 'EFID').map((e) => globalOf(id, e));
   const isFireSource = (id) => effectsOf(id).some((e) => hasKeyword(e, KW.fire));
   const isSilverSource = (id) => hasKeyword(id, KW.silver);
-  const isCurePotion = (id) => effectsOf(id).some((e) => CURE_EFFECTS.has(e));
+  // Eating an ingredient applies only its first effect, as in the base game, so Mudcrab Chitin (Cure Disease second) is no
+  // cure (#bugs, 3 Oct: carriers lost the fever to ingredients and food, logged as a potion); a potion or a meal applies all
+  const cureTakenAs = (id) => {
+    const rec = recordOf(id);
+    const ingredient = !!rec && String(rec.type) === 'INGR';
+    const effects = effectsOf(id);
+    return (ingredient ? effects.slice(0, 1) : effects).some((e) => CURE_EFFECTS.has(e)) ? (ingredient ? 'ingredient' : 'draught') : '';
+  };
 
   // ---- character state --------------------------------------------------------------------------------
   const SP = 'private.supernatural';
@@ -481,11 +489,12 @@ module.exports = (api) => {
     log(`supernatural: ${display(t)} caught ${kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus'}${by ? ` from ${display(by)}` : ''}`);
     return true;
   };
-  const cureDisease = (a, how) => {
+  // `told` says what broke it, so a carrier never loses the fever without knowing why
+  const cureDisease = (a, how, told) => {
     const s = stateOf(a); if (!s || !s.disease) return false;
     const kind = s.disease.kind; s.disease = null; saveState(a, s);
     if (kind === 'vampire') removeSpell(a, SANGUINARE);
-    personal(a, 'The fever breaks.'); log(`supernatural: ${display(a)} cured of the ${kind} disease (${how})`);
+    personal(a, told || 'The fever breaks.'); log(`supernatural: ${display(a)} cured of the ${kind} disease (${how})`);
     return true;
   };
   const endCurse = (a, why) => {
@@ -928,8 +937,11 @@ module.exports = (api) => {
   };
   onUi('shrinePray', (a, args) => {
     const st = panelFor(a, args); if (!st) return;
+    const warnedBefore = prayWarned.get(a >>> 0);
     const why = typeof globalThis.__dboPrayerStart === 'function' ? globalThis.__dboPrayerStart(a, st.targetId) : 'Prayer is closed on this server.';
-    if (why) return showShrinePanel(a, st, why, 'refused');
+    // The fever's warning (__dboSuperPrayWarning just stamped it) is news, not a refusal: the front draws anything but
+    // 'refused' in its ordinary result style
+    if (why) return showShrinePanel(a, st, why, prayWarned.get(a >>> 0) !== warnedBefore ? 'info' : 'refused');
     // The prayer's own panel is open (and focused) by now; closing this one after it keeps the cursor
     closeShrinePanel(a);
   });
@@ -1029,18 +1041,43 @@ module.exports = (api) => {
     }
     if (kind && ts.kind !== kind && Math.random() < chance) infect(tgt, kind, isPlayer(agg) ? agg : 0);
   };
-  globalThis.__dboSuperEat = (a, baseId) => { if (isCurePotion(baseId)) cureDisease(a, 'a Cure Disease potion'); };
-  // A completed prayer to a Divine or an older faith breaks the fever; one to a Daedric Prince does not. The Princes are
-  // read from skills.json (kind "daedra"), as prayer.js reads the faiths: a hand list here had "mehrunesdagon" for the id
-  // "mehrunes", so a prayer to Mehrunes Dagon cured the fever (Worker E, 30 Sep)
-  const DAEDRIC = (() => {
+  globalThis.__dboSuperEat = (a, baseId) => {
+    const as = cureTakenAs(baseId); if (!as) return;
+    const rec = recordOf(baseId);
+    cureDisease(a, `${as} ${rec && rec.editorId ? rec.editorId : (baseId >>> 0).toString(16)}`, as === 'ingredient'
+      ? 'The fever breaks. Something in what you just ate cures disease.'
+      : 'The fever breaks. What you just took cures disease.');
+  };
+  // A completed prayer at a shrine of the Divines breaks the fever (Nate, 3 Oct); a Prince, an older faith or a prayer
+  // said anywhere does not. The Divines are read from skills.json (kind "divine"), as prayer.js reads the faiths: a hand
+  // list here once had "mehrunesdagon" for the id "mehrunes" (Worker E, 30 Sep)
+  const FAITH_NAMES = new Map();
+  const DIVINE = (() => {
     try {
-      const ids = ((JSON.parse(fs.readFileSync(path.resolve('skills.json'), 'utf8')).deities || {}).choices || []).filter((c) => c && c.kind === 'daedra').map((c) => String(c.id));
+      const choices = ((JSON.parse(fs.readFileSync(path.resolve('skills.json'), 'utf8')).deities || {}).choices || []).filter(Boolean);
+      for (const c of choices) if (c.name) FAITH_NAMES.set(String(c.id), String(c.name));
+      const ids = choices.filter((c) => c.kind === 'divine').map((c) => String(c.id));
       if (ids.length) return new Set(ids);
-    } catch (e) { log('supernatural: skills.json unreadable, the Princes come from the fallback list', e.message); }
-    return new Set(['molagbal', 'hircine', 'boethiah', 'namira', 'vaermina', 'sanguine', 'peryite', 'mehrunes', 'mephala', 'clavicusvile', 'hermaeusmora', 'nocturnal', 'sheogorath', 'meridia', 'azura', 'malacath']);
+    } catch (e) { log('supernatural: skills.json unreadable, the Divines come from the fallback list', e.message); }
+    return new Set(['akatosh', 'arkay', 'dibella', 'julianos', 'kynareth', 'mara', 'stendarr', 'talos', 'zenithar', 'auriel']);
   })();
-  globalThis.__dboSuperPrayed = (a, deityId) => { if (!DAEDRIC.has(String(deityId))) cureDisease(a, 'a prayer'); };
+  const diseaseName = (kind) => (kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus');
+  // prayer.js asks before a carrier prays at a Divine's shrine: the first try warns, another within warnSeconds prays
+  const prayWarned = globalThis.__dboSuperPrayWarned || (globalThis.__dboSuperPrayWarned = new Map()); // actorId -> ms
+  globalThis.__dboSuperPrayWarning = (a, deityId) => {
+    const s = stateOf(a);
+    if (!s || !s.disease || !DIVINE.has(String(deityId))) return '';
+    const at = prayWarned.get(a >>> 0) || 0;
+    if (Date.now() - at < 60000) return '';
+    prayWarned.set(a >>> 0, Date.now());
+    return `${FAITH_NAMES.get(String(deityId)) || 'This god'} will cure the ${diseaseName(s.disease.kind)} in your blood if you pray here. Pray again within a minute to go on.`;
+  };
+  globalThis.__dboSuperPrayed = (a, deityId, where) => {
+    if (!DIVINE.has(String(deityId)) || (where && where.atShrine === false)) return;
+    prayWarned.delete(a >>> 0);
+    const god = FAITH_NAMES.get(String(deityId)) || 'The god';
+    cureDisease(a, `a prayer to ${god}`, `${god} hears your prayer, and the fever breaks.`);
+  };
   const deathAt = globalThis.__dboSuperDeaths || (globalThis.__dboSuperDeaths = new Map()); // actorId -> ms
   const killedBy = globalThis.__dboSuperKilledBy || (globalThis.__dboSuperKilledBy = new Map()); // actorId -> killer
   globalThis.__dboSuperDeath = (victim, killer) => {
@@ -1321,6 +1358,20 @@ module.exports = (api) => {
     try { if (mp.get(t, 'isDead')) return false; } catch (e) { return false; }
     return !beastForm(t) && kindOf(t) !== 'vampire' && !rites.has(t);
   };
+  // A GM gives the disease, never the form: the carrier then runs the fever like anyone bitten. Lead GM and above: /curse
+  // is LEAD_ONLY in gamemode.js, and the admin panel's giveDisease refuses a GM (adminSystem.ts). Returns the line for the GM
+  const giveDisease = (t, kind, gm) => {
+    const s = stateOf(t); if (!s) return 'No such character.';
+    const disease = kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus';
+    if (s.kind === kind) return `${display(t)} is already a ${kind}.`;
+    // infect(chosen) would let the other side's fever in, and winning its rite ends this curse with no black soul gem
+    if (s.kind) return `${display(t)} is a ${s.kind}. Lift that curse first.`;
+    if (s.disease) return `${display(t)} already carries ${s.disease.kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus'}. Cure it first.`;
+    if (!infect(t, kind, 0, true)) return `${disease} did not take on ${display(t)}.`;
+    audit(`SUPERNATURAL ${who(t)} given ${disease} by GM ${gm}`);
+    return `${display(t)} now carries ${disease}. The fever peaks after ${C.incubationDays} game days of their play.`;
+  };
+  globalThis.__dboSuperAdminInfect = (t, kind, gm) => (kind === 'vampire' || kind === 'werewolf' ? giveDisease(t >>> 0, kind, String(gm || 'unknown')) : `There is no ${kind} disease.`);
   globalThis.__dboSuperMenuEntries = (a, t) => {
     if (kindOf(a) !== 'vampire' || beastForm(a) || (!boundCaptive(t) && !askable(a, t))) return [];
     const out = [{ id: 'super:feed', label: 'Feed' }];
@@ -1401,8 +1452,12 @@ module.exports = (api) => {
     if (isAdmin(a) || forced) return null;
     const s = stateOf(a);
     if (key === 'vampirelord') return crownHolder() === (a >>> 0) || mp.get(a, 'private.vampireLordGrant') === true ? null : 'Only the holder of the Blood Crown can take the form of a Vampire Lord.';
+    // Only a werewolf takes the beast, or a GM's explicit grant: a carrier of Sanies Lupinus waits for the fever (#bugs, 3 Oct)
+    if (key === 'werewolf' && (!s || s.kind !== 'werewolf') && mp.get(a, 'private.werewolfGrant') !== true) {
+      return s && s.disease && s.disease.kind === 'werewolf' ? 'The beast is not yours yet. Wait for the fever to peak.' : 'You are no werewolf.';
+    }
     // Once per in-game day, which is the design and not a real day: the world clock owns the calendar
-    if (key === 'werewolf' && s.kind === 'werewolf' && !spared(a, s)) {
+    if (key === 'werewolf' && s && s.kind === 'werewolf' && !spared(a, s)) {
       const clock = globalThis.__dboClock;
       const now = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : null;
       if (now !== null) {
@@ -1762,8 +1817,7 @@ module.exports = (api) => {
     if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}${s.unfed ? `, not yet fed (${(playedOf(s.unfed) * 24).toFixed(1)} of ${C.firstMealHours} game hours played${Number(s.unfed.wither) > 0 ? `, withering ${pct(Number(s.unfed.wither))}%` : ''})` : ''}${s.sated && Number(s.sated.until) > gameDays() ? ', deep-fed' : ''}${s.blood ? ', blood on the face' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease: ${playedOf(s.disease).toFixed(1)} of ${C.incubationDays} game days played (${(gameDays() - s.disease.since).toFixed(1)} since infection)` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
     if (w === 'vampire' || w === 'purevampire') becomeVampire(t, w === 'purevampire');
     else if (w === 'werewolf' || w === 'blessedwerewolf') becomeWerewolf(t, w === 'blessedwerewolf');
-    else if (w === 'infectvampire') infect(t, 'vampire', 0, true);
-    else if (w === 'infectwerewolf') infect(t, 'werewolf', 0, true);
+    else if (w === 'infectvampire' || w === 'infectwerewolf') return personal(a, giveDisease(t, w === 'infectvampire' ? 'vampire' : 'werewolf', nameOf(a)));
     else if (w === 'fever') { const s = stateOf(t); if (!s.disease) return personal(a, 'They carry no disease.'); s.disease.played = C.incubationDays; saveState(t, s); }
     else if (w === 'cure') { cureDisease(t, `GM ${nameOf(a)}`); endCurse(t, `cured by GM ${nameOf(a)}`); }
     else if (w === 'crown') { if (kindOf(t) !== 'vampire') becomeVampire(t, true); takeCrown(t, `given it by GM ${nameOf(a)}`); }

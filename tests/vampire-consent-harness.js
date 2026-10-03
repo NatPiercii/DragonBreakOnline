@@ -85,7 +85,7 @@ store.set(`${V}|private.bloodRanks`, { blood: 0, fedOn: {} });
 // ---- asking, and a willing feed ----------------------------------------------------------------------------------
 globalThis.__dboSuperMenuAction(V, 'super:feed', T, nameFor);
 const w = widgets.find(([a, x]) => a === T && x.type === 'feedPrompt');
-ok(!!w && w[1].id === 51 && w[1].vampire === 'Stranger' && w[1].deep === false && w[1].infectPercent === 10 && w[1].seconds === 20,
+ok(!!w && w[1].id === 51 && w[1].vampire === 'Stranger' && w[1].deep === false && w[1].infectPercent === 5 && w[1].seconds === 20,
   'the person is asked in the feedPrompt panel, naming the vampire as they know them', w && w[1]);
 ok(heard(V, /You ask P8 for their blood\. They have 20 seconds/), 'the vampire is told they asked');
 fire('feedAnswer', T, ['wrong-nonce', 'submit']);

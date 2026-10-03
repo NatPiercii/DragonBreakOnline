@@ -5702,7 +5702,7 @@ try {
   // Feeding counts as a meal for the hunger meter
   const needsFeed = (a) => { if (!NEEDS.enabled) return; const n = needsOf(a); n.hunger = Math.max(0, n.hunger - (Number((NEEDS.restore || {}).meal) || 0)); saveNeeds(a, n); applyNeedsStage(a, n, false); };
   require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg, hasUiCap });
-} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave', '__dboSuperProgress', '__dboSuperProgressSend', '__dboSuperRateMult', '__dboSuperFoodMult']) globalThis[k] = null; }
+} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperPrayWarning', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboSuperAdminInfect', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave', '__dboSuperProgress', '__dboSuperProgressSend', '__dboSuperRateMult', '__dboSuperFoodMult']) globalThis[k] = null; }
 
 // ---- friendly fire and the down state (server\downed.js): after supernatural.js, whose hooks it wraps -------
 try {

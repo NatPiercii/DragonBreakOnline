@@ -1,7 +1,7 @@
-// A completed prayer breaks the fever before vampirism or lycanthropy, unless it was to a Daedric Prince (Worker E,
-// 30 Sep: the hand list had "mehrunesdagon" for the id "mehrunes", so a prayer to Mehrunes Dagon cured it). The Princes
-// now come from skills.json (kind "daedra"). Every faith of skills.json is prayed to once with a fever running: the 16
-// Princes leave it, every Divine and older faith breaks it. Loads the real supernatural.js in a scratch folder.
+// A completed prayer at a shrine of the Divines breaks the fever before vampirism or lycanthropy (Nate, 3 Oct); a
+// Prince or an older faith does not (Worker E, 30 Sep: a hand list had "mehrunesdagon" for the id "mehrunes", so a
+// prayer to Mehrunes Dagon cured it). The Divines come from skills.json (kind "divine"). Every faith of skills.json is
+// prayed to once with a fever running. Loads the real supernatural.js in a scratch folder.
 //   node tests/super-fever-prayer-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -46,16 +46,16 @@ for (const f of FAITHS) {
     fevered(kind);
     globalThis.__dboSuperPrayed(P, f.id);
     const cured = !hasFever();
-    if (cured === (f.kind === 'daedra')) wrong.push(`${f.id} (${f.kind}) ${kind}: ${cured ? 'cured' : 'not cured'}`);
+    if (cured !== (f.kind === 'divine')) wrong.push(`${f.id} (${f.kind}) ${kind}: ${cured ? 'cured' : 'not cured'}`);
   }
 }
-ok(wrong.length === 0, 'a prayer to a Prince leaves the fever, one to a Divine or an older faith breaks it, for both fevers', wrong);
+ok(wrong.length === 0, 'a prayer to a Divine breaks the fever, one to a Prince or an older faith leaves it, for both fevers', wrong);
 fevered('vampire'); globalThis.__dboSuperPrayed(P, 'mehrunes');
 ok(hasFever(), 'Mehrunes Dagon (id "mehrunes") does not cure the fever');
 fevered('werewolf'); globalThis.__dboSuperPrayed(P, 'arkay');
-ok(!hasFever() && said.includes('The fever breaks.'), 'Arkay does, and the player is told');
+ok(!hasFever() && said.some((t) => /^Arkay hears your prayer, and the fever breaks/.test(t)), 'Arkay does, and the player is told who broke it');
 fevered('vampire'); globalThis.__dboSuperPrayed(P, 'nosuchgod');
-ok(!hasFever(), 'an id no faith has is not treated as a Prince');
+ok(hasFever(), 'an id no faith has does not cure (only a known Divine does)');
 
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);
