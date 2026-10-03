@@ -234,17 +234,56 @@ function diagLogCandidates(gameDirs, mo2Root) {
 }
 
 // The newest copy is this session's: a copy beside the game outlives a switch to MO2, and the other way round
-function diagLog(gameDirs, mo2Root, now) {
+function diagFiles(gameDirs, mo2Root) {
   const found = []
   for (const file of diagLogCandidates(gameDirs, mo2Root)) {
     try { found.push({ file, mtime: fs.statSync(file).mtimeMs }) } catch { /* not there */ }
   }
+  return found.sort((a, b) => b.mtime - a.mtime)
+}
+
+function diagLog(gameDirs, mo2Root, now) {
+  const found = diagFiles(gameDirs, mo2Root)
   if (!found.length) return null
-  found.sort((a, b) => b.mtime - a.mtime)
   const text = tail(found[0].file, DIAG_LOG_BYTES)
   if (!text) return null
   const minutes = Math.max(0, Math.round((now - found[0].mtime) / 60000))
   return `== client diagnostics (${found[0].file}, written ${minutes} min before this report${found.length > 1 ? `, newest of ${found.length}` : ''}) ==\n`
+    + text.replace(/\s+$/, '')
+}
+
+// The client's diag log starts afresh at every launch, so the trail of a crashed session (the NPC calls the client
+// made just before it) is gone once the player plays again. crashWatch keeps a copy of it at the crash; a report sent
+// after a relaunch carries that copy as well.
+const CRASH_DIAG_DIR = 'crash-diag'
+const CRASH_DIAG_KEEP = 5
+const CRASH_DIAG_MAX_AGE_MS = 24 * 3600 * 1000
+const CRASH_DIAG_BYTES = 24 * 1024
+
+function saveCrashDiag({ userDataDir, gameDirs = [], mo2Root = null, endedAt = Date.now() }) {
+  const found = diagFiles(gameDirs, mo2Root)
+  if (!found.length) return null
+  const dir = path.join(userDataDir, CRASH_DIAG_DIR)
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    const file = path.join(dir, `dbo-diag-${Math.round(endedAt)}.txt`)
+    fs.copyFileSync(found[0].file, file)
+    const kept = fs.readdirSync(dir).filter(n => /^dbo-diag-\d+\.txt$/.test(n)).sort((a, b) => Number(b.slice(9, -4)) - Number(a.slice(9, -4)))
+    for (const old of kept.slice(CRASH_DIAG_KEEP)) { try { fs.unlinkSync(path.join(dir, old)) } catch { /* in use */ } }
+    return file
+  } catch { return null }
+}
+
+// The newest saved copy of the last day, when the live log has been written since the crash (a relaunch); else null
+function crashDiagLog(userDataDir, liveMtime, now) {
+  const dir = path.join(userDataDir || '', CRASH_DIAG_DIR)
+  let names = []
+  try { names = fs.readdirSync(dir).filter(n => /^dbo-diag-\d+\.txt$/.test(n)) } catch { return null }
+  const at = names.map(n => Number(n.slice(9, -4))).filter(t => now - t <= CRASH_DIAG_MAX_AGE_MS).sort((a, b) => b - a)[0]
+  if (!at || !(liveMtime > at)) return null
+  const text = tail(path.join(dir, `dbo-diag-${at}.txt`), CRASH_DIAG_BYTES)
+  if (!text) return null
+  return `== client diagnostics of the crashed session (saved at the crash, ${Math.max(0, Math.round((now - at) / 60000))} min before this report) ==\n`
     + text.replace(/\s+$/, '')
 }
 
@@ -287,6 +326,9 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
 
   const diag = diagLog([...gameDirs, installDir], mo2Root, now)
   if (diag) files.clientLog = redact(diag)
+  const live = diagFiles([...gameDirs, installDir], mo2Root)[0]
+  const saved = crashDiagLog(userDataDir, live ? live.mtime : Infinity, now)
+  if (saved) files.clientLog = (files.clientLog ? files.clientLog + '\n\n' : '') + redact(saved)
 
   if (installDir) {
     // A directory listing is often the whole answer: a foreign modlist or a missing Data folder shows up here
@@ -311,4 +353,4 @@ function collect({ userDataDir, installDir, documentsDir, myGamesVariants = ['Sk
   }
 }
 
-module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds, condenseCrashLog, newestCrashLog, cpuSummary }
+module.exports = { collect, redact, tail, ends, dropUiLines, gameLogEnds, condenseCrashLog, newestCrashLog, cpuSummary, saveCrashDiag }

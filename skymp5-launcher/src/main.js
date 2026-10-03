@@ -2118,8 +2118,14 @@ function watchGameExit() {
     send: note => postJSON(`${config.apiUrl}/api/files/session-end`,
       { ...note, launcherVersion: app.getVersion(), filesVersion: store.get('filesVersion') || '' },
       { 'x-session': store.get('gameSession') || session }),
-  }).then(note => offerCrashReport(note))
-    .catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
+  }).then(note => {
+    // Before anything relaunches the game and starts its diag log afresh
+    if (note && note.outcome === 'crash') {
+      const saved = report.saveCrashDiag({ userDataDir: app.getPath('userData'), gameDirs: [effectiveGamePath(), store.get('skyrimPath') || ''], mo2Root: mo2.getRoot(), endedAt: note.endedAt })
+      if (saved) log(`[crashWatch] client diagnostics kept: ${path.basename(saved)}`)
+    }
+    return offerCrashReport(note)
+  }).catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
 }
 
 // After a crash, offer the report there and then. crashWatch has already found the crash log and the player should
