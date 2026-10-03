@@ -64,9 +64,13 @@ const KEYWORD_DISALLOW_ENCHANTING = 0x000c27bd;
 const KEYWORD_REUSABLE_SOUL_GEM = 0x000ed2f1;
 // ENCH ENIT enchant type; weapon enchantments are fire and forget on contact, armor ones constant on self
 const ENCH_TYPE_ENCHANTMENT = 6;
-// Caps come only from the base game's EnchWeapon, EnchArmor and EnchRobes enchantments; a mod's never raises one
+// A base game effect's cap comes only from the base game's EnchWeapon, EnchArmor and EnchRobes enchantments; a mod's never
+// raises one. An effect from a mod takes its cap from its own plugin's families (Beyond Skyrim: BSKEnchArmorWaterWalking)
 const BASE_GAME_FILES = new Set(["skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"]);
 const PLAYER_ENCHANTMENT = /^Ench(Weapon|Armor|Robes)/;
+const MOD_PLAYER_ENCHANTMENT = /^[A-Z]{0,4}Ench(Weapon|Armor|Robes)/;
+// The plugin a form id belongs to: the top byte, or for a light plugin (0xFE) its 12-bit slot too
+const pluginOf = (id: number): number => ((id >>> 24) === 0xfe ? id >>> 12 : id >>> 24);
 // Effects on the Alchemy and Enchanting skills and their modifiers (the MGEF's actor value) are never accepted on an item
 const REFUSED_EFFECT_AVS = new Set([16, 23, 106, 113, 145]);
 // ALCH ENIT flag
@@ -627,14 +631,17 @@ export class CraftedExtrasSystem implements System {
     }
   }
 
-  // Strongest effect of each kind in the base game's player enchantments, keyed "w" or "a" plus the MGEF id
+  // Strongest effect of each kind in the player enchantments, keyed "w" or "a" plus the MGEF id: the base game's for its
+  // own effects, and a mod's only for effects from that same mod
   private enchantmentCaps(ctx: SystemContext): Map<string, Cap> {
     if (this.caps) return this.caps;
     const caps = new Map<string, Cap>();
-    for (const id of this.recordIds(ctx, "ENCH")) {
-      if ((id >>> 24) >= this.baseFiles) continue;
+    let fromMods = 0;
+    // With no base game at the head of the load order no plugin can be told apart from it, so nothing sets a cap
+    for (const id of this.baseFiles ? this.recordIds(ctx, "ENCH") : []) {
+      const base = (id >>> 24) < this.baseFiles;
       const res = this.lookup(ctx, id);
-      if (!res || !PLAYER_ENCHANTMENT.test(String(res.record.editorId || ""))) continue;
+      if (!res || !(base ? PLAYER_ENCHANTMENT : MOD_PLAYER_ENCHANTMENT).test(String(res.record.editorId || ""))) continue;
       const enit = this.fieldData(res, "ENIT");
       if (!enit || enit.byteLength < 24) continue;
       const view = viewOf(enit);
@@ -649,9 +656,11 @@ export class CraftedExtrasSystem implements System {
         if (f.type === "EFID" && f.data.byteLength >= 4) {
           try { effect = res.toGlobalRecordId(viewOf(f.data).getUint32(0, true)) >>> 0; } catch { effect = 0; }
           if (effect && REFUSED_EFFECT_AVS.has(this.primaryAvOf(ctx, effect))) effect = 0;
+          if (effect && !base && pluginOf(effect) !== pluginOf(id)) effect = 0;
         } else if (f.type === "EFIT" && effect && f.data.byteLength >= 12) {
           const v = viewOf(f.data);
           const key = kind + effect;
+          if (!base && !caps.has(key)) fromMods++;
           const cap = caps.get(key) || { magnitude: 0, area: 0, duration: 0 };
           caps.set(key, {
             magnitude: Math.max(cap.magnitude, v.getFloat32(0, true)),
@@ -662,7 +671,7 @@ export class CraftedExtrasSystem implements System {
       }
     }
     this.caps = caps;
-    this.log(`[crafted] ${caps.size} enchantment effects known from ${this.baseFiles} base game files`);
+    this.log(`[crafted] ${caps.size} enchantment effects known from ${this.baseFiles} base game files, ${fromMods} of them from their own mod's families`);
     return caps;
   }
 

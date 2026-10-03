@@ -1,7 +1,8 @@
 // Scripted test for the enchantment caps in craftedExtrasSystem.ts (2026-09-30): an accepted player enchantment is
 // clamped to the enchanter's share of the strongest base game player enchantment of that effect (Skyrim.esm, Update and
-// the DLC, the EnchWeapon, EnchArmor and EnchRobes families), never a mod's, and effects on the Alchemy and Enchanting
-// skills are refused. It bundles craftedExtrasSystem.ts with esbuild (settings stubbed) and sends enchanting reports on
+// the DLC, the EnchWeapon, EnchArmor and EnchRobes families), never a mod's; an effect from a mod is capped by its own
+// plugin's families (Beyond Skyrim's BSKEnchArmorWaterWalking), and effects on the Alchemy and Enchanting skills are
+// refused. It bundles craftedExtrasSystem.ts with esbuild (settings stubbed) and sends enchanting reports on
 // a fake mp whose records are made up here (numbers modelled on the base game's). Run it from skymp5-server with
 // node_modules present:
 //
@@ -41,6 +42,12 @@ rec(FORTIFY_ALCHEMY_POTION, 'MGEF', 'AlchFortifyAlchemy', [{ type: 'DATA', data:
 rec(TRAP_FIRE, 'MGEF', 'TrapRuneFireFFLocation06', [{ type: 'DATA', data: mgefData(24) }]);
 rec(HORSE_HEALTH, 'MGEF', 'CCHorseArmorEnchFortifyHealthConstantSelf', [{ type: 'DATA', data: mgefData(24) }]);
 rec(MOD_EFFECT, 'MGEF', 'ModOnlyEffect', [{ type: 'DATA', data: mgefData(24) }]);
+// A light plugin (0xFE, slot 0x602) like BSAssets: water walking with its own armor family; one effect has no family, one
+// is carried only by another plugin's family
+const BS_WATER_WALKING = 0xfe602514, BS_NO_FAMILY = 0xfe602520, BS_ELSEWHERE = 0xfe602530;
+rec(BS_WATER_WALKING, 'MGEF', 'BSKEnchWaterWalkingConstantSelf', [{ type: 'DATA', data: mgefData(0) }]);
+rec(BS_NO_FAMILY, 'MGEF', 'BSKSomeSpellEffect', [{ type: 'DATA', data: mgefData(24) }]);
+rec(BS_ELSEWHERE, 'MGEF', 'BSKOtherEffect', [{ type: 'DATA', data: mgefData(24) }]);
 // The base game's player families (Skyrim.esm 0x00, Dawnguard 0x02)
 ench(0x0004950a, 'EnchArmorFortifyHealth01', false, [[FORTIFY_HEALTH, 20]]);
 ench(0x0004950f, 'EnchArmorFortifyHealth06', false, [[FORTIFY_HEALTH, 70]]);
@@ -54,6 +61,10 @@ ench(0x01005001, 'CCHorseArmorEnchFortifyHealth', false, [[HORSE_HEALTH, 1000], 
 // Mods (top byte past the base game): a test ring, a mod family, a mod-only effect
 ench(0x2a000801, 'EnchArmorFortifyHealth07', false, [[FORTIFY_HEALTH, 5000]]);
 ench(0x31000801, 'EnchWeaponModFire', true, [[FIRE_DAMAGE, 500], [MOD_EFFECT, 90]]);
+ench(0xfe602515, 'BSKEnchArmorWaterWalking', false, [[BS_WATER_WALKING, 1, 0, 0]]);
+ench(0xfe602516, 'BSKEnchArmorWaterWalking02', false, [[BS_WATER_WALKING, 1, 0, 0], [FORTIFY_HEALTH, 900]]);
+ench(0xfe602517, 'BSKWaterWalkingTrap', false, [[BS_NO_FAMILY, 500]]);
+ench(0xfe603001, 'BSKEnchArmorOther', false, [[BS_ELSEWHERE, 500]]);
 
 const RING = 0x0001cb34, SWORD = 0x00012eb7, GEM = 0x0002e4ff, BENCH = 0x000bad0c, BENCH_BASE = 0x000bad0d;
 rec(RING, 'ARMO', 'JewelryRingGold', []);
@@ -139,12 +150,23 @@ const LOAD_ORDER = ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm', 'HearthFires.es
   check('...and so is any effect on the Alchemy skill (the potion effect\'s actor value)', !r.made && r.refused);
   r = enchant(sys, RING, [[FORTIFY_HEALTH, 50], [FORTIFY_ALCHEMY, 10]]);
   check('a second effect of Fortify Alchemy refuses the whole enchantment', !r.made && r.refused);
-  r = enchant(sys, SWORD, [[MOD_EFFECT, 50]]);
-  check('an effect only a mod\'s enchantment carries is refused', !r.made && r.refused);
+  r = enchant(sys, SWORD, [[MOD_EFFECT, 1e6]]);
+  check('an effect from a mod is capped by its own plugin\'s family (90 x 2)', mag(r, MOD_EFFECT) === 180 && !r.refused, mag(r, MOD_EFFECT));
+  r = enchant(sys, RING, [[BS_WATER_WALKING, 1]]);
+  check('a Beyond Skyrim Water Walking ring is accepted as made', mag(r, BS_WATER_WALKING) === 1 && !r.refused, r.made);
+  r = enchant(sys, RING, [[BS_WATER_WALKING, 1e6], [FORTIFY_HEALTH, 1e6]]);
+  check('...capped at its family\'s 1 x 2, and the mod family\'s Fortify Health 900 does not raise the base cap of 140',
+    mag(r, BS_WATER_WALKING) === 2 && mag(r, FORTIFY_HEALTH) === 140, r.made);
+  r = enchant(sys, SWORD, [[BS_WATER_WALKING, 1]]);
+  check('an armor-only mod effect on a weapon is refused', !r.made && r.refused);
+  r = enchant(sys, RING, [[BS_NO_FAMILY, 10]]);
+  check('a mod effect with no player family (only a trap carries it) is refused', !r.made && r.refused);
+  r = enchant(sys, RING, [[BS_ELSEWHERE, 10]]);
+  check('a mod effect carried only by another plugin\'s family is refused', !r.made && r.refused);
   r = enchant(sys, RING, [[HORSE_HEALTH, 900]]);
   check('a base game effect outside the player families (Creation Club horse armor) is refused', !r.made && r.refused);
-  check('each refused effect is logged once', logs.filter((l) => /refused an enchantment with weapon effect 31000800/.test(l)).length === 1, logs.filter((l) => /refused/.test(l)));
-  check('the caps log names the base game files', logs.some((l) => /enchantment effects known from 5 base game files/.test(l)), logs.filter((l) => /known/.test(l)));
+  check('each refused effect is logged once', logs.filter((l) => /refused an enchantment with armor effect fe602520/.test(l)).length === 1, logs.filter((l) => /refused/.test(l)));
+  check('the caps log names the base game files', logs.some((l) => /enchantment effects known from 5 base game files, 2 of them from their own mod's families/.test(l)), logs.filter((l) => /known/.test(l)));
 
   // ---- the loop: every cycle the client's magnitude grows, the stored one plateaus at the cap ----
   for (const [rank, share] of [[0, 0.5], [2, 1], [4, 2]]) {
