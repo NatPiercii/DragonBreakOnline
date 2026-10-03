@@ -2831,6 +2831,9 @@ void ActionListener::RecordScrollRead(uint32_t casterId, uint32_t scrollId)
   const auto now = std::chrono::steady_clock::now();
   read.until = now + kScrollHitWindow;
   reads.push_back(std::move(read));
+  // At the cap: the stale entries go first; if that frees nothing, one arbitrary entry goes, since the container is
+  // unordered and begin() is bucket order, not the oldest (review, Worker D). Only ever with kScrollLastReadMax live
+  // caster+scroll pairs inside kScrollLastReadKept, so the fallback is as good as never reached.
   if (scrollLastRead.size() >= kScrollLastReadMax) {
     std::erase_if(scrollLastRead, [&](const auto& entry) {
       return now - entry.second > kScrollLastReadKept;
