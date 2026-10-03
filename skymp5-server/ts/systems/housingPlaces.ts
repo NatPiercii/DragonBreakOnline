@@ -76,7 +76,8 @@ export const planPlaces = (claims: PlaceClaim[], isWorld: (cell: string) => bool
   const overCap: PlacePlan["overCap"] = [];
   for (const [owner] of byOwner) {
     const mine = places.filter((p) => p.owner === owner);
-    if (mine.length > cap) overCap.push({ owner, ownerName: mine[0].ownerName, places: mine.map((p) => p.root) });
+    // A record's ownerName can be stale (a renamed character), so every name the owner's places carry is given
+    if (mine.length > cap) overCap.push({ owner, ownerName: [...new Set(mine.map((p) => p.ownerName).filter(Boolean))].join(" / "), places: mine.map((p) => p.root) });
   }
   return { places, overCap };
 };
