@@ -72,6 +72,7 @@ declare -A NEEDS=(
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
   [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
   [mastery-boost]=server:skymp5-server/ts/systems/masterySystem.ts
+  [skill-waning]=server:skymp5-server/ts/systems/masterySystem.ts
   [summon-race]=server:skymp5-server/ts/systems/espmMagic.ts
   [spawn-refill]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-slots]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
