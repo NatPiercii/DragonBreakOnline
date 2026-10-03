@@ -195,7 +195,8 @@ module.exports = (api) => {
     return {
       id: fid, name: f.name, kind: f.kind, secret: !!f.secret, prince: f.prince || '',
       myRank: e ? e.rank : -1, myTitle: e ? (f.ranks[e.rank] || {}).title : '',
-      canInvite: admin || can(fid, a, 'invite'), canKick: admin || can(fid, a, 'kick'), canSetRank: admin || can(fid, a, 'setRank'),
+      // The staff override is a Lead GM's, as the handlers check (a GM observes)
+      canInvite: isLeadStaff(a) || can(fid, a, 'invite'), canKick: isLeadStaff(a) || can(fid, a, 'kick'), canSetRank: isLeadStaff(a) || can(fid, a, 'setRank'),
       ranks: f.ranks.map((r) => ({ title: r.title, role: r.role })), members,
       // The journal's Faction tab: holds and strongholds are shown on the Court tab instead (Nate, 3 Oct, Q3); a leader
       // renames the titles, a Lead GM also adds, moves and removes ranks and adds members
@@ -344,10 +345,12 @@ module.exports = (api) => {
     audit(`FACTION ${who(a)} removed ${name} from ${f.name}`);
     return { text: `${name} is no longer in ${f.name}.` };
   };
-  const setRankOf = (a, fid, t, rank) => {
+  // court: a household's head follows the court's office (court.js), so its rank can be neither given nor taken here
+  const setRankOf = (a, fid, t, rank, court) => {
     const f = FACTIONS.get(fid);
     if (!f || !entryOf(fid, t) || !(rank >= 0 && rank < f.ranks.length)) return { error: 'That rank change is not possible.' };
     const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
+    if (court && (rank === leaderRank || entryOf(fid, t).rank === leaderRank)) return { error: `The ${f.ranks[leaderRank].title} of ${f.name} follows the court's office: appoint or dismiss the office instead.` };
     if (!isLeadStaff(a)) {
       if (!can(fid, a, 'setRank')) return { error: 'Only the leader sets ranks.' };
       if (t === (a >>> 0)) return { error: 'Pass leadership by naming someone else leader.' };
@@ -372,7 +375,7 @@ module.exports = (api) => {
     reply(a, r.error || r.text, fid, !!r.error);
   });
   globalThis.__dboGuildKick = (a, fid, t) => kickMember(a >>> 0, String(fid), Number(t) >>> 0);
-  globalThis.__dboGuildSetRank = (a, fid, t, rank) => setRankOf(a >>> 0, String(fid), Number(t) >>> 0, Math.floor(Number(rank)));
+  globalThis.__dboGuildSetRank = (a, fid, t, rank, court) => setRankOf(a >>> 0, String(fid), Number(t) >>> 0, Math.floor(Number(rank)), !!court);
   globalThis.__dboGuildInvite = (a, t, fid) => { const text = invite(a >>> 0, Number(t) >>> 0, String(fid)); return /^You invited/.test(text) ? { text } : { error: text }; };
   onUi('factionLeave', (a, args) => {
     if (!fresh(a, args)) return;
@@ -420,12 +423,23 @@ module.exports = (api) => {
     if (!lead && (next.length !== f.ranks.length || next.some((r, i) => r.from !== i || r.role !== f.ranks[i].role))) return { error: 'You may rename your ranks. A Lead GM adds, moves or removes them.' };
     const bad = ranksProblem(next);
     if (bad) return { error: bad };
+    // A hold's or stronghold's ranks that court offices set (court.js, by title) keep their title and stay
+    if (f.kind === 'hold' || f.kind === 'stronghold') {
+      const tied = typeof globalThis.__dboCourtTiedTitles === 'function' ? globalThis.__dboCourtTiedTitles() : [];
+      for (let i = 0; i < f.ranks.length; i++) {
+        if (!tied.includes(f.ranks[i].title.toLowerCase())) continue;
+        const kept = next.find((r) => r.from === i);
+        if (!kept || kept.title.toLowerCase() !== f.ranks[i].title.toLowerCase()) return { error: `${f.ranks[i].title} is set by a court office, so it keeps its title and cannot be removed.` };
+      }
+    }
     const roster = rosterOf(fid);
     const held = (i) => Object.values(roster).filter((e) => e.rank === i).length;
     for (let i = 0; i < f.ranks.length; i++) if (!froms.includes(i) && held(i)) return { error: `${f.ranks[i].title} cannot go: ${held(i)} ${held(i) === 1 ? 'member holds' : 'members hold'} it.` };
     const map = new Map(next.map((r, i) => [r.from, i]).filter(([from]) => from >= 0));
+    // A member stored at a rank the list no longer has (a stale index) lands on the new lowest rank
+    const newIndex = (old) => (map.has(old) ? map.get(old) : next.length - 1);
     for (const [role, cap] of Object.entries(CAPS)) {
-      const n = Object.values(roster).filter((e) => (next[map.get(e.rank)] || {}).role === role).length;
+      const n = Object.values(roster).filter((e) => (next[newIndex(e.rank)] || {}).role === role).length;
       if (Number(cap) && n > Number(cap)) return { error: `${f.name} may have only ${cap} with the ${role} role, and ${n} would hold it.` };
     }
     const prose = typeof globalThis.__dboProseProblem === 'function' ? globalThis.__dboProseProblem : null;
@@ -438,11 +452,11 @@ module.exports = (api) => {
     OVR[fid] = { ranks, by: who(a), at: Date.now() };
     try { saveOverrides(); } catch (e) { if (prev) OVR[fid] = prev; else delete OVR[fid]; log('guild-overrides.json write failed', e.message); return { error: 'The ranks could not be saved. Try again later.' }; }
     f.ranks = ranks;
-    for (const e of Object.values(roster)) e.rank = map.get(e.rank);
+    for (const e of Object.values(roster)) e.rank = newIndex(e.rank);
     save();
     for (const id of Object.keys(roster).map(Number)) if (isOnline(id)) mirror(id);
-    // economy.js keeps a non-hold faction's wages by rank title
-    if (typeof globalThis.__dboEconomyRankRenamed === 'function') for (const [from, to] of renamed) { try { globalThis.__dboEconomyRankRenamed(fid, from, to); } catch (e) { log('guilds: wage rename failed', e.message); } }
+    // economy.js keeps a non-hold faction's wages by rank title: every rename at once, so a swap or a chain keeps each wage
+    if (renamed.length && typeof globalThis.__dboEconomyRanksRenamed === 'function') { try { globalThis.__dboEconomyRanksRenamed(fid, renamed); } catch (e) { log('guilds: wage rename failed', e.message); } }
     audit(`FACTION ${lead ? 'GM ' : ''}${who(a)} set the ranks of ${f.name}: ${old.map((r) => r.title).join(', ')} -> ${ranks.map((r) => `${r.title} (${r.role})`).join(', ')}`);
     return { text: `The ranks of ${f.name} are saved.` };
   };
