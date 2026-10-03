@@ -2232,10 +2232,12 @@ void MpObjectReference::CheckInteractionAbility(MpObjectReference& refr)
     const char* targetWorldName =
       targetWorld ? targetWorld->GetEditorId(compressedFieldsCache) : "<null>";
 
+    // Both form ids, so a container or door with a wrong cell can be found from the log alone
     throw std::runtime_error(fmt::format(
       "WorldSpace doesn't match: caster is in {} ({:#x}), target is in "
-      "{} ({:#x})",
-      casterWorldName, casterWorldId, targetWorldName, targetWorldId));
+      "{} ({:#x}); caster {:x}, target {:x}",
+      casterWorldName, casterWorldId, targetWorldName, targetWorldId,
+      refr.GetFormId(), GetFormId()));
   }
 }
 
