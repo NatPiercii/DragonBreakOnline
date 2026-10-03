@@ -172,6 +172,20 @@
     ]
   },
   {
+    "title": "Conjure Familiar returns",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Conjure Familiar can be cast again. Some other summoning spells stay switched off for now."
+        ]
+      }
+    ]
+  },
+  {
     "title": "See your fever grow",
     "date": "SHIP_DATE",
     "version": "Server update",
@@ -223,6 +237,20 @@
         "heading": "Magic",
         "items": [
           "Staves work: a staff's spell now hits, for players and for NPCs such as goblin shamans."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Scrolls work",
+    "date": "SHIP_DATE",
+    "version": "Server + client 0.3.75",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Casting a scroll now uses it up and the spell takes effect, even when it is your last one. Until now a single scroll could show the cast, do nothing and stay in your pack."
         ]
       }
     ]
@@ -329,6 +357,39 @@
         "items": [
           "Enchanting with Beyond Skyrim effects such as Water Walking works again.",
           "The Enchanter skill now says what it really covers: weapons, armour and jewellery."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Followers, emotes and fewer crashes",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.75",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Raised and summoned creatures",
+        "items": [
+          "A raised or summoned creature that keeps getting stuck is now walked along your path, so it follows you instead of standing still."
+        ]
+      },
+      {
+        "heading": "Emotes",
+        "items": [
+          "Lay Down works.",
+          "After you sit, kneel or lie down, the next emote you pick now plays."
+        ]
+      },
+      {
+        "heading": "Factions",
+        "items": [
+          "In the faction window, a member's rank list now shows in full, even in a small faction."
+        ]
+      },
+      {
+        "heading": "Crashes",
+        "items": [
+          "Fewer crashes in fights with spell-casting creatures such as draugr, above all when several players share the fight. Some crashes in shared fights remain, and we are still working on them."
         ]
       }
     ]
