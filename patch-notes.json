@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "Known issues",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "Known issues",
+        "items": [
+          "RaceMenu's own extras (its Presets tab and saved preset files, the extra sliders, sculpting, overlays and body morphs) are saved only on your own PC, so they don't carry over to your character on the server. Only the standard character creator options are saved with your character."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dungeon loot rebalanced",
     "date": "2026-10-01",
     "version": "Server update",
