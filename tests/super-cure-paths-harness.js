@@ -121,6 +121,9 @@ ok(/not yours yet/.test(String(allow('werewolf'))), '...and the carrier cannot t
 ok(/already carries Sanies Lupinus/.test(give('vampire')), 'a second disease is refused while one runs');
 state({ kind: 'vampire', disease: null });
 ok(/already a vampire/.test(give('vampire')), 'a vampire is not given Sanguinare Vampiris');
+ok(/is a vampire\. Lift that curse first/.test(give('werewolf')) && !store.get(`${P}|private.supernatural`).disease, 'a vampire is not given Sanies Lupinus either: its rite would end the curse with no gem');
+state({ kind: 'werewolf', disease: null });
+ok(/is a werewolf\. Lift that curse first/.test(give('vampire')) && !store.get(`${P}|private.supernatural`).disease, '...nor a werewolf Sanguinare Vampiris');
 state({ kind: null, disease: null });
 ok(/now carries Sanguinare Vampiris/.test(give('vampire')) && store.get(`${P}|private.supernatural`).disease.kind === 'vampire', 'giving Sanguinare Vampiris works');
 ok(/no plague disease/.test(give('plague')), 'an unknown disease is refused');

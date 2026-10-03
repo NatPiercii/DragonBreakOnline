@@ -1361,6 +1361,8 @@ module.exports = (api) => {
     const s = stateOf(t); if (!s) return 'No such character.';
     const disease = kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus';
     if (s.kind === kind) return `${display(t)} is already a ${kind}.`;
+    // infect(chosen) would let the other side's fever in, and winning its rite ends this curse with no black soul gem
+    if (s.kind) return `${display(t)} is a ${s.kind}. Lift that curse first.`;
     if (s.disease) return `${display(t)} already carries ${s.disease.kind === 'vampire' ? 'Sanguinare Vampiris' : 'Sanies Lupinus'}. Cure it first.`;
     if (!infect(t, kind, 0, true)) return `${disease} did not take on ${display(t)}.`;
     audit(`SUPERNATURAL ${who(t)} given ${disease} by GM ${gm}`);
