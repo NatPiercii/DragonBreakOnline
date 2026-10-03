@@ -58,7 +58,7 @@
   },
   {
     "title": "Your race's gifts",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -95,7 +95,7 @@
   },
   {
     "title": "Dungeon loot rebalanced",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Balance",
     "sections": [
@@ -118,7 +118,7 @@
   },
   {
     "title": "High-end gear swapped for steel",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -133,7 +133,7 @@
   },
   {
     "title": "Your First Spell",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -158,7 +158,7 @@
   },
   {
     "title": "Skills rise more slowly",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -173,7 +173,7 @@
   },
   {
     "title": "Conjure Familiar returns",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -187,7 +187,7 @@
   },
   {
     "title": "See your fever grow",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -201,7 +201,7 @@
   },
   {
     "title": "The killing blow counts",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -215,7 +215,7 @@
   },
   {
     "title": "Founding a faction",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -229,7 +229,7 @@
   },
   {
     "title": "Staves work",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server + Client 0.3.75",
     "tag": "Fix",
     "sections": [
@@ -243,7 +243,7 @@
   },
   {
     "title": "Scrolls work",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server + Client 0.3.75",
     "tag": "Fix",
     "sections": [
@@ -257,7 +257,7 @@
   },
   {
     "title": "More blessings now work",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server + Client 0.3.75",
     "tag": "Fix",
     "sections": [
@@ -276,7 +276,7 @@
   },
   {
     "title": "The bank counts in the launcher's gold",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -290,7 +290,7 @@
   },
   {
     "title": "Dressed again after a slow load",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -304,7 +304,7 @@
   },
   {
     "title": "Ashes of the raised dead",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -318,7 +318,7 @@
   },
   {
     "title": "Your pack, set right",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -332,7 +332,7 @@
   },
   {
     "title": "More gear breaks down",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -348,7 +348,7 @@
   },
   {
     "title": "Enchanting, set right",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -363,7 +363,7 @@
   },
   {
     "title": "Followers, emotes and fewer crashes",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Client 0.3.75",
     "tag": "Fix",
     "sections": [
@@ -396,7 +396,7 @@
   },
   {
     "title": "Known issues",
-    "date": "SHIP_DATE",
+    "date": "2026-10-03",
     "version": "Server update",
     "tag": "Update",
     "sections": [
