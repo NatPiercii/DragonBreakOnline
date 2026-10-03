@@ -80,6 +80,21 @@
     ]
   },
   {
+    "title": "High-end gear swapped for steel",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Weapons, armour and metals",
+        "items": [
+          "Gear above the new loot rules (Elven, Glass and up, high-end ingots and ores, and arrows above steel) has been swapped for steel or iron equivalents: in your inventory when you next log in, and in containers as you open them.",
+          "Enchanted pieces come back plain. Staff-granted artifacts are untouched."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your First Spell",
     "date": "2026-10-01",
     "version": "Server update",
