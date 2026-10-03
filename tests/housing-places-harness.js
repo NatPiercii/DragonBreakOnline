@@ -38,6 +38,9 @@ claim(H(0xb452a), WORLD, rec(4, 'Akatosh', 'Chest of Akatosh', false, 0));
 // Two owners' chests in one room with no claimed door: each its own place
 claim(H(0x7586e), ROOM, rec(35, 'Aldemar Vauclaire', null, true, 0));
 claim(H(0x7586f), ROOM, rec(49, 'Elion', null, true, 0));
+// A door pair between two interiors (a guild hall and its cellar), with no way to the world: no house, no place cells
+const HALL = '20e9:BSHeartland.esm', CELLAR = '20ff:BSHeartland.esm';
+claim(H(0x2f44), HALL, rec(77, 'Tavia', null, true, H(0x2f45)), CELLAR);
 // An ownerless stub in the fort is no claim
 claim(H(0xb5e59), FORT, rec(0, '', null, false, 0));
 const descToId = (d) => { const [h, p] = String(d).split(':'); return (/bsheartland/i.test(p) ? 0x08000000 : 0) | parseInt(h, 16); };
@@ -59,7 +62,8 @@ const plan = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf
 process.chdir(home);
 const place = (root) => plan.places.find((p) => p.root === H(root));
 ok(done === true && writes.length === 0, 'the dry run finishes and writes no record', writes);
-ok(plan.places.length === 6, '12 owned claims make 6 places (the stub is no claim)', plan.places.map((p) => p.root.toString(16)));
+ok(plan.places.length === 7, '13 owned claims make 7 places (the stub is no claim)', plan.places.map((p) => p.root.toString(16)));
+ok(place(0x2f44) && place(0x2f44).kind === 'interior door' && place(0x2f44).cells.length === 0 && place(0x2f44).openChests.length === 0, 'a door pair between two interiors is an "interior door": no place cells, so nothing in the shared building changes', place(0x2f44));
 const fort = place(0xb5c6e);
 ok(fort && fort.kind === 'house' && fort.name === 'Fort Caractacus' && fort.members.length === 6 && JSON.stringify(fort.cells) === JSON.stringify([FORT]), 'Fort Caractacus: one house rooted at the named door, its 5 other door pairs and the chest as members', fort);
 ok(fort && JSON.stringify(fort.openChests) === JSON.stringify([H(0xb5c86)]), "...and its unlocked chest b5c86 is named: it becomes owner-only", fort && fort.openChests);
@@ -68,7 +72,7 @@ ok(place(0x8b4c7) && place(0x8b4c7).kind === 'interior chest' && place(0xb452a) 
 ok(place(0xb452a) && place(0xb452a).openChests.length === 0, 'an unlocked outdoor chest claim keeps its state (only chests inside a house become owner-only)');
 ok(place(0x7586e) && place(0x7586f) && place(0x7586e).owner === 35 && place(0x7586f).owner === 49, 'two owners\' chests in one room stay two places, one each');
 ok(plan.overCap.length === 1 && plan.overCap[0].owner === 4 && plan.overCap[0].places.length === 3, 'Akatosh is listed with 3 places for Nate; nobody else is', plan.overCap);
-ok(logs.some((l) => /place plan \(dry run, nothing changed\): 12 owned claims -> 6 places/.test(l)) && logs.some((l) => /Davius Phink \/ Akatosh \(4\) would hold 3 places .*kept, for Nate to decide/.test(l)), 'the plan is in the log', logs.slice(0, 3));
+ok(logs.some((l) => /place plan \(dry run, nothing changed\): 13 owned claims -> 7 places/.test(l)) && logs.some((l) => /Davius Phink \/ Akatosh \(4\) would hold 3 places .*kept, for Nate to decide/.test(l)), 'the plan is in the log', logs.slice(0, 3));
 ok(logs.some((l) => /Fort Caractacus" .*open chests becoming owner-only=80b5c86/.test(l)), '...with the chest that changes named');
 // Not readable yet (right after boot): no plan, try again later
 const sys2 = new HousingSystem(() => {});
