@@ -95,9 +95,10 @@ const HouseholdPane = ({ court, household, busy, act }: { court: CourtView; hous
         <div key={m.actorId} className="court__member">
           <span className={'court__dot' + (m.online ? ' court__dot--online' : '')} />
           <span className="court__member-name">{m.name} <span className="court__muted">#{m.tag}</span></span>
-          {household.canSetRank ? (
+          {/* The head's rank follows the office (court.js): it is neither offered nor changed here */}
+          {household.canSetRank && m.role !== 'leader' ? (
             <Picker className="court__rank" commit value={m.rank} disabled={busy} onChange={(v) => act('dbo:courtRank', court.id, m.actorId, v)}
-              options={household.ranks.map((r, i) => ({ value: i, label: r.title }))} />
+              options={household.ranks.map((r, i) => ({ value: i, label: r.title, role: r.role })).filter((r) => r.role !== 'leader').map(({ value, label }) => ({ value, label }))} />
           ) : <span className="court__member-title">{m.title}</span>}
           {household.canKick && (household.myRank < 0 || household.myRank < m.rank) ? (
             <button type="button" className="journal__button journal__button--small" disabled={busy} onClick={() => act('dbo:courtKick', court.id, m.actorId)}>Remove</button>
