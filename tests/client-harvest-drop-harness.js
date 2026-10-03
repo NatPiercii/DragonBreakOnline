@@ -13,7 +13,7 @@ const DROP = path.resolve(process.argv[3] || process.argv[2] || BASE);
 const ESBUILD = process.env.ESBUILD || path.join(os.homedir(), 'dragonbreak/fork/skymp5-server/node_modules/.bin/esbuild');
 const hasHarvest = fs.existsSync(path.join(FLORA, 'skymp5-client/src/sync/harvest.ts'));
 const hasDrop = fs.existsSync(path.join(DROP, 'skymp5-client/src/services/services/dropReport.ts'));
-if (!hasHarvest && !hasDrop) { console.log(`skipped: no sync/harvest.ts or dropReport.ts in ${FLORA}`); process.exit(0); }
+if (!hasHarvest && !hasDrop) { require('./expect')('client-harvest-drop', `${FLORA} has no sync/harvest.ts or dropReport.ts`); console.log(`skipped: no sync/harvest.ts or dropReport.ts in ${FLORA}`); process.exit(0); }
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-harvestdrop-'));
 const bundle = (src, name) => {
   const out = path.join(tmp, name + '.js');
