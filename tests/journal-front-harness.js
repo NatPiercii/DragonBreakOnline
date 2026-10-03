@@ -222,12 +222,31 @@ if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.settings) {
 } else {
   const sData = (sec) => ({ type: 'journal', id: 50, nonce: 's1', hub: 1, tab: 'settings', tabs: [{ id: 'profile', label: 'Profile' }, { id: 'settings', label: 'Settings', pinned: true }],
     head: { name: 'Aela', title: 'Wanderer', race: 'Nord' }, settings: sec || { staff: false } });
-  html = render(Journal, { data: sData() });
+  // The section to open is named in the server's section (a deep link); without one the first in the rail opens
+  html = render(Journal, { data: sData({ staff: false, section: 'interface' }) });
   t = text(html);
   check('Settings: pinned right, in the aqua', /dbo-tabs__tab dbo-tabs__tab--on dbo-tabs__tab--pinned/.test(html) && /journal__body--settings" data-domain="aqua"/.test(html));
   const rail = (html.match(/jset__rail-item[^"]*"[^>]*>[^<]*/g) || []).map((x) => x.replace(/.*>/, ''));
-  check('...a rail of sections in order, Controls, Interface and Help among them, Interface open first', ['Controls', 'Interface', 'Help'].every((l) => rail.includes(l))
+  check('...a rail of sections in order, Controls, Interface and Help among them; a deep link opens Interface', ['Controls', 'Interface', 'Help'].every((l) => rail.includes(l))
     && rail.indexOf('Controls') < rail.indexOf('Interface') && rail.indexOf('Interface') < rail.indexOf('Help') && /jset__rail-item jset__rail-item--on"[^>]*>Interface/.test(html), rail);
+  if (rail.includes('General')) {
+    // General (H4): the menu keys, from what the client told the page
+    const KB = { live: { chatKeyCode: 20, freeCursorKeyCode: 66, housingMenuKeyCode: 45, playerActionKeyCode: 45, personalMenuKeyCode: 22, factionMenuKeyCode: 61, masteryMenuKeyCode: 37, emoteWheelKeyCode: 48,
+      nametagKeyCode: 59, hideUiKeyCode: 60, voicePushToTalkKeyCode: 47, voiceModeKeyCode: 56, maskToggleKeyCode: 35, adminMenuKeyCode: 65, hideChatKeyCode: 0 } };
+    KB.next = Object.assign({}, KB.live, { masteryMenuKeyCode: 34, emoteWheelKeyCode: 61 });
+    global.window = { __dboKeybinds: KB, skyrimPlatform: { sendMessage() {} }, addEventListener() {}, removeEventListener() {} };
+    let g = render(Journal, { data: sData({ staff: false }) });
+    const gt = text(g);
+    check('General opens first: the menu keys by name', rail[0] === 'General' && /jset__rail-item jset__rail-item--on"[^>]*>General/.test(g) && /Activate chat .{0,40}T Release mouse F8/.test(gt)
+      && /Interact .{0,60}X Personal menu U/.test(gt) && /Journal F3/.test(gt) && /Push to talk V/.test(gt) && /Voice range Left Alt/.test(gt) && /Hide chat .*None/.test(gt), gt.slice(0, 900));
+    check('...a key changed for the next start says so, and the note says when it applies', /Skills G.{0,40}from your next start/.test(gt) && /Saved\. Takes effect when you next start the game\./.test(gt));
+    check('...two rows on one key are both marked (Emote wheel now on F3 with the journal)', (g.match(/jset__key jset__key--clash/g) || []).length === 2 && /Shared with another key/.test(gt));
+    check('...the admin panel key only for staff', !/Admin panel/.test(gt) && /Admin panel F7/.test(text(render(Journal, { data: sData({ staff: true }) }))));
+    delete global.window;
+    const ksrc = FRONT_SRC('features/journal/tabs/SettingsKeys.tsx');
+    if (ksrc) check('...capture: Escape cancels, Backspace puts the launcher\'s key back (or clears an optional one), keys kept from the game', /if \(e\.code === 'Escape'\) \{ setCapturing\(''\); return; \}/.test(ksrc)
+      && /if \(e\.code === 'Backspace'\) \{ save\(r, r\.optional \? 0 : null\); return; \}/.test(ksrc) && /e\.preventDefault\(\);\s*e\.stopPropagation\(\);/.test(ksrc) && /tell\('cef::keybinds:save', JSON\.stringify\(\{ keys \}\)\)/.test(ksrc));
+  }
   check('...Interface: size, panel sizes, the bars, the chat and the names over heads', /Interface size/.test(t) && /Reset every panel/.test(t) && /Show the bars/.test(t) && /Fade when full/.test(t)
     && /Show the chat/.test(t) && /Hidden until T/.test(t) && /Lettering/.test(t) && /Text size/.test(t) && /Transparency/.test(t) && /Highlight words/.test(t) && /Player names/.test(t));
   check('...the defaults chosen: Fade when full, Quiet, Fade when idle, Book', /jset__chip jset__chip--on"[^>]*>Fade when full</.test(html) && /jset__chip jset__chip--on"[^>]*>Quiet</.test(html)
