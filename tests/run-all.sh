@@ -65,6 +65,7 @@ declare -A NEEDS=(
   [aggro-window]=client:skymp5-client/src/view/aggroWindow.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-shadow]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-values]=server:skymp5-server/ts/systems/masterySystem.ts
