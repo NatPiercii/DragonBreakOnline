@@ -1,9 +1,9 @@
 // DragonBreak Online: vampirism and lycanthropy. Loaded by gamemode.js on every hot reload.
 //
 // Lore basis (UESP; design page "Vampires and Werewolves"):
-//   Infection  a vampire's hit (10%) carries Sanguinare Vampiris, a werewolf's bite (2%, Nate 2026-09-27) Sanies Lupinus; both incubate
+//   Infection  a vampire's hit (3%) carries Sanguinare Vampiris, a werewolf's bite (0.5%, Nate 2026-10-03) Sanies Lupinus; both incubate
 //              three game days of the carrier's own play (Nate 2026-09-29: time offline does not count) and are cured by a
-//              Cure Disease potion or a prayer at a Divine shrine.
+//              Cure Disease potion, an ingredient whose first effect cures, or a prayer at a Divine shrine.
 //   Turning    when the fever peaks the Blood Fever / Hircine's Hunt trial opens (front widget "rite"); failing kills
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
 //              and failing those can end the character for good (private.permaDead). Surviving Hircine's rite gives Sanies
@@ -51,8 +51,8 @@ module.exports = (api) => {
     clientJudged: true, lateWindowMs: 250, earlyWindowMs: 160, legacyExtraMs: 2500, graceMs: 100, silentMs: 120000, replayCheck: 'log',
     legacyDeadly: 'safe' };
   const C = Object.assign({
-    // Werewolf harder to come by than vampirism (Nate, 2026-09-27: 5% -> 2%)
-    infectVampire: 0.10, infectWerewolf: 0.02, infectFeed: 0.10,
+    // Both rare, lycanthropy rarest (Nate 2026-10-03: a bite 2% -> 0.5%, a vampire's hit 10% -> 3%, a feed 10% -> 5%)
+    infectVampire: 0.03, infectWerewolf: 0.005, infectFeed: 0.05,
     // Game days the fever takes to peak, counted only while the carrier is online and alive (Nate 2026-09-29): at the
     // default time scale a game day is 4 real hours, so 3 days is 12 hours of play
     incubationDays: 3,
@@ -68,8 +68,8 @@ module.exports = (api) => {
     permaDeathChance: 0.33,
     // Nat: a failed rite at Molag Bal's or Hircine's shrine waits a real day before another try
     riteFailCooldownHours: 24,
-    // Nate 2026-09-26: surviving Hircine's Hunt is a chance at Sanies Lupinus, not a promise
-    huntMarkChance: 0.25,
+    // Nate 2026-09-26: surviving Hircine's Hunt is a chance at Sanies Lupinus, not a promise (2026-10-03: 25% -> 10%)
+    huntMarkChance: 0.10,
     // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
     // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
     feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
