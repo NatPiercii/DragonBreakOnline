@@ -1868,6 +1868,7 @@ const onCharacterReady = (userId, a) => {
     sendFavorites(a);
     try { if (globalThis.__dboCharLevelLogin) globalThis.__dboCharLevelLogin(a); } catch (e) { log('level login failed', e.message); }
     try { if (globalThis.__dboBoostLogin) globalThis.__dboBoostLogin(a); } catch (e) { log('boost login failed', e.message); }
+    try { if (globalThis.__dboEnchLearnedLogin) globalThis.__dboEnchLearnedLogin(a); } catch (e) { log('learned enchantments login failed', e.message); }
     // A shrine blessing still running is cast on the player again: the client's effect did not survive the logout (prayer.js)
     try { if (globalThis.__dboPrayerLogin) globalThis.__dboPrayerLogin(a); } catch (e) { log('prayer login failed', e.message); }
     // The first spell: a mage at Arcane Arts 25 with no school is offered the choice, one with a school and no spell gets its starter (schools.js)
@@ -5848,7 +5849,7 @@ try {
 try {
   const ALCHEMY_JS = path.resolve('alchemy.js');
   delete require.cache[ALCHEMY_JS];
-  require(ALCHEMY_JS)({ mp, log, personal, audit, display, who, openWidget, closeWidget, every, itemName: (d) => adminItemName(d) });
+  require(ALCHEMY_JS)({ mp, log, personal, audit, display, who, openWidget, closeWidget, every, itemName: (d) => adminItemName(d), cfg, sendPacket });
 } catch (e) { log('alchemy.js failed to load:', e.stack || e.message); mp.onCraftUnmatched = null; }
 
 // ---- playtest region lock (server\playtest.js, config "playtest") ------------------------------

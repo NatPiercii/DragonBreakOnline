@@ -289,8 +289,52 @@ module.exports = (api) => {
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`disenchant: inventory write failed for ${display(a)}: ${e.message}`); return; }
     const what = taken.map(([id, k]) => `${ingredientName(id)}${k > 1 ? ` x${k}` : ''}`).join(', ');
     log(`disenchant: ${display(a)} disenchanted ${what} at ${workbenchId.toString(16)}; taken`);
+    rememberLearned(a, taken.map(([id]) => id));
     audit(`DISENCHANT ${who(a)} used up ${what}`);
     tell(a, `Disenchanting uses up the item: ${what} ${taken.length > 1 || taken[0][1] > 1 ? 'are' : 'is'} gone.`);
+  };
+
+  // ---- enchantments learned by disenchanting, kept across relogs (#bugs thread 7) ----------------------------------
+  // The game keeps what a character has learned at the table in its own save, which a SkyMP client never loads, so every
+  // learned enchantment was gone at the next login. Each disenchant writes the enchantment's effects (the item's EITM, its
+  // ENCH, its EFIDs, as load-order ids) on the character, newest last and at most max; at login they go back to the client
+  // (dboEnchLearned), which marks each effect known again. Recorded always; sent only with learnedEnchantments.enabled,
+  // since a client before the one that reads the packet would ignore it.
+  const LEARN = Object.assign({ enabled: false, max: 256 }, (api.cfg || {}).learnedEnchantments || {});
+  const LEARNED_PROP = 'private.dboEnchLearned';
+  const enchantEffectsOf = (itemId) => {
+    const lr = lookup(itemId);
+    const eitm = lr && (lr.record.fields || []).find((f) => f.type === 'EITM');
+    if (!eitm) return [];
+    let ench = 0;
+    try { ench = lr.toGlobalRecordId(u32(eitm, 0)) >>> 0; } catch (e) { return []; }
+    const er = ench ? lookup(ench) : null;
+    if (!er || String(er.record.type) !== 'ENCH') return [];
+    const out = [];
+    for (const f of er.record.fields || []) if (f.type === 'EFID') { try { const g = er.toGlobalRecordId(u32(f, 0)) >>> 0; if (g && !out.includes(g)) out.push(g); } catch (e) { /* unmapped */ } }
+    return out;
+  };
+  const learnedOf = (a) => { try { const v = mp.get(a, LEARNED_PROP); return Array.isArray(v) ? v.map((x) => Number(x) >>> 0).filter(Boolean) : []; } catch (e) { return []; } };
+  const rememberLearned = (a, itemIds) => {
+    const list = learnedOf(a);
+    let seen = 0;
+    for (const id of itemIds) for (const effect of enchantEffectsOf(id)) {
+      const at = list.indexOf(effect);
+      if (at >= 0) list.splice(at, 1);
+      list.push(effect);
+      seen++;
+    }
+    if (!seen) return;
+    const max = Math.max(1, Number(LEARN.max) || 256);
+    while (list.length > max) list.shift();
+    try { mp.set(a, LEARNED_PROP, list); } catch (e) { log(`disenchant: learned enchantments write failed for ${display(a)}: ${e.message}`); }
+  };
+  globalThis.__dboEnchLearnedLogin = (a) => {
+    if (!LEARN.enabled || typeof api.sendPacket !== 'function') return false;
+    const effects = learnedOf(a >>> 0);
+    if (!effects.length) return false;
+    try { api.sendPacket(a >>> 0, { customPacketType: 'dboEnchLearned', effects }); } catch (e) { log(`disenchant: learned enchantments send failed for ${display(a)}: ${e.message}`); return false; }
+    return true;
   };
 
   // CustomEvent prepends the actor: (actor, workbench, result, inputs)

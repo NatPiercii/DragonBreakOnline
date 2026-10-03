@@ -829,5 +829,10 @@
   "nord": { "resistFrost": 0.5, "coldStaminaRegen": 1.15, "coldProvinces": ["skyrim"], "coldAreas": [{ "world": "a764b:BSHeartland.esm", "pos": [56000, 232000], "radius": 60000 }] },
   "orc": { "lowHealth": 0.3, "meleeDamage": 0.2, "damageTaken": 0.2 },
   "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 }
+ },
+ "learnedEnchantments": {
+  "_comment": "Enchantments learned by disenchanting, kept across relogs (server\\alchemy.js, #bugs thread 7): each disenchant writes the enchantment's effects on the character (private.dboEnchLearned, newest last, at most max); at login they go back to the client as dboEnchLearned, which marks them known. Recorded always; sent only when enabled, which waits for the client that reads the packet.",
+  "enabled": false,
+  "max": 256
  }
 }
