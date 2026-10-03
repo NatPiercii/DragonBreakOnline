@@ -123,6 +123,8 @@ try {
   sys = build('apply');
   sys.exposeTenancy(ctx);
   ok(globalThis.__dboHousing.grant(E1, NEWBIE) === '' && rec(E1).owner === 9 && rec(E1).place && rec(E2).memberOf === E1 && rec(E2).owner === 9, 'a tenancy grant of the front door grants the whole place');
+  ok(globalThis.__dboHousing.primaryOf(E2) === E1 && globalThis.__dboHousing.primaryOf(I2) === E1 && globalThis.__dboHousing.recordOf(E2).name === rec(E1).name, '...and for tenancy any door of it stands for the whole place (a listing at the back door rents the house)');
+  ok(globalThis.__dboHousing.release(E2) === true && rec(E1).owner === 0 && rec(E2).owner === 0, '...so an eviction at the back door frees all of it');
 } finally {
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });

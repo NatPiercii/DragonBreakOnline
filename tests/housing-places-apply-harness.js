@@ -70,6 +70,17 @@ try {
   w.sys.dryRunPlaces({ svr: w.mp });
   ok(w.writes.length === n && w.logs.some((l) => /place migration: nothing to apply/.test(l)), 'a second run writes nothing');
 
+  // a place built since (by a claim) under another root: the plan names a different door, and nothing is re-rooted
+  w = build();
+  w.sys.placeMigration = 'apply';
+  const pr = w.get(PAIR); pr.place = { cells: [FORT], builtAt: 2 }; w.props.set(`${PAIR}:private.housing`, pr);
+  const rr = w.get(ROOT); rr.memberOf = PAIR; w.props.set(`${ROOT}:private.housing`, rr);
+  const ch = w.get(CHEST); ch.memberOf = PAIR; w.props.set(`${CHEST}:private.housing`, ch);
+  w.writes.length = 0;
+  w.sys.dryRunPlaces({ svr: w.mp });
+  ok(!w.writes.some(([id]) => id === ROOT || id === PAIR || id === CHEST) && !w.get(ROOT).place && w.get(ROOT).memberOf === PAIR, 'a place already built under another door is left as it is (no second root)', w.logs.filter((l) => /migration/.test(l)));
+  for (const f of fs.readdirSync(dir).filter((f) => /backup/.test(f))) fs.rmSync(path.join(dir, f));
+
   // a backup that cannot be written stops the migration
   w = build();
   w.sys.placeMigration = 'apply';
