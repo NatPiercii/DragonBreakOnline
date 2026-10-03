@@ -57,6 +57,20 @@
     ]
   },
   {
+    "title": "Staves work",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Staves work: a staff's spell now hits, for players and for NPCs such as goblin shamans."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Known issues",
     "date": "2026-10-03",
     "version": "Server update",
