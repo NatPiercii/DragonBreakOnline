@@ -4,6 +4,7 @@ import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId, toFormId } from "./formIdUtil";
 import { AdminRoleConfig, readAdminRoleConfig, adminTierOf, TIER_CAPS } from "./adminRoles";
 import { getZones, Zones } from "./zones";
+import { PlaceClaim, PlannedPlace, planPlaces } from "./housingPlaces";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -43,8 +44,18 @@ type Mp = any;
 // house from the inside locks the outside too.
 
 const HOUSING_PROP = "private.housing";
+// N3 places: the migration plan written by the dry run, for review (runtime, beside housing.json)
+const PLACE_PLAN_FILE = "./housing-places-plan.json";
+const PLACE_BACKUP_PREFIX = "./housing-places-backup-";
+const GAMEMODE_CONFIG_FILE = "./gamemode-config.json";
+const TENANCY_FILE = "./tenancy.json";
+const PLACE_PLAN_DELAY_MS = 30000;
+const PLACE_PLAN_MAX_TRIES = 10;
 const OWNER_INDEX_PROP = "private.indexed.housingOwner";
 const REGISTRY_FILE = "./housing.json";
+
+// A key credential, "(80B5EAC)" or "(80B5EAC-2)": the only alias matched as a suffix
+const CREDENTIAL_RE = /^\([0-9A-F]+(-\d+)?\)$/;
 
 // Vanilla key form; the name extra carries the credential.
 export const KEY_BASE_ID = 0x000db0e2;
@@ -66,6 +77,12 @@ const NOT_GRANTED = "Property here is granted by its ruler (Jarl, Baron or Count
 // Managers claim, revoke, rename, transfer, re-key and cut keys for any property there.
 // The Count of Bruma (zones.json region "bruma") manages property the way a Jarl does.
 const MANAGER_RANKS = ["jarl", "baron", "steward", "chieftain", "bane", "count"];
+// Actions on any door or chest of a place that act on the whole place (its root)
+const PLACE_WIDE = ["abandon", "revoke", "rename", "createkey", "revokekeys", "transfer", "assign", "unassign", "share", "unshare"];
+// The owner's Rooms and chests panel lists at most this many of a place's inner doors and chests
+const MAX_ROOMS_LISTED = 48;
+// A place's cells: the interior behind its door and the rooms reachable only through it, at most this many
+const MAX_PLACE_CELLS = 4;
 // Housing actions whose use by staff on someone else's property is logged
 const STAFF_LOGGED = ["claim", "abandon", "revoke", "lock", "unlock", "rename", "createkey", "revokekeys", "transfer", "grantcontainer"];
 
@@ -104,6 +121,33 @@ interface PropertyRecord {
   containers: number[];
   // Key names cut at the current serial; null on records older than this field
   issued: string[] | null;
+  // A place (N3): the interior cells behind this exterior door, its per-ref assignments and kept key credentials.
+  // Written by the migration and the place rules only with housingPlaceMigration "apply"; always read back as they are, so
+  // a write under any mode keeps them.
+  place?: { cells: string[]; builtAt: number };
+  assigned?: Record<string, { profile: number; name: string }>;
+  // Refs (hex primaries) in the place whose chest the household may open: anyone who may open the place itself
+  shared?: string[];
+  keyAliases?: string[];
+  // On a member of a place: the place's root; on an unlocked chest inside a house, kept for its owner and assignees
+  memberOf?: number;
+  ownerOnly?: boolean;
+}
+
+// What the migration does with one planned house (refinePlaces), written into the plan for review
+interface PlaceDetail {
+  root: number;
+  owner: number;
+  cells: string[];
+  members: number[];
+  // The owner's claims grouped with the house whose cells were left out: they stay claims of their own
+  outside: number[];
+  skippedCells: Array<{ cell: string; why: string }>;
+  openChests: number[];
+  entrances: number[];
+  unclaimedChests: number[];
+  innerDoors: number[];
+  notApplied: string;
 }
 
 // The far half of a teleport pair just points at the primary.
@@ -136,11 +180,21 @@ export class HousingSystem implements System {
     const s = await Settings.get();
     const all = s.allSettings as Record<string, unknown> | null;
 
+    const placeCap = Number(all?.["housingPlaceCap"]);
+    if (Number.isFinite(placeCap) && placeCap >= 1) this.placeCap = Math.floor(placeCap);
     const maxClaims = Number(all?.["housingMaxClaims"]);
     if (Number.isFinite(maxClaims) && maxClaims > 0) this.maxClaims = maxClaims;
     const maxDistance = Number(all?.["housingMaxDistance"]);
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
     this.openClaims = all?.["housingOpenClaims"] === true;
+    // N3 places: "dryrun" (the default) logs and writes the migration plan once after boot and changes nothing; "off" skips it
+    // "apply" (set by Nate) also writes the plan into the records, once, after a backup
+    const mode = String(all?.["housingPlaceMigration"] ?? "dryrun");
+    this.staffSetting = Array.isArray(all?.["housingStaffProfiles"]) ? (all!["housingStaffProfiles"] as unknown[]).map(Number).filter((p) => p > 0) : [];
+    this.placeMigration = mode === "off" ? "off" : mode === "apply" ? "apply" : "dryrun";
+    // A migration backup to put back at the plan's tick, instead of the plan (S3 of the review)
+    this.placeRestore = typeof all?.["housingPlaceRestore"] === "string" ? String(all!["housingPlaceRestore"]) : "";
+    this.initAtMs = Date.now();
 
     this.roleCfg = readAdminRoleConfig(all);
     this.zones = getZones(this.log);
@@ -155,11 +209,20 @@ export class HousingSystem implements System {
   // server/tenancy.js rents property out through these, under the same rules as the menu: the claim limit, re-keying
   // on a new owner, and the hold's managers. grant returns an error text, or "" when the property is theirs.
   private exposeTenancy(ctx: SystemContext): void {
-    const primary = (ref: unknown) => this.primaryOf(ctx, Number(ref) >>> 0);
+    // With the place rules on, any door or chest of a place stands for the whole place (a listing at its back door rents
+    // the house, not that door)
+    const primary = (ref: unknown) => {
+      const p = this.primaryOf(ctx, Number(ref) >>> 0);
+      if (!p || !this.placesOn()) return p;
+      const r = this.read(ctx, p);
+      return r && r.owner !== 0 && r.memberOf && r.memberOf !== p ? r.memberOf : p;
+    };
     (globalThis as any).__dboHousing = {
       primaryOf: (ref: unknown) => primary(ref),
       recordOf: (ref: unknown) => { const p = primary(ref); return p ? this.read(ctx, p) : null; },
       holdOf: (ref: unknown) => { const p = primary(ref); return p ? this.holdOf(ctx, p) : ""; },
+      // What a load door's prompt should call it, or "" to keep the destination's name (gamemode.js dboDoorName)
+      doorName: (ref: unknown): string => { try { return this.doorName(ctx, Number(ref) >>> 0); } catch { return ""; } },
       isManager: (actorId: unknown, ref: unknown) => { const p = primary(ref); return !!p && this.isManager(ctx, Number(actorId) >>> 0, p); },
       grant: (ref: unknown, actorId: unknown): string => {
         const p = primary(ref); if (!p) return "That is not a property.";
@@ -167,13 +230,21 @@ export class HousingSystem implements System {
         const profileId = this.profileOf(ctx, actor); if (!profileId) return "That is nobody.";
         const rec = this.read(ctx, p) || emptyRecord();
         if (rec.owner === profileId) return "";
-        if (this.countClaims(ctx, profileId) >= this.maxClaims) return `They already hold ${this.maxClaims} properties.`;
+        if (!this.placesOn()) {
+          if (this.countClaims(ctx, profileId) >= this.maxClaims) return `They already hold ${this.maxClaims} properties.`;
+        } else {
+          const full = this.overCap(ctx, profileId, actor, false);
+          if (full) return full;
+        }
         if (rec.owner !== 0) this.reKey(ctx, p, rec);
+        if (rec.place) { delete rec.assigned; delete rec.shared; }
         rec.owner = profileId;
         rec.ownerName = this.nameOf(ctx, actor);
         rec.partner = this.partnerOf(ctx, p);
         if (rec.issued === null) rec.issued = [];
-        return this.write(ctx, p, rec) ? "" : CHANGE_FAILED;
+        if (!this.write(ctx, p, rec)) return CHANGE_FAILED;
+        if (rec.place && this.placesOn()) this.carryPlace(ctx, p, rec); else this.ensurePlace(ctx, p, rec);
+        return "";
       },
       release: (ref: unknown): boolean => {
         const p = primary(ref); if (!p) return false;
@@ -210,7 +281,23 @@ export class HousingSystem implements System {
     const primary = this.primaryOf(ctx, targetId);
     if (!primary) return true;
     const rec = this.read(ctx, primary);
-    if (!rec || rec.owner === 0 || !rec.locked) return true;
+    // Inside a place (N3, only with housingPlaceMigration "apply"): a door or chest nobody has claimed answers to the place's
+    // owner, whoever it is assigned to and the managers; a chest is the owner's alone unless it is shared (Nate, 3 Oct)
+    if ((!rec || rec.owner === 0) && this.placesOn()) {
+      const place = this.placeAt(ctx, targetId);
+      if (!place || this.placeRefAccess(ctx, place.root, place.rec, primary, this.viewerAccess(ctx, casterId))) return true;
+      this.denyInPlace(ctx, casterId, place.rec);
+      return false;
+    }
+    if (!rec || rec.owner === 0) return true;
+    // A chest that is part of a place opens only for its owner, its assignee and the managers, or the household when shared
+    if (!rec.locked && this.placesOn() && (this.isPlaceContainer(ctx, primary, rec) || this.isAssignedMember(ctx, primary, rec))) {
+      if (this.hasAccess(ctx, primary, rec, casterId)) return true;
+      const root = rec.memberOf ? this.read(ctx, rec.memberOf) : null;
+      this.denyInPlace(ctx, casterId, root || rec);
+      return false;
+    }
+    if (!rec.locked) return true;
 
     // One notice per player per second; a held activate key fires repeatedly.
     const userId = this.userOf(ctx, casterId);
@@ -235,6 +322,14 @@ export class HousingSystem implements System {
 
   async updateAsync(ctx: SystemContext): Promise<void> {
     const now = Date.now();
+    // Records read as null on the first ticks after boot, so the plan waits, and tries again while nothing is readable
+    if ((this.placeMigration !== "off" || this.placeRestore) && !this.placePlanDone && now - this.initAtMs >= PLACE_PLAN_DELAY_MS && now - this.placePlanTriedMs >= PLACE_PLAN_DELAY_MS) {
+      this.placePlanTriedMs = now;
+      try {
+        if (this.placeRestore) { this.restorePlaces(ctx, this.placeRestore); this.placePlanDone = true; }
+        else this.placePlanDone = this.dryRunPlaces(ctx, this.placePlanTries + 1 >= PLACE_PLAN_MAX_TRIES) || ++this.placePlanTries >= PLACE_PLAN_MAX_TRIES;
+      } catch (e) { this.placePlanDone = true; this.log(`[housing] place plan failed: ${e}`); }
+    }
     if (now - this.lastDecorMs < DECOR_PUSH_INTERVAL_MS) return;
     this.lastDecorMs = now;
     if (!this.decorDirty) return;
@@ -272,17 +367,24 @@ export class HousingSystem implements System {
 
     const actorId = this.actorOf(ctx, userId);
     if (!actorId) return;
-    if (!this.nearProperty(ctx, actorId, target)) {
+    // Inside a place, anywhere in its cells is near enough to manage it (a fort's rooms are far from its door)
+    if (!this.nearProperty(ctx, actorId, target) && !(this.placesOn() && this.standsInPlaceOf(ctx, actorId, target))) {
       this.notice(ctx, userId, "That is too far away.");
       return;
     }
 
-    const primary = this.primaryOf(ctx, target);
+    let primary = this.primaryOf(ctx, target);
     if (!primary) {
       this.notice(ctx, userId, "You cannot claim that.");
       return;
     }
-    const rec = this.read(ctx, primary) || emptyRecord();
+    let rec = this.read(ctx, primary) || emptyRecord();
+    // A whole place counts as one property (Nate, 3 Oct): handing over, giving up, naming and keys go to its root from any
+    // of its doors or chests
+    if (this.placesOn() && rec.memberOf && rec.memberOf !== primary && PLACE_WIDE.indexOf(action) !== -1) {
+      const root = this.read(ctx, rec.memberOf);
+      if (root && root.owner !== 0) { primary = rec.memberOf; rec = root; }
+    }
     const isOwner = rec.owner !== 0 && rec.owner === this.profileOf(ctx, actorId);
     const isManager = this.isManager(ctx, actorId, primary);
     // Every staff override of someone else's property goes to the admin log (review A3-1)
@@ -301,6 +403,10 @@ export class HousingSystem implements System {
       case "revokekeys": this.doRevokeKeys(ctx, userId, primary, rec, isOwner, isManager); break;
       case "transfer": this.doTransfer(ctx, userId, primary, rec, isOwner, isManager, content["recipient"]); break;
       case "grantcontainer": this.doGrantContainer(ctx, userId, primary, rec, isOwner, isManager, content["recipient"]); break;
+      case "assign":
+      case "unassign":
+      case "share":
+      case "unshare": this.doRoom(ctx, userId, actorId, primary, rec, isOwner || isManager, action, content["ref"], content["recipient"]); break;
       default: break;
     }
   }
@@ -319,8 +425,16 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "You cannot claim anything right now.");
       return;
     }
-    if (this.countClaims(ctx, profileId) >= this.maxClaims) {
-      this.notice(ctx, userId, `You already hold ${this.maxClaims} properties.`);
+    // A door or chest inside someone's place is theirs already, to assign (Nate, 3 Oct: no per-door claims)
+    const inside = this.placesOn() ? (this.placeAt(ctx, primary) || (rec.partner || this.partnerOf(ctx, primary) ? this.placeAt(ctx, rec.partner || this.partnerOf(ctx, primary)) : null)) : null;
+    if (inside) {
+      this.notice(ctx, userId, `This is part of ${inside.rec.name || "someone's property"}; its owner assigns it from the property menu.`);
+      return;
+    }
+    // Officials claim to hand the property on, so the cap is the recipient's, checked at the hand-over
+    const full = this.placesOn() && isManager ? "" : this.overCap(ctx, profileId, actorId, true);
+    if (full) {
+      this.notice(ctx, userId, full);
       return;
     }
     rec.owner = profileId;
@@ -329,7 +443,8 @@ export class HousingSystem implements System {
     // A stub released before rec.issued existed has no keys at this serial
     if (rec.issued === null) rec.issued = [];
     if (!this.commit(ctx, userId, primary, rec)) return;
-    this.notice(ctx, userId, "This is yours now.");
+    this.ensurePlace(ctx, primary, rec);
+    this.notice(ctx, userId, rec.place ? `This is yours now, with everything behind its door${rec.place.cells.length > 1 ? "s" : ""}.` : "This is yours now.");
     this.sendMenu(ctx, userId, actorId, primary);
   }
 
@@ -375,7 +490,10 @@ export class HousingSystem implements System {
     }
     rec.locked = locked;
     if (!this.commit(ctx, userId, primary, rec)) return;
-    this.notice(ctx, userId, locked ? "Locked." : "Unlocked.");
+    // Every door of a place locks with any one of them; its chests keep their own locks
+    const doors = this.placesOn() && rec.partner ? this.placeDoorsWith(ctx, primary, rec) : [];
+    for (const d of doors) { d.rec.locked = locked; this.write(ctx, d.ref, d.rec); }
+    this.notice(ctx, userId, doors.length ? (locked ? `Locked, with every door of the place.` : `Unlocked, with every door of the place.`) : (locked ? "Locked." : "Unlocked."));
     this.sendMenu(ctx, userId, actorId, primary);
   }
 
@@ -394,9 +512,10 @@ export class HousingSystem implements System {
     const hadKeys = !!(rec.issued && rec.issued.length);
     rec.name = name;
     if (!this.commit(ctx, userId, primary, rec)) return;
-    this.notice(ctx, userId, hadKeys
+    const doors = rec.place && this.placesOn() ? this.membersOf(ctx, primary).filter((m) => !!m.rec.partner).length + 1 : 0;
+    this.notice(ctx, userId, (hadKeys
       ? `Now called ${name}. Keys already cut still open it; new ones will carry the new name.`
-      : `Now called ${name}.`);
+      : `Now called ${name}.`) + (doors > 1 ? ` All ${doors} of its doors show it.` : ""));
     const actorId = this.actorOf(ctx, userId);
     if (actorId) this.sendMenu(ctx, userId, actorId, primary);
   }
@@ -450,8 +569,9 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "They already own it.");
       return;
     }
-    if (this.countClaims(ctx, recipientProfile) >= this.maxClaims) {
-      this.notice(ctx, userId, "They hold too much property already.");
+    const full = this.overCap(ctx, recipientProfile, recipientActor, false);
+    if (full) {
+      this.notice(ctx, userId, full);
       return;
     }
     // Old keys must not open a new owner's door.
@@ -459,7 +579,10 @@ export class HousingSystem implements System {
     rec.owner = recipientProfile;
     rec.ownerName = this.nameOf(ctx, recipientActor);
     rec.partner = this.partnerOf(ctx, primary);
+    // A new owner's place: the old owner's assignments do not come with it
+    if (rec.place) { delete rec.assigned; delete rec.shared; }
     if (!this.commit(ctx, userId, primary, rec)) return;
+    if (rec.place && this.placesOn()) this.carryPlace(ctx, primary, rec); else this.ensurePlace(ctx, primary, rec);
     this.notice(ctx, userId, `Handed to ${rec.ownerName}.`);
     const recipientUser = this.userOf(ctx, recipientActor);
     this.notice(ctx, recipientUser, rec.name ? `${rec.name} is yours now.` : "You have been given a property.");
@@ -472,14 +595,24 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "That is not a container.");
       return;
     }
+    if (this.placesOn() && (rec.memberOf || this.placeAt(ctx, primary))) {
+      this.notice(ctx, userId, "This chest is part of a place: assign it from Rooms and chests instead.");
+      return;
+    }
     this.doTransfer(ctx, userId, primary, rec, isOwner, isManager, rawRecipient);
   }
 
   // ── Menu ────────────────────────────────────────────────────────────────────
 
   private sendMenu(ctx: SystemContext, userId: number, actorId: number, target: number): void {
-    const primary = this.primaryOf(ctx, target);
-    const rec = primary ? this.read(ctx, primary) : null;
+    let primary = this.primaryOf(ctx, target);
+    let rec = primary ? this.read(ctx, primary) : null;
+    // A door or chest nobody claimed inside a place opens the place's own menu, with that one marked in its rooms
+    let here = 0;
+    if (this.placesOn() && (!rec || rec.owner === 0)) {
+      const place = this.placeAt(ctx, target);
+      if (place) { here = primary; primary = place.root; rec = place.rec; }
+    }
     const owned = !!rec && rec.owner !== 0;
     const profileId = this.profileOf(ctx, actorId);
     const isOwner = owned && rec!.owner === profileId;
@@ -502,9 +635,147 @@ export class HousingSystem implements System {
       name: rec ? rec.name : null,
       locked: owned && rec!.locked,
       hasKeys: owned,
-      canGrantContainers: (isOwner || isManager) && owned && this.baseTypeOf(ctx, primary) === "CONT",
+      canGrantContainers: (isOwner || isManager) && owned && this.baseTypeOf(ctx, primary) === "CONT" && !(this.placesOn() && rec!.memberOf),
       ownerName: owned ? (rec!.ownerName || "Someone") : null,
+      ...(owned && this.placesOn() ? this.placeMenu(ctx, primary, rec!, isOwner || isManager, profileId, here) : {}),
     });
+  }
+
+  // The place part of the menu (N3): for its owner and the managers, the Rooms and chests panel; for anyone else, whether
+  // what they look at is assigned to them
+  private placeMenu(ctx: SystemContext, primary: number, rec: PropertyRecord, manages: boolean, profileId: number, here: number): Record<string, unknown> {
+    const root = rec.place ? primary : rec.memberOf || 0;
+    if (!root) return {};
+    const rootRec = root === primary ? rec : this.read(ctx, root);
+    if (!rootRec || rootRec.owner === 0 || !rootRec.place) return {};
+    const lookedAt = here || primary;
+    const mine = rootRec.assigned && rootRec.assigned[lookedAt.toString(16)];
+    if (!manages) return { place: null, placeName: rootRec.name, assignedToYou: !!mine && !!profileId && mine.profile === profileId };
+    const rooms = this.roomsOf(ctx, root, rootRec);
+    // What the owner looks at comes first
+    rooms.sort((a, b) => (b.ref === lookedAt ? 1 : 0) - (a.ref === lookedAt ? 1 : 0));
+    return {
+      placeName: rootRec.name,
+      place: { root, name: rootRec.name, here: lookedAt, rooms: rooms.slice(0, MAX_ROOMS_LISTED), more: Math.max(0, rooms.length - MAX_ROOMS_LISTED) },
+    };
+  }
+
+  // A place's inner doors and chests, the ones its owner assigns: everything in its cells but the ways out to the world,
+  // each door pair once. Another owner's own claim inside is shown as theirs and cannot be assigned.
+  private roomsOf(ctx: SystemContext, root: number, rootRec: PropertyRecord): Array<Record<string, unknown> & { ref: number }> {
+    const out: Array<Record<string, unknown> & { ref: number }> = [];
+    const seen = new Set<number>();
+    const cells = rootRec.place ? rootRec.place.cells : [];
+    for (const cell of cells) {
+      for (const ref of this.refsInCell(ctx, cell)) {
+        const kind = this.baseTypeOf(ctx, ref) === "CONT" ? "chest" : "door";
+        const far = kind === "door" ? this.partnerOf(ctx, ref) : 0;
+        if (far && this.isWorldDesc(ctx, this.cellDescOf(ctx, far))) continue;
+        const p = this.primaryOf(ctx, ref);
+        if (!p || p === root || seen.has(p)) continue;
+        seen.add(p);
+        const own = this.read(ctx, p);
+        const other = own && own.owner !== 0 && own.memberOf !== root ? (own.ownerName || "someone") : null;
+        const hex = p.toString(16);
+        const a = rootRec.assigned && rootRec.assigned[hex];
+        out.push({ ref: p, label: this.labelOf(ctx, ref, kind, far), kind, assigned: a ? a.name : null, shared: (rootRec.shared || []).includes(hex), other });
+      }
+    }
+    // Duplicate labels get a number, so "Chest" and "Chest 2" can be told apart
+    const counts = new Map<string, number>();
+    out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "door" ? -1 : 1) || String(a.label).localeCompare(String(b.label)) || a.ref - b.ref);
+    for (const r of out) { const n = (counts.get(String(r.label)) || 0) + 1; counts.set(String(r.label), n); if (n > 1) r.label = `${r.label} ${n}`; }
+    return out;
+  }
+
+  // A ref's base name (the plugin's FULL, localized or not), else its editor id spelled out, else "Chest" / "Door"; a
+  // door between two cells says where it goes
+  private labelOf(ctx: SystemContext, refrId: number, kind: string, far: number): string {
+    const mp = ctx.svr as Mp;
+    let label = "";
+    try {
+      const baseId = espmRefrFieldId(mp, refrId, "NAME");
+      if (baseId) {
+        try { const t = typeof mp.getLocalizedString === "function" ? mp.getLocalizedString(baseId) : undefined; if (typeof t === "string") label = t.trim(); } catch { /* no strings */ }
+        if (!label) {
+          const r = mp.lookupEspmRecordById(baseId);
+          const full = r && r.record && Array.isArray(r.record.fields) ? r.record.fields.find((f: any) => f && f.type === "FULL") : null;
+          if (full && full.data && full.data.length !== 4) label = String.fromCharCode(...Array.from(full.data as ArrayLike<number>)).replace(/\0/g, "").trim();
+          if (!label && r && r.record && r.record.editorId) label = String(r.record.editorId).replace(/[_\d]+$/, "").replace(/([a-z])([A-Z0-9])/g, "$1 $2").replace(/_/g, " ").trim();
+        }
+      }
+    } catch { /* not an espm ref */ }
+    label = label.replace(/[^\x20-\x7e]/g, "").slice(0, 40) || (kind === "chest" ? "Chest" : "Door");
+    if (far) {
+      let to = "";
+      try { const cellId = mp.getIdFromDesc(this.cellDescOf(ctx, far)) >>> 0; const t = cellId && typeof mp.getLocalizedString === "function" ? mp.getLocalizedString(cellId) : undefined; if (typeof t === "string") to = t.trim(); } catch { /* unknown */ }
+      if (to) label = `${label} to ${to.replace(/[^\x20-\x7e]/g, "").slice(0, 40)}`;
+    }
+    return label;
+  }
+
+  // Assigning the rooms and chests of a place (N3): its owner or a manager gives one to a person (it then opens for them,
+  // the owner and the managers), takes it back, or shares a chest with the household (anyone who may open the place)
+  private doRoom(ctx: SystemContext, userId: number, actorId: number, primary: number, rec: PropertyRecord, manages: boolean, action: string, rawRef: unknown, rawRecipient: unknown): void {
+    if (!this.placesOn() || rec.owner === 0 || !rec.place) {
+      this.notice(ctx, userId, "Only a whole property's rooms are assigned.");
+      return;
+    }
+    if (!manages) {
+      this.notice(ctx, userId, "This is not yours to assign.");
+      return;
+    }
+    const ref = toFormId(rawRef);
+    const room = ref ? this.roomsOf(ctx, primary, rec).find((r) => r.ref === (this.primaryOf(ctx, ref) || ref)) : undefined;
+    if (!room) {
+      this.notice(ctx, userId, "That is not one of this property's rooms or chests.");
+      return;
+    }
+    if (room.other) {
+      this.notice(ctx, userId, `That is ${room.other}'s own.`);
+      return;
+    }
+    const hex = room.ref.toString(16);
+    const assigned = Object.assign({}, rec.assigned || {});
+    let shared = (rec.shared || []).filter((h) => h !== hex);
+    let said = "";
+    if (action === "assign") {
+      const recipientActor = toFormId(rawRecipient);
+      const profile = recipientActor ? this.profileOf(ctx, recipientActor) : 0;
+      if (!profile) { this.notice(ctx, userId, "That is nobody."); return; }
+      if (profile === rec.owner) { delete assigned[hex]; said = `${room.label} is yours alone again.`; }
+      else { assigned[hex] = { profile, name: this.nameOf(ctx, recipientActor) }; said = `${room.label} is ${assigned[hex].name}'s now.`; }
+      if (Object.keys(assigned).length > MAX_ROOMS_LISTED * 2) { this.notice(ctx, userId, "Too many rooms are assigned already."); return; }
+    } else if (action === "unassign") {
+      delete assigned[hex];
+      said = `${room.label} is yours alone again.`;
+    } else if (action === "share") {
+      if (room.kind !== "chest") { this.notice(ctx, userId, "Only a chest is shared."); return; }
+      delete assigned[hex];
+      shared = shared.concat([hex]);
+      said = `${room.label} is shared with everyone who has a key.`;
+    } else {
+      said = `${room.label} is yours alone again.`;
+    }
+    if (Object.keys(assigned).length) rec.assigned = assigned; else delete rec.assigned;
+    if (shared.length) rec.shared = shared; else delete rec.shared;
+    if (!this.commit(ctx, userId, primary, rec)) return;
+    this.notice(ctx, userId, said);
+    if (action === "assign" && room.ref && rec.assigned && rec.assigned[hex]) {
+      const to = this.userOf(ctx, toFormId(rawRecipient));
+      this.notice(ctx, to, `${room.label} in ${rec.name || `${rec.ownerName}'s property`} is yours to use.`);
+    }
+    this.sendMenu(ctx, userId, actorId, primary);
+  }
+
+  // Whether an actor stands in one of the cells of the place a ref belongs to
+  private standsInPlaceOf(ctx: SystemContext, actorId: number, target: number): boolean {
+    const p = this.primaryOf(ctx, target);
+    const rec = p ? this.read(ctx, p) : null;
+    const root = rec && rec.owner !== 0 ? (rec.place ? p : rec.memberOf || 0) : (this.placeAt(ctx, target) || { root: 0 }).root;
+    const rootRec = root ? (root === p ? rec : this.read(ctx, root)) : null;
+    if (!rootRec || !rootRec.place) return false;
+    return rootRec.place.cells.indexOf(this.cellDescOf(ctx, actorId)) !== -1;
   }
 
   // ── Access ──────────────────────────────────────────────────────────────────
@@ -521,7 +792,276 @@ export class HousingSystem implements System {
     if (hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1)) return true;
     const credential = this.keyCredential(primary, rec);
     const names = this.acceptedKeyNames(ctx, primary, rec);
-    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential, names));
+    if (Array.from(v.keys).some((n) => this.isKeyFor(n, credential, names))) return true;
+    if (!this.placesOn()) return false;
+    // A place's root also answers to the key names its members had before the migration
+    if (rec.keyAliases && Array.from(v.keys).some((n) => rec.keyAliases!.some((a) => this.aliasOpens(n, a)))) return true;
+    // A member of a place: its assignee, and whoever may open the place itself; a chest only for the household when shared
+    if (!rec.memberOf || rec.memberOf === primary) return false;
+    const root = this.read(ctx, rec.memberOf);
+    if (!root || root.owner === 0) return false;
+    const hex = primary.toString(16);
+    const assigned = root.assigned && root.assigned[hex];
+    if (assigned) return (!!v.profileId && assigned.profile === v.profileId) || this.ownsOrManages(ctx, rec.memberOf, root, v);
+    if (this.isPlaceContainer(ctx, primary, rec) && !(root.shared || []).includes(hex)) return this.ownsOrManages(ctx, rec.memberOf, root, v);
+    return this.hasAccessWith(ctx, rec.memberOf, root, v);
+  }
+
+  // The owner, staff (Lead GM and above) and the managers of the hold: never a key holder
+  private ownsOrManages(ctx: SystemContext, primary: number, rec: PropertyRecord, v: ViewerAccess): boolean {
+    if (rec.owner === 0) return true;
+    if (v.profileId && v.profileId === rec.owner) return true;
+    if (v.admin) return true;
+    const hold = this.holdOf(ctx, primary);
+    return !!hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1);
+  }
+
+  // ── Places (N3): access ─────────────────────────────────────────────────────
+  //
+  // A place is a house's root record with place.cells: every door and chest in those cells belongs to it. A ref with a
+  // record of its own (a member, or another owner's claim) keeps its own rules; one nobody has claimed follows these.
+
+  // A member of a place its owner has assigned to someone: it opens for them, the owner and the managers, locked or not
+  private isAssignedMember(ctx: SystemContext, primary: number, rec: PropertyRecord): boolean {
+    if (!rec.memberOf || rec.memberOf === primary) return false;
+    const root = this.read(ctx, rec.memberOf);
+    return !!root && root.owner !== 0 && !!root.assigned && !!root.assigned[primary.toString(16)];
+  }
+
+  // A container in a place: a member chest, or one the migration marked owner-only
+  private isPlaceContainer(ctx: SystemContext, primary: number, rec: PropertyRecord): boolean {
+    if (rec.ownerOnly) return true;
+    return !!rec.memberOf && rec.memberOf !== primary && this.baseTypeOf(ctx, primary) === "CONT";
+  }
+
+  // An unclaimed door or chest inside a place: the owner and managers; its assignee; a chest that is shared, the household
+  // (anyone who may open the place); any other chest no one else; a door nobody is assigned stays open, as a house's are
+  private placeRefAccess(ctx: SystemContext, root: number, rootRec: PropertyRecord, primary: number, v: ViewerAccess): boolean {
+    if (this.ownsOrManages(ctx, root, rootRec, v)) return true;
+    const hex = primary.toString(16);
+    const assigned = rootRec.assigned && rootRec.assigned[hex];
+    if (assigned) return !!v.profileId && assigned.profile === v.profileId;
+    if (this.baseTypeOf(ctx, primary) !== "CONT") return true;
+    return (rootRec.shared || []).includes(hex) && this.hasAccessWith(ctx, root, rootRec, v);
+  }
+
+  // The place a ref stands in, by its cell, when the place's owner still holds it
+  private placeAt(ctx: SystemContext, refrId: number): { root: number; rec: PropertyRecord } | null {
+    const index = this.placeIndex(ctx);
+    if (!index.size) return null;
+    let cell = "";
+    try { cell = String((ctx.svr as Mp).get(refrId, "worldOrCellDesc") || ""); } catch { return null; }
+    const root = index.get(cell);
+    if (!root) return null;
+    const rec = this.read(ctx, root);
+    return rec && rec.owner !== 0 && rec.place ? { root, rec } : null;
+  }
+
+  // cell desc -> the root of the place holding it, rebuilt after any record is written
+  private placeIndex(ctx: SystemContext): Map<string, number> {
+    if (this.placeCells && !this.placeCellsDirty) return this.placeCells;
+    const index = new Map<string, number>();
+    for (const primary of this.claimed) {
+      const rec = this.read(ctx, primary);
+      if (!rec || rec.owner === 0 || !rec.place) continue;
+      for (const cell of rec.place.cells) if (!index.has(cell)) index.set(cell, primary);
+    }
+    this.placeCells = index;
+    this.placeCellsDirty = false;
+    return index;
+  }
+
+  // ── Places (N3): building and carrying ─────────────────────────────────────
+
+  private cellDescOf(ctx: SystemContext, refrId: number): string {
+    try { return String((ctx.svr as Mp).get(refrId, "worldOrCellDesc") || ""); } catch { return ""; }
+  }
+
+  private isWorldDesc(ctx: SystemContext, desc: string): boolean {
+    if (!desc) return false;
+    const cached = this.worldDescs.get(desc);
+    if (cached !== undefined) return cached;
+    const mp = ctx.svr as Mp;
+    let world = false;
+    try { const r = mp.lookupEspmRecordById(mp.getIdFromDesc(desc) >>> 0); world = !!r && !!r.record && String(r.record.type) === "WRLD"; } catch { /* unknown */ }
+    this.worldDescs.set(desc, world);
+    return world;
+  }
+
+  // The doors and containers placed in an interior cell (loading the cell's references, as a player entering it would)
+  private refsInCell(ctx: SystemContext, desc: string): number[] {
+    let ids: number[] = [];
+    try { ids = Array.from((ctx.svr as Mp).getNeighborsByPosition(desc, [0, 0, 0]) as ArrayLike<number>, (id) => Number(id) >>> 0); } catch { return []; }
+    return ids.filter((id) => id && id < 0xff000000 && this.isClaimable(ctx, id));
+  }
+
+  // Teleport doors in a cell and the cell each leads to
+  private doorsOut(ctx: SystemContext, desc: string): Array<{ ref: number; far: number; farCell: string }> {
+    const out: Array<{ ref: number; far: number; farCell: string }> = [];
+    for (const ref of this.refsInCell(ctx, desc)) {
+      if (this.baseTypeOf(ctx, ref) !== "DOOR") continue;
+      const far = this.partnerOf(ctx, ref);
+      if (far) out.push({ ref, far, farCell: this.cellDescOf(ctx, far) });
+    }
+    return out;
+  }
+
+  // The interior behind a house's door, and the rooms reachable only through it: a cell with a door of its own to the world
+  // is another building and stops the walk; so does a door someone else holds (staff included), and a cell any of whose
+  // doors someone else holds, which is theirs (an inn room claimed off a granted hall, review H); more than
+  // MAX_PLACE_CELLS (a dungeon below) keeps the first interior alone
+  private placeCellsFrom(ctx: SystemContext, inner: string, owner: number): string[] {
+    const others = (ref: number) => { const p = this.primaryOf(ctx, ref); const r = p ? this.read(ctx, p) : null; return !!r && r.owner !== 0 && r.owner !== owner; };
+    const cells = [inner];
+    for (let i = 0; i < cells.length; i++) {
+      for (const d of this.doorsOut(ctx, cells[i])) {
+        if (!d.farCell || this.isWorldDesc(ctx, d.farCell) || cells.indexOf(d.farCell) !== -1) continue;
+        if (others(d.ref)) continue;
+        const farDoors = this.doorsOut(ctx, d.farCell);
+        if (farDoors.some((o) => this.isWorldDesc(ctx, o.farCell) || others(o.ref))) continue;
+        cells.push(d.farCell);
+        if (cells.length > MAX_PLACE_CELLS) return [inner];
+      }
+    }
+    return cells;
+  }
+
+  // A door claimed, granted or handed over with the place rules on becomes a place when it leads from the world into an
+  // interior nobody else's place holds: the cells behind it, its other entrances and the owner's own claims inside join it.
+  // Staff claims stay as they are (Nate, 3 Oct). Nothing is built for a chest, or a door between two interiors.
+  private ensurePlace(ctx: SystemContext, primary: number, rec: PropertyRecord): void {
+    if (!this.placesOn() || rec.owner === 0 || rec.place || (rec.memberOf && rec.memberOf !== primary) || !rec.partner) return;
+    if (this.isStaff(ctx, rec.owner, 0)) return;
+    const near = this.cellDescOf(ctx, primary), far = this.cellDescOf(ctx, rec.partner);
+    const nearWorld = this.isWorldDesc(ctx, near), farWorld = this.isWorldDesc(ctx, far);
+    if (!near || !far || nearWorld === farWorld) return;
+    const inner = nearWorld ? far : near;
+    const index = this.placeIndex(ctx);
+    const taken = (c: string) => (index.has(c) && index.get(c) !== primary) || !!this.otherOwnerAt(ctx, c, rec.owner, primary);
+    // An interior another owner (staff included) also has a door to the world into is nobody's place (review G)
+    if (taken(inner)) {
+      const o = this.otherOwnerAt(ctx, inner, rec.owner, primary);
+      this.log(`[housing] ${primary.toString(16)} builds no place: ${inner} is ${o ? `also behind ${o.name}'s door ${o.ref.toString(16)}` : `part of ${index.get(inner)!.toString(16)}`}`);
+      return;
+    }
+    const cells = this.placeCellsFrom(ctx, inner, rec.owner).filter((c) => c === inner || !taken(c));
+    rec.place = { cells, builtAt: Date.now() };
+    if (!this.write(ctx, primary, rec)) { delete rec.place; return; }
+    const joined = this.joinEntrances(ctx, primary, rec);
+    let own = 0;
+    for (const other of this.claimed.slice()) {
+      if (other === primary) continue;
+      const r = this.read(ctx, other);
+      if (!r || r.owner !== rec.owner || r.memberOf || r.place) continue;
+      if (cells.indexOf(this.cellDescOf(ctx, other)) === -1 && !(r.partner && cells.indexOf(this.cellDescOf(ctx, r.partner)) !== -1)) continue;
+      r.memberOf = primary;
+      if (this.write(ctx, other, r)) own++;
+    }
+    this.log(`[housing] place built: ${rec.ownerName} (${rec.owner}) ${primary.toString(16)} cells=${cells.join(",")}, ${joined.length} entrance(s) joined, ${own} own claim(s) inside`);
+  }
+
+  // Doors to the world in a place's cells that nobody else holds become members, locked as the root is
+  // A door to the world in this cell held by someone other than this owner (and not part of this place): the cell is shared
+  private otherOwnerAt(ctx: SystemContext, cell: string, owner: number, root: number): { ref: number; owner: number; name: string } | null {
+    for (const d of this.doorsOut(ctx, cell)) {
+      if (!this.isWorldDesc(ctx, d.farCell)) continue;
+      const p = this.primaryOf(ctx, d.ref);
+      if (!p || p === root) continue;
+      const m = this.read(ctx, p);
+      if (m && m.owner !== 0 && m.owner !== owner) return { ref: p, owner: m.owner, name: m.ownerName || String(m.owner) };
+    }
+    return null;
+  }
+
+  // The doors to the world in these cells that nobody holds (primaries), which join a place built there
+  private unclaimedEntrances(ctx: SystemContext, root: number, owner: number, cells: string[]): number[] {
+    const out: number[] = [];
+    for (const cell of cells) {
+      for (const d of this.doorsOut(ctx, cell)) {
+        if (!this.isWorldDesc(ctx, d.farCell)) continue;
+        const p = this.primaryOf(ctx, d.ref);
+        if (!p || p === root || out.indexOf(p) !== -1) continue;
+        const m = this.read(ctx, p);
+        if (m && m.owner !== 0) {
+          if (m.owner !== owner) this.log(`[housing] place ${root.toString(16)}: entrance ${p.toString(16)} is ${m.ownerName || m.owner}'s and stays theirs`);
+          continue;
+        }
+        out.push(p);
+      }
+    }
+    return out;
+  }
+
+  private joinEntrances(ctx: SystemContext, root: number, rec: PropertyRecord, list?: number[]): number[] {
+    const joined: number[] = [];
+    for (const p of list || this.unclaimedEntrances(ctx, root, rec.owner, rec.place ? rec.place.cells : [])) {
+      const m = this.read(ctx, p);
+      if (m && m.owner !== 0) continue;
+      const member = m || emptyRecord();
+      member.owner = rec.owner;
+      member.ownerName = rec.ownerName;
+      member.partner = this.partnerOf(ctx, p);
+      member.locked = rec.locked;
+      member.memberOf = root;
+      if (member.issued === null) member.issued = [];
+      if (this.write(ctx, p, member)) joined.push(p);
+    }
+    return joined;
+  }
+
+  private membersOf(ctx: SystemContext, root: number): Array<{ ref: number; rec: PropertyRecord }> {
+    const out: Array<{ ref: number; rec: PropertyRecord }> = [];
+    for (const ref of this.claimed.slice()) {
+      if (ref === root) continue;
+      const r = this.read(ctx, ref);
+      if (r && r.owner !== 0 && r.memberOf === root) out.push({ ref, rec: r });
+    }
+    return out;
+  }
+
+  // A place handed over or granted: every member goes with its root (the root's re-key already re-keyed them)
+  private carryPlace(ctx: SystemContext, root: number, rec: PropertyRecord): void {
+    for (const m of this.membersOf(ctx, root)) {
+      m.rec.owner = rec.owner;
+      m.rec.ownerName = rec.ownerName;
+      this.write(ctx, m.ref, m.rec);
+    }
+  }
+
+  // The other doors of the place a door belongs to (the root and its member doors), not the one given
+  private placeDoorsWith(ctx: SystemContext, primary: number, rec: PropertyRecord): Array<{ ref: number; rec: PropertyRecord }> {
+    const root = rec.place ? primary : rec.memberOf || 0;
+    if (!root) return [];
+    const rootRec = root === primary ? rec : this.read(ctx, root);
+    if (!rootRec || rootRec.owner === 0 || !rootRec.place) return [];
+    const all = [{ ref: root, rec: rootRec }, ...this.membersOf(ctx, root)];
+    return all.filter((d) => d.ref !== primary && !!d.rec.partner && this.baseTypeOf(ctx, d.ref) === "DOOR");
+  }
+
+  private denyInPlace(ctx: SystemContext, casterId: number, owner: PropertyRecord): void {
+    const userId = this.userOf(ctx, casterId);
+    const now = Date.now();
+    if (now - (this.lastDenyMs.get(userId) || 0) <= 1000) return;
+    this.lastDenyMs.set(userId, now);
+    this.notice(ctx, userId, `This belongs to ${owner.name || owner.ownerName || "someone"}.`);
+  }
+
+  // Staff profiles, whose claims the place migration leaves exactly as they are and the place cap never counts (Nate,
+  // 3 Oct). Owners are offline at boot, so the Discord roles cannot say; the list is gamemode-config.json
+  // housingPlaces.staffProfiles (read when the plan runs, so an edit needs no restart) and the setting housingStaffProfiles.
+  private staffProfiles(): Set<number> {
+    const out = new Set<number>(this.staffSetting);
+    try {
+      const cfg = JSON.parse(fs.readFileSync(GAMEMODE_CONFIG_FILE, "utf8"));
+      const list = cfg && cfg.housingPlaces && Array.isArray(cfg.housingPlaces.staffProfiles) ? cfg.housingPlaces.staffProfiles : [];
+      for (const p of list) if (Number(p) > 0) out.add(Number(p));
+    } catch { /* no gamemode config here */ }
+    return out;
+  }
+
+  // The place rules (N3) apply only once Nate sets housingPlaceMigration "apply"
+  private placesOn(): boolean {
+    return this.placeMigration === "apply";
   }
 
   // One inventory read and one access read per actor, not per claimed ref.
@@ -740,6 +1280,13 @@ export class HousingSystem implements System {
     return words[n] || `${n}th`;
   }
 
+  // A key name carried over to a place's root: an issued name only exactly; the "(TAG[-serial])" credential as the suffix
+  // it always is. A bare name matched as a suffix could be forged by naming a property after it ("Key to the Key to ...")
+  private aliasOpens(name: string, alias: string): boolean {
+    if (name === alias) return true;
+    return CREDENTIAL_RE.test(alias) && name.endsWith(alias);
+  }
+
   private isKeyFor(name: unknown, credential: string, names?: string[]): boolean {
     if (typeof name !== "string") return false;
     if (names && names.indexOf(name) !== -1) return true;
@@ -758,12 +1305,26 @@ export class HousingSystem implements System {
       try {
         const inv = mp.get(actorId, "inventory");
         const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
-        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential, names)));
+        const aliases = rec.keyAliases || [];
+        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && (this.isKeyFor(e?.name, credential, names)
+          || (typeof e?.name === "string" && aliases.some((a) => this.aliasOpens(e.name, a))))));
         if (kept.length !== entries.length) mp.set(actorId, "inventory", { entries: kept });
       } catch { /* actor gone */ }
     }
     rec.serial += 1;
     rec.issued = [];
+    // New locks: the key names a place carried over from its members stop opening it too
+    if (rec.keyAliases) rec.keyAliases = [];
+    // ...and every door and chest of the place gets new locks with it, so no member's own old key still opens it
+    if (rec.place && this.placesOn()) {
+      for (const member of this.claimed) {
+        if (member === primary) continue;
+        const m = this.read(ctx, member);
+        if (!m || m.memberOf !== primary) continue;
+        this.reKey(ctx, member, m);
+        this.write(ctx, member, m);
+      }
+    }
   }
 
   private giveKey(ctx: SystemContext, actorId: number, keyName: string): boolean {
@@ -796,14 +1357,42 @@ export class HousingSystem implements System {
     this.sendDecor(ctx, userId, this.decorRefs(ctx));
   }
 
-  // A locked claim is locked for every viewer, so one list serves everyone
+  // A locked claim is locked for every viewer, so one list serves everyone. A member of a place carries the place's name, so
+  // a rename shows on every door pair of it (Nate, 3 Oct)
   private decorRefs(ctx: SystemContext): Array<Record<string, unknown>> {
     const refs: Array<Record<string, unknown>> = [];
-    for (const { primary, rec } of this.liveClaims(ctx)) {
-      refs.push({ refId: primary, name: rec.name, locked: rec.locked });
-      if (rec.partner) refs.push({ refId: rec.partner, name: rec.name, locked: rec.locked });
+    const live = this.liveClaims(ctx);
+    const names = new Map<number, string | null>(live.map((c) => [c.primary, c.rec.name]));
+    for (const { primary, rec } of live) {
+      const name = this.shownName(rec, names);
+      refs.push({ refId: primary, name, locked: rec.locked });
+      if (rec.partner) refs.push({ refId: rec.partner, name, locked: rec.locked });
     }
     return refs;
+  }
+
+  // The name a claim shows: its place's when it is a member of a named one, else its own
+  private shownName(rec: PropertyRecord, rootNames: Map<number, string | null>): string | null {
+    if (rec.memberOf && this.placesOn()) { const n = rootNames.get(rec.memberOf); if (n) return n; }
+    return rec.name;
+  }
+
+  // The interaction prompt's name for a load door (gamemode.js dboDoorName): the property's name on the side of its door
+  // that stands in the world and leads in, so a house reads as what its owner called it; "" elsewhere (the door out, a
+  // door between two interiors, an unnamed or unowned claim), where the prompt keeps the destination's name
+  private doorName(ctx: SystemContext, refrId: number): string {
+    // Off until the place rules are: in dryrun every prompt reads as today (doors.json, the hub gates)
+    if (!this.placesOn()) return "";
+    const primary = this.primaryOf(ctx, refrId);
+    if (!primary) return "";
+    const rec = this.read(ctx, primary);
+    if (!rec || rec.owner === 0) return "";
+    const root = rec.memberOf ? this.read(ctx, rec.memberOf) : null;
+    const name = (root && root.owner !== 0 && root.name) || rec.name;
+    if (!name) return "";
+    const far = this.partnerOf(ctx, refrId);
+    if (!far) return "";
+    return this.isWorldDesc(ctx, this.cellDescOf(ctx, refrId)) && !this.isWorldDesc(ctx, this.cellDescOf(ctx, far)) ? name : "";
   }
 
   // The registry drops an entry only when its record says the claim is over (an ownerless stub). An entry that reads
@@ -929,6 +1518,12 @@ export class HousingSystem implements System {
         partner: Number(r.partner) || 0,
         containers: Array.isArray(r.containers) ? r.containers.map((c) => Number(c) >>> 0) : [],
         issued: Array.isArray(r.issued) ? r.issued.map((n) => String(n)).slice(-MAX_ISSUED_KEY_NAMES) : null,
+        ...(r.place && Array.isArray(r.place.cells) ? { place: { cells: r.place.cells.map(String), builtAt: Number(r.place.builtAt) || 0 } } : {}),
+        ...(r.assigned && typeof r.assigned === "object" ? { assigned: r.assigned } : {}),
+        ...(Array.isArray(r.shared) ? { shared: r.shared.map(String) } : {}),
+        ...(Array.isArray(r.keyAliases) ? { keyAliases: r.keyAliases.map(String) } : {}),
+        ...(Number(r.memberOf) ? { memberOf: Number(r.memberOf) >>> 0 } : {}),
+        ...(r.ownerOnly === true ? { ownerOnly: true } : {}),
       };
     } catch {
       return null;
@@ -952,6 +1547,7 @@ export class HousingSystem implements System {
       } catch { }
     }
     if (rec.owner !== 0) this.remember(primary); else this.forget(primary);
+    this.placeCellsDirty = true;
     // Lock changes reach every client on the next tick, not the next decor interval
     this.decorDirty = true;
     this.lastDecorMs = 0;
@@ -968,12 +1564,319 @@ export class HousingSystem implements System {
   // Giving a property up keeps an ownerless stub so the key serial survives;
   // a later claim then cannot mint a credential old copies already answer to.
   private release(ctx: SystemContext, primary: number, rec: PropertyRecord): boolean {
+    // Giving up a place gives up all of it; its members go first, so the root's re-key finds none left to cascade to
+    if (rec.place && this.placesOn()) {
+      for (const member of this.membersOf(ctx, primary)) {
+        delete member.rec.memberOf; delete member.rec.ownerOnly;
+        this.release(ctx, member.ref, member.rec);
+      }
+    }
+    delete rec.place; delete rec.assigned; delete rec.shared;
+    delete rec.keyAliases;
+    delete rec.memberOf; delete rec.ownerOnly;
     this.reKey(ctx, primary, rec);
     rec.owner = 0;
     rec.ownerName = "";
     rec.name = null;
     rec.locked = false;
     return this.write(ctx, primary, rec);
+  }
+
+  // ── Places (N3): the migration dry run ──────────────────────────────────────
+  //
+  // Groups each owner's claims behind one exterior door into a place, as the migration will, and writes the plan to the
+  // log and PLACE_PLAN_FILE for review. Nothing is written to any record in dryrun. Returns false (to be tried again) while
+  // any claim in the registry is unreadable, as records are right after boot (memory housing-records-unreadable-at-boot);
+  // on the last try it writes the plan anyway, naming the unreadable claims, and applies nothing.
+  private dryRunPlaces(ctx: SystemContext, lastTry = false): boolean {
+    const cellOf = (ref: number): string => this.cellDescOf(ctx, ref);
+    const isWorld = (desc: string): boolean => this.isWorldDesc(ctx, desc);
+    const claims: PlaceClaim[] = [];
+    const unreadable: number[] = [];
+    for (const primary of this.claimed) {
+      const rec = this.read(ctx, primary);
+      if (!rec) { unreadable.push(primary); continue; }
+      if (!rec.owner) continue;
+      claims.push({ ref: primary, owner: rec.owner, ownerName: rec.ownerName, name: rec.name, locked: rec.locked, door: rec.partner !== 0,
+        cell: cellOf(primary), partnerCell: rec.partner ? cellOf(rec.partner) : "" });
+    }
+    if (unreadable.length && !lastTry) return false;
+    const staff = this.staffProfiles();
+    const plan = planPlaces(claims, isWorld, this.placeCap, staff);
+    const details = this.refinePlaces(ctx, plan.places, claims);
+    const hex = (n: number) => (n >>> 0).toString(16);
+    this.log(`[housing] place plan (${this.placeMigration === "apply" ? "apply" : "dry run, nothing changed"}): ${claims.length} owned claims -> ${plan.places.length} places${unreadable.length ? `; ${unreadable.length} claim(s) unreadable: ${unreadable.map(hex).join(",")}` : ""}`);
+    for (const p of plan.places) {
+      const d = details.get(p.root);
+      this.log(`[housing] place plan: ${p.ownerName} (${p.owner}) ${p.kind} ${hex(p.root)} "${p.name || ""}" cells=${(d ? d.cells : p.cells).join(",")} members=${(d ? d.members : p.members).map(hex).join(",") || "-"}`
+        + (d && d.openChests.length ? ` claimed open chests becoming owner-only=${d.openChests.map(hex).join(",")}` : "")
+        + (d && d.unclaimedChests.length ? ` unclaimed chests becoming owner-only=${d.unclaimedChests.length} (${d.unclaimedChests.map(hex).join(",")})` : "")
+        + (d && d.innerDoors.length ? ` inner doors=${d.innerDoors.length}` : "")
+        + (d && d.entrances.length ? ` unclaimed entrances joining=${d.entrances.map(hex).join(",")}` : "")
+        + (d && d.skippedCells.length ? ` cells left out=${d.skippedCells.map((c) => `${c.cell} (${c.why})`).join("; ")}` : "")
+        + (d && d.outside.length ? ` claims left as their own=${d.outside.map(hex).join(",")}` : "")
+        + (d && d.notApplied ? ` NOT APPLIED: ${d.notApplied}` : ""));
+    }
+    for (const o of plan.overCap) this.log(`[housing] place plan: ${o.ownerName} (${o.owner}) would hold ${o.places.length} places (${o.places.map(hex).join(", ")}); kept, for Nate to decide`);
+    for (const k of plan.staffKept) this.log(`[housing] place plan: staff, left as they are: ${k.ownerName} (${k.owner}) ${k.claims.map(hex).join(", ")}`);
+    const tenancy = this.listingsOnMembers(details);
+    for (const t of tenancy) this.log(`[housing] place plan: the tenancy listing at ${t.door} would sit on a member of ${t.root}; move it to the place's root before apply`);
+    const out = { at: new Date().toISOString(), mode: this.placeMigration, unreadable: unreadable.map(hex), ...plan, details: [...details.values()], tenancyListingsOnMembers: tenancy };
+    try { fs.writeFileSync(PLACE_PLAN_FILE, JSON.stringify(out, null, 1)); } catch (e) { this.log(`[housing] ${PLACE_PLAN_FILE} write failed: ${e}`); }
+    if (this.placeMigration === "apply") {
+      if (unreadable.length) this.log(`[housing] place migration NOT applied: ${unreadable.length} of ${this.claimed.length} claims are still unreadable`);
+      else this.applyPlaces(ctx, plan.places, details);
+    }
+    return true;
+  }
+
+  // What the migration will do with each planned house, by the same rule a newly claimed door follows: its cells are the
+  // interior behind its root and the rooms reachable only through it (placeCellsFrom); a cell another owner's house also
+  // opens onto, or another place already holds, is nobody's place and is left out (and a house whose own interior is
+  // shared is not applied); members are the owner's claims in those cells, the rest stay claims of their own; the unclaimed
+  // entrances that will join, and the unclaimed chests (owner-only from then on) and inner doors in its cells, are listed.
+  private refinePlaces(ctx: SystemContext, places: PlannedPlace[], claims: PlaceClaim[]): Map<number, PlaceDetail> {
+    const out = new Map<number, PlaceDetail>();
+    const byRef = new Map<number, PlaceClaim>(claims.map((c) => [c.ref, c]));
+    const houses = places.filter((p) => p.kind === "house").sort((a, b) => a.root - b.root);
+    // cell -> the owners whose houses (planned, or places already built) open onto it
+    const owners = new Map<string, Set<number>>();
+    const note = (cell: string, owner: number) => { const s = owners.get(cell) || new Set<number>(); s.add(owner); owners.set(cell, s); };
+    const inners = new Map<number, string>();
+    const walks = new Map<number, string[]>();
+    for (const p of houses) {
+      const c = byRef.get(p.root);
+      const inner = c ? (c.cell && !this.isWorldDesc(ctx, c.cell) ? c.cell : c.partnerCell) : "";
+      inners.set(p.root, inner);
+      const cells = inner ? this.placeCellsFrom(ctx, inner, p.owner) : [];
+      walks.set(p.root, cells);
+      for (const cell of cells) note(cell, p.owner);
+    }
+    for (const [cell, root] of this.placeIndex(ctx)) { const r = this.read(ctx, root); if (r) note(cell, r.owner); }
+    for (const p of houses) {
+      const inner = inners.get(p.root) || "";
+      const walked = walks.get(p.root) || [];
+      const skipped: Array<{ cell: string; why: string }> = [];
+      const cells: string[] = [];
+      for (const cell of walked) {
+        const others = [...(owners.get(cell) || [])].filter((o) => o !== p.owner);
+        const door = others.length ? null : this.otherOwnerAt(ctx, cell, p.owner, p.root);
+        if (others.length) skipped.push({ cell, why: `also opens onto profile ${others.join("/")}'s place` });
+        else if (door) skipped.push({ cell, why: `also behind ${door.name}'s door ${door.ref.toString(16)}` });
+        else cells.push(cell);
+      }
+      for (const cell of p.cells) if (walked.indexOf(cell) === -1) skipped.push({ cell, why: "has its own door to the world, or lies beyond the walk" });
+      const inCells = (ref: number) => { const c = byRef.get(ref); return !!c && (cells.indexOf(c.cell) !== -1 || (!!c.partnerCell && cells.indexOf(c.partnerCell) !== -1)); };
+      const members = p.members.filter(inCells);
+      const outside = p.members.filter((m) => !inCells(m));
+      const notApplied = !inner ? "its interior is unknown" : cells.indexOf(inner) === -1 ? "its interior is shared with another owner's place" : "";
+      const d: PlaceDetail = { root: p.root, owner: p.owner, cells: notApplied ? [] : cells, members: notApplied ? [] : members, outside, skippedCells: skipped,
+        openChests: notApplied ? [] : p.openChests.filter((r) => members.indexOf(r) !== -1), entrances: [], unclaimedChests: [], innerDoors: [], notApplied };
+      if (!notApplied) {
+        d.entrances = this.unclaimedEntrances(ctx, p.root, p.owner, cells);
+        const seen = new Set<number>();
+        for (const cell of cells) for (const ref of this.refsInCell(ctx, cell)) {
+          const pr = this.primaryOf(ctx, ref);
+          if (!pr || pr === p.root || seen.has(pr)) continue;
+          seen.add(pr);
+          const r = this.read(ctx, pr);
+          if (r && r.owner !== 0) continue;
+          if (this.baseTypeOf(ctx, ref) === "CONT") d.unclaimedChests.push(pr);
+          else if (d.entrances.indexOf(pr) === -1) d.innerDoors.push(pr);
+        }
+      }
+      out.set(p.root, d);
+    }
+    return out;
+  }
+
+  // Tenancy listings (tenancy.json, keyed by a door's primary) at a door the migration makes a member: unreachable after
+  private listingsOnMembers(details: Map<number, PlaceDetail>): Array<{ door: string; root: string }> {
+    let listings: Record<string, unknown> = {};
+    try { const t = JSON.parse(fs.readFileSync(TENANCY_FILE, "utf8")); listings = t && typeof t.listings === "object" ? t.listings : {}; } catch { return []; }
+    const out: Array<{ door: string; root: string }> = [];
+    for (const d of details.values()) for (const m of d.members.concat(d.entrances)) {
+      const h = (m >>> 0).toString(16);
+      if (Object.prototype.hasOwnProperty.call(listings, h)) out.push({ door: h, root: (d.root >>> 0).toString(16) });
+    }
+    return out;
+  }
+
+  // The migration itself, only with housingPlaceMigration "apply" and only once every claim is readable. Every record it
+  // will write (roots, members, the entrances it claims, and both halves of each pair) is written to a backup file first,
+  // and nothing is written if that fails; housingPlaceRestore puts a backup back. A house's root gets its place (cells)
+  // and the key credentials and names its member DOORS answered to (keyAliases; a chest's key keeps opening only that
+  // chest), so no door key stops working once access goes by place; each member points at its root; an unlocked claimed
+  // chest inside is marked ownerOnly (Nate, 3 Oct); unclaimed entrances join. Owners and locks stay as they are. A place
+  // already built (by an earlier boot, or by a claim since) is left alone, so a second boot changes nothing.
+  private applyPlaces(ctx: SystemContext, places: PlannedPlace[], details: Map<number, PlaceDetail>): void {
+    const mp = ctx.svr as Mp;
+    const hex = (n: number) => (n >>> 0).toString(16);
+    const built = (ref: number) => { const r = this.read(ctx, ref); return !r || !!r.place || !!r.memberOf; };
+    const todo = places.filter((p) => p.kind === "house").map((p) => ({ p, d: details.get(p.root)! }))
+      .filter(({ p, d }) => !!d && !d.notApplied && d.cells.length > 0 && !built(p.root) && !d.members.some(built));
+    if (!todo.length) { this.log(`[housing] place migration: nothing to apply`); return; }
+    const backup: Record<string, unknown> = {};
+    const keep = (ref: number) => {
+      for (const r of [ref, this.partnerOf(ctx, ref)]) {
+        if (!r || Object.prototype.hasOwnProperty.call(backup, hex(r))) continue;
+        let v: unknown = null;
+        try { v = mp.get(r, HOUSING_PROP); } catch { v = null; }
+        backup[hex(r)] = v === undefined ? null : v;
+      }
+    };
+    for (const { p, d } of todo) for (const ref of [p.root, ...d.members, ...d.entrances]) keep(ref);
+    const file = `${PLACE_BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    // What each place was made of, so a restore takes back only the migration's own changes
+    const meta = todo.map(({ p, d }) => ({ root: hex(p.root), owner: p.owner, members: d.members.map(hex), entrances: d.entrances.map(hex) }));
+    try { fs.writeFileSync(file, JSON.stringify({ version: 2, places: meta, records: backup }, null, 1)); } catch (e) { this.log(`[housing] place migration NOT applied: the backup ${file} could not be written: ${e}`); return; }
+    let applied = 0, failed = 0;
+    for (const { p, d } of todo) {
+      const root = this.read(ctx, p.root);
+      if (!root) { failed++; continue; }
+      const aliases = new Set<string>(root.keyAliases || []);
+      const members: Array<{ ref: number; rec: PropertyRecord }> = [];
+      for (const ref of d.members) {
+        const rec = this.read(ctx, ref);
+        if (!rec) continue;
+        // Only a door's keys come over: a chest's key must not open the house (review F1)
+        if (rec.partner && this.baseTypeOf(ctx, ref) !== "CONT") {
+          aliases.add(this.keyCredential(ref, rec));
+          for (const name of rec.issued || []) aliases.add(name);
+        }
+        members.push({ ref, rec });
+      }
+      root.place = { cells: d.cells.slice(), builtAt: Date.now() };
+      if (aliases.size) root.keyAliases = [...aliases];
+      if (!this.write(ctx, p.root, root)) { failed++; continue; }
+      const joined = this.joinEntrances(ctx, p.root, root, d.entrances);
+      if (joined.length) this.log(`[housing] place migration: ${hex(p.root)} gained its unclaimed entrance(s) ${joined.map(hex).join(",")}`);
+      for (const m of members) {
+        m.rec.memberOf = p.root;
+        if (d.openChests.includes(m.ref)) m.rec.ownerOnly = true;
+        if (!this.write(ctx, m.ref, m.rec)) failed++;
+      }
+      applied++;
+      this.log(`[housing] place migration: ${p.ownerName} (${p.owner}) ${hex(p.root)} "${p.name || ""}" applied: ${members.length} member(s), ${aliases.size} door key name(s) kept, ${d.unclaimedChests.length} unclaimed chest(s) now owner-only${d.openChests.length ? `, claimed owner-only: ${d.openChests.map(hex).join(",")}` : ""}`);
+    }
+    this.log(`[housing] place migration applied to ${applied} house(s)${failed ? `, ${failed} write(s) failed` : ""}; backup ${file} (housingPlaceRestore puts it back)`);
+  }
+
+  // housingPlaceRestore "<backup file>" (with housingPlaceMigration "dryrun" or "off"): takes back what that migration
+  // did and nothing done since (review R1): each root and member keeps its record as it is now (owner, serial, keys,
+  // name, lock: a hand-over, a re-key or a tenancy since stand) with only the migration's own fields removed (place,
+  // memberOf, keyAliases, ownerOnly, assigned, shared); an entrance the migration claimed goes back to an ownerless stub,
+  // its far half pointing at it again, only while it still belongs to that place's owner and root. Every ref whose owner
+  // or serial changed since the backup is logged and listed in the "<file>.restored" marker.
+  // It is idempotent, so the marker only says how far it got: it is written ("started") before anything changes, and if
+  // it cannot be, nothing is restored (fail closed); it ends "done" when every record was written, else "incomplete"
+  // with the refs that failed. Only "done" with no failures stops a rerun on the next boot; "started" (a crash mid-way)
+  // and "incomplete" run again. Manual reset, for a "done" whose writes were lost (a crash before the changeforms were
+  // saved): sudo rm /opt/alduinak/build/dist/server/<backup>.restored, then reboot with housingPlaceRestore still set.
+  // Keep housingPlaceRestore set until the changeforms have been saved (specs/housing-places-ops.md).
+  private restorePlaces(ctx: SystemContext, file: string): void {
+    if (this.placeMigration === "apply") { this.log(`[housing] place restore refused: set housingPlaceMigration to "dryrun" or "off" first`); return; }
+    if (!/^housing-places-backup-[0-9TZ-]+\.json$/.test(file)) { this.log(`[housing] place restore refused: ${file} is not a migration backup's name`); return; }
+    const marker = `./${file}.restored`;
+    if (fs.existsSync(marker)) {
+      let prev: any = null;
+      try { prev = JSON.parse(fs.readFileSync(marker, "utf8")); } catch { prev = null; }
+      if (prev && prev.state === "done" && Array.isArray(prev.failed) && prev.failed.length === 0) {
+        this.log(`[housing] place restore: ${file} was restored already (${marker} says done); remove the marker to run it again`);
+        return;
+      }
+      this.log(`[housing] place restore: ${marker} says ${prev ? `"${prev.state}"${Array.isArray(prev.failed) && prev.failed.length ? `, ${prev.failed.length} failed` : ""}` : "nothing readable"}; running it again (it is safe to repeat)`);
+    }
+    let backup: any;
+    try { backup = JSON.parse(fs.readFileSync(`./${file}`, "utf8")); } catch (e) { this.log(`[housing] place restore failed: ${file} unreadable: ${e}`); return; }
+    if (!backup || backup.version !== 2 || !Array.isArray(backup.places) || typeof backup.records !== "object") { this.log(`[housing] place restore refused: ${file} is not a version 2 migration backup`); return; }
+    try { fs.writeFileSync(marker, JSON.stringify({ at: new Date().toISOString(), state: "started" })); } catch (e) {
+      this.log(`[housing] PLACE RESTORE NOT DONE: the marker ${marker} could not be written (${e}); nothing was changed, and nothing will be until it can be`);
+      return;
+    }
+    const num = (h: unknown) => parseInt(String(h), 16) >>> 0;
+    const was = (h: string): PropertyRecord | null => { const v = backup.records[h]; return v && typeof v === "object" && !Number((v as any).primary) ? v as PropertyRecord : null; };
+    const placeFields = (r: PropertyRecord) => r.place !== undefined || r.memberOf !== undefined || r.keyAliases !== undefined || r.ownerOnly !== undefined || r.assigned !== undefined || r.shared !== undefined;
+    const changed: Array<{ ref: string; was: { owner: number; serial: number } | null; now: { owner: number; serial: number } }> = [];
+    const failed: string[] = [];
+    let stripped = 0, released = 0, keptEntrances = 0;
+    for (const place of backup.places as Array<{ root: string; owner: number; members: string[]; entrances: string[] }>) {
+      const root = num(place.root);
+      for (const h of [place.root, ...(place.members || [])]) {
+        const ref = num(h);
+        if (!ref) continue;
+        const cur = this.read(ctx, ref);
+        if (!cur) { failed.push(h); continue; }
+        const before = was(h);
+        if (!before || before.owner !== cur.owner || (Number(before.serial) || 1) !== cur.serial) {
+          changed.push({ ref: h, was: before ? { owner: before.owner, serial: Number(before.serial) || 1 } : null, now: { owner: cur.owner, serial: cur.serial } });
+        }
+        if (!placeFields(cur)) continue;
+        delete cur.place; delete cur.memberOf; delete cur.keyAliases; delete cur.ownerOnly; delete cur.assigned; delete cur.shared;
+        if (this.write(ctx, ref, cur)) stripped++; else failed.push(h);
+      }
+      for (const h of place.entrances || []) {
+        const ref = num(h);
+        if (!ref) continue;
+        const cur = this.read(ctx, ref);
+        if (!cur) { failed.push(h); continue; }
+        // Released on an earlier run: nothing to do, and nothing changed
+        if (cur.owner === 0 && !placeFields(cur)) continue;
+        if (cur.owner === place.owner && cur.memberOf === root) {
+          // Back to unclaimed; the serial moves on, so no key cut for it while it was the place's opens it again
+          const stub = emptyRecord();
+          stub.serial = cur.serial + 1;
+          stub.partner = cur.partner;
+          if (this.write(ctx, ref, stub)) released++; else failed.push(h);
+        } else {
+          changed.push({ ref: h, was: null, now: { owner: cur.owner, serial: cur.serial } });
+          if (!placeFields(cur)) continue;
+          delete cur.memberOf; delete cur.ownerOnly;
+          if (this.write(ctx, ref, cur)) keptEntrances++; else failed.push(h);
+        }
+      }
+    }
+    this.placeCellsDirty = true;
+    this.decorDirty = true;
+    this.lastDecorMs = 0;
+    const state = failed.length ? "incomplete" : "done";
+    const result = { at: new Date().toISOString(), state, failed, stripped, released, keptEntrances, changed };
+    try { fs.writeFileSync(marker, JSON.stringify(result, null, 1)); } catch (e) { this.log(`[housing] PLACE RESTORE: the result could not be written to ${marker} (${e}); it still says "started", so the next boot runs it again`); }
+    this.log(`[housing] place restore from ${file} ${state.toUpperCase()}: ${stripped} record(s) stripped of place fields, ${released} joined entrance(s) unclaimed again, ${keptEntrances} kept by who holds them now${failed.length ? `; ${failed.length} FAILED (${failed.join(",")}), the next boot tries again` : ""}`);
+    for (const c of changed) this.log(`[housing] place restore: ${c.ref} changed since the backup (owner ${c.was ? c.was.owner : "none"} -> ${c.now.owner}, serial ${c.was ? c.was.serial : "-"} -> ${c.now.serial}); kept as it is now`);
+  }
+
+
+  // The cap (Nate, 3 Oct): with the place rules on, one place per player, a place being a house with all its doors and
+  // chests, or a lone claim; members of a place are not counted. Nobody loses anything: an owner already past it keeps what
+  // they hold (the dry run lists them for Nate) and only cannot gain another. Staff are exempt: the profiles in
+  // housingPlaces.staffProfiles / housingStaffProfiles, and anyone online with an admin tier (the roles the gear swap's
+  // staff exemption reads). Without the place rules the old per-claim limit (housingMaxClaims) stands.
+  // Returns the refusal, or "" when they may take one more.
+  private overCap(ctx: SystemContext, profileId: number, actorId: number, self: boolean): string {
+    if (!this.placesOn()) {
+      if (this.countClaims(ctx, profileId) < this.maxClaims) return "";
+      return self ? `You already hold ${this.maxClaims} properties.` : "They hold too much property already.";
+    }
+    if (this.isStaff(ctx, profileId, actorId)) return "";
+    if (this.countPlaces(ctx, profileId) < this.placeCap) return "";
+    const n = this.placeCap === 1 ? "a property" : `${this.placeCap} properties`;
+    return self ? `You already hold ${n}; one each.` : `They already hold ${n}; one each.`;
+  }
+
+  private isStaff(ctx: SystemContext, profileId: number, actorId: number): boolean {
+    if (profileId && this.staffProfiles().has(profileId)) return true;
+    return !!actorId && adminTierOf(ctx.svr as Mp, actorId, this.roleCfg) !== null;
+  }
+
+  // Places held: every owned record that is not a member of a place (a root, or a claim of its own)
+  private countPlaces(ctx: SystemContext, profileId: number): number {
+    let n = 0;
+    for (const primary of this.claimed) {
+      const rec = this.read(ctx, primary);
+      if (rec && rec.owner === profileId && (!rec.memberOf || rec.memberOf === primary)) n++;
+    }
+    return n;
   }
 
   private countClaims(ctx: SystemContext, profileId: number): number {
@@ -1085,6 +1988,17 @@ export class HousingSystem implements System {
   private zones!: Zones;
   private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
+  private placeCap = 1;
+  private placeRestore = "";
+  private placeMigration: "off" | "dryrun" | "apply" = "dryrun";
+  private staffSetting: number[] = [];
+  private initAtMs = 0;
+  private placePlanDone = false;
+  private placePlanTriedMs = 0;
+  private placePlanTries = 0;
+  private placeCells: Map<string, number> | null = null;
+  private worldDescs = new Map<string, boolean>();
+  private placeCellsDirty = true;
   private maxDistance = DEFAULT_MAX_DISTANCE;
   private openClaims = false;
   private decorDirty = false;
