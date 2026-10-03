@@ -28,7 +28,7 @@ export const xpPerUnitAt = (level: number): number => {
 };
 
 // Tier bands, the five names the whole gameplay layer already reads: Novice 1-24, Apprentice 25-49,
-// Journeyman 50-74, Expert 75-89, Master 90-100. Level 0 is "never touched" and has no tier.
+// Adept 50-74, Expert 75-89, Master 90-100. Level 0 is "never touched" and has no tier.
 const TIER_FLOORS = [1, 25, 50, 75, 90];
 export const tierOfLevel = (level: number): number => {
   if (level < 1) return -1;

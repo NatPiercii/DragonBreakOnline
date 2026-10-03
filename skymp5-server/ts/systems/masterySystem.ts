@@ -55,7 +55,7 @@ const SKILLS_FILE = "skills.json";
 const GOLD_BASE_ID = 0x0000000f;
 
 const DEFAULT_TIER_HOURS = [0, 10, 30, 70, 150];
-const DEFAULT_TIER_NAMES = ["Novice", "Apprentice", "Journeyman", "Expert", "Master"];
+const DEFAULT_TIER_NAMES = ["Novice", "Apprentice", "Adept", "Expert", "Master"];
 const DEFAULT_MAX_CHOSEN = 3;
 const DEFAULT_POINT_INTERVAL_MINUTES = 60;
 const DEFAULT_RESPEC_GOLD = 1200;
