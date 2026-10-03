@@ -48,7 +48,8 @@ export FORK FORK_SERVER
 
 # Seconds a harness may run before it counts as failed (120 unless named here). The loot budget claims every dungeon at
 # every difficulty and took almost 4 minutes on a busy box (27 s of CPU), so 120 s killed a passing run (2026-09-30).
-declare -A LIMIT=([expedition-loot-budget]=600)
+# Harnesses that roll large samples: under load at nice 19 loot-tiers took 345 s alone (3 Oct), past the 120 s default
+declare -A LIMIT=([expedition-loot-budget]=600 [loot-tiers]=600)
 
 # harness -> the bundle it takes: which fork (client: $FORK, server: $FORK_SERVER) and the entry point in it
 declare -A NEEDS=(
