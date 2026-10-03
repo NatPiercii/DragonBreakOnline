@@ -1,10 +1,18 @@
 // itemguards.js checks every put and take a player makes: the pack's and the container's counts of the base are read
 // before the engine moves them and again after, and a move that changed their total is logged (a store that left the
-// items in the pack as well, 3 Oct). Moves are logged one line each unless itemGuards.logMoves is false.
+// items in the pack as well, 3 Oct). Every move is logged too only with itemGuards.logMoves true (off by default for its
+// volume). Across a relog: the pack and the containers used are written down at logout, and a total that grew is logged
+// at the next login. Runs in a scratch folder (item-snapshots.json).
 //   node tests/itemguard-move-check-harness.js   (from server/)
 'use strict';
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const home = process.cwd();
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-movecheck-'));
+process.chdir(dir);
 const MODULE = path.resolve(__dirname, '..', 'itemguards.js');
+const realTimeout = setTimeout;
 let pending = [];
 global.setTimeout = (fn) => { pending.push(fn); return pending.length; };
 const flush = () => { const due = pending; pending = []; due.forEach((f) => f()); };
@@ -28,6 +36,10 @@ const take = (n, faulty) => { if (globalThis.__dboTakeGuard(CHEST, P, HERB, n) =
 
 load({});
 ok(put(3), 'a put of 3 of 4 passes');
+ok(!moves().length, 'by default a normal move is not logged');
+inv[P] = [{ baseId: HERB, count: 4 }, { baseId: SWORD, count: 1 }]; inv[CHEST] = [{ baseId: HERB, count: 1 }];
+load({ itemGuards: { logMoves: true } });
+ok(put(3), 'with logMoves true: a put of 3 of 4 passes');
 ok(moves().length === 1 && /^ITEMGUARD move put by Pff001771 at 806da23: 7601924 x3 \(pack 4 -> 1, container 1 -> 4\)$/.test(moves()[0]), 'one line for it, with both counts', logs);
 logs.length = 0;
 ok(take(2), 'a take of 2 passes');
@@ -54,6 +66,44 @@ ok(!logs.some((l) => /ITEMGUARD move/.test(l)), 'logMoves false: a normal move i
 put(1, true);
 ok(logs.some((l) => /changed the total by \+1/.test(l)), '...a move that made items still is', logs);
 
-delete globalThis.__dboItemGuards; delete globalThis.__dboTakeGuard;
-console.log(fails ? `\n${fails} FAILED` : '\nall passed');
-process.exit(fails ? 1 : 0);
+// ---- across a relog ------------------------------------------------------------------------------------------------------
+const FILE = path.join(dir, 'item-snapshots.json');
+const wait = (ms) => new Promise((r) => realTimeout(r, ms));
+const idle = async () => { for (let i = 0; i < 200 && globalThis.__dboItemGuards && (globalThis.__dboItemGuards.snapWriting || globalThis.__dboItemGuards.snapDirty); i++) await wait(10); await wait(20); };
+(async () => {
+  load({});
+  inv[P] = [{ baseId: HERB, count: 5 }, { baseId: SWORD, count: 1 }]; inv[CHEST] = [];
+  put(5);
+  globalThis.__dboItemLeave(P);
+  await idle();
+  ok(fs.existsSync(FILE) && JSON.parse(fs.readFileSync(FILE, 'utf8'))['ff001771'].pack['7601924'] === undefined && JSON.parse(fs.readFileSync(FILE, 'utf8'))['ff001771'].containers['806da23']['7601924'] === 5, 'logout: the pack and the chest used are written down', fs.existsSync(FILE) && fs.readFileSync(FILE, 'utf8'));
+  // A load that brings the stored items back to the pack while the chest keeps them
+  add(P, HERB, 5);
+  logs.length = 0;
+  const grew = globalThis.__dboItemLogin(P);
+  ok(grew && grew.length === 1 && grew[0].base === '7601924', 'login: the herb whose total grew is found', grew);
+  ok(logs.some((l) => /^ITEMGUARD relog total grew for Pff001771 \(logout \d+ min ago, 1 container\(s\) used\): 7601924 pack 0 -> 5, containers 5 -> 5$/.test(l)), '...and logged with both counts', logs);
+  ok(globalThis.__dboItemLogin(P) === null, 'the snapshot is used once');
+  // An honest relog: nothing moved while away
+  inv[P] = [{ baseId: HERB, count: 2 }]; inv[CHEST] = [{ baseId: HERB, count: 3 }];
+  put(1); globalThis.__dboItemLeave(P);
+  logs.length = 0;
+  const none = globalThis.__dboItemLogin(P);
+  ok(Array.isArray(none) && !none.length && !logs.some((l) => /relog total grew/.test(l)), 'an honest relog logs nothing', [none, logs]);
+  // Taken out of the pack while away (an offline body looted): a loss is not a growth
+  globalThis.__dboItemLeave(P); add(P, HERB, -1);
+  ok(globalThis.__dboItemLogin(P).length === 0, 'a smaller total is not reported');
+  // A hot reload keeps what was written down, and a restart reads it from the file
+  globalThis.__dboItemLeave(P); add(P, SWORD, 1);
+  await idle();
+  globalThis.__dboItemGuards = undefined; delete require.cache[MODULE];
+  require(MODULE)({ mp, log: (...a) => logs.push(a.join(' ')), who: (a) => `P${(a >>> 0).toString(16)}`, recordOf: (id) => (types[id] ? { record: { type: types[id] } } : null), cfg: {} });
+  const afterRestart = globalThis.__dboItemLogin(P);
+  ok(afterRestart && afterRestart.some((g) => g.base === '12eb7'), 'after a restart the file still holds the logout snapshot', afterRestart);
+  await idle();
+  delete globalThis.__dboItemGuards; delete globalThis.__dboTakeGuard;
+  process.chdir(home);
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log(fails ? `\n${fails} FAILED` : '\nall passed');
+  process.exit(fails ? 1 : 0);
+})();

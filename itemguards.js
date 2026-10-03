@@ -11,6 +11,9 @@
 // Config "itemGuards": { mode: "on" | "log" | "off" }. log records what would be refused and lets it through.
 // The C++ guards and null checks follow in the next core build (defence in depth).
 
+const fs = require('fs');
+const path = require('path');
+
 module.exports = (api) => {
   const { mp, log, who, recordOf } = api;
   const personal = typeof api.personal === 'function' ? api.personal : () => {};
@@ -91,11 +94,14 @@ module.exports = (api) => {
   };
 
   // A put or take moves items between a player and a container and never makes or loses any: the two counts of the base
-  // are read before the engine moves them and again once it has, and a total that changed is logged (logMoves: every move)
-  const LOG_MOVES = (((api.cfg || {}).itemGuards) || {}).logMoves !== false;
+  // are read before the engine moves them and again once it has, and a total that changed is logged (logMoves true: every
+  // move too, off by default for its volume)
+  const LOG_MOVES = (((api.cfg || {}).itemGuards) || {}).logMoves === true;
+  if (!(S.touched instanceof Map)) S.touched = new Map();   // actor -> containers it moved items with this session
   const checkMove = (kind, actor, container, baseId, count) => {
     const a = Number(actor) >>> 0, c = Number(container) >>> 0, id = Number(baseId) >>> 0;
     const before = [owned(a, id), owned(c, id)];
+    const t = S.touched.get(a) || new Set(); t.add(c); S.touched.set(a, t);
     setTimeout(() => {
       const after = [owned(a, id), owned(c, id)];
       const made = (after[0] + after[1]) - (before[0] + before[1]);
@@ -149,6 +155,67 @@ module.exports = (api) => {
     if (why) return refuse('take', actor, baseId, count, why);
     checkMove('take', actor, container, baseId, count);
     return undefined;
+  };
+
+  // Across a relog, which a tick's check cannot see (a container saved and a pack not, or the reverse): at logout the
+  // pack's counts and those of the containers used this session are written down (item-snapshots.json, runtime), and at
+  // the next login a base whose total grew is logged. Only the pack can tell alone; other players may fill a container.
+  const SNAP_PATH = path.resolve('item-snapshots.json');
+  const SNAP_KEEP_MS = 14 * 24 * 3600000;
+  const countsOf = (holder) => {
+    const out = {};
+    try { for (const e of ((mp.get(Number(holder) >>> 0, 'inventory') || {}).entries || [])) { const id = (Number(e.baseId) >>> 0).toString(16); out[id] = (out[id] || 0) + (Number(e.count) || 0); } } catch (e) { /* gone */ }
+    return out;
+  };
+  const readSnaps = () => {
+    if (S.snaps) return S.snaps;
+    try { S.snaps = JSON.parse(fs.readFileSync(SNAP_PATH, 'utf8')) || {}; } catch (e) { S.snaps = {}; }
+    return S.snaps;
+  };
+  // One write at a time, the latest state last: two at once shared the temporary file and could land out of order
+  const writeSnaps = () => {
+    if (S.snapWriting) { S.snapDirty = true; return; }
+    const now = Date.now();
+    for (const [k, v] of Object.entries(S.snaps || {})) if (!v || now - (Number(v.at) || 0) > SNAP_KEEP_MS) delete S.snaps[k];
+    const tmp = `${SNAP_PATH}.tmp`;
+    S.snapWriting = true; S.snapDirty = false;
+    fs.promises.writeFile(tmp, JSON.stringify(S.snaps)).then(() => fs.promises.rename(tmp, SNAP_PATH))
+      .catch((e) => log('itemguards: item-snapshots.json write failed', e.message))
+      .finally(() => { S.snapWriting = false; if (S.snapDirty) writeSnaps(); });
+  };
+  globalThis.__dboItemLeave = (actor) => {
+    const a = Number(actor) >>> 0;
+    const containers = {};
+    for (const c of S.touched.get(a) || []) containers[c.toString(16)] = countsOf(c);
+    readSnaps()[a.toString(16)] = { at: Date.now(), pack: countsOf(a), containers };
+    S.touched.delete(a);
+    writeSnaps();
+  };
+  globalThis.__dboItemLogin = (actor) => {
+    const a = Number(actor) >>> 0;
+    const snap = readSnaps()[a.toString(16)];
+    if (!snap || !snap.pack) return null;
+    delete S.snaps[a.toString(16)];
+    writeSnaps();
+    const pack = countsOf(a);
+    const now = {};
+    for (const c of Object.keys(snap.containers || {})) now[c] = countsOf(parseInt(c, 16));
+    const grew = [];
+    const bases = new Set([...Object.keys(snap.pack), ...Object.keys(pack)]);
+    for (const c of Object.keys(now)) for (const b of Object.keys(now[c])) bases.add(b);
+    for (const b of bases) {
+      const p0 = snap.pack[b] || 0, p1 = pack[b] || 0;
+      let c0 = 0, c1 = 0;
+      for (const c of Object.keys(now)) { c0 += (snap.containers[c] || {})[b] || 0; c1 += now[c][b] || 0; }
+      if (p1 + c1 > p0 + c0) grew.push({ base: b, pack: [p0, p1], containers: [c0, c1] });
+    }
+    if (grew.length) {
+      const away = Math.round((Date.now() - Number(snap.at)) / 60000);
+      log(`ITEMGUARD relog total grew for ${nameOf(a)} (logout ${away} min ago, ${Object.keys(now).length} container(s) used): `
+        + grew.slice(0, 12).map((g) => `${g.base} pack ${g.pack[0]} -> ${g.pack[1]}, containers ${g.containers[0]} -> ${g.containers[1]}`).join('; ')
+        + (grew.length > 12 ? `; and ${grew.length - 12} more` : ''));
+    }
+    return grew;
   };
 
   log(`itemguards ${MODE}: drop, put and take checked (count, record, what is held)`);
