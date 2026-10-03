@@ -1,9 +1,9 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { logTrace } from "../../logging";
-import { BrowserMessageEvent } from "skyrimPlatform";
+import { BrowserMessageEvent, ButtonEvent, InputDeviceType } from "skyrimPlatform";
 import { MsgType } from "../../messages";
 import { FormView, getScreenResolution } from "../../view/formView";
-import { isGameInputBlocked } from "./widgetMenuUtil";
+import { isGameInputBlocked, isMenuHotkeyBlocked, readMenuKeyCode } from "./widgetMenuUtil";
 
 declare const window: any;
 
@@ -12,12 +12,13 @@ const CHAT_MSG_PROP = 'ff_chatMsg';
 // Skyrim world units per meter ~69.99.
 const UNITS_PER_METER = 70;
 
-const buildMountJs = (name: string, isAdmin: boolean, settingsJson: string) => `(function(){
+const buildMountJs = (name: string, isAdmin: boolean, settingsJson: string, chatHidden: boolean) => `(function(){
   try {
     if (window.__alduinakChatReady) return;
     if (!window.skyrimPlatform || !window.skyrimPlatform.widgets) return;
     window.__alduinakChatReady = true;
     window.__alduinakAdmin = ${isAdmin ? 'true' : 'false'};
+    window.__dboChatHidden = ${chatHidden ? 'true' : 'false'};
     if (!window.chatMessages) window.chatMessages = [];
 
     // Restore saved settings before the widget mounts so the UI seeds from them.
@@ -340,6 +341,16 @@ export class ChatService extends ClientListener {
     super();
     this.controller.on("update", () => this.onUpdate());
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
+    this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
+    // F3, Settings: a key that hides the chat until pressed again (none by default); the chat input still opens on T
+    this.hideKey = readMenuKeyCode(this.sp, "hideChatKeyCode", 0);
+  }
+
+  private onButtonEvent(e: ButtonEvent): void {
+    if (!this.hideKey || e.device !== InputDeviceType.Keyboard || e.code !== this.hideKey || !e.isDown) return;
+    if (this.sp.browser.isFocused() || isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    this.chatHidden = !this.chatHidden;
+    this.sp.browser.executeJavaScript(`window.__dboChatHidden = ${this.chatHidden ? "true" : "false"}; window.dispatchEvent(new CustomEvent('dbo:chatHidden'));`);
   }
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
@@ -424,7 +435,7 @@ export class ChatService extends ClientListener {
       const name = appearance?.name || "You";
       this.lastAdmin = owner["isAdmin"] === true;
       logTrace(this, "Mounting chat widget (local parse + render)");
-      this.sp.browser.executeJavaScript(buildMountJs(name, this.lastAdmin, this.readChatSettings()));
+      this.sp.browser.executeJavaScript(buildMountJs(name, this.lastAdmin, this.readChatSettings(), this.chatHidden));
       // Chat mounts at login, which is exactly when the race menu is open on a new character.
       // BrowserService shows the browser again once the last blocking menu closes.
       if (!isGameInputBlocked(this.sp, this.controller)) {
@@ -539,4 +550,6 @@ export class ChatService extends ClientListener {
   private bubbles: { id: number; expiresAt: number }[] = [];
   private systemOverlay: { id: number; expiresAt: number } | null = null;
   private readonly pluginChatSettingsName = "chat-settings-no-load";
+  private hideKey = 0;
+  private chatHidden = false;
 }
