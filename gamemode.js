@@ -5660,7 +5660,12 @@ try {
   require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
     skills: SKILLS_DEF.skills || [], hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
 } catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; }
-
+// ---- the journal's Skills tab: the K menu inside F3 (server\journalskills.js; masterySystem's __alduinakMasteryMenu) ----
+try {
+  const JOURNALSKILLS_JS = path.resolve('journalskills.js');
+  delete require.cache[JOURNALSKILLS_JS];
+  require(JOURNALSKILLS_JS)({ log, onUi });
+} catch (e) { log('journalskills.js failed to load:', e.stack || e.message); if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.skills; }
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {
   const BEASTFORM_JS = path.resolve('beastform.js');
