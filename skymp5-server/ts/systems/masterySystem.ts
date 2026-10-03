@@ -31,7 +31,7 @@ type Mp = any;
 //
 // Wire protocol - every message is a CustomPacket carrying JSON:
 //   Client -> Server:
-//     { customPacketType: "masteryInfoRequest" }
+//     { customPacketType: "masteryInfoRequest", preferJournal? }   preferJournal: open F3's Skills tab when the journal has it
 //     { customPacketType: "masteryChoose", profession: "<id>" }
 //     { customPacketType: "masteryDrop", profession: "<id>" }      respec mode only
 //   Server -> Client:
@@ -39,7 +39,10 @@ type Mp = any;
 //       skills: [{id, category, label, title, description, tiers}],
 //       chosen: [{id, rank, hours}], respec: {open, free, cost, count},
 //       profession, rank, hours, rankHours, professions }        (legacy fields)
+//     { customPacketType: "masteryMenu", journal: true }            the journal took it: open nothing
 //     { customPacketType: "masteryNotice", text }
+//   Gameplay (F3 journal): globalThis.__alduinakMasteryMenu(actorId) -> the masteryMenu object;
+//     __alduinakMasteryAction(actorId, "choose"|"drop"|"lock"|"takeUp", { skill, lock? }) -> { ok, text }
 //
 // Persistence: `private.mastery` on the character's actor form.
 //   { skills: { <id>: { points, lastPointAt, rank, granted[] } }, order: [<id>], respecs }
@@ -113,6 +116,8 @@ interface SkillDef {
   counts: Record<string, unknown>;
   gates: Record<string, unknown>;
   craftWeight: P.CraftWeights | null;   // skills.json craftWeight: what a recipe of this skill is worth, by tier or ingredients
+  lore: string;              // skills.json lore: one or two in-world sentences for the F3 Skills tab (empty until written)
+  tierLore: string[];        // skills.json tierLore: the same for each of the five tiers
 }
 
 interface SkillProgress {
@@ -255,7 +260,21 @@ export class MasterySystem implements System {
       try { return this.award(ctx, Number(actorId) >>> 0, String(skillId), Number(weight), Number(key) >>> 0); }
       catch (e) { this.log(`[skills] award to ${skillId} failed: ${e}`); return 0; }
     };
+    this.registerJournalHooks(ctx);
     this.hookNativeEvents(ctx);
+  }
+
+  // The F3 journal's Skills tab (gameplay journal.js; design f3-hub-design.md 3.2): the same object the K menu gets, and
+  // the K menu's four actions. An action answers with what it did instead of a masteryNotice and a masteryMenu, since
+  // the journal redraws itself with the text in its result line.
+  registerJournalHooks(ctx: SystemContext): void {
+    (globalThis as any).__alduinakMasteryMenu = (actorId: number): Record<string, unknown> | null => {
+      try { return this.menuFor(ctx, Number(actorId) >>> 0); } catch (e) { this.log(`[skills] journal menu failed: ${e}`); return null; }
+    };
+    (globalThis as any).__alduinakMasteryAction = (actorId: number, op: string, args: unknown): { ok: boolean; text: string } => {
+      try { return this.journalAction(ctx, Number(actorId) >>> 0, String(op), args); }
+      catch (e) { this.log(`[skills] journal action ${op} failed: ${e}`); return { ok: false, text: "That cannot be done just now." }; }
+    };
   }
 
   // ── Definitions ─────────────────────────────────────────────────────────────
@@ -294,6 +313,7 @@ export class MasterySystem implements System {
       description: String(k.description || ""), tiers: stringList(k.tiers), vanillaSkills: stringList(k.vanillaSkills),
       counts: k.counts && typeof k.counts === "object" ? k.counts : {}, gates: k.gates && typeof k.gates === "object" ? k.gates : {},
       craftWeight: craftWeightsOf(k.craftWeight),
+      lore: typeof k.lore === "string" ? k.lore : "", tierLore: stringList(k.tierLore),
     }));
     const h = raw.skills && raw.skills.find((k: any) => k.id === "harvesting");
     if (h) {
@@ -389,7 +409,7 @@ export class MasterySystem implements System {
 
   customPacket(userId: number, type: string, content: Content, ctx: SystemContext): void {
     switch (type) {
-      case "masteryInfoRequest": this.sendMenu(ctx, userId); break;
+      case "masteryInfoRequest": this.onInfoRequest(ctx, userId, content); break;
       case "masteryChoose": this.onChoose(ctx, userId, content); break;
       case "masteryDrop": this.onDrop(ctx, userId, content); break;
       case "masteryLock": this.onLock(ctx, userId, content); break;
@@ -944,8 +964,52 @@ export class MasterySystem implements System {
     this.sendMenu(ctx, userId);
   }
 
+  // K. A client that has the F3 journal asks with preferJournal: when the gameplay's journal takes the Skills tab, the
+  // answer is { journal: true } and the client opens nothing. An older client never asks, and an older server ignores
+  // the flag, so widget 25 opens as before in both cases.
+  private onInfoRequest(ctx: SystemContext, userId: number, content: Content): void {
+    if (content && (content as Record<string, unknown>)["preferJournal"] === true) {
+      const actorId = this.actorOf(ctx, userId);
+      const openTab = (globalThis as any).__dboJournalOpenTab;
+      let taken = false;
+      if (actorId && typeof openTab === "function") { try { taken = openTab(actorId, "skills") === true; } catch (e) { this.log(`[skills] journal open failed: ${e}`); } }
+      if (taken) { this.send(ctx, userId, { customPacketType: "masteryMenu", journal: true }); return; }
+    }
+    this.sendMenu(ctx, userId);
+  }
+
+  // A K-menu action asked from the journal: the same handler runs with its notices kept and its menu redraw held back.
+  // ok is whether the character's record changed (a refusal changes nothing).
+  private journalAction(ctx: SystemContext, actorId: number, op: string, args: unknown): { ok: boolean; text: string } {
+    const userId = this.userOf(ctx, actorId);
+    if (!actorId || userId < 0) return { ok: false, text: "" };
+    const a = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+    const skill = String(a["skill"] || "");
+    const handlers: Record<string, () => void> = {
+      choose: () => this.onChoose(ctx, userId, { profession: skill }),
+      drop: () => this.onDrop(ctx, userId, { profession: skill }),
+      lock: () => this.onLock(ctx, userId, { skill, lock: String(a["lock"] || "") }),
+      takeUp: () => this.onTakeUp(ctx, userId, { skill }),
+    };
+    const run = handlers[op];
+    if (!run || !this.def(skill)) return { ok: false, text: "" };
+    const before = JSON.stringify(this.read(ctx, actorId));
+    const captured: string[] = [];
+    this.captureFor = { userId, texts: captured };
+    try { run(); } finally { this.captureFor = null; }
+    return { ok: JSON.stringify(this.read(ctx, actorId)) !== before, text: captured.join(" ") };
+  }
+
   private sendMenu(ctx: SystemContext, userId: number): void {
+    if (this.captureFor && this.captureFor.userId === userId) return;
     const actorId = this.actorOf(ctx, userId); if (!actorId) return;
+    const menu = this.menuFor(ctx, actorId);
+    if (menu) this.send(ctx, userId, Object.assign({ customPacketType: "masteryMenu" }, menu));
+  }
+
+  // The K menu's whole object; the journal's Skills tab shows the same one
+  private menuFor(ctx: SystemContext, actorId: number): Record<string, unknown> | null {
+    if (!actorId) return null;
     const rec = this.read(ctx, actorId) || emptyRecord();
     const chosen = rec.order.map((id) => ({ id, rank: rec.skills[id]?.rank || 0, hours: rec.skills[id]?.level || 0 }));
     const cfg = this.points;
@@ -962,8 +1026,7 @@ export class MasterySystem implements System {
         .sort((a, b) => b.level - a.level),
     } : undefined;
     const first = chosen[0];
-    this.send(ctx, userId, {
-      customPacketType: "masteryMenu",
+    return {
       points,
       maxChosen: this.maxChosen, tierNames: this.tierNames, tierHours: this.tierHours, categories: this.categories,
       // `openable` tells the menu how this skill is taken up at all, because the two answers want
@@ -976,6 +1039,7 @@ export class MasterySystem implements System {
         const station = !!r && (r.gateStations.size > 0 || r.gatePrefixes.length > 0);
         return {
           id: k.id, category: k.category, label: k.label, title: k.title, description: k.description, tiers: k.tiers,
+          lore: k.lore, tierLore: k.tierLore,
           openable: station ? "station" : "work",
           hint: String((k.gates as Record<string, unknown>)["hint"] || ""),
         };
@@ -985,7 +1049,7 @@ export class MasterySystem implements System {
       // legacy fields for the old menu
       profession: first ? first.id : null, rank: first ? first.rank : 0, hours: first ? first.hours : 0, rankHours: this.tierHours,
       professions: this.skills.map((k) => ({ id: k.id, label: k.label, title: k.title })),
-    });
+    };
   }
 
   // ── Ranks, marker spells, actor values ──────────────────────────────────────
@@ -1517,7 +1581,12 @@ export class MasterySystem implements System {
     if (userId < 0) return;
     try { (ctx.svr as Mp).sendCustomPacket(userId, JSON.stringify(payload)); } catch { /* user gone */ }
   }
-  private notice(ctx: SystemContext, userId: number, text: string): void { this.send(ctx, userId, { customPacketType: "masteryNotice", text }); }
+  private notice(ctx: SystemContext, userId: number, text: string): void {
+    if (this.captureFor && this.captureFor.userId === userId) { this.captureFor.texts.push(text); return; }
+    this.send(ctx, userId, { customPacketType: "masteryNotice", text });
+  }
+  // Set only while a journal action runs (journalAction): that player's notices are kept for the journal's result line
+  private captureFor: { userId: number; texts: string[] } | null = null;
 
   private points: P.PointConfig | null = null;      // set only when skills.json turns the point system on
   private candidates = new Map<string, string[]>();  // event kind -> the skills that could possibly match it
