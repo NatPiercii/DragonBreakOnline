@@ -4,6 +4,7 @@
 
 #include "GetBaseActorValues.h"
 #include "HitMessage.h"
+#include "UpdateEquipmentMessage.h"
 #include "PacketParser.h"
 #include "formulas/TES5DamageFormula.h"
 #include "libespm/Loader.h"
@@ -622,5 +623,82 @@ TEST_CASE("A scroll's hits land only after the server used one up: each actor "
   p.DestroyActor(kFirst);
   p.DestroyActor(kSecond);
   p.DestroyActor(kThird);
+  DoDisconnect(p, 0);
+}
+
+TEST_CASE("A held scroll the client reports used up is read by its first hit, "
+          "when no cast message came",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  constexpr uint32_t kCaster = 0xff000000;
+  constexpr uint32_t kFirst = 0xff000001;
+  constexpr uint32_t kSecond = 0xff000002;
+  constexpr uint32_t kFireballScroll = 0x000a44ae;
+
+  DoConnect(p, 0);
+  p.CreateActor(kCaster, { 0, 0, 0 }, 0, 0x3c, 1);
+  p.SetUserActor(0, kCaster);
+  p.CreateActor(kFirst, { 0, 100, 0 }, 0, 0x3c);
+  p.CreateActor(kSecond, { 100, 0, 0 }, 0, 0x3c);
+  auto& caster = p.worldState.GetFormAt<MpActor>(kCaster);
+  caster.AddItem(kFireballScroll, 2);
+
+  auto hold = [&](uint32_t scroll) {
+    Equipment eq;
+    eq.inv.entries.push_back(Inventory::Entry(scroll, 1, kExtraWornTrue));
+    caster.SetEquipment(eq);
+  };
+  // The client's equipment update: `count` of the scroll left, held or not
+  auto report = [&](uint32_t scroll, uint32_t count, bool held) {
+    RawMessageData rawMsgData;
+    rawMsgData.userId = 0;
+    UpdateEquipmentMessage msg;
+    if (count > 0) {
+      msg.data.inv.entries.push_back(held
+                                       ? Inventory::Entry(scroll, count,
+                                                          kExtraWornTrue)
+                                       : Inventory::Entry(scroll, count));
+    }
+    p.GetActionListener().OnUpdateEquipment(rawMsgData, msg);
+  };
+  auto hit = [&](uint32_t target, uint32_t scroll) {
+    auto& actor = p.worldState.GetFormAt<MpActor>(target);
+    actor.SetPercentages({ 1.f, 1.f, 1.f });
+    RawMessageData rawMsgData;
+    rawMsgData.userId = 0;
+    HitMessage hitMsg;
+    hitMsg.data.aggressor = 0x14;
+    hitMsg.data.target = target;
+    hitMsg.data.source = scroll;
+    p.GetActionListener().OnHit(rawMsgData, hitMsg);
+    return 1.f - actor.GetChangeForm().actorValues.healthPercentage;
+  };
+
+  // Held, and the report still shows both: nothing is let go, a hit is refused
+  hold(kFireballScroll);
+  report(kFireballScroll, 2, true);
+  REQUIRE(hit(kFirst, kFireballScroll) == Catch::Approx(0.f));
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 2);
+
+  // The client used one up and no cast came: the hit reads it, and the read's other hits land as usual
+  hold(kFireballScroll);
+  report(kFireballScroll, 1, true);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 2);
+  REQUIRE(hit(kFirst, kFireballScroll) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  REQUIRE(hit(kSecond, kFireballScroll) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  REQUIRE(hit(kFirst, kFireballScroll) == Catch::Approx(0.f));
+
+  // The last one let go (the stack gone from the hands) with no hit after it, as when it is put in a chest: nothing is
+  // taken
+  hold(kFireballScroll);
+  report(kFireballScroll, 0, false);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+
+  p.DestroyActor(kCaster);
+  p.DestroyActor(kFirst);
+  p.DestroyActor(kSecond);
   DoDisconnect(p, 0);
 }

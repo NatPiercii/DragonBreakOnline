@@ -196,6 +196,17 @@ private:
   bool TakeScrollHit(uint32_t casterId, uint32_t scrollId, uint32_t targetId);
   bool TakeScrollGrantedHit(uint32_t casterId, uint32_t spellId,
                             uint32_t targetId);
+  // A held scroll the client's equipment update shows used up while the server still has it: the cast message that would
+  // read it never came (aimed scrolls). The next hit with it within kScrollLetGoWindow reads it (OnHit, ReadLetGoScroll).
+  struct ScrollLetGo
+  {
+    uint32_t scrollId = 0;
+    std::chrono::steady_clock::time_point until{};
+  };
+  static constexpr std::chrono::seconds kScrollLetGoWindow{ 10 };
+  std::unordered_map<uint32_t, std::vector<ScrollLetGo>> scrollsLetGo;
+  void NoteScrollsLetGo(MpActor& actor, const Inventory& reported);
+  bool ReadLetGoScroll(MpActor& caster, uint32_t scrollId);
   // Last power attack or bash per (attacker << 32 | target), for the stagger floor in OnWeaponHit
   static constexpr std::chrono::milliseconds kForcefulHitInterval{ 700 };
   std::unordered_map<uint64_t, std::chrono::steady_clock::time_point>

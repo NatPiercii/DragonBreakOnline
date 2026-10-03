@@ -784,6 +784,7 @@ void ActionListener::OnUpdateEquipment(const RawMessageData& rawMsgData,
   const auto actorFormId = actor->GetFormId();
   const Equipment& data = msg.data;
   const Inventory& equipmentInv = data.inv;
+  NoteScrollsLetGo(*actor, equipmentInv);
   uint32_t leftSpell = data.leftSpell.value_or(0);
   uint32_t rightSpell = data.rightSpell.value_or(0);
   uint32_t voiceSpell = data.voiceSpell.value_or(0);
@@ -1723,7 +1724,10 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
   // just used up for this caster may hit, a few times, for a short while.
   if (isSourceScroll) {
     if (TakeScrollHit(aggressor->GetFormId(), hitData.source,
-                      hitData.target)) {
+                      hitData.target) ||
+        (ReadLetGoScroll(*aggressor, hitData.source) &&
+         TakeScrollHit(aggressor->GetFormId(), hitData.source,
+                       hitData.target))) {
       OnSpellHit(aggressor, targetRef, hitData);
     } else {
       spdlog::info("ActionListener::OnHit - {:x} has no scroll {:x} read "
@@ -2604,6 +2608,63 @@ void ActionListener::RecordScrollRead(uint32_t casterId, uint32_t scrollId)
   if (reads.size() > kScrollReadsPerCaster) {
     reads.erase(reads.begin());
   }
+}
+
+// Called before the update replaces the server's copy of the equipment: a scroll held until now that the client reports
+// fewer of than the server holds was used up on the client
+void ActionListener::NoteScrollsLetGo(MpActor& actor, const Inventory& reported)
+{
+  const auto now = std::chrono::steady_clock::now();
+  auto& letGo = scrollsLetGo[actor.GetFormId()];
+  std::erase_if(letGo,
+                [&](const ScrollLetGo& s) { return s.until <= now; });
+  for (const auto& held : actor.GetEquippedScroll()) {
+    if (!held) {
+      continue;
+    }
+    const uint32_t serverCount =
+      actor.GetInventory().GetItemCount(held->baseId);
+    if (serverCount > reported.GetItemCount(held->baseId)) {
+      ScrollLetGo s;
+      s.scrollId = held->baseId;
+      s.until = now + kScrollLetGoWindow;
+      letGo.push_back(s);
+    }
+  }
+  if (letGo.empty()) {
+    scrollsLetGo.erase(actor.GetFormId());
+  } else if (letGo.size() > kScrollReadsPerCaster) {
+    letGo.erase(letGo.begin());
+  }
+}
+
+// One scroll let go is read by the first hit with it: one leaves the inventory, as in OnSpellCast
+bool ActionListener::ReadLetGoScroll(MpActor& caster, uint32_t scrollId)
+{
+  const auto it = scrollsLetGo.find(caster.GetFormId());
+  if (it == scrollsLetGo.end()) {
+    return false;
+  }
+  const auto now = std::chrono::steady_clock::now();
+  auto& letGo = it->second;
+  const auto found =
+    std::find_if(letGo.begin(), letGo.end(), [&](const ScrollLetGo& s) {
+      return s.scrollId == scrollId && s.until > now;
+    });
+  if (found == letGo.end() ||
+      caster.GetInventory().GetItemCount(scrollId) < 1) {
+    return false;
+  }
+  letGo.erase(found);
+  if (letGo.empty()) {
+    scrollsLetGo.erase(it);
+  }
+  caster.RemoveItem(scrollId, 1, nullptr);
+  RecordScrollRead(caster.GetFormId(), scrollId);
+  spdlog::info("ActionListener::OnHit - {:x} read scroll {:x} (its cast "
+               "came only as the hit)",
+               caster.GetFormId(), scrollId);
+  return true;
 }
 
 namespace {
