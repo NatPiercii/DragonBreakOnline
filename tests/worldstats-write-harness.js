@@ -2,7 +2,7 @@
 // "server-stats.json rename failed ENOENT" on 2026-09-27: every write went through the one server-stats.json.tmp, so
 // two writes in flight together (a hot reload's first write beside the minute timer, or /stats) renamed it away from
 // under each other. Checked here: several writes at once all land without an error, the file holds the newest
-// snapshot, and no temp file is left behind. No server and no game: run it from this folder's parent with
+// snapshot, and no temp file is left behind. The gold held counts each character's bank balance as storage. No server and no game: run it from this folder's parent with
 //
 //   node tests/worldstats-write-harness.js
 'use strict';
@@ -24,7 +24,7 @@ const props = new Map();
 const load = () => {
   delete require.cache[require.resolve(WORLDSTATS)];
   require(WORLDSTATS)({
-    mp: { get: (id, p) => props.get(id + '|' + p), getAllForms: () => [] },
+    mp: { get: (id, p) => props.get(id + '|' + p), getAllForms: () => [], getActorsByProfileId: (pid) => [pid] },
     log: (...a) => logs.push(a.join(' ')),
     every: () => {},
     onlineActors: () => online,
@@ -40,6 +40,8 @@ const load = () => {
   // A hot reload's first write and three /stats while it is still in flight
   online = [0x21];
   props.set('33|inventory', { entries: [{ baseId: 0xf, count: 7 }] });
+  props.set('33|private.bankGold', 120);
+  props.set('33|appearance', { name: 'Athny', raceId: 0x13746 });
   load();
   for (let i = 0; i < 3; i++) commands.get('stats')(0x21);
   // Until the writes are done, not a fixed 300 ms: on a busy disk they took longer (2026-09-30). Ten seconds bounds a hang.
@@ -51,6 +53,9 @@ const load = () => {
   let stats = null; try { stats = JSON.parse(fs.readFileSync('server-stats.json', 'utf8')); } catch (e) { /* none */ }
   check('server-stats.json is there', !!stats);
   check('...and holds the newest snapshot', stats && stats.online === 1, stats && JSON.stringify({ online: stats.online }));
+  // The bank counts as storage (athny, #bugs "Very Minor", 2 Oct): 7 carried and 120 banked
+  check('gold held counts the bank: 127 in all, 7 carried, 120 in storage, of it 120 banked',
+    stats && stats.gold && stats.gold.total === 127 && stats.gold.carried === 7 && stats.gold.stored === 120 && stats.gold.banked === 120, stats && JSON.stringify(stats.gold));
   const left = fs.readdirSync(dir).filter((f) => f.endsWith('.tmp'));
   check('no temp file is left behind', left.length === 0, left.join(', '));
   console.log(failures ? `${failures} failure(s)` : 'all passed');

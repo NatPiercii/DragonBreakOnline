@@ -1,7 +1,7 @@
 // DragonBreak Online: world statistics for the launcher's Server Stats window. Loaded by gamemode.js on every hot reload.
 //
 // Every minute writes server-stats.json beside the server: players online, characters per race and the gold players
-// hold, carried plus whatever sits in containers of the housing properties their profile owns.
+// hold, carried plus whatever sits in containers of the housing properties their profile owns, plus their bank balances.
 // The backend (routes/metrics.js) serves it as /api/metrics `world`.
 'use strict';
 
@@ -45,6 +45,8 @@ module.exports = (api) => {
     return name;
   };
   // Every container of every property the profile owns, counted once per profile
+  // bank.js keeps each character's balance on the character (private.bankGold)
+  const bankedOf = (a) => { try { const v = Number(mp.get(a, 'private.bankGold')); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0; } catch (e) { return 0; } };
   const storedGold = (profileId) => {
     let total = 0;
     try {
@@ -72,7 +74,7 @@ module.exports = (api) => {
     const online = onlineActors();
     for (const a of online) ST.chars.add(a >>> 0);
     const races = new Map(); const profiles = new Set();
-    let carried = 0, stored = 0;
+    let carried = 0, stored = 0, banked = 0;
     ST.counted = [];
     for (const a of [...ST.chars]) {
       const profileId = profileOf(a);
@@ -83,6 +85,7 @@ module.exports = (api) => {
       ST.counted.push(`${(app && app.name) || 'Stranger'} (${race})`);
       races.set(race, (races.get(race) || 0) + 1);
       carried += goldIn(a);
+      banked += bankedOf(a);
       if (!profiles.has(profileId)) { profiles.add(profileId); stored += storedGold(profileId); }
     }
     const day = new Date().toISOString().slice(0, 10);
@@ -92,7 +95,8 @@ module.exports = (api) => {
       updatedAt: new Date().toISOString(),
       online: online.length, peakToday: ST.peak.online,
       characters: [...races.values()].reduce((n, c) => n + c, 0), players: profiles.size,
-      gold: { total: carried + stored, carried, stored },
+      // The launcher shows "carried" and "in storage": the bank is storage too (athny, #bugs "Very Minor", 2 Oct)
+      gold: { total: carried + stored + banked, carried, stored: stored + banked, banked },
       ids: [...ST.chars], peak: ST.peak,
       clock: (() => { try { return globalThis.__dboClock ? globalThis.__dboClock.summary() : null; } catch (e) { return null; } })(),
       races: [...races.entries()].map(([race, count]) => ({ race, count })).sort((x, y) => y.count - x.count || x.race.localeCompare(y.race)),
