@@ -304,7 +304,6 @@ const Journal = ({ data }: { data: JournalData }) => {
           <JournalHeader clock={data.clock} />
         </header>
         <Tabs<JournalTab> tabs={tabs} value={shown} onChange={setTab} className="journal__tabs" />
-        {data.result ? <p className={'journal__result journal__result--' + (data.resultKind || 'ok')}>{data.result}</p> : null}
         <div className={'journal__body journal__body--' + shown}>
           {shown === 'profile' && <ProfileTab data={data} editing={editing} setEditing={setEditing} busy={busy} act={act} />}
           {shown === 'faction' && data.faction && <div className="journal__faction"><FactionContent data={data.faction} embedded /></div>}
@@ -317,6 +316,7 @@ const Journal = ({ data }: { data: JournalData }) => {
           {shown === 'stats' && <StatsTab stats={data.stats} />}
         </div>
         <footer className="journal__footer">
+          {data.result ? <p title={data.result} className={'journal__result journal__result--' + (data.resultKind || 'ok')}>{data.result}</p> : null}
           <span className="journal__hint">F3 opens your journal. Escape closes it.</span>
           <button type="button" className="journal__button" onClick={() => send('dbo:journalClose', data.nonce)}>Close</button>
         </footer>
