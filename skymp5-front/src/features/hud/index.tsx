@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 
 import './styles.scss';
+import { journalCaps } from '../journal/tabs';
+import '../journal/sections';
 
 // The widget object pushed through window.skyrimPlatform.widgets by the
 // gamemode's ff_hud property (owner-side code in gamemode.js). Passive, never
@@ -106,8 +108,9 @@ const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 
 const useUiCaps = (): void => {
   useEffect(() => {
     const tell = () => {
+      // The F3 hub and each tab this front draws ('journalHub', 'journalTab:<id>'; features/journal/tabs.ts)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      try { (window as any).skyrimPlatform.sendMessage('dbo:uiCaps', ...UI_CAPS); } catch { /* no bridge */ }
+      try { (window as any).skyrimPlatform.sendMessage('dbo:uiCaps', ...UI_CAPS, ...journalCaps()); } catch { /* no bridge */ }
     };
     tell();
     const t = setInterval(tell, 120000);

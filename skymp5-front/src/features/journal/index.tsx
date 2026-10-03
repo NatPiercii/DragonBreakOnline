@@ -6,8 +6,15 @@ import { Tabs, TabItem } from '../../components/Tabs/Tabs';
 import { FactionContent, FactionData } from '../faction';
 import { CurseProgress, CurseRanks, CurseStage } from '../masteryMenu';
 import { widgetKey } from '../../utils/widgetOrder';
+import { JOURNAL_TABS, canDrawTab, domainOfTab } from './tabs';
+import './sections';
 
-// Character Journal (F3, widget 50) drawn from gameplay journal.js; dbo:journalProfile/Title/Close carry the journal nonce
+export { registerJournalTab, JOURNAL_TABS, journalCaps } from './tabs';
+
+// Character Journal (F3, widget 50) drawn from gameplay journal.js; dbo:journalProfile/Title/Close carry the journal nonce.
+// The F3 hub (data.hub, for a server that saw 'journalHub' in dbo:uiCaps): the server sends the tab list and only the
+// open tab's section; a switch shows the cached section at once and asks for a fresh one (dbo:journalTab [nonce, tab]).
+// Without data.hub the journal is the three-tab one, unchanged.
 
 export interface JournalSkill {
   id: string;
@@ -40,7 +47,9 @@ export interface JournalStatGroup {
   rows: Array<{ label: string; value: string; hint?: string }>;
 }
 
-export type JournalTab = 'profile' | 'faction' | 'supernatural' | 'stats';
+export type JournalTab = string;
+
+export interface JournalTabInfo { id: string; label: string; badge?: string; pinned?: boolean }
 
 export interface JournalData {
   id: number;
@@ -49,10 +58,15 @@ export interface JournalData {
   result?: string;
   resultKind?: 'ok' | 'refused' | '';
   clock?: { date: string; time: string; moons?: string } | null;
-  profile: JournalProfile;
+  profile?: JournalProfile | null;
+  // The hub: the tab list, and the header when Profile is not the open tab
+  hub?: number;
+  tabs?: JournalTabInfo[];
+  head?: { name: string; title: string; race: string } | null;
   faction?: FactionData | null;
   supernatural?: CurseProgress | null;
   stats?: { groups: JournalStatGroup[] } | null;
+  [section: string]: unknown;
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -88,7 +102,8 @@ export const JournalHeader = ({ clock }: { clock?: JournalData['clock'] }) => (
 );
 
 // The three most proficient skills, ranked, each a vertical meter filled to its level with the Wheel's tier floors marked
-export const SkillMeters = ({ skills }: { skills: JournalSkill[] }) => (
+// onOpen (the hub, when this front draws Skills): each meter opens that skill's page there
+export const SkillMeters = ({ skills, onOpen }: { skills: JournalSkill[]; onOpen?: (id: string) => void }) => (
   <section className="journal__skills">
     <h2 className="journal__heading">Most proficient</h2>
     {skills && skills.length ? (
@@ -96,7 +111,8 @@ export const SkillMeters = ({ skills }: { skills: JournalSkill[] }) => (
         {skills.slice(0, 3).map((s, i) => {
           const level = Math.max(0, Math.min(100, Number(s.level) || 0));
           return (
-            <li key={s.id} className={`journal__meter journal__meter--rank${i + 1} journal__meter--tier${Math.max(0, Math.min(4, Number(s.tier) || 0))}`}>
+            <li key={s.id} className={`journal__meter journal__meter--rank${i + 1} journal__meter--tier${Math.max(0, Math.min(4, Number(s.tier) || 0))}${onOpen ? ' journal__meter--link' : ''}`}
+              onClick={onOpen ? () => onOpen(s.id) : undefined} title={onOpen ? `${s.name}: open its page in Skills` : undefined}>
               <span className="journal__meter-rank">{i + 1}</span>
               <span className="journal__meter-bar">
                 {TIER_FLOORS.map((f) => <span key={f} className="journal__meter-tick" style={{ bottom: `${f}%` }} />)}
@@ -143,10 +159,11 @@ export const StoryView = ({ profile }: { profile: JournalProfile }) => (
   </div>
 );
 
-export const ProfileTab = ({ data, editing, setEditing, busy, act }: {
+export const ProfileTab = ({ data, editing, setEditing, busy, act, openSkill }: {
   data: JournalData; editing: boolean; setEditing: (on: boolean) => void; busy: boolean; act: (key: string, ...args: unknown[]) => void;
+  openSkill?: (id: string) => void;
 }) => {
-  const p = data.profile;
+  const p = data.profile as JournalProfile;
   const [backstory, setBackstory] = useState(p.backstory || '');
   const [origin, setOrigin] = useState(p.origin || '');
 
@@ -210,7 +227,7 @@ export const ProfileTab = ({ data, editing, setEditing, busy, act }: {
           ) : <span className="journal__title-text">{p.title}</span>}
           {p.titleEpithet ? <span className="journal__title-epithet">{p.titleEpithet}</span> : null}
         </section>
-        <SkillMeters skills={p.skills || []} />
+        <SkillMeters skills={p.skills || []} onOpen={openSkill} />
       </aside>
     </div>
   );
@@ -240,7 +257,18 @@ export const StatsTab = ({ stats }: { stats?: JournalData['stats'] }) => {
   );
 };
 
+// Keys of a hub payload that are the frame, not a tab's section
+const SHELL_KEYS = new Set(['type', 'id', 'nonce', 'hub', 'tabs', 'tab', 'clock', 'head', 'result', 'resultKind']);
+// A tab asked for by a click wins over a redraw on another tab for this long (the answer is on its way)
+const WANT_MS = 2000;
+
+const SectionState = ({ section }: { section: unknown }) => (
+  section === undefined ? <p className="journal__empty journal__loading">Turning the page…</p>
+    : <p className="journal__empty">This page cannot be shown just now.</p>
+);
+
 const Journal = ({ data }: { data: JournalData }) => {
+  const hub = !!data.hub;
   const [tab, setTab] = useState<JournalTab>(data.tab || 'profile');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(() => !!(unsaved && data.profile && unsaved.name === data.profile.name));
@@ -248,6 +276,10 @@ const Journal = ({ data }: { data: JournalData }) => {
   const nonce = useRef(data.nonce);
   nonce.current = data.nonce;
   const [yielded, setYielded] = useState(false);
+  // The hub: every section received since the journal opened, and the tab a click asked for
+  const cache = useRef<Record<string, unknown>>({});
+  const wanted = useRef<{ tab: string; at: number } | null>(null);
+  if (hub) for (const k of Object.keys(data)) if (!SHELL_KEYS.has(k) && data[k] !== undefined) cache.current[k] = data[k];
 
   // A panel the server opens over the journal (downed, a robbery, a trade request) takes its place and keeps the cursor
   useEffect(() => {
@@ -270,7 +302,15 @@ const Journal = ({ data }: { data: JournalData }) => {
     if (saving.current && data.resultKind === 'ok') { unsaved = null; setEditing(false); }
     saving.current = false;
   }, [data.nonce]);
-  useEffect(() => { if (data.tab) setTab(data.tab); }, [data.tab, data.nonce, data.faction && data.faction.nonce]);
+  useEffect(() => { if (!hub && data.tab) setTab(data.tab); }, [data.tab, data.nonce, data.faction && data.faction.nonce]);
+  // The hub follows the server's tab, unless a click asked for another one a moment ago
+  useEffect(() => {
+    if (!hub || !data.tab) return;
+    const w = wanted.current;
+    if (w && w.tab !== data.tab && Date.now() - w.at < WANT_MS) return;
+    wanted.current = null;
+    setTab(data.tab);
+  }, [data]);
   useEffect(() => {
     if (!busy) return undefined;
     const t = setTimeout(() => setBusy(false), BUSY_TIMEOUT_MS);
@@ -281,16 +321,33 @@ const Journal = ({ data }: { data: JournalData }) => {
     if (busy) return;
     setBusy(true);
     saving.current = key === 'dbo:journalProfile';
-    send(key, data.nonce, ...args);
+    send(key.startsWith('dbo:') ? key : 'dbo:' + key, data.nonce, ...args);
+  };
+  const openTab = (id: string, focus?: unknown): void => {
+    setTab(id);
+    if (!hub) return;
+    wanted.current = { tab: id, at: Date.now() };
+    if (focus === undefined) send('dbo:journalTab', nonce.current, id);
+    else send('dbo:journalTab', nonce.current, id, focus);
   };
 
-  const tabs: Array<TabItem<JournalTab>> = [{ id: 'profile', label: 'Profile' }];
-  if (data.faction) tabs.push({ id: 'faction', label: 'Faction', badge: (data.faction.invites || []).length ? String(data.faction.invites.length) : undefined });
-  if (data.supernatural) tabs.push({ id: 'supernatural', label: data.supernatural.label || 'Supernatural' });
-  tabs.push({ id: 'stats', label: 'Stats' });
-  const shown: JournalTab = tabs.some((t) => t.id === tab) ? tab : 'profile';
-  const p = data.profile;
+  let tabs: JournalTabInfo[];
+  if (hub) tabs = (data.tabs || []).filter((t) => t && canDrawTab(String(t.id)));
+  else {
+    tabs = [{ id: 'profile', label: 'Profile' }];
+    if (data.faction) tabs.push({ id: 'faction', label: 'Faction', badge: (data.faction.invites || []).length ? String(data.faction.invites.length) : undefined });
+    if (data.supernatural) tabs.push({ id: 'supernatural', label: data.supernatural.label || 'Supernatural' });
+    tabs.push({ id: 'stats', label: 'Stats' });
+  }
+  if (!tabs.length) tabs = [{ id: 'profile', label: 'Profile' }];
+  const shown: JournalTab = tabs.some((t) => t.id === tab) ? tab : tabs[0].id;
+  // What the tabs draw from: the hub's cache (this payload's sections are already in it), or the payload as it is
+  const view = (hub ? Object.assign({}, data, cache.current) : data) as JournalData;
+  const head = (hub && data.head) || view.profile || { name: '', title: '', race: '' };
   if (yielded) return null;
+  const section = (id: string): unknown => (hub ? cache.current[id] : view[id]);
+  const skillsLink = hub && tabs.some((t) => t.id === 'skills') ? (id: string) => openTab('skills', { skill: id }) : undefined;
+  const Entry = JOURNAL_TABS[shown] && !['profile', 'faction', 'stats', 'supernatural'].includes(shown) ? JOURNAL_TABS[shown].component : null;
 
   return (
     <div className="journal">
@@ -298,22 +355,24 @@ const Journal = ({ data }: { data: JournalData }) => {
       <div className="journal__frame">
         <header className="journal__header">
           <div className="journal__who">
-            <h1 className="journal__name">{p.name}</h1>
-            <p className="journal__subtitle">{p.title}{p.race ? ' · ' + p.race : ''}</p>
+            <h1 className="journal__name">{head.name}</h1>
+            <p className="journal__subtitle">{head.title}{head.race ? ' · ' + head.race : ''}</p>
           </div>
           <JournalHeader clock={data.clock} />
         </header>
-        <Tabs<JournalTab> tabs={tabs} value={shown} onChange={setTab} className="journal__tabs" />
-        <div className={'journal__body journal__body--' + shown}>
-          {shown === 'profile' && <ProfileTab data={data} editing={editing} setEditing={setEditing} busy={busy} act={act} />}
-          {shown === 'faction' && data.faction && <div className="journal__faction"><FactionContent data={data.faction} embedded /></div>}
-          {shown === 'supernatural' && data.supernatural && (
+        <Tabs<JournalTab> tabs={tabs} value={shown} onChange={(id) => openTab(id)} className="journal__tabs" />
+        <div className={'journal__body journal__body--' + shown} data-domain={hub ? domainOfTab(shown) : undefined}>
+          {shown === 'profile' && (view.profile ? <ProfileTab data={view} editing={editing} setEditing={setEditing} busy={busy} act={act} openSkill={skillsLink} /> : <SectionState section={section('profile')} />)}
+          {shown === 'faction' && (view.faction ? <div className="journal__faction"><FactionContent data={view.faction} embedded /></div> : <SectionState section={section('faction')} />)}
+          {shown === 'supernatural' && (view.supernatural ? (
             <div className="journal__supernatural">
-              <CurseStage curse={data.supernatural} />
-              <CurseRanks ladder={data.supernatural.ladder} />
+              <CurseStage curse={view.supernatural} />
+              <CurseRanks ladder={view.supernatural.ladder} />
             </div>
-          )}
-          {shown === 'stats' && <StatsTab stats={data.stats} />}
+          ) : <SectionState section={section('supernatural')} />)}
+          {shown === 'stats' && (hub && !view.stats ? <SectionState section={section('stats')} /> : <StatsTab stats={view.stats} />)}
+          {Entry && (section(shown) ? <Entry section={section(shown)} sections={cache.current} nonce={data.nonce} busy={busy} act={act} openTab={openTab} />
+            : <SectionState section={section(shown)} />)}
         </div>
         <footer className="journal__footer">
           {data.result ? <p title={data.result} className={'journal__result journal__result--' + (data.resultKind || 'ok')}>{data.result}</p> : null}
