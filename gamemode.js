@@ -1445,13 +1445,17 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     if (!content) return;
     if (content.type === 'cef::chat:send') { if (!floodChatOk(userId)) return; return handleChat(userId, content.data); }
     // Door prompt names: the client asks what a load door leads to; answers come from doors.json and the hub gates.
+    // A named property's door from the street reads as its owner named it (Nate, 3 Oct: renames show on the doors); the
+    // housing system answers "" for every other door (the way out, inner doors), which keep their destination.
     if (content.customPacketType === 'dboDoorName') {
       const a = actorOf(userId); if (!a) return;
       const refId = Number(content.refId) >>> 0; if (!refId) return;
       let name = '';
-      const gate = typeof gateOf === 'function' ? gateOf(refId) : null;
+      const housing = globalThis.__dboHousing;
+      try { if (housing && typeof housing.doorName === 'function') name = String(housing.doorName(refId) || '').slice(0, 64); } catch (e) { name = ''; }
+      const gate = !name && typeof gateOf === 'function' ? gateOf(refId) : null;
       if (gate) name = gate[0];
-      else { try { name = (DOOR_NAMES[mp.getDescFromId(refId).toLowerCase()] || ''); } catch (e) { /* unknown ref */ } }
+      else if (!name) { try { name = (DOOR_NAMES[mp.getDescFromId(refId).toLowerCase()] || ''); } catch (e) { /* unknown ref */ } }
       sendPacket(a, { customPacketType: 'dboDoorName', refId, name });
       return;
     }
