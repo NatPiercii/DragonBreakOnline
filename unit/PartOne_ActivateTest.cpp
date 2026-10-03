@@ -1,5 +1,6 @@
 #include "TestUtils.hpp"
 #include "script_storages/DirectoryScriptStorage.h"
+#include <fmt/format.h>
 
 #include "Messages.h"
 
@@ -116,7 +117,9 @@ TEST_CASE("Activate with incorrect WorldSpace", "[PartOne][espm]")
                                   { "isSecondActivation", false } } } }),
     ContainsSubstring(
       "WorldSpace doesn't match: caster is in Tamriel (0x3c), target "
-      "is in WhiterunWorld (0x1a26f)"));
+      "is in WhiterunWorld (0x1a26f)") &&
+      ContainsSubstring(fmt::format("caster ff000000, target {:x}",
+                                    barrelInWhiterun)));
 
   DoDisconnect(partOne, 0);
   partOne.DestroyActor(0xff000000);
