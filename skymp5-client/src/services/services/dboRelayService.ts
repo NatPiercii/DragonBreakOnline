@@ -104,6 +104,7 @@ export class DboRelayService extends ClientListener {
       health: h, magicka: m, stamina: s,
       vitalsOn: true,
       watermarkOn: this.hudData["watermarkOn"] !== false,
+      ...this.hudGold(),
     };
     const key = JSON.stringify(w);
     if (key === this.hudKey) return;
@@ -121,12 +122,21 @@ export class DboRelayService extends ClientListener {
       health: this.lastH, magicka: this.lastM, stamina: this.lastS,
       vitalsOn: this.hudData["vitalsOn"] !== false,
       watermarkOn: this.hudData["watermarkOn"] !== false,
+      ...this.hudGold(),
     };
     const key = JSON.stringify(w);
     // Identical JSON is re-sent every 5 s so a widget dropped from the browser comes back
     if (key === this.hudKey && now() - this.hudSentAt < 5000) return;
     this.hudKey = key; this.hudSentAt = now();
     this.setWidget(HUD_WIDGET_ID, key);
+  }
+
+  // The server's gold count for the HUD's gold row (dboHud gold, goldOn): the front draws it, and both pushes above used
+  // to drop it. Left out entirely when the server sends none, so the front's "no gold field, no row" rule still holds.
+  private hudGold(): { gold?: number; goldOn?: boolean } {
+    if (!this.hudData || this.hudData["gold"] === undefined || this.hudData["gold"] === null) return {};
+    const gold = Number(this.hudData["gold"]);
+    return { gold: Number.isFinite(gold) ? gold : 0, goldOn: this.hudData["goldOn"] !== false };
   }
 
   private pushParty(): void {
