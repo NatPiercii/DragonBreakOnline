@@ -38,6 +38,20 @@ $text-muted: rgba(215, 227, 227, 0.62);
     position: relative;
     pointer-events: auto;
     width: min(420px, calc(92 * var(--dbo-vw)));
+    // A place's Rooms and chests make the panel tall: it scrolls rather than leave the screen
+    max-height: calc(94 * var(--dbo-vh));
+    overflow-y: auto;
+    box-sizing: border-box;
+
+    // With Rooms and chests: wider, the property's buttons two by two
+    &--place {
+      width: min(600px, calc(94 * var(--dbo-vw)));
+
+      .housing__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+    }
     padding: 26px 24px 20px;
     display: flex;
     flex-direction: column;
@@ -175,6 +189,80 @@ $text-muted: rgba(215, 227, 227, 0.62);
       border-color: rgba(232, 214, 160, 0.3);
       color: $text-muted;
     }
+
+    &--small {
+      padding: 4px 8px;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+    }
+  }
+
+  // Rooms and chests of a place (owner and managers)
+  &__rooms {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid $red-hairline;
+  }
+
+  &__subtitle {
+    margin: 0;
+    text-align: center;
+    color: $text-bright;
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  &__roomlist {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: calc(30 * var(--dbo-vh));
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__room {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 8px;
+    padding: 6px 8px;
+    background: $red-fill;
+    border: 1px solid $red-border-dim;
+
+    &--here {
+      border-color: $red-border-bright;
+      box-shadow: 0 0 10px $red-glow;
+    }
+  }
+
+  &__roomname {
+    color: $text-bright;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    overflow-wrap: anywhere;
+  }
+
+  &__roomstate {
+    grid-column: 1;
+    color: $text-muted;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+
+  &__roombuttons {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    justify-content: flex-end;
   }
 
   &__rename {

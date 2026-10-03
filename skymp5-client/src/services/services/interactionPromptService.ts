@@ -8,6 +8,7 @@ import { Actor, CrosshairRefChangedEvent, Form, FormType, ObjectReference } from
 import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldViewMisc";
 import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
 import { logError } from "../../logging";
+import { changedDecorNames } from "./refDecorNames";
 
 // for the browser-side widget setter (executed inside the CEF browser)
 declare const window: any;
@@ -75,6 +76,7 @@ export class InteractionPromptService extends ClientListener {
     this.controller.on("crosshairRefChanged", (e) => this.onCrosshairRefChanged(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onDoorNameMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onBlockedDoorsMessage(e));
+    this.controller.emitter.on("customPacketMessage", (e) => this.onRefDecorMessage(e));
     // A front reload drops the widget silently.
     this.controller.emitter.on("browserWindowLoaded", () => {
       this.promptShown = false;
@@ -229,12 +231,14 @@ export class InteractionPromptService extends ClientListener {
   private doorNameFor(refId: number): string | undefined {
     if (!refId) return "";
     const known = this.doorNames.get(refId);
-    if (known !== undefined) return known;
+    if (known !== undefined && !this.staleDoorNames.has(refId)) return known;
     if (!this.doorAsked.has(refId)) {
       this.doorAsked.add(refId);
       this.doorAskedAt.set(refId, Date.now());
       sendCustomPacket(this.controller, { customPacketType: "dboDoorName", refId });
     }
+    // A renamed door keeps showing its old name until the new one comes, rather than going blank
+    if (known !== undefined) return known;
     // A lost answer must not hide the door for good
     if (Date.now() - (this.doorAskedAt.get(refId) ?? 0) > DOOR_NAME_TIMEOUT_MS) return "";
     return undefined;
@@ -246,7 +250,23 @@ export class InteractionPromptService extends ClientListener {
     const refId = Number(content["refId"]) >>> 0;
     if (!refId) return;
     this.doorNames.set(refId, typeof content["name"] === "string" ? content["name"] as string : "");
+    this.staleDoorNames.delete(refId);
     this.refresh();
+  }
+
+  // A property named, renamed or given up (refDecor) changes what its doors are called: those doors ask the server again
+  private onRefDecorMessage(event: ConnectionMessage<CustomPacketMessage>): void {
+    const content = parseCustomPacket(event);
+    if (!content || content["customPacketType"] !== "refDecor" || !Array.isArray(content["refs"])) return;
+    const changed = changedDecorNames(this.decorNames, content["refs"] as unknown[], content["full"] === true);
+    let any = false;
+    for (const refId of changed) {
+      if (!this.doorNames.has(refId) && !this.doorAsked.has(refId)) continue;
+      this.doorAsked.delete(refId);
+      if (this.doorNames.has(refId)) this.staleDoorNames.add(refId);
+      any = true;
+    }
+    if (any) this.refresh();
   }
 
   // Doors the server refuses (the playtest's border crossings); blocked here so no local cell load starts
@@ -360,4 +380,7 @@ export class InteractionPromptService extends ClientListener {
   private doorNames = new Map<number, string>();
   private doorAsked = new Set<number>();
   private doorAskedAt = new Map<number, number>();
+  // refId -> the name refDecor last gave it, and the doors whose cached name a rename made stale
+  private decorNames = new Map<number, string | null>();
+  private staleDoorNames = new Set<number>();
 }
