@@ -60,6 +60,7 @@ const RESPEC_WINDOW_MS = 120000;
 const CHOOSE_COOLDOWN_MS = 1000;
 export const MAX_GRANT = 1000;
 const MAX_QUEUED_EVENTS = 4096;
+const hitKey = (aggressorId: unknown, targetId: unknown): string => `${Number(aggressorId) >>> 0}:${Number(targetId) >>> 0}`;
 const ACTIVATE_REACH = 600;
 const RANGED_REACH = 8192;
 const MELEE_REACH = 400;
@@ -332,18 +333,33 @@ export class MasterySystem implements System {
     });
     chain("onActivate", "activate", ([refrId, casterId]) => [casterId, { refrId }], ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
     chain("onEatItem", "eat", ([actorId, baseId]) => [actorId, { baseId }]);
+    // Whether the target still lived when the hit was attempted, read before the damage lands: the killing blow counts as a
+    // hit, and a blow to a body that was already dead is neither a hit nor a kill
+    const prevAttempt = typeof mp.onHitDamageAttempt === "function" ? mp.onHitDamageAttempt : null;
+    mp.onHitDamageAttempt = (...args: unknown[]) => {
+      const verdict = prevAttempt ? prevAttempt(...args) : undefined;
+      if (verdict !== false) {
+        const [aggressorId, targetId] = args;
+        if (this.aliveAtAttempt.size > 512) this.aliveAtAttempt.clear();
+        this.aliveAtAttempt.set(hitKey(aggressorId, targetId), !this.isDead(ctx, Number(targetId) >>> 0));
+      }
+      return verdict;
+    };
     // onHitDamage(aggressorId, targetId, sourceId, damage): credit the attacker (hit) and the defender (hurt).
     const prevHit = typeof mp.onHitDamage === "function" ? mp.onHitDamage : null;
     mp.onHitDamage = (...args: unknown[]) => {
       const verdict = prevHit ? prevHit(...args) : undefined;
       if (verdict !== false) {
         const [aggressorId, targetId, sourceId, damage] = args;
+        const key = hitKey(aggressorId, targetId);
+        const alive = this.aliveAtAttempt.get(key);
+        this.aliveAtAttempt.delete(key);
         // `damage` is the fourth argument and was being dropped. C++ never fires this event for a
         // hit of zero or less (ActionListener::FireHitDamageEvent returns early), so it is always > 0.
-        this.enqueue("hit", aggressorId, { targetId, sourceId });
+        this.enqueue("hit", aggressorId, alive === undefined ? { targetId, sourceId } : { targetId, sourceId, alive: alive ? 1 : 0 });
         this.enqueue("hurt", targetId, { aggressorId, sourceId, value: Number(damage) || 0 });
         try {
-          if ((ctx.svr as Mp).get(Number(targetId) >>> 0, "isDead")) {
+          if (alive !== false && (ctx.svr as Mp).get(Number(targetId) >>> 0, "isDead")) {
             // A kill is weighed by how hard the target was to kill. Max health is the natural measure
             // and is NOT readable here: `percentages` is a 0..1 fraction and GetBaseActorValues has no
             // property binding, so it needs C++. npcLevel is the available proxy, already used by
@@ -666,7 +682,8 @@ export class MasterySystem implements System {
         if (!rules.hitKeywords.size) return false;
         const targetId = ev.detail["targetId"]; const sourceId = ev.detail["sourceId"];
         const reach = this.hitReach(ctx, sourceId);
-        if (reach <= 0 || this.isDead(ctx, targetId)) return false;
+        // A hit that found its target alive counts even when it killed it; with no reading, the target must still live
+        if (reach <= 0 || (ev.detail["alive"] === 0 || (ev.detail["alive"] !== 1 && this.isDead(ctx, targetId)))) return false;
         if (rules.weaponTypes.size || rules.weaponIds.size) {
           const src = Number(sourceId) >>> 0;
           if (!rules.weaponIds.has(src)) {
@@ -1522,6 +1539,7 @@ export class MasterySystem implements System {
   private playerKeyword = 0;
   private neighborsFailed = false;
   private events: ActivityEvent[] = [];
+  private aliveAtAttempt = new Map<string, boolean>();
   // counted per window: events drained by kind, points credited by skill, and who was involved
   private creditStats = { events: new Map<string, number>(), credits: new Map<string, number>(), actors: new Set<number>(), suppressed: 0, since: 0 };
   private lastChooseMs = new Map<number, number>();
