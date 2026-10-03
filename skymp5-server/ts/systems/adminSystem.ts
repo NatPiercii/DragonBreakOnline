@@ -42,7 +42,7 @@ type Mp = any;
 //                     { customPacketType: "adminAction", action: "giveDisease", kind: "vampire" | "werewolf", targetName? }
 //                     { customPacketType: "adminAction", action: "setSchool", school, level, targetName? }  level 0..100 (schools.js)
 //                     A missing target/targetName means the admin themself; targetName takes a name, a name prefix or #TAG.
-//   Server -> Client: { customPacketType: "adminMastery", targetName, detail }  detail.schools: [{ name, level, role, roleLabel }]
+//   Server -> Client: { customPacketType: "adminMastery", targetName, detail }  detail.schools: [{ name, level, role, roleLabel }], or null without magic data
 //                     { customPacketType: "adminItems", categories: [{ id, label, items: [[desc, name, plugin?]] }] }
 //                     { customPacketType: "adminLocations", locations: [{ name, region, worldName }] }
 //                     { customPacketType: "dboTeachShouts", shouts: [{ shout, words: [desc] }] }  -> the target's client (AdminModeService)
@@ -569,9 +569,11 @@ export class AdminSystem implements System {
 
   // The Skills tab's detail, with the five schools from server\schools.js (__dboMagicView) when it is loaded
   private sendMasteryDetail(ctx: SystemContext, mp: Mp, userId: number, who: { actorId: number; name: string }): void {
-    let schools: Array<{ name: string; level: number; role: string; roleLabel: string }> = [];
+    // null: no magic data (schools.js not loaded, or its view failed); []: loaded, and no school has opened to them
+    let schools: Array<{ name: string; level: number; role: string; roleLabel: string }> | null = null;
     try {
       const view = typeof (globalThis as any).__dboMagicView === "function" ? (globalThis as any).__dboMagicView(who.actorId) : null;
+      if (view) schools = [];
       if (view && Array.isArray(view.schools)) {
         schools = view.schools.map((x: any) => ({ name: String(x && x.name || ""), level: Number(x && x.level) || 0, role: String(x && x.role || ""), roleLabel: String(x && x.roleLabel || "") })).filter((x: { name: string }) => x.name);
       }
