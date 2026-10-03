@@ -1,0 +1,53 @@
+// The admin panel's one search bar (SearchBar.tsx): ledger look, flat stone, the accent only on what is chosen
+@import '../../dbo-theme.scss';
+
+.dbo-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+
+  &__row { display: flex; gap: 8px; align-items: center; }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    padding: 0 10px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid dbo-accent(0.2);
+    color: $dbo-text;
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+    outline: none;
+    &:focus { border-color: dbo-accent(0.6); }
+    &::placeholder { color: $dbo-text-dim; }
+  }
+
+  &__plugin {
+    height: 30px;
+    min-width: 150px;
+    padding: 0 10px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid dbo-accent(0.2);
+    color: $dbo-text;
+  }
+
+  &__chips, &__picks { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+
+  &__chip, &__pick {
+    padding: 2px 10px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid dbo-accent(0.2);
+    color: $dbo-text-dim;
+    font-family: $dbo-ui-font;
+    font-size: 13px;
+    cursor: pointer;
+    &:hover { color: $dbo-text; border-color: dbo-accent(0.45); }
+  }
+  &__chip--on { color: $dbo-text; border-color: dbo-accent(0.8); box-shadow: 0 0 8px dbo-accent(0.25); }
+  &__pick { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__pick--fav { color: $dbo-gold; }
+  &__count { margin-left: 6px; opacity: 0.6; font-size: 12px; }
+  &__picks-title { color: $dbo-text-dim; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; margin-right: 4px; }
+}

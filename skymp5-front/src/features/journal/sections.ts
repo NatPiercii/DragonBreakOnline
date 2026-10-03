@@ -3,3 +3,5 @@
 import './tabs/DeityTab';
 import './tabs/SettingsTab';
 import './tabs/SettingsKeys';
+import './skillsTab';
+import '../court';
