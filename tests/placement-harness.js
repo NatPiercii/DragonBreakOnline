@@ -169,6 +169,11 @@ r = search(['banner', '', 'Dawnguard.esm', 0]);
 check('the mod filter narrows a search', r && r.total === 50);
 r = search(['forge', '', '', 0]);
 check('a search spans every category', r && r.total === 1 && r.items[0][0] === 'bbcf1:Skyrim.esm');
+r = search(['banner red 14', '', '', 0]);
+check('the best match comes first: the exact name, then names that start with it', r && r.items[0][1] === 'Banner Red 14' && r.items[1][1] === 'Banner Red 140', r && r.items.slice(0, 3).map((it) => it[1]));
+check('a search says how many matches each category holds', r && r.counts && r.counts.Statics === 13 && Object.keys(r.counts).length === 1, r && r.counts);
+r = search(['e', 'Crafting Stations', '', 0]);
+check('a query with a category searches only that category (the tab sends it now)', r && r.total === 2 && r.items.every((it) => it[3] === 'Crafting Stations') && r.counts.Statics === 150 && r.counts['Crafting Stations'] === 2, r && [r.total, r.counts]);
 reset(); ui.placeSearch(PLAYER, ['forge', '', '', 0]);
 check('a player gets no search results', out.packets.length === 0);
 

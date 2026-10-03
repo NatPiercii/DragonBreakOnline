@@ -11,7 +11,7 @@
 //                     dbo placeList []                                      the Place tab's "Placed near me" list
 //                     dbo placeGoto [remoteIdHex]                           move the GM next to a placement
 //                     dbo placeMeta []                                      categories, mods and the GM's rights
-//                     dbo placeSearch [query, category, plugin, offset]     one page of the catalog, searched here
+//                     dbo placeSearch [query, category, plugin, offset]     one page of the catalog, searched here (searchCatalog)
 //                     dbo placeMove [remoteIdHex, [x,y,z], [rx,ry,rz]]      move and turn a placement (NPCs turn on Z only)
 //                     dbo placeSelect [remoteIdHex]                         the thing under the GM's crosshair, to edit it
 //                     dbo placeUndo []                                      take back the GM's last place, move or remove
@@ -23,7 +23,7 @@
 //   placeObject may carry a sixth argument [pitch, roll] in degrees for objects.
 //   Server -> Client: { customPacketType: "adminPlaceables", categories }   (clients before the search: no Statics)
 //                     { customPacketType: "adminPlaceMeta", categories: [{ id, label, kind, count }], plugins, rights }
-//                     { customPacketType: "adminPlaceResults", query, category, plugin, offset, total, items }
+//                     { customPacketType: "adminPlaceResults", query, category, plugin, offset, total, items, counts }
 //                     { customPacketType: "placeEdit", id, base, name, kind, hostile, pos, rot }   answers placeSelect
 //                     { customPacketType: "adminPlaceSets", sets: [{ name, count, by, at }] }
 //                     { customPacketType: "adminPlacements", items: [{ id, name, kind, hostile, dist, by, at }], total, here }
@@ -44,6 +44,63 @@
 
 const fs = require('fs');
 const path = require('path');
+
+// The Place tab's search (N9, 3 Oct: "a better per-category search and a better search bar").
+// Terms: every word must be in the name or the id; "quoted words" must appear together; -word leaves out what holds it;
+// mod:text keeps mods whose file name holds text. With a query and a category, only that category is searched; with a
+// query and no category, every one (what the tab before this sent). With no query, the category in catalog order.
+// Best matches first: the exact name, a name starting with the query, every term at the start of a word in the name,
+// every term in the name, then those matched through the id; shorter names first within each. counts gives the matches
+// per category for the query (any category), so a tab can show where the hits are.
+const parseQuery = (raw) => {
+  const out = { include: [], exclude: [], mods: [] };
+  const re = /(-?)(?:"([^"]*)"|(\S+))/g;
+  let m;
+  while ((m = re.exec(String(raw || '').toLowerCase()))) {
+    const neg = m[1] === '-' && m[3] !== '';
+    const term = (m[2] !== undefined ? m[2] : m[3]).trim();
+    if (!term) continue;
+    if (!neg && term.startsWith('mod:')) { if (term.length > 4) out.mods.push(term.slice(4)); continue; }
+    (neg ? out.exclude : out.include).push(term);
+  }
+  return out;
+};
+// A row's name lower-cased and split into words, worked out once per row (the catalog rows live as long as the catalog)
+const NAME_PARTS = new WeakMap();
+const partsOf = (row) => {
+  let p = NAME_PARTS.get(row);
+  if (!p) { const name = String(row.name).toLowerCase(); p = { name, words: name.split(/[^a-z0-9']+/).filter(Boolean) }; NAME_PARTS.set(row, p); }
+  return p;
+};
+const rankOf = (row, q, terms) => {
+  const { name, words } = partsOf(row);
+  if (name === q) return 0;
+  if (q && name.startsWith(q)) return 1;
+  if (terms.length && terms.every((t) => words.some((w) => w.startsWith(t)) || (t.includes(' ') && name.includes(t)))) return 2;
+  if (terms.length && terms.every((t) => name.includes(t))) return 3;
+  return 4;
+};
+// rows: [{ desc, name, plugin, cat, kind, hay }]; returns { hits, counts } (hits sorted, counts by category)
+const searchCatalog = (rows, query, category, plugin) => {
+  const raw = String(query || '').trim().toLowerCase();
+  if (!raw) return { hits: rows.filter((r) => r.cat === category && (!plugin || r.plugin === plugin)), counts: null };
+  const pq = parseQuery(raw);
+  const hayOf = (r) => r.hay || `${r.name} ${r.desc}`.toLowerCase();
+  const all = rows.filter((r) => {
+    if (plugin && r.plugin !== plugin) return false;
+    if (pq.mods.length && !pq.mods.some((x) => String(r.plugin).toLowerCase().includes(x))) return false;
+    const hay = hayOf(r);
+    return pq.include.every((t) => hay.indexOf(t) !== -1) && !pq.exclude.some((t) => hay.indexOf(t) !== -1);
+  });
+  const counts = {};
+  for (const r of all) counts[r.cat] = (counts[r.cat] || 0) + 1;
+  const scoped = category ? all.filter((r) => r.cat === category) : all;
+  // The query as typed, without the exclusions and mod filters, for the exact and starts-with ranks
+  const plain = pq.include.join(' ');
+  const keyed = scoped.map((r) => ({ r, k: rankOf(r, plain, pq.include), n: String(r.name).length, s: partsOf(r).name }));
+  keyed.sort((x, y) => x.k - y.k || x.n - y.n || (x.s < y.s ? -1 : x.s > y.s ? 1 : 0));
+  return { hits: keyed.map((x) => x.r), counts };
+};
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, onUi, sendPacket, isAdmin, registerChatCommand } = api;
@@ -505,7 +562,7 @@ module.exports = (api) => {
     });
   });
 
-  // Every word of the query must appear in the name or the id; with no query, one category
+  // searchCatalog above: the terms, the category when one is sent with the query, best matches first, counts per category
   onUi('placeSearch', (a, args) => {
     if (!isAdmin(a)) return;
     loadCatalog();
@@ -513,12 +570,13 @@ module.exports = (api) => {
     const category = String(args[1] || '');
     const plugin = String(args[2] || '');
     const offset = Math.max(0, Math.floor(Number(args[3]) || 0));
-    const words = query.split(/\s+/).filter(Boolean);
-    const hits = S.rows.filter((r) => (words.length ? words.every((w) => r.hay.indexOf(w) !== -1) : r.cat === category) && (!plugin || r.plugin === plugin));
-    sendPacket(a, {
+    const { hits, counts } = searchCatalog(S.rows, query, category, plugin);
+    const packet = {
       customPacketType: 'adminPlaceResults', query, category, plugin, offset, total: hits.length,
       items: hits.slice(offset, offset + PAGE).map((r) => [r.desc, r.name, r.plugin, r.cat, r.kind]),
-    });
+    };
+    if (counts) packet.counts = counts;
+    sendPacket(a, packet);
   });
 
   onUi('placeMove', (a, args) => {
@@ -615,3 +673,5 @@ module.exports = (api) => {
     personal(a, `Exported ${list.length} placement(s) to placements-export.json on the server.`);
   }, { admin: true, help: 'write every placement to placements-export.json for baking into a plugin' });
 };
+module.exports.searchCatalog = searchCatalog;
+module.exports.parseQuery = parseQuery;
