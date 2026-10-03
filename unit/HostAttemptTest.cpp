@@ -51,3 +51,32 @@ TEST_CASE("A host attempt for an NPC that is there still hosts it",
   REQUIRE(it != p.worldState.hosters.end());
   REQUIRE(it->second == 0xff000000);
 }
+
+// An index is reused about 10 s after its form goes, while a client with a ghost copy can keep asking for tens of
+// minutes. By then a live NPC may hold that index, and that client may have been sent it, so a drop by index would
+// take the live NPC off its screen instead (review, Worker D). With the index in use again, nothing is sent.
+TEST_CASE("A host attempt for a gone NPC whose index is in use again is told nothing",
+          "[PartOne][Host]")
+{
+  PartOne p;
+  DoConnect(p, 0);
+  p.CreateActor(0xff000000, { 0.f, 0.f, 0.f }, 0.f, 0x3c);
+  p.SetUserActor(0, 0xff000000);
+
+  p.CreateActor(0xff000001, { 100.f, 0.f, 0.f }, 0.f, 0x3c);
+  const uint32_t goneIdx =
+    p.worldState.GetFormAt<MpActor>(0xff000001).GetIdx();
+  p.DestroyActor(0xff000001);
+
+  // The index is held for 10 s before it may be taken again; a ghost client asks for far longer than that
+  p.worldState.ReleaseHeldFormIdx(true);
+  p.CreateActor(0xff000002, { 200.f, 0.f, 0.f }, 0.f, 0x3c);
+  // The test means nothing unless the new NPC really took the dead one's index
+  REQUIRE(p.worldState.GetFormAt<MpActor>(0xff000002).GetIdx() == goneIdx);
+  p.Messages().clear();
+
+  REQUIRE_NOTHROW(DoMessage(p, 0, HostAttempt(0xff000001)));
+  REQUIRE(p.worldState.hosters.find(0xff000001) == p.worldState.hosters.end());
+  // No DestroyActor: it would have removed the live NPC at that index
+  REQUIRE(p.Messages().empty());
+}

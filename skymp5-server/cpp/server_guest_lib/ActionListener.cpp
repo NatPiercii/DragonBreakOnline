@@ -1305,6 +1305,16 @@ void ActionListener::OnHostAttempt(const RawMessageData& rawMsgData,
   if (!remoteForm) {
     // That client missed the DestroyActor and kept asking (the 1 Oct ghost NPCs): it is told again, by the index it knows
     if (const auto idx = partOne.worldState.DestroyedFormIdx(remoteId)) {
+      // An index is reused about 10 s after its form goes, and a client can keep asking for tens of
+      // minutes, so by now a live form may hold this index - and that client may have been sent that
+      // form at it. Dropping by index would then remove the live NPC from its screen. With the index
+      // taken, say nothing, as a gone form does above (review, Worker D).
+      if (partOne.worldState.LookupFormByIdx(static_cast<int>(*idx))) {
+        spdlog::info("ActionListener::OnHostAttempt - {:#x} is gone, but idx {} "
+                     "is in use again; user {} is told nothing",
+                     remoteId, *idx, rawMsgData.userId);
+        return;
+      }
       DestroyActorMessage drop;
       drop.idx = *idx;
       partOne.GetSendTarget().Send(rawMsgData.userId, drop, true);
