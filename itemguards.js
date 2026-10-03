@@ -90,14 +90,32 @@ module.exports = (api) => {
     return null;
   };
 
-  const install = (event, guard) => {
+  // A put or take moves items between a player and a container and never makes or loses any: the two counts of the base
+  // are read before the engine moves them and again once it has, and a total that changed is logged (logMoves: every move)
+  const LOG_MOVES = (((api.cfg || {}).itemGuards) || {}).logMoves !== false;
+  const checkMove = (kind, actor, container, baseId, count) => {
+    const a = Number(actor) >>> 0, c = Number(container) >>> 0, id = Number(baseId) >>> 0;
+    const before = [owned(a, id), owned(c, id)];
+    setTimeout(() => {
+      const after = [owned(a, id), owned(c, id)];
+      const made = (after[0] + after[1]) - (before[0] + before[1]);
+      const moved = kind === 'put' ? before[0] - after[0] : after[0] - before[0];
+      const line = `${kind} by ${nameOf(a)} at ${c.toString(16)}: ${id.toString(16)} x${count} (pack ${before[0]} -> ${after[0]}, container ${before[1]} -> ${after[1]})`;
+      if (made !== 0) log(`ITEMGUARD move changed the total by ${made > 0 ? '+' : ''}${made}: ${line}`);
+      else if (LOG_MOVES && moved !== 0) log(`ITEMGUARD move ${line}`);
+    }, 0);
+  };
+
+  const install = (event, guard, passed) => {
     const prevKey = `__dboPrev_${event}`;
     if (typeof globalThis[prevKey] === 'undefined') globalThis[prevKey] = typeof mp[event] === 'function' && !mp[event].__dboGuard ? mp[event] : null;
     const hook = (...args) => {
       if (guard(...args) === false) return false;
       const prev = globalThis[prevKey];
-      if (prev) { try { return prev(...args); } catch (e) { log(`${event} chain failed`, e.message); } }
-      return undefined;
+      let verdict;
+      if (prev) { try { verdict = prev(...args); } catch (e) { log(`${event} chain failed`, e.message); } }
+      if (verdict !== false && passed) { try { passed(...args); } catch (e) { log(`${event} check failed`, e.message); } }
+      return verdict;
     };
     hook.__dboGuard = true;
     mp[event] = hook;
@@ -122,9 +140,16 @@ module.exports = (api) => {
     return 'owed manual';
   };
   install('onDropItem', (actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('drop', actor, baseId, count, why) : undefined; });
-  install('onPutItem', (container, actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('put', actor, baseId, count, why) : undefined; });
+  install('onPutItem', (container, actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('put', actor, baseId, count, why) : undefined; },
+    (container, actor, baseId, count) => checkMove('put', actor, container, baseId, count));
   // gamemode.js owns mp.onTakeItem (its takeHook); it asks this first
-  globalThis.__dboTakeGuard = (container, actor, baseId, count) => { const why = check(baseId, count, container); return why ? refuse('take', actor, baseId, count, why) : undefined; };
+  // gamemode.js may still refuse after this (a dragon part); a take that moves nothing is not logged
+  globalThis.__dboTakeGuard = (container, actor, baseId, count) => {
+    const why = check(baseId, count, container);
+    if (why) return refuse('take', actor, baseId, count, why);
+    checkMove('take', actor, container, baseId, count);
+    return undefined;
+  };
 
   log(`itemguards ${MODE}: drop, put and take checked (count, record, what is held)`);
   return { check, itemType, owned };
