@@ -339,3 +339,7 @@
 .journal__faction:has(.faction__body--staff) { height: 100%; min-height: 0; }
 .faction__body--staff { flex: 1 1 0; min-height: 0; overflow: hidden; }
 .faction__body--staff > .faction-staff { height: 100%; }
+.faction-staff__ranks {
+  .dbo-picker--open { display: block; }
+  .dbo-picker--open .dbo-picker__list { position: static; margin-top: 4px; max-height: none; }
+}

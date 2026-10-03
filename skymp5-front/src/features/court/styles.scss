@@ -54,3 +54,10 @@
 }
 
 .court .journal__button--small, .faction-staff .journal__button--small { padding: 2px 10px; font-size: 13px; letter-spacing: 0.06em; }
+
+// A Picker's list opens in the column's flow, not over it: the columns scroll, and a list laid over a short column was cut
+// to a sliver (the faction roster's rule, d26e2875)
+.court__household, .court__office {
+  .dbo-picker--open { display: block; }
+  .dbo-picker--open .dbo-picker__list { position: static; margin-top: 4px; max-height: none; }
+}

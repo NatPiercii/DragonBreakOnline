@@ -38,4 +38,5 @@
   color: #d7e3e3;
   &:hover { background: rgba(143, 211, 208, 0.16); }
   &--selected { color: #e8d6a0; font-weight: bold; }
+  &--hi { background: rgba(143, 211, 208, 0.16); }
 }

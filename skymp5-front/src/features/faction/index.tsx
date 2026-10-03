@@ -157,7 +157,7 @@ export const FactionContent = ({ data, embedded }: { data: FactionData; embedded
                           {m.name} <span className="faction__member-tag">#{m.tag}</span>
                         </span>
                         {f.canSetRank && !mine ? (
-                          <Picker className="faction__rank" value={m.rank} disabled={busy} onChange={(v) => act('dbo:factionSetRank', f.id, m.actorId, v)}
+                          <Picker className="faction__rank" commit value={m.rank} disabled={busy} onChange={(v) => act('dbo:factionSetRank', f.id, m.actorId, v)}
                             options={f.ranks.map((r, i) => ({ value: i, label: r.title }))} />
                         ) : (
                           <span className="faction__member-title">{m.title}</span>

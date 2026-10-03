@@ -63,7 +63,7 @@ const OfficeRow = ({ court, office, outright, busy, act }: { court: CourtView; o
           {office.canAppoint ? (
             <>
               {moves.length ? (
-                <Picker className="court__move" value="" disabled={busy} title="Move to another office of this court"
+                <Picker className="court__move" commit value="" disabled={busy} title="Move to another office of this court"
                   onChange={(rank) => rank && act('dbo:courtMove', court.id, h.pid, rank)}
                   options={[{ value: '', label: 'Move to…' }].concat(moves.map((m) => ({ value: m.rank, label: m.title })))} />
               ) : null}
@@ -96,7 +96,7 @@ const HouseholdPane = ({ court, household, busy, act }: { court: CourtView; hous
           <span className={'court__dot' + (m.online ? ' court__dot--online' : '')} />
           <span className="court__member-name">{m.name} <span className="court__muted">#{m.tag}</span></span>
           {household.canSetRank ? (
-            <Picker className="court__rank" value={m.rank} disabled={busy} onChange={(v) => act('dbo:courtRank', court.id, m.actorId, v)}
+            <Picker className="court__rank" commit value={m.rank} disabled={busy} onChange={(v) => act('dbo:courtRank', court.id, m.actorId, v)}
               options={household.ranks.map((r, i) => ({ value: i, label: r.title }))} />
           ) : <span className="court__member-title">{m.title}</span>}
           {household.canKick && (household.myRank < 0 || household.myRank < m.rank) ? (
