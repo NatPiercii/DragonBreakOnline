@@ -285,6 +285,16 @@ export class CompanionService extends ClientListener {
       return;
     }
     state.stuckSince = 0;
+    // Stuck again after a lift: a copy that ignores every order (a raised mudcrab or rabbit under the keep-offset) is walked
+    // along the owner's trail from now on
+    if (state.unstuckAt && distance <= CompanionService.teleportDistance) {
+      state.unstuckAt = now;
+      state.driven = true;
+      actor.clearKeepOffsetFromActor();
+      state.following = false;
+      state.followResult = "stuck again at " + Math.round(distance) + ", driven";
+      return;
+    }
     state.unstuckAt = now;
     actor.moveTo(player, 0, CompanionService.followOffsetY, 0, false);
     state.following = false;
@@ -482,9 +492,16 @@ export class CompanionService extends ClientListener {
     }
     const taken = new Set(Array.from(this.local.values()).map((x) => x.aliasSlot).filter(Boolean));
     const slot = FOLLOW_ALIASES.find((name) => !taken.has(name) && !this.aliasByName(name)?.getReference());
-    if (!slot) return false;
+    if (!slot) {
+      state.followResult = "no free follower alias";
+      return false;
+    }
     const alias = this.aliasByName(slot);
-    if (!alias) return false;
+    if (!alias) {
+      state.aliasFailed = true;
+      state.followResult = "alias " + slot + " not found";
+      return false;
+    }
     if (state.following) {
       actor.clearKeepOffsetFromActor();
       state.following = false;
