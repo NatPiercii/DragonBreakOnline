@@ -9,6 +9,9 @@
 // A difficulty rolls a tier from its row (a chest, a boss, a raid boss, a locked chest by its lock); a tier with nothing
 // there for the dungeon falls to the next one down. Enchanted gear rolls the same tiers under a cap on its rank.
 // Config dungeons.lootTiers overrides any table below.
+// A ceiling over all of it (Jake and Nate, 1 Oct, a stopgap until rarity is designed): `cap` names the families that may
+// drop as weapons and armour at all, whatever a row rolls. Gear of any other family is 'capped' and never loot, at every
+// path that asks this module (chests, bosses, enemy arms, bodies, camps, the Ayleid table, enchanted gear).
 'use strict';
 
 const TIER_OF = {
@@ -25,6 +28,11 @@ const TRINKET = new Set(['clothing', 'staff']);
 const ANY_PROVINCE = new Set(['steelplate', 'scaled', 'elven_gilded']);
 // Cyrodiil has no tier 3 weapon: the high Elven weapons stand in (Nate's (c))
 const T3_WEAPON_STANDIN = /^(?:CYR)?Elven(?:Greatsword|Battleaxe|Warhammer|Bow)$/;
+// The ceilings. 'steel' (the default): tier 1 and the steel of each province (steel, Imperial, silver; Cyrodiil's
+// Colovian, Nibenese and Akaviri steel are steel). Honed Ancient Nord and Falmer hit like Elven, Mithril armours like it,
+// so they stay out. 'iron': tier 1 only. 'none': no ceiling, the tiers alone.
+const TIER1 = Object.keys(TIER_OF).filter((f) => TIER_OF[f] === 1);
+const CAPS = { iron: TIER1, steel: TIER1.concat(['steel', 'imperial', 'silver']) };
 
 // Shares by tier, per difficulty (story Novice, normal Adept, hard Expert, nightmare Master)
 const ROWS = {
@@ -49,11 +57,13 @@ module.exports = ({ materials, factionGear, overrides, cfg }) => {
   const rows = { chest: Object.assign({}, ROWS.chest, (C.rows || {}).chest || {}), boss: Object.assign({}, ROWS.boss, (C.rows || {}).boss || {}), raidBoss: Object.assign({}, ROWS.raidBoss, (C.rows || {}).raidBoss || {}) };
   const enemy = { ordinary: Object.assign({}, ENEMY.ordinary, (C.enemy || {}).ordinary || {}), boss: Object.assign({}, ENEMY.boss, (C.enemy || {}).boss || {}) };
   const enchCap = Object.assign({}, ENCH_CAP, C.enchCap || {});
+  const capName = C.cap === undefined ? 'steel' : String(C.cap || 'none');
+  const capSet = CAPS[capName] ? new Set(CAPS[capName]) : null;
   const fam = new Map(Object.entries((materials && materials.items) || {}).map(([k, v]) => [normDesc(k), String(v)]));
   const faction = new Set(Object.keys((factionGear && factionGear.items) || {}).map(normDesc));
   const handNever = new Map(Object.entries((overrides && overrides.never) || {}).filter(([k]) => k[0] !== '_').map(([k, why]) => [normDesc(k), String(why)]));
 
-  // { kind: 'gear' | 'trinket' | 'never' | 'uniform' | 'unknown', family, tier }
+  // { kind: 'gear' | 'trinket' | 'never' | 'uniform' | 'capped' | 'unknown', family, tier }
   const classOf = (desc) => {
     const d = normDesc(desc);
     if (handNever.has(d)) return { kind: 'never', family: fam.get(d) || '', tier: 0, why: handNever.get(d) };
@@ -63,7 +73,8 @@ module.exports = ({ materials, factionGear, overrides, cfg }) => {
     if (UNIFORM.has(f) || faction.has(d)) return { kind: 'uniform', family: f, tier: 0 };
     if (TRINKET.has(f)) return { kind: 'trinket', family: f, tier: 0 };
     const t = Number(tierOf[f]) || 0;
-    return t ? { kind: 'gear', family: f, tier: t } : { kind: 'unknown', family: f, tier: 0 };
+    if (!t) return { kind: 'unknown', family: f, tier: 0 };
+    return capSet && !capSet.has(f) ? { kind: 'capped', family: f, tier: t } : { kind: 'gear', family: f, tier: t };
   };
   const lootable = (desc) => { const c = classOf(desc); return c.kind === 'gear' || c.kind === 'trinket'; };
   // The row a roll uses: a chest, a boss, a raid boss, or a locked chest by its lock (Novice/Apprentice the chest row,
@@ -106,6 +117,6 @@ module.exports = ({ materials, factionGear, overrides, cfg }) => {
     }
     return null;
   };
-  return { classOf, lootable, rowFor, rollTier, enchRank, enchOk, enemyTiers, pickTier, anyProvince: (desc) => ANY_PROVINCE.has(classOf(desc).family), T3_WEAPON_STANDIN, ROWS: rows };
+  return { cap: capSet ? capName : 'none', classOf, lootable, rowFor, rollTier, enchRank, enchOk, enemyTiers, pickTier, anyProvince: (desc) => ANY_PROVINCE.has(classOf(desc).family), T3_WEAPON_STANDIN, ROWS: rows };
 };
 module.exports.normDesc = normDesc;

@@ -207,7 +207,16 @@ const real = Math.random;
 delete globalThis.__dboBannedLoot;
 check('without dungeons.js\'s ban pattern no manual drops (fails closed)', !Object.keys(draws('nightmare', 'skyrim', 5000)).length);
 { const m = /const BANNED_LOOT = [^\n]*: \/([^\n]*)\/i;/.exec(fs.readFileSync(path.join(__dirname, '..', 'dungeons.js'), 'utf8')); globalThis.__dboBannedLoot = new RegExp(m[1], 'i'); }
-let d = draws('story', 'cyrodiil', 20000);
+// The dungeons' gear ceiling (loottiers.js cap, 1 Oct): without its name no manual drops; the checks below the ceiling's
+// own run with it lifted ('none'), so they keep testing the tiers beneath it
+check('without the gear ceiling\'s name (dungeons.js not loaded) no manual drops (fails closed)', !Object.keys(draws('nightmare', 'skyrim', 5000)).length);
+globalThis.__dboLootCap = 'steel';
+let d = draws('nightmare', 'skyrim', 60000);
+check('under the steel ceiling: only Steel, Silver and Chainmail manuals, at every difficulty', ['story', 'normal', 'hard', 'nightmare'].every((x) => Object.keys(draws(x, 'skyrim', 20000)).every((n) => /: (Steel|Silver|Chainmail)$/.test(n))) && Object.keys(d).length > 0 && Object.keys(d).every((n) => /: (Steel|Silver|Chainmail)$/.test(n)), d);
+globalThis.__dboLootCap = 'iron';
+check('...an iron ceiling drops no manual', !Object.keys(draws('nightmare', 'skyrim', 20000)).length);
+globalThis.__dboLootCap = 'none';
+d = draws('story', 'cyrodiil', 20000);
 check('story leases: only T2 (Steel), about 3%', Object.keys(d).join() === "Thorbald's Methods: Steel" && d["Thorbald's Methods: Steel"] > 400 && d["Thorbald's Methods: Steel"] < 800, d);
 d = draws('normal', 'cyrodiil', 20000);
 check('normal in Cyrodiil: the Orcish manual (T3) is Skyrim\'s, so only Steel; no T4', Object.keys(d).join() === "Thorbald's Methods: Steel", d);

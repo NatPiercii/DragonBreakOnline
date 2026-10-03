@@ -9,6 +9,9 @@
 //      material, no faction uniform, no unknown item, nothing above the path's tiers, nothing enchanted past its rank
 //      cap; the ordinary chests' shares match the table. Last, live-then-new: a claim made by the live dungeons.js and
 //      searched after this one loads over the same state.
+//   3. The steel ceiling (Jake and Nate, 1 Oct, a stopgap): loottiers.js's default cap, and every path of the real
+//      dungeons.js under it: no weapon or armour above iron and steel at any difficulty. Parts 1 and 2 run with
+//      cap 'none', so they keep testing the tiers beneath it.
 //   node tests/loot-tiers-harness.js   (from server/; CLAIMS=n for more claims per dungeon and difficulty)
 'use strict';
 const fs = require('fs');
@@ -21,7 +24,9 @@ let fails = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c || got === undefined ? '' : '   ' + JSON.stringify(got).slice(0, 600)}`); if (!c) fails++; };
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const MATERIALS = read('loot-materials.json'), FACTION = read('faction-gear.json'), OVERRIDES = read('loot-overrides.json'), LOOT = read('loot.json').pools;
-const T = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES });
+const tiersWith = (cfg) => require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES, cfg });
+const T = tiersWith({ cap: 'none' });
+const UNCAPPED = { lootTiers: { cap: 'none' } };
 const DIFFS = ['story', 'normal', 'hard', 'nightmare'];
 
 // Seeded Math.random, so a run is the same sample every time
@@ -98,10 +103,10 @@ const add = (pathName, diff, baseId, extra = {}) => {
   const desc = descs.get(baseId); if (!desc) return;
   const r = REC.get(baseId); if (!r || (r.type !== 'WEAP' && r.type !== 'ARMO')) return;
   const c = T.classOf(desc);
-  seen.push(Object.assign({ path: pathName, diff, name: NAME.get(baseId), kind: c.kind, tier: c.tier, ench: r.fields.length > 0, type: r.type }, extra));
+  seen.push(Object.assign({ path: pathName, diff, desc, name: NAME.get(baseId), kind: c.kind, tier: c.tier, ench: r.fields.length > 0, type: r.type }, extra));
 };
 
-const run = (d, expedition, diffId, claims, modulePath = path.join(ROOT, 'dungeons.js'), keepState = false) => {
+const run = (d, expedition, diffId, claims, modulePath = path.join(ROOT, 'dungeons.js'), keepState = false, dungeonsCfg = UNCAPPED) => {
   reseed(`${d.id}|${diffId}|${claims}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-tiers-'));
   const here = process.cwd(); process.chdir(dir);
@@ -122,7 +127,7 @@ const run = (d, expedition, diffId, claims, modulePath = path.join(ROOT, 'dungeo
       lookupEspmRecordById: (id) => (id === idOf('6:DragonBreak.esp') ? { record: { editorId: 'ExpeditionBoard' } } : REC.has(id) ? { record: REC.get(id) } : { record: null }) },
     log: () => {}, personal: () => {}, system: () => {}, audit: () => {}, registerChatCommand: (n, fn) => cmds.set(n, fn), onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); },
     openWidget: () => true, closeWidget: () => true, sendPacket: () => true, findByName: () => 0, display: String, who: String, profileOf: (a) => (a === A ? 1 : -1), nameOf: () => 'P',
-    onlineActors: () => [A], isAdmin: () => true, giveItem: (a, base, n) => { given.push([base, n]); return true; }, cfg: { dungeons: cfg.dungeons || {} }, every: (n, ms, fn) => timers.set(n, fn),
+    onlineActors: () => [A], isAdmin: () => true, giveItem: (a, base, n) => { given.push([base, n]); return true; }, cfg: { dungeons: Object.assign({}, cfg.dungeons || {}, dungeonsCfg) }, every: (n, ms, fn) => timers.set(n, fn),
   };
   require(modulePath)(api);
   const fire = (n, a, args) => (ui.get(n) || []).forEach((f) => f(a, args, 0));
@@ -218,6 +223,37 @@ for (const diff of DIFFS) {
 ok(!seen.some((s) => s.name === 'CYRIronFalchion'), 'CYRIronFalchion never comes out of any path', seen.filter((s) => s.name === 'CYRIronFalchion').map((s) => s.path).slice(0, 5));
 ok(seen.some((s) => s.path === 'chest' && s.diff === 'hard' && ['ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorElvenGildedCuirass'].some((n) => s.name.startsWith(n.slice(0, -7)))), 'Steel plate, Scaled and Elven gilded drop in Bruma (Nate\'s option 1)');
 ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) => s.path === 'creature corpse').every((s) => s.kind === 'gear' || s.kind === 'trinket'), 'bodies hand over gear within their tiers, and a creature\'s corpse keeps none of what it may not');
+
+// ---- 3. the steel ceiling ------------------------------------------------------------------------------------------
+{
+  const S = tiersWith(undefined), IRON = tiersWith({ cap: 'iron' });
+  const c = (TT, n) => TT.classOf((byName.get(n) || { id: 'ffffff:Nothing.esp' }).id);
+  ok(S.cap === 'steel' && T.cap === 'none' && IRON.cap === 'iron', 'the default ceiling is steel; cap "none" lifts it, "iron" lowers it', [S.cap, T.cap, IRON.cap]);
+  const under = ['IronSword', 'ArmorIronCuirass', 'ArmorHideCuirass', 'CYRSteelSword', 'ArmorSteelBootsA', 'SilverSword'].filter((n) => byName.has(n));
+  const over = ['ArmorElvenCuirass', 'DwarvenSword', 'ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorElvenGildedCuirass', 'CYRGlassSword', 'ArmorGlassCuirass', 'ElvenGreatsword', 'DraugrSwordHoned', 'CYRArmorMithrilBoots'].filter((n) => byName.has(n));
+  ok(under.length >= 5 && under.every((n) => c(S, n).kind === 'gear' && S.lootable(byName.get(n).id)), `under the steel ceiling: ${under.join(', ')}`, under.map((n) => [n, c(S, n)]));
+  ok(over.length >= 8 && over.every((n) => c(S, n).kind === 'capped' && !S.lootable(byName.get(n).id)), `capped, never loot: ${over.join(', ')}`, over.map((n) => [n, c(S, n)]).filter(([, k]) => k.kind !== 'capped'));
+  ok(c(S, 'EbonySword').kind === 'never' && c(S, 'ArmorImperialCuirass').kind === 'uniform' && c(S, 'CYRIronFalchion').kind === 'never' && c(S, 'JewelryRingGold').kind === 'trinket', 'the cap changes nothing for never-loot, uniforms, hand overrides or trinkets');
+  ok(c(IRON, 'IronSword').kind === 'gear' && c(IRON, 'CYRSteelSword').kind === 'capped', 'an iron ceiling keeps tier 1 alone');
+  reseed('cap-pick');
+  const all = (LOOT.weapons || []).concat(LOOT.armor || []);
+  const picked = []; for (let i = 0; i < 2000; i++) { const it = S.pickTier(all, S.rowFor('nightmare', 'raidBoss'), { weapons: i % 2 === 0 }); if (it) picked.push(it); }
+  const fams = [...new Set(picked.map((it) => S.classOf(it.id).family))].sort();
+  ok(picked.length === 2000 && fams.every((f) => ['iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'silver'].includes(f)) && fams.includes('steel'), `a Master raid boss roll (80% tier 4) falls to steel: ${fams.join(', ')}`, fams);
+
+  // Every path of the real dungeons.js under the default ceiling
+  const before = seen.length;
+  const claims = Math.max(4, Math.round(CLAIMS / 3));
+  for (const d of ORD) for (const diff of DIFFS) run(d, false, diff, claims, undefined, false, {});
+  for (const d of EXP) for (const diff of DIFFS) run(d, true, diff, claims * 3, undefined, false, {});
+  const capped = seen.splice(before);
+  const bad = capped.filter((x) => { const k = S.classOf(x.desc).kind; return k !== 'gear' && k !== 'trinket'; });
+  const byPath = [...new Set(capped.map((x) => x.path))].sort();
+  console.log(`      ${capped.length} weapons and armour handed out under the steel ceiling, paths: ${byPath.join(', ')}`);
+  ok(capped.length > 500 && ['chest', 'boss chest', 'enemy arms', 'humanoid body', 'master'].every((p) => byPath.includes(p)), 'the ceiling sweep exercised the chests, boss chests, enemy arms, bodies and masters', byPath);
+  ok(!bad.length, 'no path hands out a weapon or armour above iron and steel at any difficulty, enchanted or not (chests, locks, bosses, raid bosses, enemy arms, bodies, corpses)', [...new Set(bad.map((x) => `${x.path} ${x.diff}: ${x.name} (${S.classOf(x.desc).family})`))].slice(0, 10));
+  ok(capped.some((x) => x.ench && x.kind === 'gear'), 'enchanted gear still drops, of iron and steel');
+}
 
 // ---- live-then-new: a claim made by the live dungeons.js, searched after this one loads over the same state ----------
 let OLD = '';
