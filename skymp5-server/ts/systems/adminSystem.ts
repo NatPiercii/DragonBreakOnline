@@ -39,6 +39,7 @@ type Mp = any;
 //                     { customPacketType: "adminAction", action: "giveItem", item, count, targetName? }
 //                     { customPacketType: "adminAction", action: "giveSpells" | "giveShouts" | "giveWerewolf" | "giveVampireLord", targetName? }
 //                     { customPacketType: "adminAction", action: "beastForm", form: "werewolf" | "vampirelord", op: "now" | "revert" | "revoke", targetName? }
+//                     { customPacketType: "adminAction", action: "giveDisease", kind: "vampire" | "werewolf", targetName? }
 //                     A missing target/targetName means the admin themself; targetName takes a name, a name prefix or #TAG.
 //   Server -> Client: { customPacketType: "adminMastery", targetName, detail }
 //                     { customPacketType: "adminItems", categories: [{ id, label, items: [[desc, name, plugin?]] }] }
@@ -69,7 +70,7 @@ const ADMIN_MODES: Array<{ id: string; label: string }> = [
 
 // Lead GM and above only (TIER_CAPS.spawn); a GM keeps teleports, kick, observing modes and the roster
 const SPAWN_ACTIONS = new Set(["kill", "deleteCharacter", "masteryGrant", "masteryReset", "masterySetTier", "masteryDrop",
-  "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "beastForm", "npcZoneAdd", "npcZoneDelete", "npcZoneReset"]);
+  "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "giveDisease", "beastForm", "npcZoneAdd", "npcZoneDelete", "npcZoneReset"]);
 const SPAWN_MODES = new Set(["smite", "healhit"]);
 
 // Modes mirrored onto the neighbors-visible ff_adminModes actor property (registered in gamemode.js)
@@ -473,7 +474,7 @@ export class AdminSystem implements System {
       this.reply(mp, userId, !!lifted, lifted ? `Ban on ${lifted.name || lifted.ip} lifted` : "No such ban");
       return;
     }
-    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "beastForm"].indexOf(action) !== -1) {
+    if (["masterySetTier", "masteryDrop", "giveItem", "giveSpells", "giveShouts", "giveWerewolf", "giveVampireLord", "giveDisease", "beastForm"].indexOf(action) !== -1) {
       const who = this.resolveTarget(mp, myActorId, content);
       if (!who) { this.reply(mp, userId, false, "No online player by that name"); return; }
       this.selfServiceAction(ctx, mp, userId, myActorId, adminProfile, action, who, content);
@@ -612,6 +613,19 @@ export class AdminSystem implements System {
         mp.set(who.actorId, "inventory", { entries });
         this.adminLog(`profile ${adminProfile} spawned ${count}x ${desc} for ${whom}`);
         this.reply(mp, userId, true, `${count}x given to ${who.name}`);
+        return;
+      }
+      // The disease, not the form: server\supernatural.js runs the fever as after a bite, and audits it
+      if (action === "giveDisease") {
+        const kind = String(content["kind"] ?? "");
+        const give = (globalThis as any).__dboSuperAdminInfect;
+        if (typeof give !== "function") { this.reply(mp, userId, false, "supernatural.js is not loaded on the server"); return; }
+        let said = "";
+        try { said = String(give(who.actorId, kind, `profile ${adminProfile}`) ?? ""); }
+        catch (e) { this.log(`AdminSystem: giveDisease ${kind} failed: ${e}`); this.reply(mp, userId, false, "Giving the disease failed, see server log"); return; }
+        const ok = said.indexOf("now carries") !== -1;
+        this.adminLog(`profile ${adminProfile} gave the ${kind} disease to ${whom}: ${said}`);
+        this.reply(mp, userId, ok, said || "Done");
         return;
       }
       // Change shape, drop it, or take the power back. server\beastform.js owns the transform, so an admin
