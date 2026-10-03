@@ -1,5 +1,19 @@
 [
   {
+    "title": "The killing blow counts",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "Archery and the other weapon skills now count the blow that kills, so a bow that drops an enemy in two shots earns both shots."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Welcome to the Alpha",
     "date": "2026-10-01",
     "version": "Server update",
