@@ -78,19 +78,49 @@ module.exports = (api) => {
     personal(a, `${made} ${found.n.name} follow you${made < want ? ` (the warband holds ${C.maxBand})` : ''}. Your warband: ${band(a).length}.`);
   };
 
+  // A settled NPC is rebuilt as an ordinary one with its own factions and AI data, so a creature that is aggressive by its
+  // record (AIDT aggression, through any template whose ACBS flags pass AI data on) turns on whoever hosts it (#bugs 3 Oct)
+  const TEMPLATE_USE_AI_DATA = 0x10;
+  const aggressionOf = (baseId) => {
+    for (let id = Number(baseId) >>> 0, depth = 0; id && depth < 8; depth++) {
+      let res = null;
+      try { res = mp.lookupEspmRecordById(id); } catch (e) { return null; }
+      if (!res || !res.record || String(res.record.type) !== 'NPC_') return null;
+      const field = (t) => (res.record.fields || []).find((f) => f && f.type === t && f.data instanceof Uint8Array);
+      const view = (f) => new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength);
+      const acbs = field('ACBS'), tplt = field('TPLT');
+      const flags = acbs && acbs.data.byteLength >= 20 ? view(acbs).getUint16(18, true) : 0;
+      let next = 0;
+      try { next = tplt && tplt.data.byteLength >= 4 ? res.toGlobalRecordId(view(tplt).getUint32(0, true)) >>> 0 : 0; } catch (e) { next = 0; }
+      if (!next || !(flags & TEMPLATE_USE_AI_DATA)) {
+        const aidt = field('AIDT');
+        return aidt && aidt.data.byteLength >= 1 ? aidt.data[0] : null;
+      }
+      id = next;
+    }
+    return null;
+  };
+
   const release = (a, hostile) => {
     const mine = band(a);
     if (!mine.length) return personal(a, 'You lead no warband.');
     let done = 0;
+    const kept = [];
     for (const c of mine) {
+      if (!hostile && (Number(aggressionOf(c.baseId)) || 0) >= 1) { kept.push(nameOfNpc(c.id)); continue; }
       if (!comp().release(c.id, hostile)) continue;
       S.released.push({ id: c.id >>> 0, name: nameOfNpc(c.id), by: who(a), at: Date.now(), hostile });
       done++;
     }
     audit(`WARBAND ${who(a)} ${hostile ? 'UNLEASHED a raid of' : 'settled'} ${done} NPC(s)`);
+    if (kept.length) {
+      const names = [...new Set(kept)].join(', ');
+      log(`warband: ${who(a)} kept ${kept.length} aggressive NPC(s) in the warband instead of settling them (${names})`);
+    }
     personal(a, hostile
       ? `Your warband of ${done} is unleashed. They are hostile NPCs now; /raid shows who still stands, /raid clear removes them.`
-      : `Your warband of ${done} stays here as friendly NPCs until the next restart; /raid clear removes them sooner.`);
+      : `${done ? `Your warband of ${done} stays here as friendly NPCs until the next restart; /raid clear removes them sooner.` : 'Nobody was settled.'}`
+        + (kept.length ? ` ${kept.length} (${[...new Set(kept)].join(', ')}) are aggressive by nature and would turn on players once settled, so they stay in your warband: dismiss them, or unleash them as a raid.` : ''));
   };
 
   const warbandCmd = (a, args) => {
