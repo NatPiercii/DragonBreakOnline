@@ -1,7 +1,7 @@
 // The game side of npcLifetime.ts: deferred deletes, spread HostStart re-seats, and the trail of actor-changing calls
 import { Actor, Game, ObjectReference, on } from "skyrimPlatform";
 import * as sp from "skyrimPlatform";
-import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, deleteDecision, dropRelayedRagdoll, isRiskyToTouch, reseatDecision, trailLine } from "./npcLifetime";
+import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, deleteDecision, deleteNow, dropRelayedRagdoll, reseatDecision, trailLine } from "./npcLifetime";
 
 // The file the launcher collects (report.js DIAG_LOG_REL); writeLogs ends every line with a flush, so a line written before a crash is kept
 const LOG_NAME = "dbo-diag";
@@ -53,11 +53,12 @@ export const allowRelayedRagdoll = (ac: Actor): boolean => {
   return true;
 };
 
-// A copy that is dead, downed, in a kill move or ragdolling is disabled now and deleted once its 3D is gone; any other at once
-export const safeDelete = (refr: ObjectReference): void => {
+// A copy that is dead, downed, in a kill move or ragdolling is disabled now and deleted once its 3D is gone; any other at once.
+// defer: always the slow way (the world cleaner's actors may be fighting or casting when it reaches them)
+export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): void => {
   const id = refr.getFormID();
   const ac = Actor.from(refr);
-  if (!ac || !isRiskyToTouch(stateOf(ac, id), Date.now())) {
+  if (!ac ? !(opts && opts.defer) : deleteNow(stateOf(ac, id), Date.now(), !!(opts && opts.defer))) {
     noteActorCall("delete", id);
     refr.delete();
     forget(id);
