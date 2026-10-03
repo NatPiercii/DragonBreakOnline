@@ -34,36 +34,31 @@ const H = require(bundle);
 const { Widget: Hud, renderToStaticMarkup, createElement } = H;
 const render = (props) => renderToStaticMarkup(createElement(Hud, props));
 
-// ---- the store, and who gets which defaults (Nate, 3 Oct: only NEW players get the new look) ----
+// ---- the store, and the defaults (Nate, 3 Oct, final: the new look for everyone, a saved choice wins) ----
 const NEW = { vitals: 'fade', vitalsStyle: 'quiet', vitalsFadeSeconds: 5, chat: 'fade', chatLettering: 'book' };
-const OLD = { vitals: 'always', vitalsStyle: 'classic', vitalsFadeSeconds: 5, chat: 'always', chatLettering: 'plain' };
+const BEFORE = { vitals: 'always', vitalsStyle: 'classic', vitalsFadeSeconds: 5, chat: 'always', chatLettering: 'plain' };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const fileNow = () => { const s0 = sent.filter((x) => x[0] === 'cef::chat:saveSettings').pop(); return s0 && JSON.parse(s0[1]); };
-check('before the chat has mounted with the file: today\'s look (an existing player\'s), never the new one', same(H.getUiSettings(), OLD), H.getUiSettings());
-check('a player who has played before (the chat\'s values in the file, no ui block): stamped existing', H.settleUiProfile(false) === 'existing' && fileNow().ui.profile === 'existing');
-check('...keeps today\'s look: bars always shown in today\'s style, chat always shown, plain lettering', same(H.getUiSettings(), OLD), H.getUiSettings());
-check('...and the stamp holds at the next mount', H.settleUiProfile(true) === 'existing');
+const keep = window.__alduinakChatSettings;
+delete window.__alduinakChatSettings;
+check('before the chat has mounted with the saved file: today\'s look, so a saved choice never flashes the default first', same(H.getUiSettings(), BEFORE), H.getUiSettings());
 window.__alduinakChatSettings = {};
-check('a new player (the injected file empty, nothing in the page\'s storage): stamped new', H.settleUiProfile(true) === 'new' && window.__alduinakChatSettings.ui.profile === 'new');
-check('...gets the new look: Fade when full, Quiet, Fade when idle, Book', same(H.getUiSettings(), NEW), H.getUiSettings());
-window.__alduinakChatSettings = Object.assign({}, window.__alduinakChatSettings, { fontSize: 16, chatTransparency: 25 });
-check('...still new at the next launch, when the file holds the chat\'s values too', H.settleUiProfile(false) === 'new' && same(H.getUiSettings(), NEW));
-window.__alduinakChatSettings = {};
-window.localStorage.setItem('dboVoicePeers', '{}');
-check('an empty file but the page\'s storage from earlier play (a lost file): existing', H.settleUiProfile(true) === 'existing' && same(H.getUiSettings(), OLD));
-window.localStorage.removeItem('dboVoicePeers');
-window.__alduinakChatSettings = { ui: { vitals: 'hidden' } };
-check('a ui block without a stamp (set before the stamp existed): existing, its own choices kept', H.settleUiProfile(true) === 'existing' && H.getUiSettings().vitals === 'hidden' && H.getUiSettings().chat === 'always');
-window.__alduinakChatSettings = { fontSize: 18, customHighlights: 'gold', pos: { x: 4, y: 5 }, ui: { profile: 'new' } };
+check('a fresh file: the new look (Fade when full, Quiet, Fade when idle, Book)', same(H.getUiSettings(), NEW), H.getUiSettings());
+window.__alduinakChatSettings = keep;
+check('a player who has played before (the chat\'s values in the file, no ui block): the new look too', same(H.getUiSettings(), NEW), H.getUiSettings());
+window.__alduinakChatSettings = Object.assign({}, keep, { ui: { vitals: 'always', vitalsStyle: 'classic', chat: 'always', chatLettering: 'plain' } });
+check('...a choice saved in F3, Settings wins over the default', same(H.getUiSettings(), BEFORE), H.getUiSettings());
+check('...nothing is written into the file by reading it', sent.filter((x) => x[0] === 'cef::chat:saveSettings').length === 0);
+window.__alduinakChatSettings = keep;
 let heard = 0;
 window.addEventListener('dbo:uiSettings', () => heard++);
 H.setUiSettings({ vitals: 'always', chat: 'hidden' });
 const file = fileNow();
-check('a change is saved as the ui block of the chat-settings file, the chat\'s own values and the stamp kept', file && file.ui.vitals === 'always' && file.ui.chat === 'hidden' && file.ui.profile === 'new' && file.fontSize === 18 && file.customHighlights === 'gold' && file.pos.x === 4, file);
+check('a change is saved as the ui block of the chat-settings file, the chat\'s own values kept', file && file.ui.vitals === 'always' && file.ui.chat === 'hidden' && file.fontSize === 18 && file.customHighlights === 'gold' && file.pos.x === 4, file);
 check('...the page\'s copy is updated, and the change announced', window.__alduinakChatSettings.ui.chat === 'hidden' && heard === 1);
-window.__alduinakChatSettings.ui = { profile: 'new', vitals: 'sideways', vitalsFadeSeconds: 7, chat: 42, vitalsStyle: 'classic' };
+window.__alduinakChatSettings.ui = { vitals: 'sideways', vitalsFadeSeconds: 7, chat: 42, vitalsStyle: 'classic' };
 const bad = H.getUiSettings();
-check('a value the store does not know falls back to that player\'s default', bad.vitals === 'fade' && bad.vitalsFadeSeconds === 5 && bad.chat === 'fade' && bad.vitalsStyle === 'classic', bad);
+check('a value the store does not know falls back to its default', bad.vitals === 'fade' && bad.vitalsFadeSeconds === 5 && bad.chat === 'fade' && bad.vitalsStyle === 'classic', bad);
 
 // ---- the vitals ----
 const vs = H.vitalsShown;
@@ -101,10 +96,7 @@ else {
   check('...by opacity, never display or visibility, so T and Enter still reach the input', /#chat\.chat-veiled \{ opacity: 0; pointer-events: none; \}/.test(css) && !/chat-veiled[^}]*(display|visibility)/.test(css));
   check('Fade when idle fades the lines too', /#chat\.chat-mode-fade\.chat-idle \.chat-list \{ opacity: 0; \}/.test(css));
   check('F3 changes the chat\'s own values through dbo:chatSettings, and the chat tells the HUD when the file arrives', /window\.addEventListener\(CHAT_EVENT, onPatch\)/.test(chat) && /announceUiSettings\(\);/.test(chat));
-  const at = (re) => { const m = re.exec(chat); return m ? m.index : -1; };
-  check('the chat stamps new or existing from the injected file before it first writes its own values into it',
-    /fileWasEmptyRef\.current = !saved \|\| Object\.keys\(saved\)\.length === 0;/.test(chat) && at(/settleUiProfile\(fileWasEmptyRef\.current\);/) > 0
-    && at(/settleUiProfile\(fileWasEmptyRef\.current\);/) < at(/persistChatSettings\(\{ fontSize, chatTransparency/));
+  check('no new-or-existing stamp is left in the chat (one default for everyone)', !/settleUiProfile|fileWasEmptyRef/.test(chat));
   check('the hide key\'s flag is window.__dboChatHidden with the dbo:chatHidden event', /window\.__dboChatHidden/.test(chat) && /const HIDDEN_EVENT = 'dbo:chatHidden'/.test(chat));
 }
 

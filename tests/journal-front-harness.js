@@ -263,13 +263,15 @@ if (!J.JOURNAL_TABS || !J.JOURNAL_TABS.settings) {
   }
   check('...Interface: size, panel sizes, the bars, the chat and the names over heads', /Interface size/.test(t) && /Reset every panel/.test(t) && /Show the bars/.test(t) && /Fade when full/.test(t)
     && /Show the chat/.test(t) && /Hidden until T/.test(t) && /Lettering/.test(t) && /Text size/.test(t) && /Transparency/.test(t) && /Highlight words/.test(t) && /Player names/.test(t));
-  // Which defaults show depends on the stamp in the chat-settings file (Nate, 3 Oct: only new players get the new look)
+  // Once the chat's file is read: the new defaults for everyone (Nate, 3 Oct, final), or a choice saved in Settings
   const chosen = (h) => (h.match(/jset__chip jset__chip--on"[^>]*>[^<]*/g) || []).map((x) => x.replace(/.*>/, ''));
-  check('...a player who has played before sees today\'s look chosen: Always, Classic, Always, Plain', ['Always', 'Classic', 'Plain'].every((l) => chosen(html).includes(l)) && chosen(html).filter((l) => l === 'Always').length === 2 && !chosen(html).includes('Quiet'), chosen(html));
-  global.window = { __alduinakChatSettings: { ui: { profile: 'new' } }, skyrimPlatform: { sendMessage() {} }, addEventListener() {}, removeEventListener() {} };
-  const fresh = render(Journal, { data: sData({ staff: false, section: 'interface' }) });
+  global.window = { __alduinakChatSettings: { fontSize: 18 }, skyrimPlatform: { sendMessage() {} }, addEventListener() {}, removeEventListener() {} };
+  const def = render(Journal, { data: sData({ staff: false, section: 'interface' }) });
+  window.__alduinakChatSettings = { fontSize: 18, ui: { vitals: 'always', vitalsStyle: 'classic', chat: 'always', chatLettering: 'plain' } };
+  const mine = render(Journal, { data: sData({ staff: false, section: 'interface' }) });
   delete global.window;
-  check('...a new player sees the new defaults chosen: Fade when full, Quiet, Fade when idle, Book', ['Fade when full', 'Quiet', 'Fade when idle', 'Book'].every((l) => chosen(fresh).includes(l)), chosen(fresh));
+  check('...the defaults chosen for everyone: Fade when full, Quiet, Fade when idle, Book', ['Fade when full', 'Quiet', 'Fade when idle', 'Book'].every((l) => chosen(def).includes(l)), chosen(def));
+  check('...a saved choice shows instead: Always, Classic, Always, Plain', ['Classic', 'Plain'].every((l) => chosen(mine).includes(l)) && chosen(mine).filter((l) => l === 'Always').length === 2, chosen(mine));
   check('...no native select anywhere (the size is a Picker)', !/<select/.test(html) && /class="dbo-picker jset__picker"|dbo-picker jset__picker|jset__picker/.test(html));
   const ssrc = FRONT_SRC('features/journal/tabs/SettingsTab.tsx');
   if (ssrc) {
