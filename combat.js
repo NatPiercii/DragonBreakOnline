@@ -295,7 +295,8 @@ module.exports = (api) => {
   // gamemode.js hitDamageAttemptHook asks before a damaging hit counts: false = refuse it
   const spellCache = new Map();
   const isSpell = (id) => {
-    if (!spellCache.has(id)) { const r = recordOf(id); spellCache.set(id, !!r && String(r.record.type) === 'SPEL'); }
+    // A staff's hit names its enchantment (ENCH) and is paced like a spell
+    if (!spellCache.has(id)) { const r = recordOf(id); spellCache.set(id, !!r && (String(r.record.type) === 'SPEL' || String(r.record.type) === 'ENCH')); }
     return spellCache.get(id);
   };
   const spellHitAt = globalThis.__dboSpellHitAt instanceof Map ? globalThis.__dboSpellHitAt : (globalThis.__dboSpellHitAt = new Map());

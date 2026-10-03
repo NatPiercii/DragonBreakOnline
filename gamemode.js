@@ -236,7 +236,9 @@ const LEAD_ONLY = new Set(['beastform', 'vlremote', 'wwremote', 'feedpair', 'cha
   // Review A3-5 / A7-STAFF-1: /masktest creates armour, a faction's leader holds a hold's economy
   'masktest', 'faction leader', 'faction remove',
   // A skill boost is progress handed out (playtesterboost.js)
-  'boost grant', 'boost extend']);
+  'boost grant', 'boost extend',
+  // Opens a client trace that writes to the server log
+  'staffdiag']);
 
 const onlineActors = () => {
   try { const v = mp.get(0, 'onlinePlayers'); if (Array.isArray(v) && v.length) return v.map(Number).filter(Boolean); } catch (e) { /* fall through */ }
@@ -1844,6 +1846,7 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboGearSwapLogin) globalThis.__dboGearSwapLogin(a); } catch (e) { log('gear swap login failed', e.message); }
     try { if (globalThis.__dboBusinessLogin) globalThis.__dboBusinessLogin(a); } catch (e) { log('business login failed', e.message); }
     try { if (globalThis.__dboJailLogin) globalThis.__dboJailLogin(a); } catch (e) { log('jail login failed', e.message); }
+    try { if (globalThis.__dboStaffDiagLogin) globalThis.__dboStaffDiagLogin(a); } catch (e) { log('staff trace on login failed', e.message); }
     needsOnConnect(a);
     if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
     // A lease that ended while the player was offline never told this client to stop glowing
@@ -2558,6 +2561,38 @@ onUi('npcDrift', (a, args) => {
   try { note = driftNote(a, r); } catch (e) { /* diagnostics only */ }
   log(`npcDrift ${display(a)} ${String(r.kind).slice(0, 24)}: ${JSON.stringify(r).slice(0, 900)}${note}`);
 });
+// The staff trace (client staffHit.ts): a window the server opens for one player, by /staffdiag or at login while
+// config staffHitDiag.enabled; each staff shot arrives as one line, at most STAFF_DIAG_MAX_LINES a window
+const STAFF_DIAG = Object.assign({ enabled: false, seconds: 600 }, cfg.staffHitDiag || {});
+const STAFF_DIAG_MAX_LINES = 60;
+const staffDiagWindows = globalThis.__dboStaffDiag instanceof Map ? globalThis.__dboStaffDiag : (globalThis.__dboStaffDiag = new Map());
+const staffDiagSeconds = (s) => { const n = Math.round(Number(s)); return Number.isFinite(n) && n > 0 ? Math.min(900, Math.max(30, n)) : 600; };
+const openStaffDiag = (a, seconds) => {
+  const s = staffDiagSeconds(seconds);
+  staffDiagWindows.set(a >>> 0, { until: Date.now() + s * 1000, lines: 0 });
+  sendPacket(a, { customPacketType: 'dboStaffDiag', seconds: s });
+  return s;
+};
+globalThis.__dboStaffDiagLogin = (a) => { if (STAFF_DIAG.enabled) openStaffDiag(a, STAFF_DIAG.seconds); };
+onUi('staffShot', (a, args) => {
+  // Only inside a window the server opened, so a client cannot write to the log on its own
+  const w = staffDiagWindows.get(a >>> 0);
+  if (!w || Date.now() > w.until + 5000 || w.lines >= STAFF_DIAG_MAX_LINES) return;
+  w.lines++;
+  log(`staff shot ${display(a)}: ${String(args[0] || '').replace(/^staff shot: /, '').replace(/[\r\n]+/g, ' ').slice(0, 400)}`);
+});
+registerChatCommand('staffdiag', (a, args) => {
+  const parts = String(args || '').trim().split(/\s+/);
+  const last = parts[parts.length - 1];
+  const seconds = parts.length > 1 && /^\d+$/.test(last) ? parts.pop() : undefined;
+  const name = parts.join(' ');
+  if (!name) return personal(a, 'Usage: /staffdiag <player> [seconds 30-900]');
+  const t = findByName(name);
+  if (!t) return personal(a, `No player matches "${name}".`);
+  const s = openStaffDiag(t, seconds);
+  audit(`STAFF ${who(a)} /staffdiag ${display(t)} for ${s} s`);
+  personal(a, `Staff hit trace open for ${display(t)} for ${s} s: grep "staff shot" in the server log. A client before 0.3.75 ignores it.`);
+}, { admin: true, help: '<player> [seconds] trace a player\'s staff hits to the server log (Lead GM and above)' });
 // How hosts repair a split body, and the client drift switches (client sync\driftConfig.ts, same checks there);
 // kept across reloads and sent at every join so a test needs no client build
 const DRIFT_REPAIRS = ['setPosition', 'none', 'moveTo', 'disableEnable'];
@@ -4894,17 +4929,17 @@ if (typeof globalThis.__dboPrevHitDamageAttempt === 'undefined') {
   globalThis.__dboPrevHitDamageAttempt = typeof mp.onHitDamageAttempt === 'function' && !mp.onHitDamageAttempt.__dbo ? mp.onHitDamageAttempt : null;
 }
 const MAX_DAMAGE_CAP = 350;
-// SPEL SPIT: castType is the u32 at offset 16, 2 = concentration (libespm SPEL.h SPITData)
+// castType 2 = concentration: SPEL SPIT u32 at offset 16, a staff's ENCH ENIT u32 at offset 8 (libespm SPEL.h, ENCH.h)
 const concCache = globalThis.__dboConcCache instanceof Map ? globalThis.__dboConcCache : (globalThis.__dboConcCache = new Map());
 const concLast = globalThis.__dboConcLast instanceof Map ? globalThis.__dboConcLast : (globalThis.__dboConcLast = new Map());
 const isConcentration = (src) => {
   if (concCache.has(src)) return concCache.get(src);
   let yes = false;
   const r = recordOf(src);
-  if (r && String(r.record.type) === 'SPEL') {
-    const spit = (r.record.fields || []).find((f) => f && f.type === 'SPIT' && f.data instanceof Uint8Array && f.data.byteLength >= 20);
-    if (spit) yes = new DataView(spit.data.buffer, spit.data.byteOffset, spit.data.byteLength).getUint32(16, true) === 2;
-  }
+  const type = r ? String(r.record.type) : '';
+  const [field, size, at] = type === 'SPEL' ? ['SPIT', 20, 16] : type === 'ENCH' ? ['ENIT', 12, 8] : [];
+  const f = field ? (r.record.fields || []).find((x) => x && x.type === field && x.data instanceof Uint8Array && x.data.byteLength >= size) : null;
+  if (f) yes = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(at, true) === 2;
   concCache.set(src, yes);
   return yes;
 };
