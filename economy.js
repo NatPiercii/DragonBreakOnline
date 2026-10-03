@@ -364,6 +364,13 @@ module.exports = (api) => {
     reply(a, true, `Assessed at ${gold} gold.`);
   });
 
+  // guilds.js: a rank renamed in game keeps its wage (a non-hold faction's wages are kept by rank title)
+  globalThis.__dboEconomyRankRenamed = (fid, from, to) => {
+    const table = data().wages[String(fid)];
+    if (!table || !(from in table) || from === to) return false;
+    table[to] = table[from]; delete table[from]; save();
+    return true;
+  };
   // What the faction panel shows: for each faction this character leads, its rate, wages by rank, and the last reckoning
   globalThis.__dboEconomyView = (a) => {
     const led = fn('__dboRealmFactionsLedBy') ? fn('__dboRealmFactionsLedBy')(a) : [];

@@ -5587,7 +5587,7 @@ try {
 try {
   const GUILDS_JS = path.resolve('guilds.js');
   delete require.cache[GUILDS_JS];
-  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, isLeadStaff, findByName, audit, who, cfg, profileOf });
+  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, isLeadStaff, findByName, findAnyByName, audit, who, cfg, profileOf });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
 
 // ---- territories, land markers and official war (server\realm.js, territories.json, WAR_DESIGN.md) ---------------------
@@ -5657,15 +5657,18 @@ try {
 try {
   const JOURNAL_JS = path.resolve('journal.js');
   delete require.cache[JOURNAL_JS];
-  require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
+  const journal = require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg,
     skills: SKILLS_DEF.skills || [], hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
-} catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; }
+  // guilds.js: rank titles a leader writes pass the journal's prose filter
+  globalThis.__dboProseProblem = journal && typeof journal.proseProblem === 'function' ? journal.proseProblem : null;
+} catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; globalThis.__dboProseProblem = null; }
 // ---- the journal's Skills tab: the K menu inside F3 (server\journalskills.js; masterySystem's __alduinakMasteryMenu) ----
 try {
   const JOURNALSKILLS_JS = path.resolve('journalskills.js');
   delete require.cache[JOURNALSKILLS_JS];
   require(JOURNALSKILLS_JS)({ log, onUi });
 } catch (e) { log('journalskills.js failed to load:', e.stack || e.message); if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.skills; }
+
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {
   const BEASTFORM_JS = path.resolve('beastform.js');
