@@ -29,7 +29,7 @@ const ok = (c, what, got) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${what}${!c 
 
 const svc = Object.create(CompanionService.prototype);
 const calls = [];
-const at = (pos) => ({ pos, getPositionX() { return this.pos[0]; }, getPositionY() { return this.pos[1]; }, getPositionZ() { return this.pos[2]; } });
+const at = (pos) => ({ pos, getPositionX() { return this.pos[0]; }, getPositionY() { return this.pos[1]; }, getPositionZ() { return this.pos[2]; }, getAngleZ() { return 0; } });
 const player = at([0, 0, 0]);
 const crab = Object.assign(at([1200, 0, 0]), {
   isInCombat: () => false,
