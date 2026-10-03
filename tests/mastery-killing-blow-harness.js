@@ -15,7 +15,7 @@ const dead = new Set();
 const mp = { get: (id, k) => (k === 'isDead' ? dead.has(id >>> 0) : undefined) };
 const ctx = { svr: mp };
 const sys = new MasterySystem(() => {});
-if (typeof sys.hookNativeEvents !== 'function' || !(sys.aliveAtAttempt instanceof Map)) { console.log('skipped: this masterySystem has no attempt reading'); process.exit(0); }
+if (typeof sys.hookNativeEvents !== 'function' || !(sys.aliveAtAttempt instanceof Map)) { require('./expect')('mastery-killing-blow', 'this masterySystem has no attempt reading'); console.log('skipped: this masterySystem has no attempt reading'); process.exit(0); }
 const inner = [];
 mp.onHitDamageAttempt = (...a) => { inner.push(['attempt', ...a]); return undefined; };
 mp.onHitDamage = (...a) => { inner.push(['hit', ...a]); return undefined; };

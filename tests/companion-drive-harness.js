@@ -11,7 +11,7 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(process.argv[2] || process.env.FORK || path.join(os.homedir(), 'dragonbreak/fork'));
 const SRC = path.join(ROOT, 'skymp5-client/src');
 const FILE = path.join(SRC, 'services/services/companionService.ts');
-if (!fs.existsSync(FILE) || !/stuck again at/.test(fs.readFileSync(FILE, 'utf8'))) { console.log(`skipped: no companion drive switch in ${ROOT}`); process.exit(0); }
+if (!fs.existsSync(FILE) || !/stuck again at/.test(fs.readFileSync(FILE, 'utf8'))) { require('./expect')('companion-drive', `${ROOT} has no companion drive switch`); console.log(`skipped: no companion drive switch in ${ROOT}`); process.exit(0); }
 const ESBUILD = process.env.ESBUILD || path.join(os.homedir(), 'dragonbreak/fork/skymp5-server/node_modules/.bin/esbuild');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-compdrive-'));
 // Every name the client imports from SkyrimPlatform, as a callable stand-in
