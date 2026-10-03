@@ -1195,6 +1195,7 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
   if (globalThis.__dboCorpseLoot && globalThis.__dboCorpseLoot(targetId >>> 0, casterId >>> 0) === false) return false;
+  if (globalThis.__dboAshPile && globalThis.__dboAshPile(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboLootBody && globalThis.__dboLootBody(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboSkin && globalThis.__dboSkin(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboAnimalBody && globalThis.__dboAnimalBody(targetId >>> 0, casterId >>> 0) === false) return false;
@@ -4012,6 +4013,20 @@ globalThis.__dboSkinLeave = (a) => { const ses = skinSessions.get(a); if (!ses) 
 // spent after one search, and everything left comes back with the player when they rise.
 const BODY_LOOT_STACKS = 2;
 const BODY_LOOT_GOLD = 0.15;
+// A reanimated body's ash pile (companionSystem turnToAsh: base reanimateAshPileBase, default 0xc674b) holds the body's
+// own inventory, which no body shows: the server searches an expedition's humanoids and the wild animals itself
+const ASH_PILE_BASE = (() => {
+  const raw = serverSettings.reanimateAshPileBase;
+  try { return (typeof raw === 'string' && raw.includes(':') ? mp.getIdFromDesc(raw) : Number(raw === undefined ? 0xc674b : raw)) >>> 0; } catch (e) { return 0; }
+})();
+globalThis.__dboAshPile = (targetId, casterId) => {
+  if (!ASH_PILE_BASE || targetId < 0xff000000) return undefined;
+  let base = 0; try { base = mp.getIdFromDesc(String(mp.get(targetId, 'baseDesc') || '')) >>> 0; } catch (e) { return undefined; }
+  if (base !== ASH_PILE_BASE) return undefined;
+  try { mp.set(targetId, 'inventory', { entries: [] }); } catch (e) { log('ash pile: could not clear', targetId.toString(16), e.message); }
+  personal(casterId, 'Only ash is left.');
+  return false;
+};
 globalThis.__dboLootBody = (targetId, casterId) => {
   if (targetId === casterId || !(profileOf(targetId) > 0) || !(profileOf(casterId) > 0)) return undefined;
   try { if (mp.get(targetId, 'isDead') !== true) return undefined; } catch (e) { return undefined; }
