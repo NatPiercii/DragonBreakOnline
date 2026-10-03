@@ -19,8 +19,10 @@ export interface PlannedPlace {
   ownerName: string;
   root: number;
   name: string | null;
-  // "house": rooted at a door to a worldspace; "interior chest": a lone claim in an interior; "outdoor chest": in a worldspace
-  kind: "house" | "interior chest" | "outdoor chest";
+  // "house": rooted at a door to a worldspace; "interior chest": a lone claim in an interior; "outdoor chest": in a worldspace;
+  // "interior door": doors between interiors with no way to the world among them (an inn room, a guild hall's cellar), so
+  // the cells they join are shared buildings, not a house: no place is built there and nothing in them changes
+  kind: "house" | "interior chest" | "outdoor chest" | "interior door";
   cells: string[];
   members: number[];
   // Unlocked containers inside a house, which become owner-only when the migration applies (Nate, 3 Oct)
@@ -68,9 +70,9 @@ export const planPlaces = (claims: PlaceClaim[], isWorld: (cell: string) => bool
       const toWorld = doors.filter((m) => (m.cell && isWorld(m.cell)) || (m.partnerCell && isWorld(m.partnerCell)));
       const pick = (toWorld.length ? toWorld : doors.length ? doors : g.members).slice().sort((a, b) => (a.name ? 0 : 1) - (b.name ? 0 : 1) || a.ref - b.ref);
       const root = pick[0];
-      const kind: PlannedPlace["kind"] = root.door ? "house" : isWorld(root.cell) ? "outdoor chest" : "interior chest";
+      const kind: PlannedPlace["kind"] = root.door ? (toWorld.length ? "house" : "interior door") : isWorld(root.cell) ? "outdoor chest" : "interior chest";
       places.push({
-        owner, ownerName: root.ownerName, root: root.ref, name: root.name, kind, cells: [...g.cells].sort(),
+        owner, ownerName: root.ownerName, root: root.ref, name: root.name, kind, cells: kind === "house" ? [...g.cells].sort() : [],
         members: g.members.filter((m) => m !== root).map((m) => m.ref),
         openChests: kind === "house" ? g.members.filter((m) => !m.door && !m.locked).map((m) => m.ref) : [],
       });

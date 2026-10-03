@@ -112,7 +112,8 @@ interface PropertyRecord {
   // Key names cut at the current serial; null on records older than this field
   issued: string[] | null;
   // A place (N3): the interior cells behind this exterior door, its per-ref assignments and kept key credentials.
-  // Not written yet; read back as they are so a later write keeps them.
+  // Written by the migration and the place rules only with housingPlaceMigration "apply"; always read back as they are, so
+  // a write under any mode keeps them.
   place?: { cells: string[]; builtAt: number };
   assigned?: Record<string, { profile: number; name: string }>;
   keyAliases?: string[];
