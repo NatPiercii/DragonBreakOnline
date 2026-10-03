@@ -1,5 +1,21 @@
 [
   {
+    "title": "More gear breaks down",
+    "date": "2026-10-03",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Breakdown",
+        "items": [
+          "About 1,300 more weapons and pieces of armour can now be broken down, among them Northern Iron and the Elven, Glass and other gear of the Cyrodiil lands.",
+          "Gear with any metal in it now breaks down at the smelter, so a steel helmet gives back its steel instead of only its leather strips.",
+          "Steel, Elven and similar metals still need an Apprentice Blacksmith; iron is open to a Novice."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Welcome to the Alpha",
     "date": "2026-10-01",
     "version": "Server update",

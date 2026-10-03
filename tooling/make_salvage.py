@@ -3,9 +3,10 @@
 #
 # An item gives back the materials of the recipe that makes it (a forge, skyforge, tanning rack or loom COBJ; the last
 # override in the load order wins). An enchanted or variant item with no recipe of its own takes its template's (WEAP
-# CNAM, ARMO TNAM). Only materials come back: ingots, ore, bone and scales, chitin, leather, strips, hides and pelts,
+# CNAM, ARMO TNAM), and one with neither takes the cheapest recipe of an item of its type, shape (WEAP DNAM animation type,
+# ARMO BOD2 slots) and material keyword. Only materials come back: ingots, ore, bone and scales, chitin, leather, strips, hides and pelts,
 # cloth and thread. Ingredients, soul gems, gems, gold and firewood never do, so nothing rare is laundered through a
-# breakdown. The station follows the recipe's main material (the one it takes most of): metal at the smelter
+# breakdown. The station follows the recipe's main material (its main metal if it has one, else the one it takes most of): metal at the smelter
 # (Blacksmith), leather and hide at the tanning rack (Skinner), cloth at the loom (Tailor). A Blacksmith needs the tier
 # that works the main metal (skills.json blacksmith tiers); a recipe with a Daedra heart needs Master.
 # Books are not listed: salvage.js reads them from their own record.
@@ -90,6 +91,11 @@ def load(name):
                 elif sig in (b'WEAP', b'ARMO'):
                     t = one(b'CNAM' if sig == b'WEAP' else b'TNAM')
                     e['tmpl'] = res(struct.unpack_from('<I', t, 0)[0]) if t else None
+                    kw = one(b'KWDA')
+                    e['kw'] = [res(struct.unpack_from('<I', kw, j)[0]) for j in range(0, len(kw) - 3, 4)] if kw else []
+                    # The shape a stand-in recipe must share: WEAP DNAM animation type, ARMO BOD2 slots
+                    shape = one(b'DNAM') if sig == b'WEAP' else one(b'BOD2')
+                    e['shape'] = (shape[0] if sig == b'WEAP' else struct.unpack_from('<I', shape, 0)[0]) if shape and len(shape) >= 4 else None
                 recs[res(fid)] = e
                 q += 24 + rs
         pos += size
@@ -123,17 +129,42 @@ for e in recs.values():
     if old is None or sum(c for _, c in mats) < sum(c for _, c in old[0]):
         recipe[e['cnam']] = (mats, master)
 
-items, stats = {}, {'smelter': 0, 'tanning': 0, 'loom': 0, 'fromTemplate': 0}
+# An item with no recipe and no template (Beyond Skyrim's own copies, Sentinel's Northern Iron: recipes without a bench)
+# takes the cheapest recipe of an item of the same type, shape and material keyword (WeapMaterialElven, ArmorMaterialIron)
+MATERIAL_KW = re.compile(r'(Weap|Weapon|Armor)Material', re.I)
+material = lambda e: next((ed(k) for k in e.get('kw', []) if MATERIAL_KW.search(ed(k))), None)
+standin = {}
+for k, e in recs.items():
+    if e['t'] not in ('WEAP', 'ARMO') or e['del'] or k not in recipe or e.get('shape') is None:
+        continue
+    m = material(e)
+    if not m:
+        continue
+    key = (e['t'], m.lower(), e['shape'])
+    if key not in standin or sum(c for _, c in recipe[k][0]) < sum(c for _, c in standin[key][0]):
+        standin[key] = recipe[k]
+
+# The station follows the main metal whenever the recipe has one: a steel helmet's leather strips never send it to the
+# tanning rack (3 Oct, #bugs: Elven and Steel at the rack); otherwise the material it takes most of
+def main_of(mats):
+    metal = [x for x in mats if METAL.search(ed(x[0]))]
+    # Equal counts go to the harder metal: an Elven axe's one moonstone, not its one iron
+    return max(metal or mats, key=lambda x: (x[1], METAL_TIER.get(ed(x[0]).lower(), 2) if metal else 0))[0]
+
+items, stats = {}, {'smelter': 0, 'tanning': 0, 'loom': 0, 'fromTemplate': 0, 'byMaterial': 0}
 for k, e in recs.items():
     if e['t'] not in ('WEAP', 'ARMO') or e['del'] or not e['full']:
         continue
     r, t, hops = recipe.get(k), e.get('tmpl'), 0
     while r is None and t and hops < 4:
         r = recipe.get(t); t = (recs.get(t) or {}).get('tmpl'); hops += 1
+    if r is None and material(e) and e.get('shape') is not None:
+        r = standin.get((e['t'], material(e).lower(), e['shape']))
+        stats['byMaterial'] += 1 if r is not None else 0
     if r is None:
         continue
     mats, master = r
-    main = max(mats, key=lambda x: x[1])[0]
+    main = main_of(mats)
     station, skill, _ = next(s for s in STATION if s[2].search(ed(main)))
     tier = 4 if master else (METAL_TIER.get(ed(main).lower(), 2) if station == 'smelter' else 0)
     items[desc(k)] = [station, tier, [[desc(i), c] for i, c in sorted(mats, key=lambda x: (x[0] != main, -x[1]))]]
