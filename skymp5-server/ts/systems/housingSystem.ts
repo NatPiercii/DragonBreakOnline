@@ -229,7 +229,20 @@ export class HousingSystem implements System {
     const primary = this.primaryOf(ctx, targetId);
     if (!primary) return true;
     const rec = this.read(ctx, primary);
-    if (!rec || rec.owner === 0 || !rec.locked) return true;
+    if (!rec || rec.owner === 0) return true;
+    // A chest inside a place opens only for its owner, their assignee, the managers and a key to the place (Nate, 3 Oct)
+    if (!rec.locked && rec.ownerOnly && this.placesOn()) {
+      if (this.hasAccess(ctx, primary, rec, casterId)) return true;
+      const userId = this.userOf(ctx, casterId);
+      const now = Date.now();
+      if (now - (this.lastDenyMs.get(userId) || 0) > 1000) {
+        this.lastDenyMs.set(userId, now);
+        const root = rec.memberOf ? this.read(ctx, rec.memberOf) : null;
+        this.notice(ctx, userId, `This belongs to ${(root && root.name) || (root && root.ownerName) || rec.ownerName || "someone"}.`);
+      }
+      return false;
+    }
+    if (!rec.locked) return true;
 
     // One notice per player per second; a held activate key fires repeatedly.
     const userId = this.userOf(ctx, casterId);
@@ -545,7 +558,22 @@ export class HousingSystem implements System {
     if (hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1)) return true;
     const credential = this.keyCredential(primary, rec);
     const names = this.acceptedKeyNames(ctx, primary, rec);
-    return Array.from(v.keys).some((n) => this.isKeyFor(n, credential, names));
+    if (Array.from(v.keys).some((n) => this.isKeyFor(n, credential, names))) return true;
+    if (!this.placesOn()) return false;
+    // A place's root also answers to the key names its members had before the migration
+    if (rec.keyAliases && Array.from(v.keys).some((n) => rec.keyAliases!.some((a) => n === a || n.endsWith(a)))) return true;
+    // A member of a place: its assignee, and whoever may open the place itself
+    if (!rec.memberOf || rec.memberOf === primary) return false;
+    const root = this.read(ctx, rec.memberOf);
+    if (!root || root.owner === 0) return false;
+    const assigned = root.assigned && root.assigned[primary.toString(16)];
+    if (assigned && v.profileId && assigned.profile === v.profileId) return true;
+    return this.hasAccessWith(ctx, rec.memberOf, root, v);
+  }
+
+  // The place rules (N3) apply only once Nate sets housingPlaceMigration "apply"
+  private placesOn(): boolean {
+    return this.placeMigration === "apply";
   }
 
   // One inventory read and one access read per actor, not per claimed ref.
@@ -782,12 +810,26 @@ export class HousingSystem implements System {
       try {
         const inv = mp.get(actorId, "inventory");
         const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
-        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && this.isKeyFor(e?.name, credential, names)));
+        const aliases = rec.keyAliases || [];
+        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && (this.isKeyFor(e?.name, credential, names)
+          || (typeof e?.name === "string" && aliases.some((a) => e.name === a || e.name.endsWith(a))))));
         if (kept.length !== entries.length) mp.set(actorId, "inventory", { entries: kept });
       } catch { /* actor gone */ }
     }
     rec.serial += 1;
     rec.issued = [];
+    // New locks: the key names a place carried over from its members stop opening it too
+    if (rec.keyAliases) rec.keyAliases = [];
+    // ...and every door and chest of the place gets new locks with it, so no member's own old key still opens it
+    if (rec.place && this.placesOn()) {
+      for (const member of this.claimed) {
+        if (member === primary) continue;
+        const m = this.read(ctx, member);
+        if (!m || m.memberOf !== primary) continue;
+        this.reKey(ctx, member, m);
+        this.write(ctx, member, m);
+      }
+    }
   }
 
   private giveKey(ctx: SystemContext, actorId: number, keyName: string): boolean {
