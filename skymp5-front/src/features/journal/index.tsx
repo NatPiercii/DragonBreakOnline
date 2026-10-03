@@ -61,6 +61,7 @@ export interface JournalData {
   profile?: JournalProfile | null;
   // The hub: the tab list, and the header when Profile is not the open tab
   hub?: number;
+  readOnly?: number;
   tabs?: JournalTabInfo[];
   head?: { name: string; title: string; race: string } | null;
   faction?: FactionData | null;
@@ -317,8 +318,10 @@ const Journal = ({ data }: { data: JournalData }) => {
     return () => clearTimeout(t);
   }, [busy]);
 
+  // A staff member reading another's journal (journal.js __dboJournalOpenFor): nothing is sent but tab switches
+  const readOnly = !!data.readOnly;
   const act = (key: string, ...args: unknown[]): void => {
-    if (busy) return;
+    if (busy || readOnly) return;
     setBusy(true);
     saving.current = key === 'dbo:journalProfile';
     send(key.startsWith('dbo:') ? key : 'dbo:' + key, data.nonce, ...args);
@@ -362,7 +365,7 @@ const Journal = ({ data }: { data: JournalData }) => {
         </header>
         <Tabs<JournalTab> tabs={tabs} value={shown} onChange={(id) => openTab(id)} className="journal__tabs" />
         <div className={'journal__body journal__body--' + shown} data-domain={hub ? domainOfTab(shown) : undefined}>
-          {shown === 'profile' && (view.profile ? <ProfileTab data={view} editing={editing} setEditing={setEditing} busy={busy} act={act} openSkill={skillsLink} /> : <SectionState section={section('profile')} />)}
+          {shown === 'profile' && (view.profile ? <ProfileTab data={view} editing={editing && !readOnly} setEditing={setEditing} busy={busy || readOnly} act={act} openSkill={skillsLink} /> : <SectionState section={section('profile')} />)}
           {shown === 'faction' && (view.faction ? <div className="journal__faction"><FactionContent data={view.faction} embedded /></div> : <SectionState section={section('faction')} />)}
           {shown === 'supernatural' && (view.supernatural ? (
             <div className="journal__supernatural">
@@ -371,12 +374,12 @@ const Journal = ({ data }: { data: JournalData }) => {
             </div>
           ) : <SectionState section={section('supernatural')} />)}
           {shown === 'stats' && (hub && !view.stats ? <SectionState section={section('stats')} /> : <StatsTab stats={view.stats} />)}
-          {Entry && (section(shown) ? <Entry section={section(shown)} sections={cache.current} nonce={data.nonce} busy={busy} act={act} openTab={openTab} />
+          {Entry && (section(shown) ? <Entry section={section(shown)} sections={cache.current} nonce={data.nonce} busy={busy || readOnly} act={act} openTab={openTab} />
             : <SectionState section={section(shown)} />)}
         </div>
         <footer className="journal__footer">
           {data.result ? <p title={data.result} className={'journal__result journal__result--' + (data.resultKind || 'ok')}>{data.result}</p> : null}
-          <span className="journal__hint">F3 opens your journal. Escape closes it.</span>
+          <span className="journal__hint">{readOnly ? `You are reading ${head.name}'s journal. Nothing can be changed here.` : 'F3 opens your journal. Escape closes it.'}</span>
           <button type="button" className="journal__button" onClick={() => send('dbo:journalClose', data.nonce)}>Close</button>
         </footer>
       </div>
