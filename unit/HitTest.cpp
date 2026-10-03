@@ -2,6 +2,7 @@
 #include <catch2/catch_all.hpp>
 #include <algorithm>
 #include <chrono>
+#include <thread>
 
 #include "GetBaseActorValues.h"
 #include "HitMessage.h"
@@ -743,7 +744,9 @@ TEST_CASE("A staff's enchantment hits only from a staff the aggressor holds or "
   };
   // Health one hit takes (the unit PartOne's fake formula), 0 when refused
   auto hit = [&](uint32_t aggressor, uint32_t target, uint32_t source) {
-    auto& actor = p.worldState.GetFormAt<MpActor>(target);
+    // OnHit reads target 0x14 as the user's own actor; there is no form 0x14
+    auto& actor =
+      p.worldState.GetFormAt<MpActor>(target == 0x14 ? kCaster : target);
     actor.SetPercentages({ 1.f, 1.f, 1.f });
     RawMessageData rawMsgData;
     rawMsgData.userId = 0;
@@ -824,6 +827,9 @@ TEST_CASE("A scroll hit with no read takes the scroll at its first hit, once "
   constexpr uint32_t kThird = 0xff000003;
   constexpr uint32_t kNpc = 0xff000004;
   constexpr uint32_t kFireballScroll = 0x000a44ae;
+  // The unit PartOne is shared: no read of an earlier case may decide this one
+  p.GetActionListener().ForgetScrollReads(kCaster);
+  p.GetActionListener().ForgetScrollReads(kNpc);
 
   DoConnect(p, 0);
   p.CreateActor(kCaster, { 0, 0, 0 }, 0, 0x3c, 1);
@@ -885,6 +891,21 @@ TEST_CASE("A scroll hit with no read takes the scroll at its first hit, once "
   REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
   REQUIRE(hit(kNpc, kSecond) > 0.f);
   REQUIRE(npc.GetInventory().GetItemCount(kFireballScroll) == 0);
+
+  // A rune that goes off after the 60 s hit window: its read has expired, and nothing more is taken for it
+  auto& listener = p.GetActionListener();
+  listener.BackdateScrollReads(kCaster, std::chrono::seconds(70));
+  REQUIRE(hit(0x14, kThird) == Catch::Approx(0.f));
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  // Past the 10 minutes a read is remembered, a hit with none read is a new use
+  listener.BackdateScrollReads(kCaster, std::chrono::minutes(11));
+  REQUIRE(hit(0x14, kThird) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 0);
+  // A caster that left is forgotten: nothing of its reads stays behind
+  caster.AddItem(kFireballScroll, 1);
+  listener.ForgetScrollReads(kCaster);
+  REQUIRE(hit(0x14, kFirst) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 0);
 
   p.worldState.hosters.erase(kNpc);
   p.DestroyActor(kCaster);
