@@ -1579,9 +1579,11 @@ module.exports = (api) => {
         },
         {
           label: 'When it peaks', value: rite,
-          hint: `${rite} begins wherever you are. Strike true ${C.rite.needFever} times in ${C.rite.rounds}, and the curse takes you. Fail, and the fever burns out.`,
+          // As finishRite judges a loss: a client timed across the network (legacyDeadly 'safe') lives, one that times its own strikes dies
+          hint: `${rite} begins wherever you are. Strike true ${C.rite.needFever} times in ${C.rite.rounds}, and the curse takes you. ${riteLegacySafe(a)
+            ? 'Fail, and the fever breaks: you live, free of it.' : 'Fail, and the fever takes your life with it.'}`,
         },
-        { label: 'A cure', value: 'Still possible', hint: 'A held prayer to one of the Divines, or a Cure Disease potion, breaks the fever. Prayers to the Daedric Princes do not.' },
+        { label: 'A cure', value: 'Still possible', hint: 'A held prayer to one of the Divines or the older faiths, or a Cure Disease potion, breaks the fever. Prayers to the Daedric Princes do not.' },
       ],
       powers: [],
     };
