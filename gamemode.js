@@ -5802,7 +5802,7 @@ try {
   const SPELLS_JS = path.resolve('spells.js');
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
-} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop']) globalThis[k] = null; }
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop', '__dboSpellsGrant', '__dboSpellsTab', '__dboSpellsRankCap', '__dboSpellsChangePrepared', '__dboSpellsTomesFor']) globalThis[k] = null; }
 // ---- smithing manuals and smithing skill books (server\manuals.js, manuals.json, config "manuals"): spells.js's read hook,
 // the Scholar's reading, dungeons.js's boss chests and salvage.js's Scholars' Ledger ask it at runtime ----
 try {
@@ -5815,7 +5815,7 @@ try {
   const SCHOOLS_JS = path.resolve('schools.js');
   delete require.cache[SCHOOLS_JS];
   require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
-} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin', '__dboSchoolsLedgerActions', '__dboSchoolsLedgerChoose', '__dboMagicTab', '__dboAdminSetSchool']) globalThis[k] = null; }
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin', '__dboSchoolsLedgerActions', '__dboSchoolsLedgerChoose', '__dboMagicTab', '__dboMagicView', '__dboMagicAction', '__dboAdminSetSchool']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {

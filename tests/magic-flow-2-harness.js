@@ -325,10 +325,55 @@ cmd('schools', TEACHER, ['set', 'Destruction', '55', 'Mage']);
 check('/schools set Destruction 55 Mage', level(MAGE, 'Destruction') === 55 && /Mage #TAG4's Destruction is now 55 \(was 40\)/.test(said(TEACHER)) && out.audits.some((l) => /SCHOOLS P15 set P14's Destruction from 40 to 55 \(primary\)/.test(l)), said(TEACHER));
 r = globalThis.__dboAdminSetSchool(MAGE, 'conjuration', 12, TEACHER);
 check('the admin panel\'s call: a closed school set above 0 rests there', r.ok && level(MAGE, 'Conjuration') === 12 && /rests at that level/.test(r.text), r);
-check('...Restoration is Priest\'s, set on the Wheel', globalThis.__dboAdminSetSchool(MAGE, 'Restoration', 30).ok === false);
-check('...a level outside 0-100 is refused', globalThis.__dboAdminSetSchool(MAGE, 'Destruction', 101).ok === false && level(MAGE, 'Destruction') === 55);
+check('...Restoration is Priest\'s, set on the Wheel', /Priest skill/.test(globalThis.__dboAdminSetSchool(MAGE, 'Restoration', 30, TEACHER).text));
+check('...and only staff may call it', globalThis.__dboAdminSetSchool(MAGE, 'Destruction', 70, MAGE).ok === false && globalThis.__dboAdminSetSchool(MAGE, 'Destruction', 70).ok === false && level(MAGE, 'Destruction') === 55);
+check('...a level outside 0-100 is refused', /0 to 100/.test(globalThis.__dboAdminSetSchool(MAGE, 'Destruction', 101, TEACHER).text) && level(MAGE, 'Destruction') === 55);
 cmd('schools', TEACHER, ['Mage']);
 check('/schools shows resting schools, the picks and the last change', /Illusion resting 20/.test(said(TEACHER)) && /first spells: Destruction Sparks/.test(said(TEACHER)) && /last change \d{4}-\d\d-\d\d/.test(said(TEACHER)), said(TEACHER));
+
+// ---- review R-magic: update-1003's starter is moved once, never onto the next school ----
+{
+  const STARTER = 0x32; put(STARTER, 'profileId', STARTER); at(STARTER, SYNOD, [0, 0, 0]); online.push(STARTER); ui('uiCaps', STARTER, ['bank', 'spellbook', 'schools']); arcane(STARTER, 60);
+  put(STARTER, 'private.dboStudied', { arcane: [T.frostbite[1]] }); known(STARTER).add(idOf(T.frostbite[1]));
+  put(STARTER, 'private.dboSchools', { v: 1, primary: 'Destruction', secondary: null, grandfathered: [], levels: { Destruction: { level: 60, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, starter: '2b96b:Skyrim.esm', firstOffered: 1 });
+  globalThis.__dboSchoolsLogin(STARTER);
+  check('a starter mage: Frostbite is their Destruction pick, moved once', rec(STARTER).picks.Destruction.how === 'starter' && rec(STARTER).starterMoved === true && !rec(STARTER).picks.Illusion, rec(STARTER));
+  globalThis.__dboSchoolsLedgerChoose(STARTER, 'school:swap', BOOKCASE); menuChoose(STARTER, 'swap:Destruction:Illusion'); menuChoose(STARTER, 'yes:Destruction:Illusion');
+  w = lastWidget(STARTER, 'studyMagic');
+  check('...changing Destruction 60 for Illusion (30): the new school gets its own pick (Courage, Fury)', rec(STARTER).primary === 'Illusion' && level(STARTER, 'Illusion') === 30 && !rec(STARTER).picks.Illusion && w && w.title === 'Your First Spell' && w.school === 'Illusion' && w.choices.map((c) => c.name).join() === 'Courage,Fury', [rec(STARTER).picks, w && w.school]);
+  ui('firstSpellPick', STARTER, [w.nonce, 'Courage']);
+  check('...chosen; the starter stays Destruction\'s', rec(STARTER).picks.Illusion.spell === '4dee8:Skyrim.esm' && rec(STARTER).picks.Destruction.spell === '2b96b:Skyrim.esm');
+}
+
+// ---- review R-magic: a pick is never burned when it cannot be offered just now ----
+{
+  const BURN = 0x33; put(BURN, 'profileId', BURN); at(BURN, SYNOD, [0, 0, 0]); online.push(BURN); ui('uiCaps', BURN, ['bank', 'spellbook', 'schools']); arcane(BURN, 30);
+  put(BURN, 'private.dboSchools', { v: 1, primary: 'Conjuration', secondary: null, grandfathered: [], levels: { Conjuration: { level: 30, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, firstOffered: 1 });
+  const keep = { c: globalThis.__dboSpellsClassify, k: globalThis.__dboSpellsKnown, b: globalThis.__dboSpellsBook };
+  globalThis.__dboSpellsClassify = null; globalThis.__dboSpellsKnown = null; globalThis.__dboSpellsBook = null;
+  tick('schools.first'); globalThis.__dboSchoolsLogin(BURN);
+  check('spells.js away: no pick is marked none, nothing said about it', !(rec(BURN).picks || {}).Conjuration && !out.said.some((x) => x[0] === BURN && /already know every/.test(x[1])), rec(BURN).picks);
+  globalThis.__dboSpellsKnown = keep.k; globalThis.__dboSpellsBook = keep.b;
+  globalThis.__dboSpellsClassify = (id) => ((id >>> 0) === idOf(T.familiar[1]) ? null : keep.c(id));
+  known(BURN).add(idOf(T.boundSword[1]));
+  tick('schools.first'); globalThis.__dboSchoolsLogin(BURN);
+  check('a first spell whose name does not resolve (and the other known): not burned', !(rec(BURN).picks || {}).Conjuration, rec(BURN).picks);
+  globalThis.__dboSpellsClassify = keep.c;
+  globalThis.__dboSchoolsLogin(BURN);
+  w = lastWidget(BURN, 'studyMagic');
+  check('...back: the pick opens with what is left (Conjure Familiar)', w && w.title === 'Your First Spell' && w.choices.map((c) => c.name).join() === 'Conjure Familiar', w && w.choices);
+}
+
+// ---- review R-magic: a staff reset keeps the first spells and the change's wait ----
+{
+  const before = JSON.stringify(rec(MAGE).picks), swapAt = rec(MAGE).swapAt;
+  cmd('schools', TEACHER, ['reset', 'Mage']);
+  check('/schools reset clears the schools but keeps the picks, the swaps and the wait', !rec(MAGE).primary && JSON.stringify(rec(MAGE).picks) === before && rec(MAGE).swapAt === swapAt && rec(MAGE).swaps.length === 2 && /first spells already chosen/.test(said(TEACHER)), rec(MAGE));
+  const n0 = out.widgets.length;
+  p = progress(MAGE); ui('schoolChoose', MAGE, [p.nonce, 'Destruction', 'primary']);
+  const after = out.widgets.slice(n0).filter((x) => x.a === MAGE && x.w.title === 'Your First Spell');
+  check('...choosing Destruction again opens no second first spell', rec(MAGE).primary === 'Destruction' && !after.length && !/Now choose its first spell/.test(said(MAGE)), [after.length, said(MAGE)]);
+}
 
 // ---- a hot reload ----
 load();

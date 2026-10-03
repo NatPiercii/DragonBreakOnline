@@ -242,8 +242,14 @@ module.exports = (api) => {
       if (!Array.isArray(s.grandfathered)) { out.grandfathered = studiedNow(a); dirty = true; }
       if (!out.picks || typeof out.picks !== 'object') { out.picks = {}; dirty = true; }
       if (!out.pickTold || typeof out.pickTold !== 'object') out.pickTold = {};
-      // update-1003's fixed starter (s.starter, a spell desc) is that school's first spell: it has been picked
-      if (out.primary && out.starter && out.starter !== 'had' && !out.picks[out.primary]) { out.picks[out.primary] = { spell: String(out.starter), how: 'starter', at: 0 }; dirty = true; }
+      // update-1003's fixed starter (s.starter, a spell desc) is the first spell of the school it was given for, which was
+      // the primary then: moved into picks once (starterMoved), so a later change of school never hands it to the new one
+      if (out.starter && out.starter !== 'had' && !out.starterMoved) {
+        const was = norm(out.starter);
+        const school = SCHOOLS.find((n) => (C.firstSpells[n] || []).some((d) => norm(d) === was)) || out.primary;
+        if (school && !out.picks[school]) out.picks[school] = { spell: String(out.starter), how: 'starter', at: 0 };
+        out.starterMoved = true; dirty = true;
+      }
       if (dirty) set(a, PROP, out);
       return out;
     }
@@ -316,11 +322,22 @@ module.exports = (api) => {
   const listWords = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`);
   // Every first spell of a school, known or not, in words: 'Flames, Sparks or Frostbite'
   const firstWords = (school) => listWords((C.firstSpells[school] || []).map(nameOfSpell).filter(Boolean));
-  // Schools still pending after those whose every spell is known are marked done (and said once)
+  // Every configured first spell of `school` is really known (the book and the engine's list): true only then. With
+  // spells.js away, the engine's list unreadable or an id that does not resolve, the answer is false, and nothing is saved.
+  const knowsEvery = (a, school) => {
+    if (typeof globalThis.__dboSpellsKnown !== 'function' || typeof globalThis.__dboSpellsBook !== 'function') return false;
+    const list = C.firstSpells[school] || [];
+    if (!list.length) return false;
+    let known;
+    try { known = new Set((globalThis.__dboSpellsKnown(a) || []).map((sp) => sp.id >>> 0)); for (const sp of globalThis.__dboSpellsBook(a) || []) known.add(sp.id >>> 0); } catch (e) { return false; }
+    return list.every((d) => { const id = idOf(d); return !!id && known.has(id); });
+  };
+  // Schools still pending; those whose every spell is known are marked done (and said once)
   const pendingPicks = (a, s) => {
     const out = [];
     for (const school of pickSchools(a, s)) {
       if (pickOptions(a, school).length) { out.push(school); continue; }
+      if (!knowsEvery(a, school)) continue; // cannot be offered just now: asked again later, nothing burned
       s.picks[school] = { spell: '', how: 'none', at: Date.now() };
       save(a, s);
       audit(`SCHOOLS ${who(a)} reached ${school} ${PICK_AT} knowing every first spell of it: no pick`);
@@ -1405,7 +1422,7 @@ module.exports = (api) => {
 
   // ---- the F3 Magic tab's data: the journal's Magic section (specs/f3-hub-design.md 3.3; lane L5 draws it) --------------
   // Five schools: the four meters and Restoration, whose level is Priest's. Offered once Arcane Arts or Priest is on the
-  // Wheel ({ open: false } otherwise). No packet of its own: journal.js puts __dboMagicView(a) in widget 50's `magic` and
+  // Wheel ({ open: false } otherwise). No packet of its own: journal.js (F3 shell, f3-shell) puts __dboMagicView(a) in widget 50's `magic` and
   // sends the tab's actions, dbo:journalMagic [nonce, op, ...], to __dboMagicAction(a, op, args): firstSpell <school>
   // <spell desc> (anywhere F3 opens: it refuses in a fight), prepare <spell desc>, unprepare <spell desc> (at a college
   // or a Scholars' Ledger, as the spellbook). There are no rank bonuses to magicka cost here: `allows` says what a rank
@@ -1485,6 +1502,8 @@ module.exports = (api) => {
   // ---- staff: a player's school level (N7; the admin panel calls this) -----------------------------------------------
   // { ok, text }. A closed school set above 0 rests at that level; Restoration is Priest's, set on the Wheel.
   const adminSet = (by, t, school, level) => {
+    let staff = false; try { staff = !!by && typeof isAdmin === 'function' && !!isAdmin(by); } catch (e) { staff = false; }
+    if (!staff) return { ok: false, text: 'Only staff set a school of magic.' };
     const name = SCHOOLS.find((n) => n.toLowerCase() === String(school || '').toLowerCase());
     if (String(school || '').toLowerCase() === 'restoration') return { ok: false, text: 'Restoration follows the Priest skill: set Priest on the Wheel instead.' };
     if (!name) return { ok: false, text: `${school || 'That'} is not a school of magic. Schools: ${SCHOOLS.join(', ')}.` };
@@ -1548,9 +1567,12 @@ module.exports = (api) => {
     const t = query ? findByName(query) : (isReset ? 0 : a);
     if (!t) return personal(a, query ? `Nobody online answers to "${query}".` : 'Usage: /schools <player>, or /schools reset <player>.');
     if (isReset) {
-      save(t, fresh());
-      audit(`SCHOOLS ${who(a)} reset ${who(t)}'s schools of magic`);
-      return personal(a, `${display(t)}'s schools of magic are cleared; they choose again.`);
+      // The first spells already given and the change of school's wait are kept: a reset is no second free spell, and no
+      // way round the 7 days
+      const old = stateOf(t);
+      save(t, Object.assign(fresh(), { picks: old.picks || {}, pickTold: old.pickTold || {}, swapAt: Number(old.swapAt) || 0, swaps: Array.isArray(old.swaps) ? old.swaps : [], starterMoved: true }));
+      audit(`SCHOOLS ${who(a)} reset ${who(t)}'s schools of magic (first spells and the last change kept)`);
+      return personal(a, `${display(t)}'s schools of magic are cleared; they choose again. Their first spells already chosen and the wait after a change of school are kept.`);
     }
     const s = stateOf(t);
     personal(a, `${display(t)}: ${SCHOOLS.map((n) => `${n} ${active(s, n) ? `${roleOf(s, n)} ${levelOf(s, n)}` : resting(s, n) ? `resting ${levelOf(s, n)}` : 'locked'}`).join(', ')}; Arcane Arts ${arcaneOf(t).level}; first spells: ${Object.entries(s.picks).map(([k, v]) => `${k} ${v.spell ? nameOfSpell(v.spell) || v.spell : v.how}`).join(', ') || 'none'}${s.swapAt ? `; last change ${new Date(s.swapAt).toISOString().slice(0, 10)}` : ''}${s.teacher ? '; a named teacher' : ''}.`);
