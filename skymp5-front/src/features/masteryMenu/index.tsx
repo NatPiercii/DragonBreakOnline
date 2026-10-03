@@ -76,7 +76,7 @@ interface PointState {
 const LOCKS: Array<{ mode: LockMode; glyph: string; label: string; hint: string }> = [
   { mode: 'raise', glyph: '◒', label: 'Waxing', hint: 'Rises with use. Gives way only when nothing is waning.' },
   { mode: 'hold', glyph: '●', label: 'Held', hint: 'Never falls. Held skills are spared when the Wheel takes its due.' },
-  { mode: 'lower', glyph: '◓', label: 'Waning', hint: 'The first to give way when another skill rises past your limit.' },
+  { mode: 'lower', glyph: '◓', label: 'Waning', hint: 'Does not rise with use. The first to give way when another skill rises past your limit.' },
 ];
 
 const BAND_FLOORS = [1, 25, 50, 75, 90];
