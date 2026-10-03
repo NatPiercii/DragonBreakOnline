@@ -1528,7 +1528,7 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
     if (content.customPacketType === 'adminAction') {
       const a = actorOf(userId); if (!a || !isAdmin(a)) return;
       const shown = (k) => (k === 'item' && adminItemName(content.item) ? `${adminItemName(content.item)} (${content.item})` : content[k]);
-      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier'].filter(k => content[k] !== undefined).map(k => `${k}=${shown(k)}`).join(' ');
+      const extra = ['target', 'targetName', 'mode', 'amount', 'hours', 'item', 'count', 'skill', 'tier', 'kind', 'school', 'level'].filter(k => content[k] !== undefined).map(k => `${k}=${shown(k)}`).join(' ');
       // A staff grant of dragon bone or scales is allowed, and named as one (dragon-materials.json)
       const dragon = content.item && isDragonMaterialDesc(String(content.item)) ? ' DRAGON MATERIAL (staff grant)' : '';
       audit(`GM ${who(a)} admin panel: ${content.action} ${extra}${dragon}`.trim());
@@ -2793,6 +2793,64 @@ const raceEdidOf = (actor) => {
 };
 // "DarkElfRaceVampire" -> "a Dark Elf"
 const raceLabel = (edid) => { const n = String(edid).replace(/Race(Vampire)?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'); return n ? `${/^[AEIOU]/.test(n) ? 'an' : 'a'} ${n}` : 'of no known race'; };
+// The rules of /appoint, shared with the Court tab (court.js): { error } or { cap, overridden }. tg is officialTarget's.
+const appointCheck = (a, z, rank, tg, override) => {
+  if (!(z.officials || []).includes(rank)) return { error: `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.` };
+  if (!tg.actor) return { error: `Profile ${tg.pid} has no characters.` };
+  const cap = appointCap(a, z, rank);
+  if (!cap) return { error: `Only an admin, or a seat that may name a ${rankTitle(rank)}, can appoint one in ${z.name}.` };
+  if (override && tierOf(a) !== 'senior') return { error: 'Only the Owners can override the Jarl rule.' };
+  let overridden = '';
+  if (rank === 'jarl') {
+    const race = raceEdidOf(tg.actor);
+    if (!JARL_RACE.test(race)) {
+      if (!override) return { error: `${tg.label} is ${raceLabel(race)}. By Skyrim's law only a Nord or an Imperial may sit as Jarl.${tierOf(a) === 'senior' ? ' As an Owner you may add "override" to seat them anyway.' : ''}` };
+      overridden = raceLabel(race);
+    }
+  }
+  if (!isAdmin(a)) {
+    const zo = readOfficials()[z.id] || {};
+    const held = Object.keys(zo).find((r) => (zo[r] || []).map(Number).includes(tg.pid));
+    if (held && !appointCap(a, z, held)) return { error: `${tg.label} already holds ${rankTitle(held)} of ${z.name}; you cannot replace that.` };
+    if (((zo[rank] || []).map(Number).filter((x) => x !== tg.pid)).length >= cap) return { error: `${z.name} already has ${cap} ${rankTitle(rank)}s. Dismiss one first.` };
+  }
+  return { cap, overridden };
+};
+// court.js: an office change also sets the household (hold faction) rank, with the office as the source of truth
+const courtOfficeSync = (z, tg, rank, seated) => { try { if (typeof globalThis.__dboCourtOfficeSync === 'function') globalThis.__dboCourtOfficeSync(z, tg, rank, seated); } catch (e) { log('court sync failed', e.message); } };
+// Seats tg as rank of z, one rank per zone. by: { who, staff, overridden?, via? } for the audit. { error } or { text }
+const seatOfficial = (z, rank, tg, by) => {
+  const o = readOfficials(); o[z.id] = o[z.id] || {};
+  // One rank per zone: the office being left (a re-seat or a move) gives up its household rank too
+  const had = Object.keys(o[z.id]).find((r) => r !== rank && (o[z.id][r] || []).map(Number).includes(tg.pid)) || null;
+  for (const r of Object.keys(o[z.id])) o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== tg.pid);
+  o[z.id][rank] = (o[z.id][rank] || []).concat([tg.pid]);
+  try { writeOfficials(o); } catch (e) { return { error: 'Could not write officials.json: ' + e.message }; }
+  if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
+  audit(`${by.staff ? 'GM' : 'OFFICIAL'} ${by.who} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}${by.via || ''}${by.overridden ? ` (Jarl rule overridden by an Owner: ${by.overridden})` : ''}`);
+  if (had) courtOfficeSync(z, tg, had, false);
+  courtOfficeSync(z, tg, rank, true);
+  return { text: `${tg.label} is now ${rankTitle(rank)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
+};
+// Removes tg's rank in z, if a may dismiss it. { error } or { text, had }
+const unseatOfficial = (a, z, tg) => {
+  const o = readOfficials(); let had = null;
+  for (const r of Object.keys(o[z.id] || {})) { if ((o[z.id][r] || []).map(Number).includes(tg.pid)) had = r; o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== tg.pid); }
+  if (!had) return { error: `${tg.label} holds no rank in ${z.name}.` };
+  if (!appointCap(a, z, had)) return { error: `You cannot dismiss a ${rankTitle(had)} of ${z.name}.` };
+  try { writeOfficials(o); } catch (e) { return { error: 'Could not write officials.json: ' + e.message }; }
+  if (tg.online) system(tg.online, `You are no longer ${rankTitle(had)} of ${z.name}.`);
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${tg.who} as ${rankTitle(had)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
+  courtOfficeSync(z, tg, had, false);
+  return { had, text: `${tg.label} is no longer ${rankTitle(had)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
+};
+// A ruler's appointment is an offer the target accepts on the Court tab (Nate, 3 Oct, Q4); staff seat outright
+const appointFrom = (a, z, rank, tg, override) => {
+  const chk = appointCheck(a, z, rank, tg, override);
+  if (chk.error) return chk;
+  if (!isAdmin(a) && typeof globalThis.__dboCourtOffer === 'function') return globalThis.__dboCourtOffer(a, z, rank, tg, chk);
+  return seatOfficial(z, rank, tg, { who: who(a), staff: isAdmin(a), overridden: chk.overridden });
+};
 registerChatCommand('appoint', (a, args) => {
   // An Owner's trailing "override" lifts the Jarl rule for this appointment
   const ov = args.trim().match(/^(.*\S)\s+override$/i); const override = !!ov;
@@ -2801,48 +2859,19 @@ registerChatCommand('appoint', (a, args) => {
   const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
   const rank = m[3].toLowerCase(); if (!(z.officials || []).includes(rank)) return personal(a, `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.`);
   const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
-  if (!tg.actor) return personal(a, `Profile ${tg.pid} has no characters.`);
-  const pid = tg.pid;
-  const cap = appointCap(a, z, rank);
-  if (!cap) return personal(a, `Only an admin, or a seat that may name a ${rankTitle(rank)}, can appoint one in ${z.name}.`);
-  if (override && tierOf(a) !== 'senior') return personal(a, 'Only the Owners can override the Jarl rule.');
-  let overridden = '';
-  if (rank === 'jarl') {
-    const race = raceEdidOf(tg.actor);
-    if (!JARL_RACE.test(race)) {
-      if (!override) return personal(a, `${tg.label} is ${raceLabel(race)}. By Skyrim's law only a Nord or an Imperial may sit as Jarl.${tierOf(a) === 'senior' ? ' As an Owner you may add "override" to seat them anyway.' : ''}`);
-      overridden = raceLabel(race);
-    }
-  }
-  const o = readOfficials(); o[z.id] = o[z.id] || {};
-  if (!isAdmin(a)) {
-    const held = Object.keys(o[z.id]).find((r) => (o[z.id][r] || []).map(Number).includes(pid));
-    if (held && !appointCap(a, z, held)) return personal(a, `${tg.label} already holds ${rankTitle(held)} of ${z.name}; you cannot replace that.`);
-    if (((o[z.id][rank] || []).map(Number).filter((x) => x !== pid)).length >= cap) return personal(a, `${z.name} already has ${cap} ${rankTitle(rank)}s. Dismiss one first.`);
-  }
-  for (const r of Object.keys(o[z.id])) o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== pid); // one rank per zone
-  o[z.id][rank] = (o[z.id][rank] || []).concat([pid]);
-  try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
-  personal(a, `${tg.label} is now ${rankTitle(rank)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}`);
-  if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
-  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}${overridden ? ` (Jarl rule overridden by an Owner: ${overridden})` : ''}`);
-}, { help: '<player|#TAG|profile id> <zone> <rank> [override] make someone an official, online or not (admins; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards). A Jarl must be a Nord or an Imperial; only the Owners may add override' });
+  const r = appointFrom(a, z, rank, tg, override);
+  personal(a, r.error || r.text);
+}, { help: '<player|#TAG|profile id> <zone> <rank> [override] make someone an official, online or not (admins at once; a ruler\'s appointment is offered and accepted in the journal, F3 Court; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards). A Jarl must be a Nord or an Imperial; only the Owners may add override' });
 registerChatCommand('dismiss', (a, args) => {
   // The name may have spaces: the zone is the last word
   const m = args.trim().match(/^(.+?)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG|profile id> <zone>');
   const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
   const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
-  const pid = tg.pid; const o = readOfficials(); let had = null;
-  for (const r of Object.keys(o[z.id] || {})) { if ((o[z.id][r] || []).map(Number).includes(pid)) had = r; o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== pid); }
-  if (!had) return personal(a, `${tg.label} holds no rank in ${z.name}.`);
-  if (!appointCap(a, z, had)) return personal(a, `You cannot dismiss a ${rankTitle(had)} of ${z.name}.`);
-  try { writeOfficials(o); } catch (e) { return personal(a, 'Could not write officials.json: ' + e.message); }
-  personal(a, `${tg.label} is no longer ${rankTitle(had)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}`);
-  if (tg.online) system(tg.online, `You are no longer ${rankTitle(had)} of ${z.name}.`);
-  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${tg.who} as ${rankTitle(had)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
+  const r = unseatOfficial(a, z, tg);
+  personal(a, r.error || r.text);
 }, { help: '<player|#TAG|profile id> <zone> remove an official you may appoint, online or not' });
-registerChatCommand('officials', (a, args) => {
-  const o = readOfficials(); const want = args.trim() ? zoneById(args.trim()) : null;
+const officialsLines = (a, zoneArg) => {
+  const o = readOfficials(); const want = zoneArg ? zoneById(zoneArg) : null;
   const lines = [];
   for (const z of zoneList()) {
     if (want && z.id !== want.id) continue;
@@ -2850,6 +2879,12 @@ registerChatCommand('officials', (a, args) => {
     for (const r of (z.officials || [])) { const ids = (o[z.id] || {})[r] || []; if (ids.length) parts.push(`${rankTitle(r)}: ${ids.map(officialName).join(', ')}`); }
     if (parts.length || want) lines.push(`${z.name}: ${parts.join('; ') || 'no officials'}`);
   }
+  return lines;
+};
+registerChatCommand('officials', (a, args) => {
+  // A journal client gets the Court tab (court.js); /officials <zone> still answers in chat
+  if (!args.trim() && typeof globalThis.__dboCourtOpen === 'function' && globalThis.__dboCourtOpen(a)) return;
+  const lines = officialsLines(a, args.trim());
   personal(a, lines.length ? lines.join('  |  ') : 'No officials appointed yet. Admins: /appoint <player> <zone> <rank>.');
   const mine = ranksOf(profileOf(a)); if (mine.length) personal(a, 'You hold: ' + mine.map((m) => `${rankTitle(m.rank)} of ${m.zone.name}`).join(', '));
 }, { help: '[zone] who rules where' });
@@ -4606,7 +4641,7 @@ mp.onHostAttempt = hostAttemptHook;
 // would credit nobody: MASTERY_MIN_HEALTH keeps the bonus from landing the killing blow, and the
 // engine's next hit takes it with the killer intact.
 // Tunable in gamemode-config.json under "mastery": { "damage": { ... } }; byTier is indexed by rank
-// (0 Novice .. 4 Master) and matches what skills.json advertises: +35/+65/+100% from Journeyman.
+// (0 Novice .. 4 Master) and matches what skills.json advertises: +35/+65/+100% from Adept.
 const MASTERY_DMG = Object.assign({ enabled: true, byTier: [0, 0, 0.35, 0.65, 1.0], log: true },
   ((cfg.mastery || {}).damage) || {});
 const MASTERY_MIN_HEALTH = 0.01;
@@ -5673,7 +5708,7 @@ try {
 try {
   const GUILDS_JS = path.resolve('guilds.js');
   delete require.cache[GUILDS_JS];
-  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, isLeadStaff, findByName, audit, who, cfg, profileOf });
+  require(GUILDS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, display, nameOf, tagOf, onlineActors, isAdmin, isLeadStaff, findByName, findAnyByName, audit, who, cfg, profileOf });
 } catch (e) { log('guilds.js failed to load:', e.stack || e.message); globalThis.__dboFactionMenu = null; globalThis.__dboFactionMenuEntries = null; globalThis.__dboFactionMenuAction = null; globalThis.__dboFactionLogin = null; }
 
 // ---- territories, land markers and official war (server\realm.js, territories.json, WAR_DESIGN.md) ---------------------
@@ -5743,9 +5778,25 @@ try {
 try {
   const JOURNAL_JS = path.resolve('journal.js');
   delete require.cache[JOURNAL_JS];
-  require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg, isAdmin,
+  const journal = require(JOURNAL_JS)({ mp, log, display, nameOf, personal, openWidget, closeWidget, onUi, sendPacket, every, onlineActors, cfg, isAdmin,
     skills: SKILLS_DEF.skills || [], hasCap: (a, cap) => { const c = panelState.caps.get(a >>> 0); return !!c && c.has(cap); } });
-} catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; }
+  // guilds.js: rank titles a leader writes pass the journal's prose filter
+  globalThis.__dboProseProblem = journal && typeof journal.proseProblem === 'function' ? journal.proseProblem : null;
+} catch (e) { log('journal.js failed to load:', e.stack || e.message); globalThis.__dboJournalRequest = null; globalThis.__dboJournalFaction = null; globalThis.__dboProseProblem = null; }
+// ---- the journal's Skills tab: the K menu inside F3 (server\journalskills.js; masterySystem's __alduinakMasteryMenu) ----
+try {
+  const JOURNALSKILLS_JS = path.resolve('journalskills.js');
+  delete require.cache[JOURNALSKILLS_JS];
+  require(JOURNALSKILLS_JS)({ log, onUi });
+} catch (e) { log('journalskills.js failed to load:', e.stack || e.message); if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.skills; }
+// ---- the journal's Court tab: offices, offers and the household (server\court.js, config "court") ------------------------
+try {
+  const COURT_JS = path.resolve('court.js');
+  delete require.cache[COURT_JS];
+  require(COURT_JS)({ mp, log, system, personal, registerChatCommand, audit, who, display, nameOf, tagOf, onUi, onlineActors, isAdmin, profileOf, cfg, findByName,
+    zoneList, zoneById, readOfficials, rankTitle, appointCap, appointCheck, appointFrom, seatOfficial, unseatOfficial, officialTarget,
+    officialName, accountActors, ranksOf, APPOINT_RULES });
+} catch (e) { log('court.js failed to load:', e.stack || e.message); globalThis.__dboCourtOffer = null; globalThis.__dboCourtOfficeSync = null; if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.court; }
 
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {

@@ -11,7 +11,7 @@ module.exports = (api) => {
 
   const CFG = Object.assign({
     enabled: true,
-    // Units of work one skill needs for Apprentice, Journeyman, Expert and Master (fork skillPoints.ts)
+    // Units of work one skill needs for Apprentice, Adept, Expert and Master (fork skillPoints.ts)
     thresholds: [0, 250, 750, 1750, 2950],
     perLevel: 10,
     checkSeconds: 30,

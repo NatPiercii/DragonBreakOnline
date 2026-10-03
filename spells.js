@@ -81,7 +81,7 @@ module.exports = (api) => {
 
   // ---- skills and tiers ------------------------------------------------------------------------------
   const SKILLS_JSON = readJson('skills.json') || {};
-  const TIER_NAMES = Array.isArray(SKILLS_JSON.tierNames) ? SKILLS_JSON.tierNames : ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
+  const TIER_NAMES = Array.isArray(SKILLS_JSON.tierNames) ? SKILLS_JSON.tierNames : ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   const SPELL_SKILLS = (Array.isArray(SKILLS_JSON.skills) ? SKILLS_JSON.skills : []).filter((s) => s && s.studyAt === 'spellStudyPoints');
   const SKILL_OF_SCHOOL = {};
   for (const s of SPELL_SKILLS) for (const school of s.vanillaSkills || []) SKILL_OF_SCHOOL[school] = s;

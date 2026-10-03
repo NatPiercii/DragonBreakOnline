@@ -364,6 +364,19 @@ module.exports = (api) => {
     reply(a, true, `Assessed at ${gold} gold.`);
   });
 
+  // guilds.js: ranks renamed in game keep their wages (a non-hold faction's wages are kept by rank title). pairs:
+  // [[from, to]], applied together, so a swap (A->B, B->A) or a chain (A->B, B->C) moves every wage once
+  globalThis.__dboEconomyRanksRenamed = (fid, pairs) => {
+    const table = data().wages[String(fid)];
+    const list = (Array.isArray(pairs) ? pairs : []).filter((p) => Array.isArray(p) && p[0] !== p[1]);
+    if (!table || !list.some(([from]) => from in table)) return false;
+    const next = {};
+    const moved = new Set(list.map(([from]) => from));
+    for (const [k, v] of Object.entries(table)) if (!moved.has(k)) next[k] = v;
+    for (const [from, to] of list) if (from in table) next[to] = table[from];
+    data().wages[String(fid)] = next; save();
+    return true;
+  };
   // What the faction panel shows: for each faction this character leads, its rate, wages by rank, and the last reckoning
   globalThis.__dboEconomyView = (a) => {
     const led = fn('__dboRealmFactionsLedBy') ? fn('__dboRealmFactionsLedBy')(a) : [];

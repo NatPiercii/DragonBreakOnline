@@ -52,7 +52,7 @@ module.exports = (api) => {
     skillBooks: Object.assign({}, D.skillBooks, raw.skillBooks || {}),
     provinces: Object.assign({}, D.provinces, raw.provinces || {}),
   });
-  const TIER_NAMES = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
+  const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   const REC = 'private.dboManuals', BOOKS_READ = 'private.dboSkillBooks', COPIES = 'private.scholarCopies', OWED = 'private.dboManualsOwed';
 
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };

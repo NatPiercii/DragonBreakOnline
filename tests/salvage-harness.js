@@ -143,7 +143,7 @@ ok(count(NOVICE, DAEDRIC) === 1 && count(NOVICE, EBONY) === 0, 'a forged pick fo
 reset(); S = load();
 INV[PLAYER] = [{ baseId: LEATHER_ARMOR, count: 1 }];
 act(RACK, PLAYER); choose(PLAYER, `b:${LEATHER_ARMOR}`);
-ok(count(PLAYER, LEATHER) === 2 && count(PLAYER, STRIPS) === 1 && count(PLAYER, LEATHER_ARMOR) === 0, 'Journeyman skinner: half of 4 leather and 3 strips, rounded down');
+ok(count(PLAYER, LEATHER) === 2 && count(PLAYER, STRIPS) === 1 && count(PLAYER, LEATHER_ARMOR) === 0, 'Adept skinner: half of 4 leather and 3 strips, rounded down');
 ok(/Nothing else here to break down/.test((said.find((x) => x[0] === PLAYER) || [])[1] || ''), 'the panel closes when nothing is left');
 
 // Books at the writing desk (Scholar)

@@ -80,6 +80,8 @@ declare -A NEEDS=(
   [craft-weight]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-cast-route]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-award]=server:skymp5-server/ts/systems/masterySystem.ts
+  [mastery-journal]=server:skymp5-server/ts/systems/masterySystem.ts
+  [admin-school]=server:skymp5-server/ts/systems/adminSystem.ts
   [staff-mastery]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-killing-blow]=server:skymp5-server/ts/systems/masterySystem.ts
   [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
@@ -106,6 +108,8 @@ declare -A NEEDS=(
   [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
   [housing-rooms-front]=front:skymp5-front/src/features/housing/index.tsx
+  [admin-panel-front]=front:skymp5-front/src/features/adminPanel/index.tsx
+  [journal-tabs-b-front]=front:skymp5-front/src/features/journal/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}

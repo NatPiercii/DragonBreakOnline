@@ -321,12 +321,12 @@ check('...skills list only what they hold', p.skills.length === 1 && p.skills[0]
 check('...tomes only of their schools', p.tomes.length > 0 && p.tomes.every((t) => ['Destruction', 'Conjuration', 'Illusion'].includes(t.school)));
 check('...never above shopMaxRank (no Master tomes)', p.tomes.every((t) => t.rank <= 3) && !p.tomes.some((t) => t.id === T.fireStorm[0]));
 const row = (id) => p.tomes.find((t) => t.id === id);
-check('...Novice and Apprentice tomes open, higher ranks blocked by tier', row(T.firebolt[0]).blocked === '' && row(T.fireball[0]).blocked === 'Needs Arcane Arts Journeyman' && row(T.incinerate[0]).blocked === 'Needs Arcane Arts Expert', [row(T.firebolt[0]), row(T.fireball[0]), row(T.incinerate[0])]);
+check('...Novice and Apprentice tomes open, higher ranks blocked by tier', row(T.firebolt[0]).blocked === '' && row(T.fireball[0]).blocked === 'Needs Arcane Arts Adept' && row(T.incinerate[0]).blocked === 'Needs Arcane Arts Expert', [row(T.firebolt[0]), row(T.fireball[0]), row(T.incinerate[0])]);
 check('...with real names and prices', row(T.frostFlames[0]).name === 'Spell Tome: Frost Flames' && row(T.frostFlames[0]).spell === 'Frost Flames' && row(T.frostFlames[0]).price === 94 && row(T.frostFlames[0]).rankName === 'Novice' && row(T.frostFlames[0]).canAfford === true, row(T.frostFlames[0]));
 check('...quest tomes and other lands are left out', !p.tomes.some((t) => t.id === QUEST_TOME || t.id === HAMMERFELL_TOME));
 check('...Cyrodiil tomes first within a rank', (() => { const d0 = p.tomes.filter((t) => t.school === 'Destruction' && t.rank === 0); return d0[0].id === T.frostFlames[0]; })(), p.tomes.filter((t) => t.school === 'Destruction' && t.rank === 0).map((t) => t.id));
 buy(OTHER, T.fireball[0]);
-check('a blocked tome cannot be bought', shop(OTHER).resultKind === 'refused' && /Needs Arcane Arts Journeyman/.test(shop(OTHER).result) && count(OTHER, 0xf) === 1000, shop(OTHER).result);
+check('a blocked tome cannot be bought', shop(OTHER).resultKind === 'refused' && /Needs Arcane Arts Adept/.test(shop(OTHER).result) && count(OTHER, 0xf) === 1000, shop(OTHER).result);
 ui('tomeBuy', OTHER, ['stale-nonce', T.frostFlames[0]], 44);
 check('a stale nonce is ignored', count(OTHER, 0xf) === 1000);
 buy(OTHER, T.frostFlames[0]);

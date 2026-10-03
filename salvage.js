@@ -42,7 +42,7 @@ module.exports = (api) => {
     // script blocks the game's own activation, so it has no "use it again" row and always answers
     { id: 'ledger', skill: 'scholar', label: "Scholars' Ledger", books: true, dedicated: true, keywords: [], bases: CFG.bookBreakdownBases || [] },
   ];
-  const TIER_NAMES = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master'];
+  const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
 
   // Both outlive a gamemode reload, so a panel open during a deploy still answers
   const S = globalThis.__dboSalvage = globalThis.__dboSalvage || { pending: new Map(), pass: new Map() };
