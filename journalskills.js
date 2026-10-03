@@ -16,7 +16,15 @@ module.exports = (api) => {
   const menuOf = (a) => (typeof globalThis.__alduinakMasteryMenu === 'function' ? globalThis.__alduinakMasteryMenu(a >>> 0) : null);
   const sections = globalThis.__dboJournalSections || (globalThis.__dboJournalSections = {});
   // Always shown; without the fork's hook (an older server) the tab says it cannot be shown, and K opens widget 25
-  sections.skills = { visible: () => true, view: (a) => menuOf(a) };
+  // A link from elsewhere (Profile's meters) arrives as opts.focus { skill } and names the page to show
+  sections.skills = {
+    visible: () => true,
+    view: (a, opts) => {
+      const m = menuOf(a);
+      const want = opts && opts.focus && typeof opts.focus === 'object' ? String(opts.focus.skill || '') : '';
+      return m && want ? Object.assign({}, m, { focus: want.slice(0, 40) }) : m;
+    },
+  };
 
   const fresh = (a, args) => typeof globalThis.__dboJournalFresh === 'function' && !!globalThis.__dboJournalFresh(a, String((args || [])[0] || ''));
   onUi('journalSkill', (a, args) => {

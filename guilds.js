@@ -199,7 +199,7 @@ module.exports = (api) => {
       ranks: f.ranks.map((r) => ({ title: r.title, role: r.role })), members,
       // The journal's Faction tab: holds and strongholds are shown on the Court tab instead (Nate, 3 Oct, Q3); a leader
       // renames the titles, a Lead GM also adds, moves and removes ranks and adds members
-      court: f.kind === 'hold' || f.kind === 'stronghold', count: Object.keys(rosterOf(fid)).length,
+      court: f.kind === 'hold' || f.kind === 'stronghold', count: Object.keys(rosterOf(fid)).length, player: !!f.player,
       canRename: isLeadStaff(a) || (rankOf(fid, a) || {}).role === 'leader', canEditRanks: isLeadStaff(a), canAdd: isLeadStaff(a),
     };
   };
