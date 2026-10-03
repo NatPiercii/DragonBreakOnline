@@ -653,8 +653,6 @@ TEST_CASE("A scroll's hits land only after the server used one up: each actor "
   p.CreateActor(kSecond, { 100, 0, 0 }, 0, 0x3c);
   p.CreateActor(kThird, { -100, 0, 0 }, 0, 0x3c);
   auto& caster = p.worldState.GetFormAt<MpActor>(kCaster);
-  caster.AddItem(kFireballScroll, 2);
-  caster.AddItem(kHysteriaScroll, 1);
 
   auto hold = [&](uint32_t scroll) {
     Equipment eq;
@@ -675,9 +673,11 @@ TEST_CASE("A scroll's hits land only after the server used one up: each actor "
     return 1.f - actor.GetChangeForm().actorValues.healthPercentage;
   };
 
-  // Nothing read yet: a scroll hit is refused
+  // Nothing read and none held: a scroll hit is refused
   REQUIRE(hit(kFirst, kFireballScroll) == Catch::Approx(0.f));
 
+  caster.AddItem(kFireballScroll, 2);
+  caster.AddItem(kHysteriaScroll, 1);
   hold(kFireballScroll);
   DoMessage(p, 0, MakeSpellCastMessage(kFireballScroll, false));
   REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
@@ -698,5 +698,88 @@ TEST_CASE("A scroll's hits land only after the server used one up: each actor "
   p.DestroyActor(kFirst);
   p.DestroyActor(kSecond);
   p.DestroyActor(kThird);
+  DoDisconnect(p, 0);
+}
+
+
+TEST_CASE("A scroll hit with no read takes the scroll at its first hit, once "
+          "per read, from the caster who holds it",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  constexpr uint32_t kCaster = 0xff000000;
+  constexpr uint32_t kFirst = 0xff000001;
+  constexpr uint32_t kSecond = 0xff000002;
+  constexpr uint32_t kThird = 0xff000003;
+  constexpr uint32_t kNpc = 0xff000004;
+  constexpr uint32_t kFireballScroll = 0x000a44ae;
+
+  DoConnect(p, 0);
+  p.CreateActor(kCaster, { 0, 0, 0 }, 0, 0x3c, 1);
+  p.SetUserActor(0, kCaster);
+  p.CreateActor(kFirst, { 0, 100, 0 }, 0, 0x3c);
+  p.CreateActor(kSecond, { 100, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kThird, { -100, 0, 0 }, 0, 0x3c);
+  p.CreateActor(kNpc, { 0, -100, 0 }, 0, 0x3c);
+  auto& caster = p.worldState.GetFormAt<MpActor>(kCaster);
+  auto& npc = p.worldState.GetFormAt<MpActor>(kNpc);
+
+  // Health one scroll hit takes (the unit PartOne's fake formula), 0 when refused
+  auto hit = [&](uint32_t aggressor, uint32_t target) {
+    auto& actor = p.worldState.GetFormAt<MpActor>(target);
+    actor.SetPercentages({ 1.f, 1.f, 1.f });
+    RawMessageData rawMsgData;
+    rawMsgData.userId = 0;
+    HitMessage hitMsg;
+    hitMsg.data.aggressor = aggressor;
+    hitMsg.data.target = target;
+    hitMsg.data.source = kFireballScroll;
+    p.GetActionListener().OnHit(rawMsgData, hitMsg);
+    return 1.f - actor.GetChangeForm().actorValues.healthPercentage;
+  };
+
+  // None held: refused as before, and nothing is taken
+  REQUIRE(hit(0x14, kFirst) == Catch::Approx(0.f));
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 0);
+
+  // A last scroll whose cast never arrived: its first hit takes it, and the read's other hits land without another
+  caster.AddItem(kFireballScroll, 2);
+  REQUIRE(hit(0x14, kFirst) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  REQUIRE(hit(0x14, kSecond) > 0.f);
+  REQUIRE(hit(0x14, kThird) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  // A repeated hit on one target is refused, and never costs a second scroll
+  REQUIRE(hit(0x14, kFirst) == Catch::Approx(0.f));
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+
+  // A cast that did arrive is the read: its hits take nothing more
+  caster.RemoveItem(kFireballScroll, 1, nullptr);
+  caster.AddItem(kFireballScroll, 2);
+  Equipment eq;
+  eq.inv.entries.push_back(Inventory::Entry(kFireballScroll, 1, kExtraWornTrue));
+  caster.SetEquipment(eq);
+  DoMessage(p, 0, MakeSpellCastMessage(kFireballScroll, false));
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  // Hit budget per read: kFirst was hit by the earlier read, which still holds; the new read takes it again
+  REQUIRE(hit(0x14, kFirst) > 0.f);
+  REQUIRE(hit(0x14, kSecond) > 0.f);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+
+  // An NPC the player hosts holds its own scroll: its first hit takes it from the NPC
+  p.worldState.hosters[kNpc] = kCaster;
+  npc.AddItem(kFireballScroll, 1);
+  REQUIRE(hit(kNpc, kFirst) > 0.f);
+  REQUIRE(npc.GetInventory().GetItemCount(kFireballScroll) == 0);
+  REQUIRE(caster.GetInventory().GetItemCount(kFireballScroll) == 1);
+  REQUIRE(hit(kNpc, kSecond) > 0.f);
+  REQUIRE(npc.GetInventory().GetItemCount(kFireballScroll) == 0);
+
+  p.worldState.hosters.erase(kNpc);
+  p.DestroyActor(kCaster);
+  p.DestroyActor(kFirst);
+  p.DestroyActor(kSecond);
+  p.DestroyActor(kThird);
+  p.DestroyActor(kNpc);
   DoDisconnect(p, 0);
 }

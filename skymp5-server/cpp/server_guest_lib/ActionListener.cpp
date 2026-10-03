@@ -1752,8 +1752,29 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
   // WEAP, but found SCRL', so a scroll was used up and did nothing (review SCH-1, 2026-09-26). Only a scroll the server
   // just used up for this caster may hit, a few times, for a short while.
   if (isSourceScroll) {
-    if (TakeScrollHit(aggressor->GetFormId(), hitData.source,
-                      hitData.target)) {
+    bool landed =
+      TakeScrollHit(aggressor->GetFormId(), hitData.source, hitData.target);
+    // The cast of a last scroll can be lost before it reaches the server. Its first hit then stands in for the cast,
+    // when the caster still holds one: the scroll is used up here once, and later hits of that read land as usual.
+    // Only with no read of it at all (TakeScrollHit has pruned the old ones): a repeated hit on one target, or one past a
+    // read's target budget, is refused as before and never costs a second scroll
+    const auto reads = scrollHits.find(aggressor->GetFormId());
+    const bool readLately = reads != scrollHits.end() &&
+      std::any_of(reads->second.begin(), reads->second.end(),
+                  [&](const ScrollRead& read) {
+                    return read.scrollId == hitData.source;
+                  });
+    if (!landed && !readLately &&
+        aggressor->GetInventory().GetItemCount(hitData.source) >= 1) {
+      aggressor->RemoveItem(hitData.source, 1, nullptr);
+      RecordScrollRead(aggressor->GetFormId(), hitData.source);
+      spdlog::info("ActionListener::OnHit - {:x} scroll {:x} taken at its "
+                   "first hit",
+                   aggressor->GetFormId(), hitData.source);
+      landed =
+        TakeScrollHit(aggressor->GetFormId(), hitData.source, hitData.target);
+    }
+    if (landed) {
       OnSpellHit(aggressor, targetRef, hitData);
     } else {
       spdlog::info("ActionListener::OnHit - {:x} has no scroll {:x} read "
