@@ -170,6 +170,10 @@ p = send('factionRanksEdit', LEAD, HOLD, hold((l) => { l[2].title = 'Knight of t
 ok('...a rank no office sets can be renamed', p.resultKind === 'ok' && hranks()[2].title === 'Knight of the Dragon', p && p.result);
 p = send('factionRanksEdit', LEAD, HOLD, hold((l) => { l[0].title = 'Countess'; }));
 ok('...and the head\'s title too (the office maps to the leader by role)', p.resultKind === 'ok' && hranks()[0].title === 'Countess', p && p.result);
+p = send('factionRanksEdit', LEAD, HOLD, hold((l) => { l[2].title = 'Court Wizard'; }));
+ok('...and so is renaming another rank to a title an office sets', p.resultKind === 'refused' && /a court office sets/.test(p.result) && hranks()[2].title === 'Knight of the Dragon', p && p.result);
+p = send('factionRanksEdit', LEAD, HOLD, hold((l) => l.concat([{ title: 'Court Wizard', role: 'mage', from: -1 }])));
+ok('...or adding a rank with one', p.resultKind === 'refused' && !hranks().some((r) => r.title === 'Court Wizard'), p && p.result);
 delete globalThis.__dboCourtTiedTitles;
 
 // ---- the override store ------------------------------------------------------------------------------------------------
