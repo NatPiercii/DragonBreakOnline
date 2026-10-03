@@ -363,8 +363,7 @@ TEST_CASE("castRelayBlockedRaces: an NPC of a blocked race casts and stops "
   look.raceId = kDraugrRace;
   npc.SetAppearance(&look);
 
-  auto castsSeenByWatcher = [&](bool interruptCast,
-                                uint32_t caster = kNpc) {
+  auto castsSeenByWatcher = [&](bool interruptCast, uint32_t caster) {
     p.Messages().clear();
     DoMessage(p, 0, MakeSpellCastMessage(kFlames, interruptCast, caster));
     return std::count_if(
@@ -374,12 +373,12 @@ TEST_CASE("castRelayBlockedRaces: an NPC of a blocked race casts and stops "
   };
 
   // No list: relayed as before
-  REQUIRE(castsSeenByWatcher(false) == 1);
-  REQUIRE(castsSeenByWatcher(true) == 1);
+  REQUIRE(castsSeenByWatcher(false, kNpc) == 1);
+  REQUIRE(castsSeenByWatcher(true, kNpc) == 1);
 
   p.worldState.SetCastRelayBlockedRaces({ kDraugrRace });
-  REQUIRE(castsSeenByWatcher(false) == 0);
-  REQUIRE(castsSeenByWatcher(true) == 0);
+  REQUIRE(castsSeenByWatcher(false, kNpc) == 0);
+  REQUIRE(castsSeenByWatcher(true, kNpc) == 0);
 
   // A player's own cast always relays, whatever their race: the list is for NPCs only
   auto& host = p.worldState.GetFormAt<MpActor>(kHost);
@@ -396,8 +395,8 @@ TEST_CASE("castRelayBlockedRaces: an NPC of a blocked race casts and stops "
   // A humanoid NPC is still relayed with the list in place
   look.raceId = kNordRace;
   npc.SetAppearance(&look);
-  REQUIRE(castsSeenByWatcher(false) == 1);
-  REQUIRE(castsSeenByWatcher(true) == 1);
+  REQUIRE(castsSeenByWatcher(false, kNpc) == 1);
+  REQUIRE(castsSeenByWatcher(true, kNpc) == 1);
 
   p.worldState.SetCastRelayBlockedRaces({});
   p.worldState.hosters.erase(kNpc);
