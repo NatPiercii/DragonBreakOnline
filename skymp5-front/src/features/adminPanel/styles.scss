@@ -523,9 +523,11 @@ $admin-row-gutter: 16px;
   }
 
   // ---- F3 design 3.10 (H12): a left rail, the "Acting on" strip, keyboard rows, favourites, character care ----------
-  &__layout { display: flex; gap: 14px; align-items: stretch; min-height: 0; }
+  // The window never runs off the screen: the rail and the open tab scroll inside it
+  &__window { max-height: calc(96 * var(--dbo-vh, 1vh)); display: flex; flex-direction: column; }
+  &__layout { display: flex; gap: 14px; align-items: stretch; min-height: 0; flex: 1 1 auto; }
   &__rail {
-    display: flex; flex-direction: column; gap: 2px; width: 150px; flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 2px; width: 150px; flex-shrink: 0; overflow-y: auto;
     padding-right: 10px; border-right: 1px solid dbo-accent(0.2);
   }
   &__railitem {
@@ -534,7 +536,7 @@ $admin-row-gutter: 16px;
     &:hover { color: $dbo-text; border-color: dbo-accent(0.25); }
     &--active { color: $dbo-text; border-color: dbo-accent(0.7); background: dbo-accent(0.1); box-shadow: 0 0 8px dbo-accent(0.2); }
   }
-  &__main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  &__main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
   &__strip {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     padding: 6px 10px; margin-bottom: 10px; background: rgba(0, 0, 0, 0.35); border: 1px solid dbo-accent(0.2);
