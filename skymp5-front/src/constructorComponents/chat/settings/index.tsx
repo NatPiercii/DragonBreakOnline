@@ -54,6 +54,7 @@ const Settings = (props: {
             onChange={(e) => props.setCustomHighlights(e.target.value)}
           />
         </div>
+        <p className='chat-settings-more'>More in your journal: F3, Settings, Interface.</p>
       </div>
       <SkyrimFrame width={512} height={frameHeight} header={false} name={'Settings'}/>
     </div>

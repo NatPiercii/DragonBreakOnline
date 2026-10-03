@@ -7,6 +7,7 @@ import ChatInput from './input';
 import Channels, { DEFAULT_CHANNEL, SYSTEM_CHANNEL, applyChannel, channelForMessage } from './channels';
 import { enterOpensChat, widgetTypes } from './enterFocus';
 import { replaceIfMoreThan20 } from '../../utils/replaceIfMoreThan20';
+import { useUiSettings, announceUiSettings, CHAT_EVENT } from '../../utils/uiSettings';
 
 import './styles.scss';
 const MAX_LENGTH = 2000;
@@ -17,6 +18,10 @@ const MAX_SHOUT_LENGTH = 100;
 const MAX_HISTORY_LENGTH = 20;
 
 const SHOUTREGEXP = /№(.*?)№/gi;
+// The injected chat JS colours a known name with this (chatService NAME); the book lettering sets names in Futura
+const NAME_COLOR = '#fbf724';
+// The client's hide-chat key (F3, Settings) sets window.__dboChatHidden and fires this
+const HIDDEN_EVENT = 'dbo:chatHidden';
 
 // Chat settings (font size, transparency, lock, highlights, nametag toggles, window pos/size) persist via window.__alduinakChatSettings: the client injects saved values on mount and writes changes under Data/Platform since localStorage/CEF cache do not survive a relaunch
 const loadChatSettings = () => {
@@ -52,6 +57,10 @@ const Chat = (props) => {
   const [hidePlayerNames, setHidePlayerNames] = useState(saved.hidePlayerNames != null ? saved.hidePlayerNames : false);
   const [showFormIds, setShowFormIds] = useState(saved.showFormIds != null ? saved.showFormIds : true);
   const [idle, setIdle] = useState(false);
+  // F3, Settings, Interface: Always (the frame fades, text stays), Fade when idle (text too), Hidden until T
+  const ui = useUiSettings();
+  const [keyHidden, setKeyHidden] = useState(() => !!window.__dboChatHidden);
+  const [veilAt, setVeilAt] = useState(0);
   const idleTimerRef = useRef();
   const browserFocusedRef = useRef(false);
   const placeholder = props.placeholder;
@@ -314,6 +323,33 @@ const Chat = (props) => {
     }
   }, [props.messages]);
 
+  // F3, Settings changes the chat's own values; they are saved by the effect below as if set here
+  useEffect(() => {
+    const set = { fontSize: setFontSize, chatTransparency: setChatTransparency, customHighlights: setCustomHighlights, fadeSeconds: setFadeSeconds,
+      hidePlayerNames: setHidePlayerNames, showFormIds: setShowFormIds, lockChat: setLockChat };
+    const onPatch = (e) => {
+      const patch = (e && e.detail) || {};
+      for (const k of Object.keys(set)) if (patch[k] !== undefined) set[k](patch[k]);
+    };
+    window.addEventListener(CHAT_EVENT, onPatch);
+    // The saved file arrived with this mount: anything drawn before it (the HUD) reads it again
+    announceUiSettings();
+    const onHidden = () => setKeyHidden(!!window.__dboChatHidden);
+    window.addEventListener(HIDDEN_EVENT, onHidden);
+    return () => { window.removeEventListener(CHAT_EVENT, onPatch); window.removeEventListener(HIDDEN_EVENT, onHidden); };
+  }, []);
+
+  // Hidden until T, and the hide-chat key: shown while the chat input has the keyboard, and fadeSeconds after it
+  // leaves (5 s when fade is off); opacity only, so the input can always take the keyboard
+  useEffect(() => {
+    if (isInputFocus) { setVeilAt(0); return undefined; }
+    const after = (fadeSeconds > 0 ? fadeSeconds : 5) * 1000;
+    setVeilAt(Date.now() + after);
+    const t = setTimeout(() => setVeilAt(-1), after);
+    return () => clearTimeout(t);
+  }, [isInputFocus, fadeSeconds]);
+  const veiled = (ui.chat === 'hidden' || keyHidden) && !isInputFocus && (veilAt === -1 || (veilAt > 0 && Date.now() >= veilAt));
+
   // Expose the player's custom highlight words to the injected chat JS (chatService).
   useEffect(() => {
     window.__alduinakCustomHighlightsRaw = customHighlights;
@@ -345,7 +381,8 @@ const Chat = (props) => {
       if (i >= 1) {
         isNonRp = (type.includes('nonrp') && isNonRp);
       }
-      return <span key={`${text}_${i}`} style={{ color: `${color}`, opacity: opacity }} className={`${type.join(' ')}`}>{text}</span>;
+      const name = String(color || '').toLowerCase() === NAME_COLOR ? ' chat-name' : '';
+      return <span key={`${text}_${i}`} style={{ color: `${color}`, opacity: opacity }} className={`${type.join(' ')}${name}`}>{text}</span>;
     });
     return [result, isNonRp];
   };
@@ -377,7 +414,7 @@ const Chat = (props) => {
         defaultPosition={saved.pos || undefined}
         onStop={(e, data) => persistChatSettings({ pos: { x: data.x, y: data.y } })}
       >
-        <div id='chat' className={idle ? 'chat-idle' : ''} onMouseEnter={() => bumpIdle()} onMouseMove={() => { if (idle) bumpIdle(); }} style={{ '--chat-bg-alpha': (100 - chatTransparency) / 100 }}>
+        <div id='chat' className={[idle ? 'chat-idle' : '', `chat-mode-${ui.chat}`, `chat-lettering-${ui.chatLettering}`, veiled ? 'chat-veiled' : ''].filter(Boolean).join(' ')} onMouseEnter={() => bumpIdle()} onMouseMove={() => { if (idle) bumpIdle(); }} style={{ '--chat-bg-alpha': (100 - chatTransparency) / 100 }}>
           <div className="chat-main">
             <div className='chat-header'>
               {!lockChat && <div className='chat-drag-bar' title='Drag to move chat' />}

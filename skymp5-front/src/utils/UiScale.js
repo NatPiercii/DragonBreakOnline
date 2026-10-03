@@ -36,19 +36,47 @@ const apply = () => {
   return scale;
 };
 
-window.dboSetUiScale = (value) => {
-  const n = value === 'auto' ? 0 : parseFloat(value);
-  override = n > 0 ? clamp(n, 0.5, MAX_SCALE) : 0;
+const remember = () => {
   try {
     if (override > 0) window.localStorage.setItem(STORAGE_KEY, String(override));
     else window.localStorage.removeItem(STORAGE_KEY);
   } catch (e) {
     // not being able to remember it does not stop it applying now
   }
+};
+
+// F3, Settings, Interface size: kept with the launcher's value at the time (uiSettings.ts). The client's push of the
+// launcher's value keeps it while that value is unchanged, and drops it once the launcher's value differs.
+const IN_GAME_KEY = 'dboUiScaleInGame';
+let launcher = 0;
+const readInGame = () => {
+  try { const v = JSON.parse(window.localStorage.getItem(IN_GAME_KEY)); return v && Number(v.value) >= 0 ? v : null; } catch (e) { return null; }
+};
+
+// The launcher's value, pushed by the client (uiScaleService); 0 or "auto" is automatic
+window.dboSetUiScale = (value) => {
+  const n = value === 'auto' ? 0 : parseFloat(value);
+  launcher = n > 0 ? clamp(n, 0.5, MAX_SCALE) : 0;
+  const inGame = readInGame();
+  if (inGame && (Number(inGame.launcher) || 0) === launcher) override = Number(inGame.value) > 0 ? clamp(Number(inGame.value), 0.5, MAX_SCALE) : 0;
+  else {
+    if (inGame) { try { window.localStorage.removeItem(IN_GAME_KEY); } catch (e) { /* none */ } }
+    override = launcher;
+  }
+  remember();
   return apply();
 };
 
-window.dboGetUiScale = () => ({ applied: apply(), override, auto: autoScale() });
+// The in-game choice (0 = automatic)
+window.dboSetUiScaleInGame = (value) => {
+  const n = value === 'auto' ? 0 : parseFloat(value);
+  override = n > 0 ? clamp(n, 0.5, MAX_SCALE) : 0;
+  try { window.localStorage.setItem(IN_GAME_KEY, JSON.stringify({ value: override, launcher })); } catch (e) { /* this session only */ }
+  remember();
+  return apply();
+};
+
+window.dboGetUiScale = () => ({ applied: apply(), override, auto: autoScale(), launcher, inGame: readInGame() });
 
 apply();
 window.addEventListener('resize', apply);
