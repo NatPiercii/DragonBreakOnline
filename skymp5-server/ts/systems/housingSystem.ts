@@ -4,7 +4,7 @@ import { System, Log, SystemContext, Content } from "./system";
 import { espmRefrFieldId, toFormId } from "./formIdUtil";
 import { AdminRoleConfig, readAdminRoleConfig, adminTierOf, TIER_CAPS } from "./adminRoles";
 import { getZones, Zones } from "./zones";
-import { PlaceClaim, planPlaces } from "./housingPlaces";
+import { PlaceClaim, PlannedPlace, planPlaces } from "./housingPlaces";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -46,6 +46,7 @@ type Mp = any;
 const HOUSING_PROP = "private.housing";
 // N3 places: the migration plan written by the dry run, for review (runtime, beside housing.json)
 const PLACE_PLAN_FILE = "./housing-places-plan.json";
+const PLACE_BACKUP_PREFIX = "./housing-places-backup-";
 const PLACE_PLAN_DELAY_MS = 30000;
 const PLACE_PLAN_MAX_TRIES = 10;
 const OWNER_INDEX_PROP = "private.indexed.housingOwner";
@@ -114,6 +115,9 @@ interface PropertyRecord {
   place?: { cells: string[]; builtAt: number };
   assigned?: Record<string, { profile: number; name: string }>;
   keyAliases?: string[];
+  // On a member of a place: the place's root; on an unlocked chest inside a house, kept for its owner and assignees
+  memberOf?: number;
+  ownerOnly?: boolean;
 }
 
 // The far half of a teleport pair just points at the primary.
@@ -152,7 +156,9 @@ export class HousingSystem implements System {
     if (Number.isFinite(maxDistance) && maxDistance > 0) this.maxDistance = maxDistance;
     this.openClaims = all?.["housingOpenClaims"] === true;
     // N3 places: "dryrun" (the default) logs and writes the migration plan once after boot and changes nothing; "off" skips it
-    this.placeMigration = String(all?.["housingPlaceMigration"] ?? "dryrun") === "off" ? "off" : "dryrun";
+    // "apply" (set by Nate) also writes the plan into the records, once, after a backup
+    const mode = String(all?.["housingPlaceMigration"] ?? "dryrun");
+    this.placeMigration = mode === "off" ? "off" : mode === "apply" ? "apply" : "dryrun";
     this.initAtMs = Date.now();
 
     this.roleCfg = readAdminRoleConfig(all);
@@ -249,7 +255,7 @@ export class HousingSystem implements System {
   async updateAsync(ctx: SystemContext): Promise<void> {
     const now = Date.now();
     // Records read as null on the first ticks after boot, so the plan waits, and tries again while nothing is readable
-    if (this.placeMigration === "dryrun" && !this.placePlanDone && now - this.initAtMs >= PLACE_PLAN_DELAY_MS && now - this.placePlanTriedMs >= PLACE_PLAN_DELAY_MS) {
+    if (this.placeMigration !== "off" && !this.placePlanDone && now - this.initAtMs >= PLACE_PLAN_DELAY_MS && now - this.placePlanTriedMs >= PLACE_PLAN_DELAY_MS) {
       this.placePlanTriedMs = now;
       try { this.placePlanDone = this.dryRunPlaces(ctx) || ++this.placePlanTries >= PLACE_PLAN_MAX_TRIES; } catch (e) { this.placePlanDone = true; this.log(`[housing] place plan failed: ${e}`); }
     }
@@ -950,6 +956,8 @@ export class HousingSystem implements System {
         ...(r.place && Array.isArray(r.place.cells) ? { place: { cells: r.place.cells.map(String), builtAt: Number(r.place.builtAt) || 0 } } : {}),
         ...(r.assigned && typeof r.assigned === "object" ? { assigned: r.assigned } : {}),
         ...(Array.isArray(r.keyAliases) ? { keyAliases: r.keyAliases.map(String) } : {}),
+        ...(Number(r.memberOf) ? { memberOf: Number(r.memberOf) >>> 0 } : {}),
+        ...(r.ownerOnly === true ? { ownerOnly: true } : {}),
       };
     } catch {
       return null;
@@ -1032,7 +1040,49 @@ export class HousingSystem implements System {
     }
     for (const o of plan.overCap) this.log(`[housing] place plan: ${o.ownerName} (${o.owner}) would hold ${o.places.length} places (${o.places.map(hex).join(", ")}); kept, for Nate to decide`);
     try { fs.writeFileSync(PLACE_PLAN_FILE, JSON.stringify({ at: new Date().toISOString(), ...plan }, null, 1)); } catch (e) { this.log(`[housing] ${PLACE_PLAN_FILE} write failed: ${e}`); }
+    if (this.placeMigration === "apply") this.applyPlaces(ctx, plan.places);
     return true;
+  }
+
+  // The migration itself, only with housingPlaceMigration "apply". Every record it touches is written to a backup file
+  // first, and nothing is written if that fails. A house's root gets its place (cells) and the key names its members
+  // answered to (keyAliases), so no key cut for any of its doors stops working once access goes by place; each member
+  // points at its root; an unlocked chest inside a house is marked ownerOnly (Nate, 3 Oct), which the access rules apply.
+  // Owners and locks stay as they are. A root that already has its place is skipped, so a second boot changes nothing.
+  private applyPlaces(ctx: SystemContext, places: PlannedPlace[]): void {
+    const mp = ctx.svr as Mp;
+    const hex = (n: number) => (n >>> 0).toString(16);
+    const todo = places.filter((p) => p.kind === "house").filter((p) => { const r = this.read(ctx, p.root); return !!r && !r.place; });
+    if (!todo.length) { this.log(`[housing] place migration: nothing to apply`); return; }
+    const backup: Record<string, unknown> = {};
+    for (const p of todo) for (const ref of [p.root, ...p.members]) { try { backup[hex(ref)] = mp.get(ref, HOUSING_PROP); } catch { backup[hex(ref)] = null; } }
+    const file = `${PLACE_BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    try { fs.writeFileSync(file, JSON.stringify(backup, null, 1)); } catch (e) { this.log(`[housing] place migration NOT applied: the backup ${file} could not be written: ${e}`); return; }
+    let applied = 0, failed = 0;
+    for (const p of todo) {
+      const root = this.read(ctx, p.root);
+      if (!root) { failed++; continue; }
+      const aliases = new Set<string>(root.keyAliases || []);
+      const members: Array<{ ref: number; rec: PropertyRecord }> = [];
+      for (const ref of p.members) {
+        const rec = this.read(ctx, ref);
+        if (!rec) continue;
+        aliases.add(this.keyCredential(ref, rec));
+        for (const name of rec.issued || []) aliases.add(name);
+        members.push({ ref, rec });
+      }
+      root.place = { cells: p.cells.slice(), builtAt: Date.now() };
+      if (aliases.size) root.keyAliases = [...aliases];
+      if (!this.write(ctx, p.root, root)) { failed++; continue; }
+      for (const m of members) {
+        m.rec.memberOf = p.root;
+        if (p.openChests.includes(m.ref)) m.rec.ownerOnly = true;
+        if (!this.write(ctx, m.ref, m.rec)) failed++;
+      }
+      applied++;
+      this.log(`[housing] place migration: ${p.ownerName} (${p.owner}) ${hex(p.root)} "${p.name || ""}" applied: ${members.length} member(s), ${aliases.size} key name(s) kept${p.openChests.length ? `, owner-only: ${p.openChests.map(hex).join(",")}` : ""}`);
+    }
+    this.log(`[housing] place migration applied to ${applied} house(s)${failed ? `, ${failed} write(s) failed` : ""}; backup ${file}`);
   }
 
   private countClaims(ctx: SystemContext, profileId: number): number {
@@ -1144,7 +1194,7 @@ export class HousingSystem implements System {
   private zones!: Zones;
   private zoneCache = new Map<number, string | null>();
   private maxClaims = DEFAULT_MAX_CLAIMS;
-  private placeMigration: "off" | "dryrun" = "dryrun";
+  private placeMigration: "off" | "dryrun" | "apply" = "dryrun";
   private initAtMs = 0;
   private placePlanDone = false;
   private placePlanTriedMs = 0;
