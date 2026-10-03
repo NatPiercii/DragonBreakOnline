@@ -930,10 +930,16 @@ export class HousingSystem implements System {
     const near = this.cellDescOf(ctx, primary), far = this.cellDescOf(ctx, rec.partner);
     const nearWorld = this.isWorldDesc(ctx, near), farWorld = this.isWorldDesc(ctx, far);
     if (!near || !far || nearWorld === farWorld) return;
-    const cells = this.placeCellsFrom(ctx, nearWorld ? far : near);
+    const inner = nearWorld ? far : near;
     const index = this.placeIndex(ctx);
-    const taken = cells.find((c) => index.has(c) && index.get(c) !== primary);
-    if (taken) { this.log(`[housing] ${primary.toString(16)} builds no place: ${taken} is part of ${index.get(taken)!.toString(16)}`); return; }
+    const taken = (c: string) => (index.has(c) && index.get(c) !== primary) || !!this.otherOwnerAt(ctx, c, rec.owner, primary);
+    // An interior another owner (staff included) also has a door to the world into is nobody's place (review G)
+    if (taken(inner)) {
+      const o = this.otherOwnerAt(ctx, inner, rec.owner, primary);
+      this.log(`[housing] ${primary.toString(16)} builds no place: ${inner} is ${o ? `also behind ${o.name}'s door ${o.ref.toString(16)}` : `part of ${index.get(inner)!.toString(16)}`}`);
+      return;
+    }
+    const cells = this.placeCellsFrom(ctx, inner).filter((c) => c === inner || !taken(c));
     rec.place = { cells, builtAt: Date.now() };
     if (!this.write(ctx, primary, rec)) { delete rec.place; return; }
     const joined = this.joinEntrances(ctx, primary, rec);
@@ -950,6 +956,18 @@ export class HousingSystem implements System {
   }
 
   // Doors to the world in a place's cells that nobody else holds become members, locked as the root is
+  // A door to the world in this cell held by someone other than this owner (and not part of this place): the cell is shared
+  private otherOwnerAt(ctx: SystemContext, cell: string, owner: number, root: number): { ref: number; owner: number; name: string } | null {
+    for (const d of this.doorsOut(ctx, cell)) {
+      if (!this.isWorldDesc(ctx, d.farCell)) continue;
+      const p = this.primaryOf(ctx, d.ref);
+      if (!p || p === root) continue;
+      const m = this.read(ctx, p);
+      if (m && m.owner !== 0 && m.owner !== owner) return { ref: p, owner: m.owner, name: m.ownerName || String(m.owner) };
+    }
+    return null;
+  }
+
   // The doors to the world in these cells that nobody holds (primaries), which join a place built there
   private unclaimedEntrances(ctx: SystemContext, root: number, owner: number, cells: string[]): number[] {
     const out: number[] = [];
@@ -1637,7 +1655,9 @@ export class HousingSystem implements System {
       const cells: string[] = [];
       for (const cell of walked) {
         const others = [...(owners.get(cell) || [])].filter((o) => o !== p.owner);
+        const door = others.length ? null : this.otherOwnerAt(ctx, cell, p.owner, p.root);
         if (others.length) skipped.push({ cell, why: `also opens onto profile ${others.join("/")}'s place` });
+        else if (door) skipped.push({ cell, why: `also behind ${door.name}'s door ${door.ref.toString(16)}` });
         else cells.push(cell);
       }
       for (const cell of p.cells) if (walked.indexOf(cell) === -1) skipped.push({ cell, why: "has its own door to the world, or lies beyond the walk" });
@@ -1702,7 +1722,9 @@ export class HousingSystem implements System {
     };
     for (const { p, d } of todo) for (const ref of [p.root, ...d.members, ...d.entrances]) keep(ref);
     const file = `${PLACE_BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    try { fs.writeFileSync(file, JSON.stringify(backup, null, 1)); } catch (e) { this.log(`[housing] place migration NOT applied: the backup ${file} could not be written: ${e}`); return; }
+    // What each place was made of, so a restore takes back only the migration's own changes
+    const meta = todo.map(({ p, d }) => ({ root: hex(p.root), owner: p.owner, members: d.members.map(hex), entrances: d.entrances.map(hex) }));
+    try { fs.writeFileSync(file, JSON.stringify({ version: 2, places: meta, records: backup }, null, 1)); } catch (e) { this.log(`[housing] place migration NOT applied: the backup ${file} could not be written: ${e}`); return; }
     let applied = 0, failed = 0;
     for (const { p, d } of todo) {
       const root = this.read(ctx, p.root);
@@ -1735,27 +1757,66 @@ export class HousingSystem implements System {
     this.log(`[housing] place migration applied to ${applied} house(s)${failed ? `, ${failed} write(s) failed` : ""}; backup ${file} (housingPlaceRestore puts it back)`);
   }
 
-  // housingPlaceRestore "<backup file>" (with housingPlaceMigration "dryrun" or "off"): puts every record of a migration
-  // backup back as it was, once; a ref that held nothing (an entrance the migration claimed, its far half) becomes an
-  // ownerless stub, which reads as unclaimed. A "<file>.restored" marker stops a second run on the next boot.
+  // housingPlaceRestore "<backup file>" (with housingPlaceMigration "dryrun" or "off"): takes back what that migration
+  // did, once, and nothing done since (review R1): each root and member keeps its record as it is now (owner, serial, keys,
+  // name, lock: a hand-over, a re-key or a tenancy since stand) with only the migration's own fields removed (place,
+  // memberOf, keyAliases, ownerOnly, assigned, shared); an entrance the migration claimed goes back to an ownerless stub,
+  // its far half pointing at it again, only while it still belongs to that place's owner and root. Every ref whose owner
+  // or serial changed since the backup is logged and listed in the "<file>.restored" marker. The marker is written before
+  // anything changes; if it cannot be, nothing is restored (fail closed), and it stops any second run.
   private restorePlaces(ctx: SystemContext, file: string): void {
-    const mp = ctx.svr as Mp;
     if (this.placeMigration === "apply") { this.log(`[housing] place restore refused: set housingPlaceMigration to "dryrun" or "off" first`); return; }
     if (!/^housing-places-backup-[0-9TZ-]+\.json$/.test(file)) { this.log(`[housing] place restore refused: ${file} is not a migration backup's name`); return; }
-    if (fs.existsSync(`./${file}.restored`)) { this.log(`[housing] place restore: ${file} was restored already`); return; }
-    let backup: Record<string, unknown>;
+    const marker = `./${file}.restored`;
+    if (fs.existsSync(marker)) { this.log(`[housing] place restore: ${file} was restored already (${marker})`); return; }
+    let backup: any;
     try { backup = JSON.parse(fs.readFileSync(`./${file}`, "utf8")); } catch (e) { this.log(`[housing] place restore failed: ${file} unreadable: ${e}`); return; }
-    let n = 0, failed = 0;
-    for (const [h, v] of Object.entries(backup || {})) {
-      const ref = parseInt(h, 16) >>> 0;
-      if (!ref) continue;
-      try { mp.set(ref, HOUSING_PROP, v && typeof v === "object" ? v : emptyRecord()); n++; } catch (e) { failed++; this.log(`[housing] place restore: ${h} failed: ${e}`); }
+    if (!backup || backup.version !== 2 || !Array.isArray(backup.places) || typeof backup.records !== "object") { this.log(`[housing] place restore refused: ${file} is not a version 2 migration backup`); return; }
+    try { fs.writeFileSync(marker, JSON.stringify({ at: new Date().toISOString(), state: "started" })); } catch (e) {
+      this.log(`[housing] PLACE RESTORE NOT DONE: the marker ${marker} could not be written (${e}); nothing was changed, and nothing will be until it can be`);
+      return;
+    }
+    const num = (h: unknown) => parseInt(String(h), 16) >>> 0;
+    const was = (h: string): PropertyRecord | null => { const v = backup.records[h]; return v && typeof v === "object" && !Number((v as any).primary) ? v as PropertyRecord : null; };
+    const changed: Array<{ ref: string; was: { owner: number; serial: number } | null; now: { owner: number; serial: number } }> = [];
+    let stripped = 0, released = 0, keptEntrances = 0;
+    for (const place of backup.places as Array<{ root: string; owner: number; members: string[]; entrances: string[] }>) {
+      const root = num(place.root);
+      for (const h of [place.root, ...(place.members || [])]) {
+        const ref = num(h);
+        const cur = this.read(ctx, ref);
+        if (!ref || !cur) continue;
+        const before = was(h);
+        if (!before || before.owner !== cur.owner || (Number(before.serial) || 1) !== cur.serial) {
+          changed.push({ ref: h, was: before ? { owner: before.owner, serial: Number(before.serial) || 1 } : null, now: { owner: cur.owner, serial: cur.serial } });
+        }
+        delete cur.place; delete cur.memberOf; delete cur.keyAliases; delete cur.ownerOnly; delete cur.assigned; delete cur.shared;
+        if (this.write(ctx, ref, cur)) stripped++;
+      }
+      for (const h of place.entrances || []) {
+        const ref = num(h);
+        const cur = this.read(ctx, ref);
+        if (!ref || !cur) continue;
+        if (cur.owner === place.owner && cur.memberOf === root) {
+          // Back to unclaimed; the serial moves on, so no key cut for it while it was the place's opens it again
+          const stub = emptyRecord();
+          stub.serial = cur.serial + 1;
+          stub.partner = cur.partner;
+          if (this.write(ctx, ref, stub)) released++;
+        } else {
+          changed.push({ ref: h, was: null, now: { owner: cur.owner, serial: cur.serial } });
+          delete cur.memberOf; delete cur.ownerOnly;
+          if (this.write(ctx, ref, cur)) keptEntrances++;
+        }
+      }
     }
     this.placeCellsDirty = true;
     this.decorDirty = true;
     this.lastDecorMs = 0;
-    try { fs.writeFileSync(`./${file}.restored`, new Date().toISOString()); } catch { /* the log says it */ }
-    this.log(`[housing] place restore: ${n} record(s) put back from ${file}${failed ? `, ${failed} failed` : ""}`);
+    const result = { at: new Date().toISOString(), state: "done", stripped, released, keptEntrances, changed };
+    try { fs.writeFileSync(marker, JSON.stringify(result, null, 1)); } catch (e) { this.log(`[housing] PLACE RESTORE: the result could not be written to ${marker} (${e}); the started marker still stops a second run`); }
+    this.log(`[housing] place restore from ${file}: ${stripped} record(s) stripped of place fields, ${released} joined entrance(s) unclaimed again, ${keptEntrances} kept by who holds them now`);
+    for (const c of changed) this.log(`[housing] place restore: ${c.ref} changed since the backup (owner ${c.was ? c.was.owner : "none"} -> ${c.now.owner}, serial ${c.was ? c.was.serial : "-"} -> ${c.now.serial}); kept as it is now`);
   }
 
   // The cap (Nate, 3 Oct): with the place rules on, one place per player, a place being a house with all its doors and
