@@ -132,6 +132,17 @@
     gap: 8px;
   }
 
+  // A member's rank list opens in the roster's flow, not over it: the roster scrolls, and a list laid over a short roster
+  // was cut to a sliver (#bugs 3 Oct, "can't see the roles I can grant")
+  &__members .dbo-picker--open {
+    display: block;
+  }
+  &__members .dbo-picker--open .dbo-picker__list {
+    position: static;
+    margin-top: 4px;
+    max-height: none;
+  }
+
   &__member {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
