@@ -27,9 +27,9 @@ LEATHER = re.compile(r'Leather|Strips|Hide$|Hide\d*$|Pelt', re.I)
 CLOTH = re.compile(r'Thread|Linen|Cloth', re.I)
 STATION = [('smelter', 'blacksmith', METAL), ('tanning', 'skinner', LEATHER), ('loom', 'tailor', CLOTH)]
 # The Blacksmith tier (0 Novice .. 4 Master) that works each main metal, from the skills.json tiers: iron; steel, elven,
-# dwarven; orcish, glass, scaled; ebony, dragon; daedric. A metal not listed needs Journeyman.
+# dwarven (Nate, 3 Oct: steel and elven break down at Novice); orcish, glass, scaled; ebony, dragon; daedric. A metal not listed needs Journeyman.
 METAL_TIER = {'ingotiron': 0, 'bskingotcopper': 0, 'bskingotbronze': 0, 'bskingotbrass': 0, 'dwarvenscrapmetal': 0,
-              'ingotsteel': 1, 'ingotimoonstone': 1, 'ingotdwarven': 1, 'ingotcorundum': 1, 'ingotquicksilver': 1,
+              'ingotsteel': 0, 'ingotimoonstone': 0, 'ingotdwarven': 1, 'ingotcorundum': 1, 'ingotquicksilver': 1,
               'ingotsilver': 1, 'ingotgold': 1,
               'ingotorichalcum': 2, 'ingotmalachite': 2, 'dlc2chitinplate': 2, 'chauruschitin': 2, 'iamiboiledchitinplate': 2,
               'iamiingotglacialcrystal': 2, 'ccbgssse025_ingotamber': 2, 'iamifurplate': 0,
@@ -146,9 +146,18 @@ for k, e in recs.items():
 
 # The station follows the main metal whenever the recipe has one: a steel helmet's leather strips never send it to the
 # tanning rack (3 Oct, #bugs: Elven and Steel at the rack); otherwise the material it takes most of
-def main_of(mats):
+# The metal an item's material keyword names leads when its recipe has it (an Elven axe's one moonstone, not its one iron
+# or corundum); otherwise the metal it takes most of, equal counts going to the harder metal
+KEYWORD_METAL = {'iron': 'ingotiron', 'steel': 'ingotsteel', 'elven': 'ingotimoonstone', 'dwarven': 'ingotdwarven',
+                 'orcish': 'ingotorichalcum', 'glass': 'ingotmalachite', 'ebony': 'ingotebony', 'daedric': 'ingotebony',
+                 'silver': 'ingotsilver'}
+def main_of(mats, item=None):
     metal = [x for x in mats if METAL.search(ed(x[0]))]
-    # Equal counts go to the harder metal: an Elven axe's one moonstone, not its one iron
+    m = material(item) if item else None
+    word = re.sub(r'^.*Material', '', m or '').lower()
+    named = [x for x in metal if ed(x[0]).lower() == KEYWORD_METAL.get(word)]
+    if named:
+        return named[0][0]
     return max(metal or mats, key=lambda x: (x[1], METAL_TIER.get(ed(x[0]).lower(), 2) if metal else 0))[0]
 
 items, stats = {}, {'smelter': 0, 'tanning': 0, 'loom': 0, 'fromTemplate': 0, 'byMaterial': 0}
@@ -164,7 +173,7 @@ for k, e in recs.items():
     if r is None:
         continue
     mats, master = r
-    main = main_of(mats)
+    main = main_of(mats, e)
     station, skill, _ = next(s for s in STATION if s[2].search(ed(main)))
     tier = 4 if master else (METAL_TIER.get(ed(main).lower(), 2) if station == 'smelter' else 0)
     items[desc(k)] = [station, tier, [[desc(i), c] for i, c in sorted(mats, key=lambda x: (x[0] != main, -x[1]))]]
