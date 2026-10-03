@@ -82,11 +82,39 @@ test('a direct client install fills its bands by bytes, then by files unpacked',
   t.begin('client')
   t.step('client')
   t.file('The client files', 30 * MB, 60 * MB)
-  assert.ok(Math.abs(t.snapshot().overall - (0.02 + 0.58 * 0.5)) < 1e-9)
+  assert.ok(Math.abs(t.snapshot().overall - (0.02 + 0.38 * 0.5)) < 1e-9)
   t.step('unpack', { index: 50, total: 100 })
-  assert.ok(Math.abs(t.snapshot().overall - (0.6 + 0.38 * 0.5)) < 1e-9)
+  assert.ok(Math.abs(t.snapshot().overall - (0.4 + 0.1 * 0.5)) < 1e-9)
   assert.strictEqual(t.snapshot().stepNo, 3)
-  assert.strictEqual(t.snapshot().stepCount, 4)
+  assert.strictEqual(t.snapshot().stepCount, 5)
+})
+
+// N5 (3 Oct): "98% downloaded". In 2.1.36 the client flow had no step after unpack, so the whole DragonBreak files
+// check and download (about 1 GB on a Repair Client Files) ran with the bar on 98%, and the panel closed there.
+test('a direct client install shows the DragonBreak files on the bar and ends full, never parked on 98%', () => {
+  const t = P.createTracker()
+  const seen = []
+  const look = () => seen.push(t.snapshot().overall)
+  t.begin('client'); look()
+  t.step('client'); look()
+  for (let r = 0; r <= 180 * MB; r += 45 * MB) { t.file('The client files', r, 180 * MB); look() }
+  t.step('unpack'); look()
+  for (let i = 1; i <= 287; i += 31) { t.step('unpack', { index: i, total: 287 }); look() }
+  t.step('unpack', { index: 287, total: 287 }); look()
+  const afterUnpack = seen[seen.length - 1]
+  t.step('extras', { index: 0, total: 897 }); look()
+  for (let i = 100; i <= 897; i += 100) { t.step('extras', { index: i, total: 897 }); look() }
+  t.step('extras', { index: 897, total: 897 }); look()
+  const checked = seen[seen.length - 1]
+  for (let r = 0; r <= 900 * MB; r += 150 * MB) { t.file('DragonBreak.bsa (1/3)', r, 900 * MB); look() }
+  const downloaded = seen[seen.length - 1]
+  assert.strictEqual(P.describe(t.snapshot()).title, 'Step 4 of 5: Updating the DragonBreak files (897 of 897 files)')
+  t.step('finish', { index: 1, total: 1 }); look()
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i] >= seen[i - 1] - 1e-12, `step ${i}: ${seen[i - 1]} -> ${seen[i]}`)
+  assert.ok(Math.abs(afterUnpack - 0.5) < 1e-12, `unpacking ends at 50%, not 98%: ${afterUnpack}`)
+  assert.ok(Math.abs(checked - 0.6) < 1e-12, `checking the DragonBreak files ends at 60%: ${checked}`)
+  assert.ok(Math.abs(downloaded - 0.98) < 1e-12, `their download fills 60% to 98%: ${downloaded}`)
+  assert.ok(Math.abs(seen[seen.length - 1] - 1) < 1e-12, 'and the bar ends full')
 })
 
 test('an install of no known shape shows a working bar, or its own count when it has one', () => {
@@ -176,6 +204,18 @@ test('closing the window mid-install asks first, and only an explicit Close anyw
   assert.match(body, /if \(!installGate\.running\(\)\) return/)
   assert.match(body, /message: 'An install is running\. Close anyway\?'/)
   assert.match(body, /if \(choice !== 1\) e\.preventDefault\(\)/)
+})
+
+test('the client flow draws the DragonBreak files and closes on a full bar, whether or not the zip was downloaded', () => {
+  const at = main.indexOf('async function installClientFilesCore(')
+  const core = main.slice(at, main.indexOf('\n}\n', at))
+  assert.match(core, /const directRun = installTrack\.kind\(\) === 'client'[\s\S]*?if \(!needsDownload\) \{/, 'directRun is known before the up-to-date path')
+  assert.strictEqual((core.match(/syncExtraFiles\(skyrimPath, (false|force), directRun\)/g) || []).length, 2, 'both paths draw the extras')
+  assert.strictEqual((core.match(/if \(directRun\) installStep\('finish', \{ index: 1, total: 1 \}\)/g) || []).length, 2, 'both paths end on a full bar')
+  const sync = main.slice(main.indexOf('async function syncExtraFiles('), main.indexOf('async function installClientFilesCore('))
+  assert.match(sync, /if \(track\) installStep\('extras', \{ index: 0, total: files\.length \}\)/)
+  assert.match(sync, /if \(track\) installTrack\.step\('extras', \{ index: i \+ 1, total: files\.length \}\)/)
+  assert.match(sync, /if \(track\) installTrack\.file\(`\$\{f\.path\.split\('\/'\)\.pop\(\)\} \(\$\{i \+ 1\}\/\$\{stale\.length\}\)`, doneBytes \+ received, totalBytes\)/)
 })
 
 test('the Nexus wait names the one page and file it waits for, not every remaining file', () => {
