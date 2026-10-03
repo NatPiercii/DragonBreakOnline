@@ -86,6 +86,29 @@ ok(access(DOOR, KEYHOLDER) === true, "a member door answers to the place's key")
 ok(access(DOOR, OLDKEY) === true, '...and to a key cut for that door before the migration (carried over as an alias)');
 ok(access(DOOR, ASSIGNEE) === false, "the chest's assignee does not get the other doors");
 ok(access(ROOT, OLDKEY) === true, 'the root answers to the carried-over key names too');
+// Review F1: an issued name carried over matches exactly; only a "(TAG)" credential matches as a suffix
+{
+  const r1 = rec(ROOT); r1.keyAliases = ['(80B5EAC-2)', 'Key to the Gatehouse']; sys.write(ctx, ROOT, r1);
+  inventories[KEYHOLDER] = [key('Key to the Gatehouse')];
+  ok(access(ROOT, KEYHOLDER) === true, 'a carried-over issued key name opens the root when it is exactly that name');
+  inventories[KEYHOLDER] = [key('Key to the Key to the Gatehouse')];
+  ok(access(ROOT, KEYHOLDER) === false, '...a forged "Key to the Key to the Gatehouse" (a property named after it) does not');
+  inventories[KEYHOLDER] = [key('Old Key (80B5EAC-2)')];
+  ok(access(ROOT, KEYHOLDER) === true, '...while a credential still matches as the suffix it always is');
+  inventories[KEYHOLDER] = [key('Key to the Fort Caractacus (recut)')];
+  const r2 = rec(ROOT); r2.keyAliases = ['(80B5EAC-2)']; sys.write(ctx, ROOT, r2);
+}
+// Review S1: an assigned member door is the assignee's even while it is unlocked
+{
+  const ROOMDOOR = H(0xb6010);
+  CELLS[ROOMDOOR] = FORT; TYPES[ROOMDOOR] = 'DOOR';
+  props.set(`${ROOMDOOR}:private.housing`, base({ locked: false, partner: H(0xb6011), memberOf: ROOT }));
+  sys.claimed.push(ROOMDOOR);
+  const r3 = rec(ROOT); r3.assigned[ROOMDOOR.toString(16)] = { profile: 61, name: 'Assigned One' }; sys.write(ctx, ROOT, r3);
+  ok(opens(ROOMDOOR, STRANGER) === false && opens(ROOMDOOR, ASSIGNEE) === true && opens(ROOMDOOR, OWNER) === true, 'an unlocked claimed inner door assigned to someone: refused to a stranger, open to the assignee and the owner');
+  const r4 = rec(ROOT); delete r4.assigned[ROOMDOOR.toString(16)]; sys.write(ctx, ROOT, r4);
+  ok(opens(ROOMDOOR, STRANGER) === true, '...unassigned again, it is an open inner door');
+}
 // New locks on the place retire the carried-over names
 const r = rec(ROOT);
 sys.onlineUsers = () => []; sys.reKey(ctx, ROOT, r); sys.write(ctx, ROOT, r);

@@ -58,7 +58,8 @@ try {
   ok(JSON.stringify(b[ROOT.toString(16)]) === before && b[PAIR.toString(16)] && b[CHEST.toString(16)] && !b[BARREL.toString(16)], '...holding the root and its members as they were, and nothing else', Object.keys(b));
   const root = w.get(ROOT), pair = w.get(PAIR), chest = w.get(CHEST), barrel = w.get(BARREL);
   ok(root.place && JSON.stringify(root.place.cells) === JSON.stringify([FORT]), 'the root gets its place', root.place);
-  ok(Array.isArray(root.keyAliases) && root.keyAliases.includes('(80B5EAC-2)') && root.keyAliases.includes('(80B5C86-2)'), "...and the members' key credentials, so their keys keep working", root.keyAliases);
+  ok(Array.isArray(root.keyAliases) && root.keyAliases.includes('(80B5EAC-2)'), "...and the member doors' key credentials, so their keys keep working", root.keyAliases);
+  ok(!root.keyAliases.includes('(80B5C86-2)'), "...but not the chest's: a chest key must not open the house (review F1)", root.keyAliases);
   ok(pair.memberOf === ROOT && chest.memberOf === ROOT, 'each member points at the root');
   ok(chest.ownerOnly === true && !pair.ownerOnly, 'the unlocked chest inside is marked owner-only, a door is not');
   ok(root.owner === 60 && pair.owner === 60 && chest.owner === 60 && root.locked === true && pair.locked === true && chest.locked === false, 'owners and locks stay as they were (the access rules come next)');

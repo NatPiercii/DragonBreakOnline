@@ -70,7 +70,11 @@ ok(sys.doorName(ctx, ROOT) === '' && sys.doorName(ctx, H(0xb5eae)) === '' && sys
 ok(sys.doorName(ctx, M3) === '' && sys.doorName(ctx, H(0xb6101)) === '', '...as do the doors between the fort and its cellar');
 ok(sys.doorName(ctx, PLAIN) === '' && sys.doorName(ctx, H(0x12345)) === '', 'an unnamed claim and an unclaimed ref answer ""');
 const p = props.get(`${PLAIN}:private.housing`); p.name = 'Valerio Residence'; props.set(`${PLAIN}:private.housing`, p);
-ok(sys.doorName(ctx, PLAIN) === 'Valerio Residence' && sys.doorName(ctx, H(0x67658)) === '', 'a plain named house reads its name outside only (no place rules needed)');
+ok(sys.doorName(ctx, PLAIN) === 'Valerio Residence' && sys.doorName(ctx, H(0x67658)) === '', 'a plain named house reads its name outside only (with apply)');
+sys.placeMigration = 'dryrun';
+ok(sys.doorName(ctx, H(0xb5fe6)) === '' && sys.doorName(ctx, PLAIN) === '', 'dryrun: doorName answers "" everywhere, so every prompt reads as today (review F3)');
+{ const dd = decor(); ok(dd.get(M2) === 'Old Gate' && dd.get(M1) === null && dd.get(ROOT) === 'Caractacus Hold', 'dryrun: members show their own names in refDecor, as before the place rules', [...dd]); }
+sys.placeMigration = 'apply';
 sys.exposeTenancy(ctx);
 ok(globalThis.__dboHousing.doorName(H(0xb5fe6)) === 'Caractacus Hold' && globalThis.__dboHousing.doorName('junk') === '', '__dboHousing.doorName gives the same for gamemode.js, and "" for junk');
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');

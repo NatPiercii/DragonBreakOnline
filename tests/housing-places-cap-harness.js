@@ -111,6 +111,10 @@ try {
   sys.claimed.push(NEW_DOOR);
   said = transfer(sys, STEWARD, NEW_DOOR, OWNER);
   ok(rec(NEW_DOOR).owner === 2, 'dryrun: no place cap, the old per-claim limit only (Augustine gets a second)', said);
+  sys.maxClaims = 1;
+  sys.exposeTenancy(ctx);
+  const g = globalThis.__dboHousing.grant(NEW_CHEST, OWNER);
+  ok(g === 'They already hold 1 properties.', "dryrun: a tenancy grant past housingMaxClaims refuses with today's text (review F3)", g);
 } finally {
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });
