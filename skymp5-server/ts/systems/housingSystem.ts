@@ -907,13 +907,18 @@ export class HousingSystem implements System {
   }
 
   // The interior behind a house's door, and the rooms reachable only through it: a cell with a door of its own to the world
-  // is another building and stops the walk; more than MAX_PLACE_CELLS (a dungeon below) keeps the first interior alone
-  private placeCellsFrom(ctx: SystemContext, inner: string): string[] {
+  // is another building and stops the walk; so does a door someone else holds (staff included), and a cell any of whose
+  // doors someone else holds, which is theirs (an inn room claimed off a granted hall, review H); more than
+  // MAX_PLACE_CELLS (a dungeon below) keeps the first interior alone
+  private placeCellsFrom(ctx: SystemContext, inner: string, owner: number): string[] {
+    const others = (ref: number) => { const p = this.primaryOf(ctx, ref); const r = p ? this.read(ctx, p) : null; return !!r && r.owner !== 0 && r.owner !== owner; };
     const cells = [inner];
     for (let i = 0; i < cells.length; i++) {
       for (const d of this.doorsOut(ctx, cells[i])) {
         if (!d.farCell || this.isWorldDesc(ctx, d.farCell) || cells.indexOf(d.farCell) !== -1) continue;
-        if (this.doorsOut(ctx, d.farCell).some((o) => this.isWorldDesc(ctx, o.farCell))) continue;
+        if (others(d.ref)) continue;
+        const farDoors = this.doorsOut(ctx, d.farCell);
+        if (farDoors.some((o) => this.isWorldDesc(ctx, o.farCell) || others(o.ref))) continue;
         cells.push(d.farCell);
         if (cells.length > MAX_PLACE_CELLS) return [inner];
       }
@@ -939,7 +944,7 @@ export class HousingSystem implements System {
       this.log(`[housing] ${primary.toString(16)} builds no place: ${inner} is ${o ? `also behind ${o.name}'s door ${o.ref.toString(16)}` : `part of ${index.get(inner)!.toString(16)}`}`);
       return;
     }
-    const cells = this.placeCellsFrom(ctx, inner).filter((c) => c === inner || !taken(c));
+    const cells = this.placeCellsFrom(ctx, inner, rec.owner).filter((c) => c === inner || !taken(c));
     rec.place = { cells, builtAt: Date.now() };
     if (!this.write(ctx, primary, rec)) { delete rec.place; return; }
     const joined = this.joinEntrances(ctx, primary, rec);
@@ -1643,7 +1648,7 @@ export class HousingSystem implements System {
       const c = byRef.get(p.root);
       const inner = c ? (c.cell && !this.isWorldDesc(ctx, c.cell) ? c.cell : c.partnerCell) : "";
       inners.set(p.root, inner);
-      const cells = inner ? this.placeCellsFrom(ctx, inner) : [];
+      const cells = inner ? this.placeCellsFrom(ctx, inner, p.owner) : [];
       walks.set(p.root, cells);
       for (const cell of cells) note(cell, p.owner);
     }
@@ -1758,17 +1763,30 @@ export class HousingSystem implements System {
   }
 
   // housingPlaceRestore "<backup file>" (with housingPlaceMigration "dryrun" or "off"): takes back what that migration
-  // did, once, and nothing done since (review R1): each root and member keeps its record as it is now (owner, serial, keys,
+  // did and nothing done since (review R1): each root and member keeps its record as it is now (owner, serial, keys,
   // name, lock: a hand-over, a re-key or a tenancy since stand) with only the migration's own fields removed (place,
   // memberOf, keyAliases, ownerOnly, assigned, shared); an entrance the migration claimed goes back to an ownerless stub,
   // its far half pointing at it again, only while it still belongs to that place's owner and root. Every ref whose owner
-  // or serial changed since the backup is logged and listed in the "<file>.restored" marker. The marker is written before
-  // anything changes; if it cannot be, nothing is restored (fail closed), and it stops any second run.
+  // or serial changed since the backup is logged and listed in the "<file>.restored" marker.
+  // It is idempotent, so the marker only says how far it got: it is written ("started") before anything changes, and if
+  // it cannot be, nothing is restored (fail closed); it ends "done" when every record was written, else "incomplete"
+  // with the refs that failed. Only "done" with no failures stops a rerun on the next boot; "started" (a crash mid-way)
+  // and "incomplete" run again. Manual reset, for a "done" whose writes were lost (a crash before the changeforms were
+  // saved): sudo rm /opt/alduinak/build/dist/server/<backup>.restored, then reboot with housingPlaceRestore still set.
+  // Keep housingPlaceRestore set until the changeforms have been saved (specs/housing-places-ops.md).
   private restorePlaces(ctx: SystemContext, file: string): void {
     if (this.placeMigration === "apply") { this.log(`[housing] place restore refused: set housingPlaceMigration to "dryrun" or "off" first`); return; }
     if (!/^housing-places-backup-[0-9TZ-]+\.json$/.test(file)) { this.log(`[housing] place restore refused: ${file} is not a migration backup's name`); return; }
     const marker = `./${file}.restored`;
-    if (fs.existsSync(marker)) { this.log(`[housing] place restore: ${file} was restored already (${marker})`); return; }
+    if (fs.existsSync(marker)) {
+      let prev: any = null;
+      try { prev = JSON.parse(fs.readFileSync(marker, "utf8")); } catch { prev = null; }
+      if (prev && prev.state === "done" && Array.isArray(prev.failed) && prev.failed.length === 0) {
+        this.log(`[housing] place restore: ${file} was restored already (${marker} says done); remove the marker to run it again`);
+        return;
+      }
+      this.log(`[housing] place restore: ${marker} says ${prev ? `"${prev.state}"${Array.isArray(prev.failed) && prev.failed.length ? `, ${prev.failed.length} failed` : ""}` : "nothing readable"}; running it again (it is safe to repeat)`);
+    }
     let backup: any;
     try { backup = JSON.parse(fs.readFileSync(`./${file}`, "utf8")); } catch (e) { this.log(`[housing] place restore failed: ${file} unreadable: ${e}`); return; }
     if (!backup || backup.version !== 2 || !Array.isArray(backup.places) || typeof backup.records !== "object") { this.log(`[housing] place restore refused: ${file} is not a version 2 migration backup`); return; }
@@ -1778,46 +1796,56 @@ export class HousingSystem implements System {
     }
     const num = (h: unknown) => parseInt(String(h), 16) >>> 0;
     const was = (h: string): PropertyRecord | null => { const v = backup.records[h]; return v && typeof v === "object" && !Number((v as any).primary) ? v as PropertyRecord : null; };
+    const placeFields = (r: PropertyRecord) => r.place !== undefined || r.memberOf !== undefined || r.keyAliases !== undefined || r.ownerOnly !== undefined || r.assigned !== undefined || r.shared !== undefined;
     const changed: Array<{ ref: string; was: { owner: number; serial: number } | null; now: { owner: number; serial: number } }> = [];
+    const failed: string[] = [];
     let stripped = 0, released = 0, keptEntrances = 0;
     for (const place of backup.places as Array<{ root: string; owner: number; members: string[]; entrances: string[] }>) {
       const root = num(place.root);
       for (const h of [place.root, ...(place.members || [])]) {
         const ref = num(h);
+        if (!ref) continue;
         const cur = this.read(ctx, ref);
-        if (!ref || !cur) continue;
+        if (!cur) { failed.push(h); continue; }
         const before = was(h);
         if (!before || before.owner !== cur.owner || (Number(before.serial) || 1) !== cur.serial) {
           changed.push({ ref: h, was: before ? { owner: before.owner, serial: Number(before.serial) || 1 } : null, now: { owner: cur.owner, serial: cur.serial } });
         }
+        if (!placeFields(cur)) continue;
         delete cur.place; delete cur.memberOf; delete cur.keyAliases; delete cur.ownerOnly; delete cur.assigned; delete cur.shared;
-        if (this.write(ctx, ref, cur)) stripped++;
+        if (this.write(ctx, ref, cur)) stripped++; else failed.push(h);
       }
       for (const h of place.entrances || []) {
         const ref = num(h);
+        if (!ref) continue;
         const cur = this.read(ctx, ref);
-        if (!ref || !cur) continue;
+        if (!cur) { failed.push(h); continue; }
+        // Released on an earlier run: nothing to do, and nothing changed
+        if (cur.owner === 0 && !placeFields(cur)) continue;
         if (cur.owner === place.owner && cur.memberOf === root) {
           // Back to unclaimed; the serial moves on, so no key cut for it while it was the place's opens it again
           const stub = emptyRecord();
           stub.serial = cur.serial + 1;
           stub.partner = cur.partner;
-          if (this.write(ctx, ref, stub)) released++;
+          if (this.write(ctx, ref, stub)) released++; else failed.push(h);
         } else {
           changed.push({ ref: h, was: null, now: { owner: cur.owner, serial: cur.serial } });
+          if (!placeFields(cur)) continue;
           delete cur.memberOf; delete cur.ownerOnly;
-          if (this.write(ctx, ref, cur)) keptEntrances++;
+          if (this.write(ctx, ref, cur)) keptEntrances++; else failed.push(h);
         }
       }
     }
     this.placeCellsDirty = true;
     this.decorDirty = true;
     this.lastDecorMs = 0;
-    const result = { at: new Date().toISOString(), state: "done", stripped, released, keptEntrances, changed };
-    try { fs.writeFileSync(marker, JSON.stringify(result, null, 1)); } catch (e) { this.log(`[housing] PLACE RESTORE: the result could not be written to ${marker} (${e}); the started marker still stops a second run`); }
-    this.log(`[housing] place restore from ${file}: ${stripped} record(s) stripped of place fields, ${released} joined entrance(s) unclaimed again, ${keptEntrances} kept by who holds them now`);
+    const state = failed.length ? "incomplete" : "done";
+    const result = { at: new Date().toISOString(), state, failed, stripped, released, keptEntrances, changed };
+    try { fs.writeFileSync(marker, JSON.stringify(result, null, 1)); } catch (e) { this.log(`[housing] PLACE RESTORE: the result could not be written to ${marker} (${e}); it still says "started", so the next boot runs it again`); }
+    this.log(`[housing] place restore from ${file} ${state.toUpperCase()}: ${stripped} record(s) stripped of place fields, ${released} joined entrance(s) unclaimed again, ${keptEntrances} kept by who holds them now${failed.length ? `; ${failed.length} FAILED (${failed.join(",")}), the next boot tries again` : ""}`);
     for (const c of changed) this.log(`[housing] place restore: ${c.ref} changed since the backup (owner ${c.was ? c.was.owner : "none"} -> ${c.now.owner}, serial ${c.was ? c.was.serial : "-"} -> ${c.now.serial}); kept as it is now`);
   }
+
 
   // The cap (Nate, 3 Oct): with the place rules on, one place per player, a place being a house with all its doors and
   // chests, or a lone claim; members of a place are not counted. Nobody loses anything: an owner already past it keeps what
