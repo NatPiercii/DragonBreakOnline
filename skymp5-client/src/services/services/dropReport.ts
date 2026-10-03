@@ -3,8 +3,8 @@
 // A drop seen just after the inventory closed is still the player's (the event can arrive a frame late)
 export const DROP_MENU_GRACE_MS = 1000;
 
-export const inDropWindow = (menuOpen: boolean, lastOpenAt: number, now: number): boolean =>
-  menuOpen || (lastOpenAt > 0 && now - lastOpenAt >= 0 && now - lastOpenAt <= DROP_MENU_GRACE_MS);
+export const inDropWindow = (menuOpen: boolean, closedAt: number, now: number): boolean =>
+  menuOpen || (closedAt > 0 && now - closedAt >= 0 && now - closedAt <= DROP_MENU_GRACE_MS);
 
 // The engine's own dropped ref always goes, with any found nearby; the server places the one everyone sees
 export const dropCandidates = (found: { forEach(fn: (id: number) => void): void }, dropped: number | null | undefined): number[] => {
