@@ -176,7 +176,7 @@ export interface MasteryTarget {
     tierNames: string[];
     tierHours: number[];
     maxChosen: number;
-    schools?: Array<{ name: string; level: number; role: string; roleLabel: string }>; // fork server-f3-admin, from schools.js
+    schools?: Array<{ name: string; level: number; role: string; roleLabel: string }> | null; // fork server-f3-admin, from schools.js; null without it
   } | null;
 }
 
@@ -245,7 +245,7 @@ export const PlayerCare = ({ events, who, selfId, name, masteryTarget, canSpawn 
       </div>
       <div className="admin-panel__power">
         <span className="admin-panel__label">Schools of magic <span className="admin-panel__hint">0 to 100; a closed school set above 0 rests at that level</span></span>
-        {!sorted.length ? <span className="admin-panel__hint">{!mine ? 'Loading their schools' : mine.detail && Array.isArray(mine.detail.schools) ? 'Not a mage yet: no school of magic has opened to them.' : 'This server sends no school levels yet.'}</span> : sorted.map((sc) => {
+        {!sorted.length ? <span className="admin-panel__hint">{!mine ? 'Loading their schools' : mine.detail && Array.isArray(mine.detail.schools) ? 'Not a mage yet: no school of magic has opened to them.' : 'Magic data unavailable.'}</span> : sorted.map((sc) => {
           const priest = sc.name === 'Restoration';
           const text = levels[sc.name] !== undefined ? levels[sc.name] : String(sc.level);
           const n = Number(text);
