@@ -55,6 +55,7 @@ declare -A LIMIT=([expedition-loot-budget]=600 [loot-tiers]=600)
 declare -A NEEDS=(
   [bodypos]=client:skymp5-client/src/sync/bodyPos.ts
   [chat-bubble-plan]=client:skymp5-client/src/services/services/chatBubblePlan.ts
+  [refdecor-names]=client:skymp5-client/src/services/services/refDecorNames.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
   [caster-guard]=client:skymp5-client/src/sync/beastRaceIds.ts
   [npc-lifetime-plan]=client:skymp5-client/src/view/npcLifetime.ts
@@ -65,6 +66,14 @@ declare -A NEEDS=(
   [aggro-window]=client:skymp5-client/src/view/aggroWindow.ts
   [housing-keys]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-staff]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-apply]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-access]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-cap]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-build]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-names]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-rooms]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-migrate]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-shadow]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-values]=server:skymp5-server/ts/systems/masterySystem.ts
@@ -93,6 +102,7 @@ declare -A NEEDS=(
   [journal-front]=front:skymp5-front/src/features/journal/index.tsx
   [widget-order]=front:skymp5-front/src/utils/widgetOrder.js
   [class-lectern]=front:skymp5-front/src/features/classLectern/index.tsx
+  [housing-rooms-front]=front:skymp5-front/src/features/housing/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}

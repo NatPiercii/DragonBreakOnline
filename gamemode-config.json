@@ -834,5 +834,9 @@
   "_comment": "Enchantments learned by disenchanting, kept across relogs (server\\alchemy.js, #bugs thread 7): each disenchant writes the enchantment's effects on the character (private.dboEnchLearned, newest last, at most max); at login they go back to the client as dboEnchLearned, which marks them known. Recorded always; sent only when enabled, which waits for the client that reads the packet.",
   "enabled": false,
   "max": 256
+ },
+ "housingPlaces": {
+  "_comment": "Places (N3, fork housingSystem.ts): staff profiles whose claims the place migration leaves exactly as they are and the one-place cap never counts (Nate, 3 Oct: storage lent to players). Read when the migration plan runs; no restart needed.",
+  "staffProfiles": [4]
  }
 }
