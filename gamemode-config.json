@@ -811,5 +811,10 @@
   "hours": 24,
   "mult": 2,
   "roleId": "1549556017665409034"
+ },
+ "learnedEnchantments": {
+  "_comment": "Enchantments learned by disenchanting, kept across relogs (server\\alchemy.js, #bugs thread 7): each disenchant writes the enchantment's effects on the character (private.dboEnchLearned, newest last, at most max); at login they go back to the client as dboEnchLearned, which marks them known. Recorded always; sent only when enabled, which waits for the client that reads the packet.",
+  "enabled": false,
+  "max": 256
  }
 }
