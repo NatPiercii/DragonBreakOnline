@@ -811,5 +811,22 @@
   "hours": 24,
   "mult": 2,
   "roleId": "1549556017665409034"
+ },
+ "racial": {
+  "_comment": "One passive gift per race (racial.js; Nate approved all ten and the rules, 3 Oct 2026). Resistances, damage and the Orc's low-health rage go through the hit path; reductionCap caps Defense x blessing x race together (0.75 = never more than 75% off a hit). Regeneration is added server-side like a blessing's: alwaysRegenCap bounds an always-on factor, conditionalRegenCap a conditional one. Off in beast forms, players only. Imperial goldBonus counts lease chests and bodies, camp chests and contract pay only. altmer.elementalWeakness is Nate's optional price (0 = off). nord.coldAreas: the Jerall Mountains around Bruma and the Pale Pass road.",
+  "enabled": true,
+  "reductionCap": 0.75,
+  "alwaysRegenCap": 1.25,
+  "conditionalRegenCap": 1.5,
+  "altmer": { "magickaRegen": 1.25, "elementalWeakness": 0 },
+  "argonian": { "resistPoison": 0.5, "lowHealth": 0.35, "lowHealthHealRegen": 1.5 },
+  "bosmer": { "bowDamage": 0.1, "resistPoison": 0.5 },
+  "breton": { "resistMagic": 0.25 },
+  "dunmer": { "resistFire": 0.5 },
+  "imperial": { "goldBonus": 0.1 },
+  "khajiit": { "unarmedDamage": 8 },
+  "nord": { "resistFrost": 0.5, "coldStaminaRegen": 1.15, "coldProvinces": ["skyrim"], "coldAreas": [{ "world": "a764b:BSHeartland.esm", "pos": [56000, 232000], "radius": 60000 }] },
+  "orc": { "lowHealth": 0.3, "meleeDamage": 0.2, "damageTaken": 0.2 },
+  "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 }
  }
 }

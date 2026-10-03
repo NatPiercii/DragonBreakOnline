@@ -303,6 +303,8 @@ module.exports = (api) => {
     saveNow();
     giveItem(killerId, GOLD_BASE, paid);
     personal(killerId, `Contract complete: ${c.count} ${plural(c.kind)}. ${paid} gold from the ${zone ? zone.name : c.zone} treasury.`);
+    // Imperial Luck (racial.js): new coin on top of the pay, never out of the treasury
+    try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(killerId, paid, 'contract pay'); } catch (e) { /* the pay itself is done */ }
     audit(`CONTRACT ${who(killerId)} completed ${c.count} ${plural(c.kind)} for ${zone ? zone.name : c.zone} (${paid} gold)`);
     refresh();
   };

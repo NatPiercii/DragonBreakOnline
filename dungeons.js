@@ -40,6 +40,8 @@ module.exports = (api) => {
   const GATE_WIDGET_ID = 31;
   const LOCKPICK_BASE = 0x0000000a;
   const GOLD_BASE = 0x0000000f;
+  // Imperial Luck (racial.js): an Imperial's extra on coin the lease hands them; once per chest per lease when keyed
+  const raceGold = (a, amount, why, key) => { try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(a, amount, why, key); } catch (e) { log('racial gold failed', e.message); } };
   const SPAWNS_FILE = path.resolve('NPC-Spawns.json');
   const SPAWNED_IDS_FILE = path.resolve('zone-spawns.json');
   const ZONE_PREFIX = 'dungeon:';
@@ -1704,7 +1706,7 @@ module.exports = (api) => {
     if (inside.length < 2) return count;
     const share = Math.floor(count / inside.length); if (share < 1) return count;
     let handed = 0;
-    for (const m of inside) { if (m === finder) continue; if (giveItem(m, GOLD_BASE, share)) { handed += share; personal(m, `${nameOf(finder)} found ${count} gold; your share is ${share}.`); } }
+    for (const m of inside) { if (m === finder) continue; if (giveItem(m, GOLD_BASE, share)) { handed += share; personal(m, `${nameOf(finder)} found ${count} gold; your share is ${share}.`); raceGold(m, share, 'a share of loot'); } }
     return count - handed;
   };
   // Coin taken from a lease chest: the finder already holds the whole pile, so the shares come OUT of the finder first,
@@ -1728,17 +1730,20 @@ module.exports = (api) => {
     const here = dungeonAround(actorId); if (!here || here.id !== lease.id) return;
     const d = byId.get(lease.id); if (!d) return;
     if (!chestRefs.has(sourceId >>> 0)) return;
+    // Imperial Luck on what each one keeps, once per chest of this lease for each of them
+    const chestKey = (m) => `${lease.id}:${lease.startedAt}:${(sourceId >>> 0).toString(16)}:${m}`;
     const others = [...lease.members].map((pid) => actorByProfile(pid)).filter((m) => m && m !== actorId && (dungeonAround(m) || {}).id === lease.id);
-    if (!others.length) return;
-    const share = Math.floor(count / (others.length + 1)); if (share < 1) return;
+    const share = others.length ? Math.floor(count / (others.length + 1)) : 0;
+    if (share < 1) { raceGold(actorId, count, 'a chest', chestKey(actorId)); return; }
     try {
       const removed = removeGold(actorId, Math.min(share * others.length, goldHeld(actorId)));
       const each = Math.floor(removed / others.length);
       let handed = 0;
-      if (each > 0) for (const m of others) { if (giveItem(m, GOLD_BASE, each)) { handed += each; personal(m, `${nameOf(actorId)} found ${count} gold; your share is ${each}.`); } }
+      if (each > 0) for (const m of others) { if (giveItem(m, GOLD_BASE, each)) { handed += each; personal(m, `${nameOf(actorId)} found ${count} gold; your share is ${each}.`); raceGold(m, each, 'a share of a chest', chestKey(m)); } }
       // Whatever could not be handed on (a failed give, the odd coin of a split) goes back to the finder
       if (removed > handed) giveItem(actorId, GOLD_BASE, removed - handed);
       if (handed) personal(actorId, `${count} gold, shared with your party: ${handed} went to them.`);
+      raceGold(actorId, count - handed, 'a chest', chestKey(actorId));
     } catch (e) { log('gold split failed', e.message); }
   };
 
@@ -1806,7 +1811,7 @@ module.exports = (api) => {
     const gear = master ? [] : ((ST.bodyGear.get(targetId >>> 0) || {}).ids || []);
     ST.bodyGear.delete(targetId >>> 0);
     for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k, lease && lease.province) : corpseLoot(diff, lootOk(lease), k, gear))) {
-      if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); continue; }
+      if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) { raceGold(casterId, kept, master ? 'a master\'s body' : 'a body'); got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); } continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }
     personal(casterId, got.length ? `You find ${got.join(', ')}.` : 'You find nothing of use.');

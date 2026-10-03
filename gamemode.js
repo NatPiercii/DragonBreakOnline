@@ -2051,6 +2051,12 @@ const applyNeedsStage = (a, n, announce, force) => {
 // downed.js asks for this when Death's Chill starts, lifts or changes a rate, so hunger and the chill stay combined
 globalThis.__dboNeedsRefresh = (a) => { try { const n = needsOf(a); applyNeedsStage(a, n, false, false); saveNeeds(a, n); } catch (e) { log('needs refresh failed', e.message); } };
 globalThis.__dboSetActorValue = (a, av, value) => setActorValue(Number(a) >>> 0, av, value);
+// The hunger stage's share of a rate (1 = the vanilla rate): racial.js multiplies its regeneration gift by it
+globalThis.__dboNeedsRateMult = (a, av) => {
+  const key = Object.keys(NEEDS_AV).find((k) => NEEDS_AV[k] === av);
+  if (!key || !NEEDS.enabled) return 1;
+  try { return Math.max(0, (NEEDS_RATE_BASE + (Number(stageFor(needsOf(Number(a) >>> 0).hunger)[key]) || 0)) / 100); } catch (e) { return 1; }
+};
 const needsTick = () => {
   if (!NEEDS.enabled) return;
   const dt = NEEDS.tickSeconds / 3600;
@@ -4289,6 +4295,7 @@ for (const [desc, why] of Object.entries(cfg.castBlocks || {})) {
 }
 const shoutRefusedAt = globalThis.__dboShoutRefusedAt instanceof Map ? globalThis.__dboShoutRefusedAt : (globalThis.__dboShoutRefusedAt = new Map());
 const castHook = (casterId, spellId, ...rest) => {
+  try { if (racial) racial.onCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('racial cast failed', e.message); }
   try { if (globalThis.__dboBeastCast) globalThis.__dboBeastCast(casterId, spellId); } catch (e) { log('beast cast failed', e.message); }
   if ((cfg.debug || {}).logSpellCasts) { try { const r = recordOf(Number(spellId) >>> 0); log(`cast ${display(Number(casterId) >>> 0)} -> ${r ? r.record.editorId : (Number(spellId) >>> 0).toString(16)}`); } catch (e) { /* trace only */ } }
   // A shout word a player was never given (combat.js shoutAllowed): refused here and, where it counts, at the hit
@@ -4676,19 +4683,21 @@ const isSpellSource = (sourceId) => { const r = recordOf(sourceId); return !!r &
 const blessedDeityOf = (a) => {
   try { const b = mp.get(a, 'private.dboBlessing'); return b && b.deity && Number(b.until) > Date.now() ? String(b.deity) : ''; } catch (e) { return ''; }
 };
-const blessingDamageMult = (aggressorId, targetId, sourceId) => {
+// The attacker's blessing and the target's, apart: the target's side is capped with Defense and the race (racial.js)
+const blessingAttackMult = (aggressorId, sourceId) => {
   if (!BLESS_COMBAT.enabled) return 1;
-  let m = 1;
   const atk = (BLESS_COMBAT.attacker || {})[blessedDeityOf(aggressorId)];
-  if (atk) {
-    const hands = weaponHandsOf(sourceId);
-    const fits = atk.spell ? isSpellSource(sourceId) : atk.hands === 'any' ? !!hands : hands === atk.hands;
-    if (fits) m *= Number(atk.mult) || 1;
-  }
-  const def = (BLESS_COMBAT.target || {})[blessedDeityOf(targetId)];
-  if (def && (def.element ? fitsElement(def.element, sourceId) : def.spell ? isSpellSource(sourceId) : true)) m *= Number(def.mult) || 1;
-  return m;
+  if (!atk) return 1;
+  const hands = weaponHandsOf(sourceId);
+  const fits = atk.spell ? isSpellSource(sourceId) : atk.hands === 'any' ? !!hands : hands === atk.hands;
+  return fits ? Number(atk.mult) || 1 : 1;
 };
+const blessingTargetMult = (targetId, sourceId) => {
+  if (!BLESS_COMBAT.enabled) return 1;
+  const def = (BLESS_COMBAT.target || {})[blessedDeityOf(targetId)];
+  return def && (def.element ? fitsElement(def.element, sourceId) : def.spell ? isSpellSource(sourceId) : true) ? Number(def.mult) || 1 : 1;
+};
+const blessingDamageMult = (aggressorId, targetId, sourceId) => blessingAttackMult(aggressorId, sourceId) * blessingTargetMult(targetId, sourceId);
 // The server's hit formula counts only the bow's WEAP damage; vanilla adds the worn arrow's (AMMO DATA float at byte 8)
 const ARROWS = Object.assign({ enabled: true, scale: 1 }, cfg.arrows || {});
 const recordDamageCache = globalThis.__dboRecordDamage instanceof Map ? globalThis.__dboRecordDamage : (globalThis.__dboRecordDamage = new Map());
@@ -4858,6 +4867,13 @@ try {
   delete require.cache[MARTIAL_JS];
   martial = require(MARTIAL_JS)({ mp, log, display, profileOf, masteryOf, wornOf, armorPieceOf, gmstFloat, weaponHandsOf, skills: SKILLS_DEF, combat, cfg });
 } catch (e) { log('martial.js failed to load:', e.stack || e.message); martial = null; }
+// ---- each race's gift: resistances, damage, regeneration, Imperial Luck (server\racial.js, config "racial") ----------
+let racial = null;
+try {
+  const RACIAL_JS = path.resolve('racial.js');
+  delete require.cache[RACIAL_JS];
+  racial = require(RACIAL_JS)({ mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, cfg });
+} catch (e) { log('racial.js failed to load:', e.stack || e.message); racial = null; globalThis.__dboRaceGold = null; globalThis.__dboRaceOf = null; }
 // How much a Defense tier multiplies a piece's rating: heavy by the tier's factor, light by lightShare of the gain
 const defensePieceMult = (targetId) => {
   const none = { heavy: 1, light: 1 };
@@ -5121,7 +5137,12 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     // A beast's claws are its own (supernatural.js beastMeleeMult). The engine sends them as the unarmed source 0x1f4,
     // so a werewolf also took the Master fist bonus, the fist's stamina drain and its disarm (combat review, 2026-09-29)
     let beastAgg = false; try { const b = mp.get(agg, 'private.beast'); beastAgg = !!(b && b.form); } catch (e) { /* not an actor */ }
-    let mult = (beastAgg ? 1 : masteryDamageMult(agg, src)) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * temperDamageMult(agg, src) * arrowDamageMult(agg, src) * defenseDamageMult(tgt) * blessingDamageMult(agg, tgt, src) * huntDamageMult(agg, tgt) * pvp;
+    // The target's side (Defense, a blessing, the race's resistance) is capped together: racial.js reductionCap
+    let targetSide = defenseDamageMult(tgt) * blessingTargetMult(tgt, src);
+    if (racial) { try { targetSide = racial.capTargetSide(targetSide * racial.targetMult(agg, tgt, src)); } catch (e) { log('racial target failed', e.message); } }
+    let raceAtk = 1;
+    if (racial && !beastAgg) { try { raceAtk = racial.attackMult(agg, tgt, src, dmg); } catch (e) { log('racial attack failed', e.message); } }
+    let mult = (beastAgg ? 1 : masteryDamageMult(agg, src)) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * temperDamageMult(agg, src) * arrowDamageMult(agg, src) * targetSide * blessingAttackMult(agg, src) * raceAtk * huntDamageMult(agg, tgt) * pvp;
     // Tired blows, fists into armour, staves through it, the fist's stamina drain and disarm (martial.js)
     if (martial && !beastAgg) { try { mult *= martial.onAttempt(agg, tgt, src, dmg, flags); } catch (e) { log('martial failed', e.message); } }
     // Block chip and stamina, guard breaks, bash, stagger (combat.js); a bash's blow comes back scaled down
