@@ -1452,7 +1452,7 @@ module.exports = (api) => {
       return s && s.disease && s.disease.kind === 'werewolf' ? 'The beast is not yours yet. Wait for the fever to peak.' : 'You are no werewolf.';
     }
     // Once per in-game day, which is the design and not a real day: the world clock owns the calendar
-    if (key === 'werewolf' && s.kind === 'werewolf' && !spared(a, s)) {
+    if (key === 'werewolf' && s && s.kind === 'werewolf' && !spared(a, s)) {
       const clock = globalThis.__dboClock;
       const now = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : null;
       if (now !== null) {
