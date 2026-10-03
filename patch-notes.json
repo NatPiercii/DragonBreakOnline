@@ -230,7 +230,7 @@
   {
     "title": "Staves work",
     "date": "SHIP_DATE",
-    "version": "Server update",
+    "version": "Server + Client 0.3.75",
     "tag": "Fix",
     "sections": [
       {
@@ -244,7 +244,7 @@
   {
     "title": "Scrolls work",
     "date": "SHIP_DATE",
-    "version": "Server + client 0.3.75",
+    "version": "Server + Client 0.3.75",
     "tag": "Fix",
     "sections": [
       {
@@ -258,7 +258,7 @@
   {
     "title": "More blessings now work",
     "date": "SHIP_DATE",
-    "version": "Server update",
+    "version": "Server + Client 0.3.75",
     "tag": "Fix",
     "sections": [
       {
