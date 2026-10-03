@@ -659,6 +659,9 @@ void PartOne::HandlePacket(void* partOneInstance, Networking::UserId userId,
       this_->serverState.disconnectingUserId = userId;
       // Its NPCs are free for the players who still see them at once, not after the stale sweep
       if (auto actor = this_->serverState.ActorByUser(userId)) {
+        if (this_->pImpl->actionListener) {
+          this_->pImpl->actionListener->ForgetScrollReads(actor->GetFormId());
+        }
         try {
           this_->ReleaseHostedBy(actor->GetFormId(), "its hoster disconnected");
         } catch (std::exception& e) {

@@ -700,6 +700,30 @@ bool ActionListener::RefuseNpcJump(MpActor& actor, const NiPoint3& newPos)
 void ActionListener::ForgetForm(uint32_t formId)
 {
   npcJumps.erase(formId);
+  ForgetScrollReads(formId);
+}
+
+void ActionListener::ForgetScrollReads(uint32_t casterId)
+{
+  scrollHits.erase(casterId);
+  std::erase_if(scrollLastRead, [&](const auto& entry) {
+    return static_cast<uint32_t>(entry.first >> 32) == casterId;
+  });
+}
+
+void ActionListener::BackdateScrollReads(uint32_t casterId,
+                                         std::chrono::seconds by)
+{
+  if (auto it = scrollHits.find(casterId); it != scrollHits.end()) {
+    for (auto& read : it->second) {
+      read.until -= by;
+    }
+  }
+  for (auto& [key, at] : scrollLastRead) {
+    if (static_cast<uint32_t>(key >> 32) == casterId) {
+      at -= by;
+    }
+  }
 }
 
 void ActionListener::OnCustomPacket(const RawMessageData& rawMsgData,
@@ -1862,15 +1886,10 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
       TakeScrollHit(aggressor->GetFormId(), hitData.source, hitData.target);
     // The cast of a last scroll can be lost before it reaches the server. Its first hit then stands in for the cast,
     // when the caster still holds one: the scroll is used up here once, and later hits of that read land as usual.
-    // Only with no read of it at all (TakeScrollHit has pruned the old ones): a repeated hit on one target, or one past a
-    // read's target budget, is refused as before and never costs a second scroll
-    const auto reads = scrollHits.find(aggressor->GetFormId());
-    const bool readLately = reads != scrollHits.end() &&
-      std::any_of(reads->second.begin(), reads->second.end(),
-                  [&](const ScrollRead& read) {
-                    return read.scrollId == hitData.source;
-                  });
-    if (!landed && !readLately &&
+    // Only with no read of it in kScrollLastReadKept: a repeated hit on one target, one past a read's target budget, or a
+    // rune going off after kScrollHitWindow is refused as before and never costs a second scroll
+    if (!landed &&
+        !ScrollReadRecently(aggressor->GetFormId(), hitData.source) &&
         aggressor->GetInventory().GetItemCount(hitData.source) >= 1) {
       aggressor->RemoveItem(hitData.source, 1, nullptr);
       RecordScrollRead(aggressor->GetFormId(), hitData.source);
@@ -2795,14 +2814,32 @@ bool ActionListener::IsParalyzed(const MpActor& actor)
   return true;
 }
 
+bool ActionListener::ScrollReadRecently(uint32_t casterId, uint32_t scrollId)
+{
+  const auto it =
+    scrollLastRead.find((static_cast<uint64_t>(casterId) << 32) | scrollId);
+  return it != scrollLastRead.end() &&
+    std::chrono::steady_clock::now() - it->second <= kScrollLastReadKept;
+}
+
 // Scroll reads per caster: kept kScrollHitWindow, at most kScrollReadsPerCaster (the oldest goes first)
 void ActionListener::RecordScrollRead(uint32_t casterId, uint32_t scrollId)
 {
   auto& reads = scrollHits[casterId];
   ScrollRead read;
   read.scrollId = scrollId;
-  read.until = std::chrono::steady_clock::now() + kScrollHitWindow;
+  const auto now = std::chrono::steady_clock::now();
+  read.until = now + kScrollHitWindow;
   reads.push_back(std::move(read));
+  if (scrollLastRead.size() >= kScrollLastReadMax) {
+    std::erase_if(scrollLastRead, [&](const auto& entry) {
+      return now - entry.second > kScrollLastReadKept;
+    });
+    if (scrollLastRead.size() >= kScrollLastReadMax) {
+      scrollLastRead.erase(scrollLastRead.begin());
+    }
+  }
+  scrollLastRead[(static_cast<uint64_t>(casterId) << 32) | scrollId] = now;
   if (reads.size() > kScrollReadsPerCaster) {
     reads.erase(reads.begin());
   }
