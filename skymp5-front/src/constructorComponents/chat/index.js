@@ -7,7 +7,7 @@ import ChatInput from './input';
 import Channels, { DEFAULT_CHANNEL, SYSTEM_CHANNEL, applyChannel, channelForMessage } from './channels';
 import { enterOpensChat, widgetTypes } from './enterFocus';
 import { replaceIfMoreThan20 } from '../../utils/replaceIfMoreThan20';
-import { useUiSettings, announceUiSettings, settleUiProfile, CHAT_EVENT } from '../../utils/uiSettings';
+import { useUiSettings, announceUiSettings, CHAT_EVENT } from '../../utils/uiSettings';
 
 import './styles.scss';
 const MAX_LENGTH = 2000;
@@ -43,9 +43,6 @@ const Chat = (props) => {
   const savedRef = useRef();
   if (savedRef.current === undefined) savedRef.current = loadChatSettings();
   const saved = savedRef.current;
-  // Whether the file the client injected had anything in it, taken before this mount writes its own values (settleUiProfile)
-  const fileWasEmptyRef = useRef();
-  if (fileWasEmptyRef.current === undefined) fileWasEmptyRef.current = !saved || Object.keys(saved).length === 0;
 
   const [input, updateInput] = useState('');
   const [isInputFocus, changeInputFocus] = useState(false);
@@ -335,8 +332,7 @@ const Chat = (props) => {
       for (const k of Object.keys(set)) if (patch[k] !== undefined) set[k](patch[k]);
     };
     window.addEventListener(CHAT_EVENT, onPatch);
-    // The saved file arrived with this mount: new or existing player decided once, then the HUD reads the file again
-    settleUiProfile(fileWasEmptyRef.current);
+    // The saved file arrived with this mount: anything drawn before it (the HUD) reads it again
     announceUiSettings();
     const onHidden = () => setKeyHidden(!!window.__dboChatHidden);
     window.addEventListener(HIDDEN_EVENT, onHidden);
