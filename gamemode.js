@@ -1192,6 +1192,8 @@ mp.onActivate = (targetId, casterId) => {
   // An alchemy lab also shows what the pack can brew (alchemy.js); the lab's own menu still opens
   if (globalThis.__dboAlchemyLab) { try { globalThis.__dboAlchemyLab(targetId >>> 0, casterId >>> 0); } catch (e) { log('alchemy lab panel failed', e.message); } }
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
+  // Gear above the loot cap in a container becomes its steel equivalent before the container opens (gearswap.js)
+  if (globalThis.__dboGearSwapContainer) globalThis.__dboGearSwapContainer(targetId >>> 0);
   if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
   if (globalThis.__dboCorpseLoot && globalThis.__dboCorpseLoot(targetId >>> 0, casterId >>> 0) === false) return false;
@@ -4158,7 +4160,7 @@ try {
 try {
   const GEARSWAP_JS = path.resolve('gearswap.js');
   delete require.cache[GEARSWAP_JS];
-  require(GEARSWAP_JS)({ mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand, findByName });
+  require(GEARSWAP_JS)({ mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand, findByName, isStaff: isAdmin });
 } catch (e) { log('gearswap.js failed to load:', e.stack || e.message); }
 // The trade window (fork tradeSystem.ts) asks before an item changes hands: a reason for the player, or null
 globalThis.__dboTradeItemVeto = (a, baseId, count) => {

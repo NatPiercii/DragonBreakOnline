@@ -20,7 +20,7 @@ const ID = {
   GlassSword: 0x139a9, SteelSword: 0x13989, ArmorEbonyCuirass: 0x13961, ArmorSteelCuirassA: 0x13952, IronSword: 0x12eb7,
   IngotEbony: 0x5ad9d, IngotIMoonstone: 0x5ad9f, IngotSteel: 0x5ace5, DA08EbonyBlade: 0x4a38f, SteelGreatsword: 0x13987,
   CYRElvenSword: 0x08300070, CYRSteelSword: 0x08300059, CYRArmorElvenCuirass: 0x08300009, CYRArmorLeatherCuirassA: 0x0805ef24,
-  ArmorElvenCuirass: 0x896a3, ArmorLeatherCuirass: 0x3619e, Gold: 0xf,
+  ArmorElvenCuirass: 0x896a3, ArmorLeatherCuirass: 0x3619e, Gold: 0xf, ElvenArrow: 0x139bd, IronArrow: 0x1397d, SteelArrow: 0x1397f,
 };
 const EDID = Object.fromEntries(Object.entries(ID).map(([k, v]) => [v >>> 0, k]));
 const ARTIFACT = new RegExp((readJson('artifacts.json').patterns || []).map((p) => `(?:${p})`).join('|'), 'i');
@@ -57,7 +57,10 @@ p = G.plan({ entries: [{ baseId: ID.GlassSword, count: 1 }], descOf, classOf: ()
 check('a hand override (loot-overrides.json) is not swapped', p.swaps.length === 0);
 p = G.plan({ entries: [{ baseId: ID.GlassSword, count: 1 }], descOf, classOf: () => ({ kind: 'uniform', family: 'guard' }), swap: SWAP, idOf, isArtifact: () => false });
 check('uniforms and trinkets are not swapped', p.swaps.length === 0);
-check('the message counts the items and says enchanted ones come back plain', /swapped for steel equivalents: 3 items\. Enchanted pieces come back plain\.$/.test(G.message([{ count: 2 }, { count: 1, enchanted: true }])));
+p = planOf([{ baseId: ID.ElvenArrow, count: 40 }, { baseId: ID.IronArrow, count: 10 }, { baseId: ID.SteelArrow, count: 5 }]);
+check('arrows above the cap become iron arrows count for count; iron and steel arrows stay', p.entries.some((e) => e.baseId === ID.IronArrow && e.count === 50) && p.entries.some((e) => e.baseId === ID.SteelArrow && e.count === 5) && p.swaps[0].family === 'ammo', p.entries);
+check('the ammo list names the vanilla iron arrow and Dawnguard\'s steel bolt only', Object.values(SWAP.ammo).every((m) => m.to === '1397d:Skyrim.esm' || m.to === 'bb3:Dawnguard.esm') && !Object.values(SWAP.ammo).some((m) => /^(IronArrow|SteelArrow|ForswornArrow|FalmerArrow|DraugrArrow|MQ101SteelArrow|boundArrow|DLC1ElvenArrow(Blessed|Blood))$/.test(m.edid)));
+check('the message counts the items and says enchanted ones come back plain', /swapped for steel and iron equivalents: 3 items\. Enchanted pieces come back plain\.$/.test(G.message([{ count: 2 }, { count: 1, enchanted: true }])));
 check('wornIn reads the equipment', G.wornIn({ inv: { entries: [{ baseId: 5, worn: true }, { baseId: 6, wornLeft: true }, { baseId: 7 }] } }).get(6) === 'left');
 
 // ---- 3. the runtime, against a stub server ----
@@ -76,7 +79,10 @@ const mp = {
   callPapyrusFunction: (...args) => calls.push(args),
 };
 const load = (gearSwap) => require(path.join(SERVER, 'gearswap.js'))({ mp, log: () => {}, audit: (t) => audits.push(t), who: (a) => `P${(a >>> 0).toString(16)}`, personal: (a, t) => said.push([a, t]),
-  onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, recordOf: (id) => (EDID[id >>> 0] ? { record: { editorId: EDID[id >>> 0] } } : null), cfg: { gearSwap }, registerChatCommand: () => {} });
+  onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, cfg: { gearSwap }, registerChatCommand: () => {}, isStaff: (a) => staff.has(a >>> 0),
+  recordOf: (id) => (id >>> 0 === CHEST_BASE ? { record: { type: 'CONT', editorId: 'TreasCaveChest' } } : id >>> 0 === BARREL_BASE ? { record: { type: 'ACTI', editorId: 'Barrel' } } : EDID[id >>> 0] ? { record: { editorId: EDID[id >>> 0] } } : null) });
+const staff = new Set();
+const CHEST_BASE = 0x20671, BARREL_BASE = 0x20672;
 globalThis.__dboCombatAt = new Map([[A >>> 0, Date.now()]]);
 load({ exemptProfiles: [3] });
 timers.gearSwap();
@@ -116,6 +122,32 @@ load({ mode: 'log' });
 online = [C];
 timers.gearSwap();
 check('mode log changes nothing and marks nothing', store[C].inventory.entries[0].baseId === ID.GlassSword && !store[C]['private.dboGearSwap']);
+// staff, through the roles source
+const S1 = 0xff000306;
+store[S1] = { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] }, equipment: { inv: { entries: [] } }, profileId: 50 };
+staff.add(S1); load({}); online = [S1]; said.length = 0;
+timers.gearSwap();
+check('a staff character (admin tier from the roles source) is left alone', store[S1].inventory.entries[0].baseId === ID.GlassSword && !store[S1]['private.dboGearSwap'] && !said.length);
+// containers, swapped once as they are opened
+const CH = 0x0800f001, BAR = 0x0800f002;
+store[CH] = { baseId: CHEST_BASE, inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }, { baseId: ID.ElvenArrow, count: 12 }, { baseId: ID.DA08EbonyBlade, count: 1 }] } };
+store[BAR] = { baseId: BARREL_BASE, inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+audits.length = 0; said.length = 0;
+globalThis.__dboGearSwapContainer(CH);
+const cinv = store[CH].inventory.entries;
+check('an opened container\'s over-cap gear and arrows become steel and iron, its artifact stays',
+  cinv.some((e) => e.baseId === ID.ArmorSteelCuirassA) && cinv.some((e) => e.baseId === ID.IronArrow && e.count === 12) && cinv.some((e) => e.baseId === ID.DA08EbonyBlade) && !cinv.some((e) => e.baseId === ID.ArmorEbonyCuirass), cinv);
+check('...with an audit line per swap and no message to anyone', audits.length === 2 && audits.every((t) => /^GEARSWAP container 800f001: /.test(t)) && said.length === 0, audits);
+cinv.push({ baseId: ID.GlassSword, count: 1 });
+globalThis.__dboGearSwapContainer(CH);
+check('...once only: a container is marked', cinv.some((e) => e.baseId === ID.GlassSword) && store[CH]['private.dboGearSwap'].version === G.VERSION);
+globalThis.__dboGearSwapContainer(BAR);
+check('something that is not a container (CONT) is never touched', store[BAR].inventory.entries[0].baseId === ID.GlassSword && !store[BAR]['private.dboGearSwap']);
+const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
+const chain = gm.slice(gm.indexOf('mp.onActivate = (targetId, casterId) => {'), gm.indexOf('if (globalThis.__dboDungeonActivate) {'));
+check('the activate chain swaps a container before it opens and never refuses for it', /\n  if \(globalThis\.__dboGearSwapContainer\) globalThis\.__dboGearSwapContainer\(targetId >>> 0\);\n/.test(chain));
+check('gamemode hands the module its staff check (isAdmin, the roles source)', /require\(GEARSWAP_JS\)\(\{[^}]*isStaff: isAdmin \}\)/.test(gm));
+delete globalThis.__dboGearSwapContainer;
 delete globalThis.__dboCombatAt; delete globalThis.__dboIsDowned; delete globalThis.__dboBeastOriginalRace;
 console.log(failures ? `${failures} FAILED` : 'all checks passed');
 process.exit(failures ? 1 : 0);

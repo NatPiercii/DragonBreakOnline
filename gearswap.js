@@ -2,8 +2,9 @@
 // per character (Nate, 1 Oct 2026). "Above the cap" is loottiers.js's own verdict ('capped', or a never-loot family);
 // what replaces each item is gear-swap.json (tools/loot/steel_swap_map.py: the same type or slot, same province).
 // Artifacts (artifacts.json) are never touched. A character in a fight, downed or in a beast form waits for a quiet
-// moment; online players are swept within a minute, everyone else at their next login. Config "gearSwap":
-// { mode: "on" | "log" | "off", version, exemptProfiles: [], intervalMs }. Loaded by gamemode.js.
+// moment; online players are swept within a minute, everyone else at their next login; staff are left alone;
+// containers are swapped once, as they are opened. Arrows and bolts above the cap become iron arrows and steel bolts.
+// Config "gearSwap": { mode: "on" | "log" | "off", version, exemptProfiles: [], intervalMs, containers }. Loaded by gamemode.js.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -21,13 +22,15 @@ const plan = ({ entries, descOf, classOf, swap, idOf, isArtifact, edidOf, worn }
   const norm = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
   const items = new Map(Object.entries((swap && swap.items) || {}).map(([k, v]) => [norm(k), v]));
   const metals = new Map(Object.entries((swap && swap.metals) || {}).map(([k, v]) => [norm(k), v]));
+  const ammo = new Map(Object.entries((swap && swap.ammo) || {}).map(([k, v]) => [norm(k), v]));
   const out = { swaps: [], keep: [], skipped: { artifact: 0, unmapped: 0 } };
   for (const e of entries || []) {
     const baseId = Number(e && e.baseId) >>> 0;
     const count = Number(e && e.count) || 0;
     if (!baseId || count <= 0) { out.keep.push(e); continue; }
     const desc = norm(descOf(baseId));
-    const metal = metals.get(desc);
+    const arrows = ammo.get(desc);
+    const metal = metals.get(desc) || arrows;
     const c = metal ? null : classOf(desc);
     const above = !!metal || (c && (c.kind === 'capped' || (c.kind === 'never' && NEVER_SWAP.has(c.family) && !c.why)));
     if (!above) { out.keep.push(e); continue; }
@@ -38,7 +41,7 @@ const plan = ({ entries, descOf, classOf, swap, idOf, isArtifact, edidOf, worn }
     if (!to) { out.skipped.unmapped += count; out.keep.push(e); continue; }
     const w = worn && worn.get ? worn.get(baseId) : null;
     out.swaps.push({ from: baseId, to: to >>> 0, count, worn: !!e.worn || w === 'right', wornLeft: !!e.wornLeft || w === 'left', metal: !!metal,
-      family: metal ? 'metal' : c.family, enchanted: Object.keys(e).some((k) => !['baseId', 'count', 'worn', 'wornLeft'].includes(k) && e[k] !== undefined && e[k] !== null) || /^Ench/i.test(edid),
+      family: arrows ? 'ammo' : metal ? 'metal' : c.family, enchanted: Object.keys(e).some((k) => !['baseId', 'count', 'worn', 'wornLeft'].includes(k) && e[k] !== undefined && e[k] !== null) || /^Ench/i.test(edid),
       edid, toEdid: m.toEdid });
   }
   // The new inventory: what stays, plus one plain stack per replacement (merged into a plain stack of the same base)
@@ -63,11 +66,13 @@ const wornIn = (equipment) => {
 const message = (swaps) => {
   const n = swaps.reduce((a, s) => a + s.count, 0);
   const ench = swaps.some((s) => s.enchanted);
-  return `To match the new loot rules, your high-end gear and metals were swapped for steel equivalents: ${n} item${n === 1 ? '' : 's'}.${ench ? ' Enchanted pieces come back plain.' : ''}`;
+  return `To match the new loot rules, your high-end gear, arrows and metals were swapped for steel and iron equivalents: ${n} item${n === 1 ? '' : 's'}.${ench ? ' Enchanted pieces come back plain.' : ''}`;
 };
 
 module.exports = (api) => {
   const { mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand } = api;
+  // Staff are left alone (Nate, 3 Oct): the roles source the admin tiers use (gamemode.js tierOf)
+  const isStaff = typeof api.isStaff === 'function' ? api.isStaff : () => false;
   const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], intervalMs: 30000, combatSeconds: 30 }, (cfg && cfg.gearSwap) || {});
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`gearswap: ${file} unreadable`, e.message); return fallback; } };
   const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
@@ -103,7 +108,7 @@ module.exports = (api) => {
     a = a >>> 0;
     let mark = null; try { mark = mp.get(a, MARK); } catch (e) { return; }
     if (mark && mark.version === C.version) return;
-    if (exempt.has(Number(mp.get(a, 'profileId')))) return;
+    if (exempt.has(Number(mp.get(a, 'profileId'))) || isStaff(a)) return;
     if (busy(a)) return;
     const p = planFor(a);
     if (C.mode === 'log') {
@@ -128,6 +133,27 @@ module.exports = (api) => {
     }
     mp.set(a, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
   };
+  // A container is swapped once, as it is opened (Nate, 3 Oct: world, dungeon and house containers too): no message,
+  // an audit line per swap. Called from gamemode.js's activate chain before the container opens; it never refuses.
+  const sweepContainer = (ref) => {
+    ref = ref >>> 0;
+    if (C.mode === 'off' || C.containers === false) return;
+    let base = 0; try { base = mp.get(ref, 'baseId') >>> 0; } catch (e) { return; }
+    const r = base && recordOf(base);
+    if (!r || !r.record || String(r.record.type) !== 'CONT') return;
+    let mark = null; try { mark = mp.get(ref, MARK); } catch (e) { return; }
+    if (mark && mark.version === C.version) return;
+    let inv; try { inv = mp.get(ref, 'inventory'); } catch (e) { return; }
+    const p = plan({ entries: (inv && Array.isArray(inv.entries)) ? inv.entries : [], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, edidOf,
+      isArtifact: (e) => !!ARTIFACT && ARTIFACT.test(e) });
+    if (C.mode === 'log') { if (p.swaps.length) log(`gearswap would swap ${p.swaps.reduce((n, s) => n + s.count, 0)} item(s) in container ${ref.toString(16)}`); return; }
+    if (p.swaps.length) {
+      mp.set(ref, 'inventory', { entries: p.entries });
+      for (const s of p.swaps) audit(`GEARSWAP container ${ref.toString(16)}: ${s.count} x ${s.edid || s.from.toString(16)} -> ${s.toEdid || s.to.toString(16)}`);
+    }
+    mp.set(ref, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
+  };
+  globalThis.__dboGearSwapContainer = (ref) => { try { sweepContainer(ref); } catch (e) { log('gearswap container failed', (ref >>> 0).toString(16), e.message); } };
   if (C.mode !== 'off') {
     every('gearSwap', C.intervalMs, () => { for (const a of onlineActors()) { try { sweep(a); } catch (e) { log('gearswap failed for', (a >>> 0).toString(16), e.message); } } });
   }
@@ -141,7 +167,7 @@ module.exports = (api) => {
     }, { admin: true, help: '[name]: what the steel-cap gear swap would take from a player' });
   }
   log(`gearswap: mode ${C.mode}, version ${C.version}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}`);
-  return { plan, sweep, busy };
+  return { plan, sweep, sweepContainer, busy };
 };
 module.exports.plan = plan;
 module.exports.wornIn = wornIn;
