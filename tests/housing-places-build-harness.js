@@ -31,6 +31,11 @@ const F1 = ref(0x200, WORLD, 'DOOR', 0x201), F2 = ref(0x201, D[0], 'DOOR', 0x200
 for (let i = 0; i < 5; i++) { ref(0x210 + 2 * i, D[i], 'DOOR', 0x211 + 2 * i); ref(0x211 + 2 * i, D[i + 1], 'DOOR', 0x210 + 2 * i); }
 // Staff's house
 const S1 = ref(0x300, WORLD, 'DOOR', 0x301), S2 = ref(0x301, '62131:BSHeartland.esm', 'DOOR', 0x300);
+// An interior two street doors open onto (review G): one is Tavia's (77), one nobody's; and one shared with staff (4)
+const SHARED = '67670:BSHeartland.esm', STAFFHALL = '67680:BSHeartland.esm';
+const T1 = ref(0x400, WORLD, 'DOOR', 0x401), T2 = ref(0x401, SHARED, 'DOOR', 0x400), U1 = ref(0x402, WORLD, 'DOOR', 0x403), U2 = ref(0x403, SHARED, 'DOOR', 0x402);
+const SHAREDBOX = ref(0x404, SHARED, 'CONT');
+const K1 = ref(0x410, WORLD, 'DOOR', 0x411), K2 = ref(0x411, STAFFHALL, 'DOOR', 0x410), V1 = ref(0x412, WORLD, 'DOOR', 0x413), V2 = ref(0x413, STAFFHALL, 'DOOR', 0x412);
 const byId = new Map(REFS.map((r) => [r.id, r]));
 const STEWARD = 0xff000041, NEWBIE = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004;
 const PROFILE = { [STEWARD]: 41, [NEWBIE]: 9, [STRANGER]: 51, [AKATOSH]: 4 };
@@ -119,6 +124,21 @@ try {
   sys = build('dryrun');
   request(sys, STEWARD, 'claim', E1);
   ok(rec(E1) && rec(E1).owner === 41 && !rec(E1).place && !rec(E2), 'dryrun: the claim builds no place and claims no other door');
+  // Review G: an interior another owner's street door also opens onto is nobody's place, whoever claims or receives it
+  sys = build('apply');
+  props.set(`${T1}:private.housing`, { owner: 77, ownerName: 'Tavia', name: null, locked: false, serial: 1, partner: T2, containers: [], issued: [] });
+  props.set(`${T2}:private.housing`, { primary: T1 });
+  sys.claimed.push(T1);
+  said = request(sys, STEWARD, 'claim', U1);
+  ok(rec(U1) && rec(U1).owner === 41 && !rec(U1).place && !/everything behind/.test(said), "claiming the other street door into Tavia's interior: a plain claim, no place", [rec(U1), said]);
+  request(sys, STEWARD, 'transfer', U1, { recipient: NEWBIE });
+  ok(rec(U1).owner === 9 && !rec(U1).place && sys.placeIndex(ctx).size === 0 && logs.some((l) => /builds no place: 67670.* also behind Tavia's door/.test(l)), '...handed over: still no place, and the log names whose door it is', logs.filter((l) => /builds no place/.test(l)));
+  ok(sys.onActivate(ctx, SHAREDBOX, STRANGER) === true, "...so the chest in the shared interior is nobody's to lock away");
+  props.set(`${K1}:private.housing`, { owner: 4, ownerName: 'Akatosh', name: null, locked: false, serial: 1, partner: K2, containers: [], issued: [] });
+  props.set(`${K2}:private.housing`, { primary: K1 });
+  sys.claimed.push(K1);
+  request(sys, STEWARD, 'claim', V1);
+  ok(rec(V1) && !rec(V1).place, "an interior a staff profile's door opens onto counts as another owner's too");
   // The tenancy grant builds the place too
   sys = build('apply');
   sys.exposeTenancy(ctx);

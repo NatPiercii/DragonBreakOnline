@@ -54,7 +54,9 @@ try {
   w.sys.dryRunPlaces({ svr: w.mp });
   const backups = fs.readdirSync(dir).filter((f) => /^housing-places-backup-.*\.json$/.test(f));
   ok(backups.length === 1, 'apply: one backup file', backups);
-  const b = backups.length ? JSON.parse(fs.readFileSync(path.join(dir, backups[0]), 'utf8')) : {};
+  const bfile = backups.length ? JSON.parse(fs.readFileSync(path.join(dir, backups[0]), 'utf8')) : {};
+  const b = bfile.records || {};
+  ok(bfile.version === 2 && Array.isArray(bfile.places) && bfile.places[0] && bfile.places[0].root === ROOT.toString(16) && bfile.places[0].owner === 60, '...a version 2 backup naming each place, its owner, members and entrances', bfile.places);
   ok(JSON.stringify(b[ROOT.toString(16)]) === before && b[PAIR.toString(16)] && b[CHEST.toString(16)] && !b[BARREL.toString(16)], '...holding the root and its members as they were, and nothing else', Object.keys(b));
   const root = w.get(ROOT), pair = w.get(PAIR), chest = w.get(CHEST), barrel = w.get(BARREL);
   ok(root.place && JSON.stringify(root.place.cells) === JSON.stringify([FORT]), 'the root gets its place', root.place);
@@ -113,7 +115,7 @@ try {
   ok(plan4.staffKept.length === 1 && plan4.staffKept[0].owner === 4 && plan4.staffKept[0].claims.length === 3 && /Davius Phink \/ Akatosh|Akatosh \/ Davius Phink/.test(plan4.staffKept[0].ownerName), '...and are listed as left as they are', plan4.staffKept);
   ok(w.logs.some((l) => /staff, left as they are: .*\(4\) 8062169, 808b4c7, 80b452a/.test(l)), '...under their own heading in the log', w.logs.filter((l) => /staff/.test(l)));
   const bk = fs.readdirSync(dir).filter((f) => /backup/.test(f));
-  ok(bk.length === 1 && !Object.keys(JSON.parse(fs.readFileSync(path.join(dir, bk[0]), 'utf8'))).some((k) => ['8062169', '808b4c7', '80b452a'].includes(k)), '...and are not even in the backup (nothing of theirs is touched)');
+  ok(bk.length === 1 && !Object.keys(JSON.parse(fs.readFileSync(path.join(dir, bk[0]), 'utf8')).records).some((k) => ['8062169', '808b4c7', '80b452a'].includes(k)), '...and are not even in the backup (nothing of theirs is touched)');
   fs.rmSync('gamemode-config.json');
 } finally {
   process.chdir(home);

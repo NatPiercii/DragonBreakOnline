@@ -75,6 +75,8 @@ const home = process.cwd();
 process.chdir(dir);
 const plan = () => JSON.parse(fs.readFileSync('housing-places-plan.json', 'utf8'));
 const backups = () => fs.readdirSync(dir).filter((f) => /^housing-places-backup-.*\.json$/.test(f));
+// Each scenario starts with no backup or marker left from the one before (two applies in one millisecond share a name)
+const clean = () => { for (const f of fs.readdirSync(dir)) if (/^housing-places-backup-/.test(f)) fs.rmSync(path.join(dir, f)); };
 try {
   fs.writeFileSync('tenancy.json', JSON.stringify({ listings: { [hx(S1)]: { door: hx(S1) } }, owed: [] }));
   // dryrun: the refined plan, nothing written
@@ -108,24 +110,78 @@ try {
   ok(rec(E1).keyAliases.includes('Key to the Shop Door') && !rec(E1).keyAliases.includes('Key to the Strongbox') && !rec(E1).keyAliases.some((a) => a.endsWith(`(${hx(BOX).toUpperCase()}-2)`)), "...the shop door's key names come over, the strongbox's do not (review F1)", rec(E1).keyAliases);
   ok(!rec(A1).place && !rec(B1).place && !rec(A1).memberOf, '...the shared interior: nothing applied to either owner');
   const files = backups();
-  const b = files.length === 1 ? JSON.parse(fs.readFileSync(files[0], 'utf8')) : {};
+  const b = files.length === 1 ? JSON.parse(fs.readFileSync(files[0], 'utf8')).records : {};
   ok([E1, I1, E2, I2, BOX, S1, S2].every((r) => Object.prototype.hasOwnProperty.call(b, hx(r))) && b[hx(E2)] === null && b[hx(I2)] === null, 'the backup holds every record apply writes, the joined back door and both halves of each pair included (review S3)', Object.keys(b));
   ok(JSON.stringify(b[hx(E1)]) === JSON.stringify(was[hx(E1)]) && JSON.stringify(b[hx(BOX)]) === JSON.stringify(was[hx(BOX)]), '...as they were before');
 
-  // restore
-  sys.placeRestore = files[0];
+  // restore (review R1): only the migration's own fields go; what happened since stands
+  // Since the apply: the house is handed to Elion (6) and re-keyed; the strongbox renamed
+  const r = rec(E1); r.owner = 6; r.ownerName = 'Elion'; r.serial = 5; r.issued = []; props.set(`${E1}:private.housing`, r);
+  const bx = rec(BOX); bx.owner = 6; bx.name = 'Elion Box'; props.set(`${BOX}:private.housing`, bx);
   sys.restorePlaces(ctx, files[0]);
   ok(!!rec(E1).place && logs.some((l) => /restore refused: set housingPlaceMigration/.test(l)), 'restore with apply still on is refused (the place stays)');
   sys.placeMigration = 'dryrun';
   sys.restorePlaces(ctx, files[0]);
-  ok(JSON.stringify(rec(E1)) === JSON.stringify(was[hx(E1)]) && JSON.stringify(rec(BOX)) === JSON.stringify(was[hx(BOX)]) && JSON.stringify(rec(S1)) === JSON.stringify(was[hx(S1)]), 'housingPlaceRestore: the root and members are as they were');
-  ok(rec(E2).owner === 0 && !rec(E2).memberOf && rec(I2).owner === 0 && sys.read(ctx, E2).owner === 0, '...the back door the migration claimed is an ownerless stub (unclaimed)', [rec(E2), rec(I2)]);
-  ok(fs.existsSync(files[0] + '.restored'), '...and the backup is marked restored');
+  const root = rec(E1);
+  ok(root.owner === 6 && root.serial === 5 && root.issued.length === 0 && !root.place && !root.keyAliases && !root.assigned, 'the buyer keeps the house at its new serial; only the place fields are gone', root);
+  ok(sys.hasAccessWith(ctx, E1, sys.read(ctx, E1), { profileId: 0, admin: false, ranks: [], keys: new Set(['Key to the Valerio Residence']) }) === false, "...so the key the re-key retired stays dead");
+  ok(rec(BOX).owner === 6 && rec(BOX).name === 'Elion Box' && !rec(BOX).memberOf && JSON.stringify(rec(S1).issued) === JSON.stringify(['Key to the Shop Door']) && !rec(S1).memberOf, 'members keep what happened since; memberOf goes', [rec(BOX), rec(S1)]);
+  ok(rec(E2).owner === 0 && !rec(E2).memberOf && rec(E2).serial > 1, "...the joined back door, still Augustine's and the root's, is unclaimed again with its serial moved on", rec(E2));
+  const marker = JSON.parse(fs.readFileSync(files[0] + '.restored', 'utf8'));
+  ok(marker.state === 'done' && marker.changed.some((c) => c.ref === hx(E1) && c.was.owner === 2 && c.now.owner === 6 && c.now.serial === 5) && marker.changed.some((c) => c.ref === hx(BOX)), 'every ref whose owner or serial changed since the backup is listed in the marker and the log', marker.changed);
+  ok(logs.some((l) => new RegExp(`${hx(E1)} changed since the backup \\(owner 2 -> 6, serial 2 -> 5\\)`).test(l)), '...the log too', logs.filter((l) => /restore/.test(l)));
   const n = logs.length;
   sys.restorePlaces(ctx, files[0]);
   ok(logs.slice(n).some((l) => /was restored already/.test(l)), '...so a second boot does not restore it again');
   sys.restorePlaces(ctx, '../etc/passwd');
   ok(logs.some((l) => /is not a migration backup's name/.test(l)), 'only a migration backup by name is restored');
+
+  // A joined entrance still the place's: back to a stub, its far half pointing at it again
+  clean();
+  sys = build('apply');
+  sys.dryRunPlaces(ctx, false);
+  const f2 = backups().filter((f) => !fs.existsSync(f + '.restored'));
+  sys.placeMigration = 'dryrun';
+  sys.restorePlaces(ctx, f2[0]);
+  ok(rec(E2).owner === 0 && rec(E2).partner === I2 && rec(I2).primary === E2 && sys.primaryOf(ctx, I2) === E2, 'a joined entrance still the place\'s goes back unclaimed, the pair whole (its far half points at it)', [rec(E2), rec(I2)]);
+  ok(rec(E1).owner === 2 && !rec(E1).place && !rec(BOX).memberOf, '...and the place is undone');
+
+  // A joined entrance that changed hands since stays with who holds it, listed
+  clean();
+  sys = build('apply');
+  sys.dryRunPlaces(ctx, false);
+  const f3 = backups().filter((f) => !fs.existsSync(f + '.restored'));
+  const e = rec(E2); e.owner = 9; e.ownerName = 'Tavia'; delete e.memberOf; props.set(`${E2}:private.housing`, e);
+  sys.placeMigration = 'dryrun';
+  sys.restorePlaces(ctx, f3[0]);
+  ok(rec(E2).owner === 9 && JSON.parse(fs.readFileSync(f3[0] + '.restored', 'utf8')).changed.some((c) => c.ref === hx(E2) && c.now.owner === 9), "a joined entrance someone else holds now is left with them, and listed", rec(E2));
+
+  // Fail closed: the marker cannot be written, so nothing is restored, now or next boot
+  clean();
+  sys = build('apply');
+  sys.dryRunPlaces(ctx, false);
+  const f4 = backups().filter((f) => !fs.existsSync(f + '.restored'));
+  sys.placeMigration = 'dryrun';
+  const realWrite = fs.writeFileSync;
+  fs.writeFileSync = (f, ...rest) => { if (/\.restored$/.test(String(f))) throw new Error('read-only'); return realWrite(f, ...rest); };
+  try {
+    sys.restorePlaces(ctx, f4[0]);
+    ok(!!rec(E1).place && rec(BOX).memberOf === E1 && logs.some((l) => /PLACE RESTORE NOT DONE: the marker .* could not be written/.test(l)), 'a marker that cannot be written: loudly logged, nothing restored', logs.slice(-1));
+    sys.restorePlaces(ctx, f4[0]);
+    ok(!!rec(E1).place, '...and the next boot restores nothing either while it cannot be written');
+  } finally { fs.writeFileSync = realWrite; }
+  // A staff profile's street door into the same interior (staff houses are left out of the plan, review round 2)
+  clean();
+  fs.writeFileSync('gamemode-config.json', JSON.stringify({ housingPlaces: { staffProfiles: [4] } }));
+  sys = build('apply');
+  const X1 = H(0x130), X2 = H(0x131);
+  REFS.push({ id: X1, cell: WORLD, type: 'DOOR', partner: X2 }, { id: X2, cell: HOUSE, type: 'DOOR', partner: X1 });
+  byId.set(X1, REFS[REFS.length - 2]); byId.set(X2, REFS[REFS.length - 1]);
+  put(X1, base({ owner: 4, ownerName: 'Akatosh', partner: X2 }));
+  sys.claimed.push(X1);
+  sys.dryRunPlaces(ctx, false);
+  const ds = plan().details.find((x) => x.root === E1);
+  ok(ds && /shared with another owner/.test(ds.notApplied) && ds.skippedCells.some((c) => /Akatosh's door/.test(c.why)) && !rec(E1).place, "a house whose interior a staff door also opens onto is not applied, and the plan says whose door", ds);
 } finally {
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });
