@@ -28,7 +28,7 @@ module.exports = (api) => {
   const fs = require('fs');
   const path = require('path');
   const { mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin,
-    findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf, cfg, hasUiCap } = api;
+    findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf, cfg, hasUiCap, sourceResistsOf } = api;
   // The shared rules for client-judged mini-games, beside this file (reloaded with it)
   const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
   delete require.cache[MINIGAMES_JS];
@@ -58,10 +58,21 @@ module.exports = (api) => {
     // default time scale a game day is 4 real hours, so 3 days is 12 hours of play
     incubationDays: 3,
     sunPerStage: 0.006, sunFloor: 0.05,
-    fireWeaknessPerStage: 0.25, silverWeakness: 0.5,
+    // A vampire's fire weakness grows with the stage, as vanilla's AbVampire01b-04b (AbWeaknessFireConstant 25/50/75/100%),
+    // half for a pure-blood. The server's damage formula reads no resistance (TES5DamageFormula reads DamageResist only),
+    // so it is made here; the vampire races themselves carry no fire weakness.
+    fireWeaknessPerStage: 0.25,
+    // Nate, 4 Oct: a silver weapon and poison strike a werewolf 25% harder, and only in beast form (silver was 50% in
+    // every form before). 0 turns either off
+    silverWeakness: 0.25, poisonWeakness: 0.25,
     // A silver weapon strikes a vampire this much harder (#bugs, 1 Oct: vampires could not wear silver, yet it did them
-    // no harm). Flat, half the werewolf's, since fire is the vampire's real bane; 0 turns it off
+    // no harm). Flat, not by stage, since fire is the vampire's real bane; 0 turns it off
     vampireSilverWeakness: 0.25,
+    // Silver beyond the keyword: form descs ("10aa19:Skyrim.esm") of weapons that are silver but lack WeapMaterialSilver.
+    // The keyword covers all 41 silver weapons of the 105-plugin load order (vanilla, Dawnguard, Dragonborn, Beyond Skyrim,
+    // Immersive Weapons, Sentinel, WindhelmSSE, DragonBreak.esp; scan 4 Oct). Only IWSilverHawkBow is named silver
+    // without it, and it is left out until someone confirms the bow is silver
+    silverWeapons: [],
     forcedChangeChance: 0.10, beastChangesPerDay: 1,
     beastFeedSeconds: 30, corpseFreshMinutes: 10,
     // A restrained living player gives blood this often, in game days
@@ -156,7 +167,15 @@ module.exports = (api) => {
   const hasKeyword = (id, kw) => !!kw && keywordsOf(id).includes(kw);
   const effectsOf = (id) => fieldIds(recordOf(id), 'EFID').map((e) => globalOf(id, e));
   const isFireSource = (id) => effectsOf(id).some((e) => hasKeyword(e, KW.fire));
-  const isSilverSource = (id) => hasKeyword(id, KW.silver);
+  const SILVER_EXTRA = new Set((Array.isArray(C.silverWeapons) ? C.silverWeapons : []).map((d) => idOf(String(d))).filter(Boolean));
+  const isSilverSource = (id) => SILVER_EXTRA.has(Number(id) >>> 0) || hasKeyword(id, KW.silver);
+  // Poison as the racial resistances read it (gamemode.js sourceResistsOf, racial.js): a spell whose effect PoisonResist
+  // resists (MGEF DATA resist value 40, libespm ActorValue.h): spider, chaurus and lurker spit, poison runes and cloaks,
+  // Beyond Skyrim's toxic spells. A poison on a weapon is never seen: the client sends only weapon, spell and scroll hits
+  // (hitService.ts), so the blow arrives as the weapon, and the server's weapon formula reads the weapon alone. The
+  // poison's own harm is applied by the attacker's game to its copy of the target, which the server never judges.
+  const POISON_RESIST = 40;
+  const isPoisonSource = (id) => { try { return typeof sourceResistsOf === 'function' && sourceResistsOf(Number(id) >>> 0).has(POISON_RESIST); } catch (e) { return false; } };
   // Eating an ingredient applies only its first effect, as in the base game, so Mudcrab Chitin (Cure Disease second) is no
   // cure (#bugs, 3 Oct: carriers lost the fever to ingredients and food, logged as a potion); a potion or a meal applies all
   const cureTakenAs = (id) => {
@@ -396,7 +415,7 @@ module.exports = (api) => {
     id = Number(id) >>> 0;
     if (silverCache.has(id)) return silverCache.get(id);
     const r = recordOf(id);
-    const v = !!r && (hasKeyword(id, KW.silver) || /silver/i.test(String(r.editorId || '')));
+    const v = !!r && (isSilverSource(id) || /silver/i.test(String(r.editorId || '')));
     if (silverCache.size > 4096) silverCache.clear();
     silverCache.set(id, v); return v;
   };
@@ -1003,7 +1022,10 @@ module.exports = (api) => {
   };
   const beastForm = (a) => { try { const b = mp.get(a, 'private.beast'); return b && b.form ? b.form : null; } catch (e) { return null; } };
 
-  // Extra damage multiplier for the target of a hit (fire and silver on vampires, silver on werewolves)
+  // Extra damage multiplier for the target of a hit: fire and silver on a vampire (any form), silver and poison on a
+  // werewolf in beast form (Nate, 4 Oct). Players only. gamemode.js applies it after the engine's hit, on what landed,
+  // apart from the target side's 75% reduction cap (racial.js reductionCap): a weakness is never a reduction, so it is
+  // never capped and never eats into the cap; it multiplies whatever Defense, a blessing and the race let through.
   const MAGIC_TYPES = new Set(['SPEL', 'ENCH', 'SCRL', 'ALCH', 'INGR', 'EXPL', 'HAZD']);
   const clawLogged = new Set();
   // A beast holds no weapon, so any non-magic hit it lands is its claws
@@ -1021,10 +1043,17 @@ module.exports = (api) => {
     const beast = beastMeleeMult(agg, src);
     const s = isPlayer(tgt) ? stateOf(tgt) : null;
     if (!s || !s.kind) return beast;
-    if (s.kind === 'vampire' && isFireSource(src)) return beast * (1 + C.fireWeaknessPerStage * Math.max(1, s.stage) * (s.pure ? 0.5 : 1));
-    if (s.kind === 'werewolf' && isSilverSource(src)) return beast * (1 + C.silverWeakness);
-    const vSilver = Math.max(0, Number(C.vampireSilverWeakness) || 0);
-    if (s.kind === 'vampire' && vSilver > 0 && isSilverSource(src)) return beast * (1 + vSilver);
+    const share = (v) => Math.max(0, Number(v) || 0);
+    if (s.kind === 'vampire') {
+      if (isFireSource(src)) return beast * (1 + share(C.fireWeaknessPerStage) * Math.max(1, s.stage) * (s.pure ? 0.5 : 1));
+      if (share(C.vampireSilverWeakness) > 0 && isSilverSource(src)) return beast * (1 + share(C.vampireSilverWeakness));
+      return beast;
+    }
+    // The werewolf's weaknesses are the beast's: in human form a werewolf takes silver and poison as a mortal does
+    if (s.kind === 'werewolf' && beastForm(tgt) === 'werewolf') {
+      if (share(C.silverWeakness) > 0 && isSilverSource(src)) return beast * (1 + share(C.silverWeakness));
+      if (share(C.poisonWeakness) > 0 && isPoisonSource(src)) return beast * (1 + share(C.poisonWeakness));
+    }
     return beast;
   };
   // An accepted hit may carry a curse
@@ -1545,7 +1574,10 @@ module.exports = (api) => {
       });
     }
     rows.push(firstMealRow(a, s, 'In the beast, activate a fresh body, beast or person, to feed for the first time.'));
-    rows.push({ label: 'Silver', value: 'Burns you', hint: `Silver strikes you ${Math.round(C.silverWeakness * 100)}% harder, and you can neither wear it nor wield it.` });
+    const wSilver = Math.round(Math.max(0, Number(C.silverWeakness) || 0) * 100), wPoison = Math.round(Math.max(0, Number(C.poisonWeakness) || 0) * 100);
+    rows.push({ label: 'Silver', value: wSilver > 0 ? `${wSilver}% worse in the beast` : 'Shunned',
+      hint: `${wSilver > 0 ? `In beast form silver strikes you ${wSilver}% harder. You` : 'You'} can neither wear it nor wield it.` });
+    if (wPoison > 0) rows.push({ label: 'Poison', value: `${wPoison}% worse in the beast`, hint: `In beast form poison spells and venom strike you ${wPoison}% harder.` });
     const feedSecs = typeof globalThis.__dboHuntFeedSeconds === 'function' ? Number(globalThis.__dboHuntFeedSeconds(a)) || C.beastFeedSeconds : C.beastFeedSeconds;
     const rank = hunt ? hunt.ranks[hunt.rank] : null;
     return {

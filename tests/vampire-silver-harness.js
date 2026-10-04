@@ -1,7 +1,8 @@
 // Silver on a vampire (#bugs, 1 Oct): a vampire can neither wear nor wield silver, yet a silver sword struck one no
 // harder than a steel sword of the same damage. supernatural.js gave the silver extra only to werewolves; the server's
 // damage formula runs no perks, so the game's own silver-against-undead bonus never applies. A silver weapon now strikes
-// a player vampire vampireSilverWeakness (default 0.25) harder; the werewolf's silver and the vampire's fire are unchanged.
+// a player vampire vampireSilverWeakness (default 0.25) harder; the vampire's fire is unchanged. Since 4 Oct (Nate) the
+// werewolf's silver is 25% and only in beast form (supernatural-weakness-harness.js covers it in full).
 //   node tests/vampire-silver-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -37,6 +38,7 @@ const VAMP = 0x71, PURE = 0x72, WOLF = 0x73, MORTAL = 0x74, ATTACKER = 0x75;
 store.set(`${VAMP}|private.supernatural`, { kind: 'vampire', stage: 2, lastFed: 0 });
 store.set(`${PURE}|private.supernatural`, { kind: 'vampire', stage: 4, pure: true, lastFed: 0 });
 store.set(`${WOLF}|private.supernatural`, { kind: 'werewolf' });
+store.set(`${WOLF}|private.beast`, { form: 'werewolf' });
 const cfg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'gamemode-config.json'), 'utf8'));
 const load = (superCfg) => {
   delete globalThis.__dboSuperState;
@@ -54,15 +56,15 @@ const mult = (tgt, src) => globalThis.__dboSuperDamageMult(ATTACKER, tgt, src);
 
 // As shipped (gamemode-config.json's supernatural block)
 load(cfg.supernatural || {});
-const wolfSilver = 1 + 0.5;
+const wolfSilver = 1 + 0.25;   // a werewolf in beast form
 const v = mult(VAMP, SILVER_SWORD);
 ok(v > 1, 'a silver sword strikes a vampire harder', v);
 ok(near(v, 1.25), '...by the default quarter', v);
-ok(v < wolfSilver, '...less than it strikes a werewolf', v);
+ok(near(v, wolfSilver), '...as hard as it strikes a werewolf in beast form', v);
 ok(near(mult(PURE, SILVER_SWORD), 1.25), 'a pure-blood the same (flat, not by stage)', mult(PURE, SILVER_SWORD));
 ok(mult(VAMP, STEEL_SWORD) === 1, 'a steel sword of the same damage does not', mult(VAMP, STEEL_SWORD));
 ok(mult(MORTAL, SILVER_SWORD) === 1, 'a mortal takes no silver extra', mult(MORTAL, SILVER_SWORD));
-ok(near(mult(WOLF, SILVER_SWORD), wolfSilver), "a werewolf's silver weakness is unchanged", mult(WOLF, SILVER_SWORD));
+ok(near(mult(WOLF, SILVER_SWORD), wolfSilver), "a werewolf in beast form takes the beast's silver weakness", mult(WOLF, SILVER_SWORD));
 ok(near(mult(VAMP, FIREBOLT), 1 + 0.25 * 2), "a vampire's fire weakness is unchanged (stage 2)", mult(VAMP, FIREBOLT));
 ok(mult(WOLF, STEEL_SWORD) === 1, 'steel does nothing extra to a werewolf', mult(WOLF, STEEL_SWORD));
 // A vampire still cannot strike with silver (the wrapper refuses the hit), and mortals still can

@@ -160,6 +160,12 @@
           "Prayer cures the fever only at a shrine of the Divines. Praying to a Daedric Prince or to one of the older faiths, or praying away from a shrine, no longer does.",
           "Before such a prayer cures you, the shrine warns you. Pray again within a minute to go on."
         ]
+      },
+      {
+        "heading": "Weaknesses",
+        "items": [
+          "Vampires take more harm from silver and fire, and werewolves in beast form from silver and poison."
+        ]
       }
     ]
   },

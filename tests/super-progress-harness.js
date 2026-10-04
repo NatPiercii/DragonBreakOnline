@@ -76,7 +76,9 @@ hunger = 90; v = globalThis.__dboSuperProgress(WOLF);
 ok(row(v, 'The beast within').value === 'Straining' && /most under a full moon/.test(row(v, 'The beast within').hint), 'starving, straining; the full moon is named', row(v, 'The beast within'));
 globalThis.__dboClock.isFullMoon = () => true; v = globalThis.__dboSuperProgress(WOLF); globalThis.__dboClock.isFullMoon = () => false;
 ok(/the moon is full/.test(row(v, 'The beast within').hint), '...and said when it is full now', row(v, 'The beast within'));
-ok(row(v, 'Silver') && /50% harder/.test(row(v, 'Silver').hint), 'silver burns them', row(v, 'Silver'));
+// Nate, 4 Oct: silver and poison 25% each, in beast form only
+ok(row(v, 'Silver') && /In beast form silver strikes you 25% harder/.test(row(v, 'Silver').hint), 'silver burns the beast', row(v, 'Silver'));
+ok(row(v, 'Poison') && /25% harder/.test(row(v, 'Poison').hint), 'and so does poison', row(v, 'Poison'));
 store.set(`${WOLF}|private.beast`, { form: 'werewolf', until: now + 42000 });
 v = globalThis.__dboSuperProgress(WOLF);
 ok(row(v, 'In the beast') && row(v, 'In the beast').value === '42 s left', 'in beast form: the time left', row(v, 'In the beast'));
