@@ -29,19 +29,24 @@ module.exports = (api) => {
   const u32 = (f, off) => (f && f.data && f.data.byteLength >= off + 4 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(off, true) : 0);
   const globalOf = (lr, local) => { try { return local ? lr.toGlobalRecordId(local) >>> 0 : 0; } catch (e) { return 0; } };
 
-  // What the recipe makes and its tier by its ingredients (CNTO: the item's record-local id at 0, the count at 4)
+  // What the recipe makes, its tier by its ingredients, and the weapons and armour it takes apart (CNTO: the item's
+  // record-local id at 0, the count at 4)
   const recipeOf = (recipeId) => {
     const id = Number(recipeId) >>> 0;
     if (recipeCache.has(id)) return recipeCache.get(id);
     const lr = id ? recordOf(id) : null;
     // An unreadable recipe has no tier, so it keeps the skill's default rate
     let tier = lr ? 1 : 0;
+    const consumes = [];
     for (const f of fieldsOf(lr, 'CNTO')) {
-      const r = recordOf(globalOf(lr, u32(f, 0)));
+      const item = globalOf(lr, u32(f, 0));
+      const r = recordOf(item);
       const t = TIERS[String((r && r.record.editorId) || '').toLowerCase()];
       if (t > tier) tier = t;
+      const type = String((r && r.record.type) || '');
+      if (item && (type === 'WEAP' || type === 'ARMO')) consumes.push(item);
     }
-    const out = { product: globalOf(lr, u32(fieldsOf(lr, 'CNAM')[0], 0)), tier };
+    const out = { product: globalOf(lr, u32(fieldsOf(lr, 'CNAM')[0], 0)), tier, consumes };
     recipeCache.set(id, out);
     return out;
   };
@@ -66,14 +71,18 @@ module.exports = (api) => {
         if (tier >= 1 && num(spec.craftByTier[tier - 1]) !== undefined) rate = spec.craftByTier[tier - 1];
       }
     }
+    // A product is matched, not a recipe: rotating through different items still works, and the bucket bounds that
     if (kind === 'craft' && LOOP.enabled && detail && detail.recipeId) {
       const now = Date.now();
-      const product = recipeOf(detail.recipeId).product;
+      const { product, consumes } = recipeOf(detail.recipeId);
       if (product && brokeDownRecently(actorId, product, now)) {
         const k = loopKey(actorId, product);
         if (!(now - (S.told.get(k) || 0) < 60 * 60000)) { S.told.set(k, now); log(`skillRates: ${(actorId >>> 0).toString(16)} crafted ${product.toString(16)} after breaking one down; ${skillId} at x${num(LOOP.rate) ?? 0} for ${LOOP.windowMinutes} min`); }
         rate = num(LOOP.rate) !== undefined ? LOOP.rate : 0;
       }
+      // A smelter recipe that takes a weapon or armour apart (Immersive Weapons' IWBreakdown*, Immersive Armors' IAB*) is a
+      // breakdown too, as salvage.js's are
+      for (const item of consumes) noteBreakdown(actorId, item);
     }
     return rate;
   };

@@ -36,19 +36,23 @@ ok('salvage.js tells it about each breakdown', /broke down \$\{name\}[^\n]*\n\s*
 const world = new Map();
 const u8 = (n, fill) => { const b = new Uint8Array(n); fill(new DataView(b.buffer)); return b; };
 const ITEM = { IngotIron: 0x5ace4, LeatherStrips: 0x800e4, IngotSteel: 0x5ace5, OreIron: 0x71cf3, IngotEbony: 0x5ad9d, DaedraHeart: 0x3ad5b, IronDagger: 0x1397e, SteelSword: 0x13989, Horseshoe: 0x0cc2a1 };
-for (const [edid, id] of Object.entries(ITEM)) world.set(id, { record: { type: 'MISC', editorId: edid, fields: [] } });
+const WEAPONS = new Set(['IronDagger', 'SteelSword', 'IronTanto']);
+ITEM.IronTanto = 0x2701f2;
+for (const [edid, id] of Object.entries(ITEM)) world.set(id, { record: { type: WEAPONS.has(edid) ? 'WEAP' : 'MISC', editorId: edid, fields: [] } });
 // a recipe's local ids are the global ids here, its toGlobalRecordId the identity
 const recipe = (id, product, parts) => world.set(id, {
   record: { type: 'COBJ', editorId: `R${id.toString(16)}`, fields: parts.map((p) => ({ type: 'CNTO', data: u8(8, (v) => { v.setUint32(0, ITEM[p], true); v.setInt32(4, 1, true); }) }))
     .concat([{ type: 'CNAM', data: u8(4, (v) => v.setUint32(0, ITEM[product], true)) }]) },
   toGlobalRecordId: (local) => local,
 });
-const DAGGER = 0x100, SWORD = 0x101, SMELT = 0x102, DAEDRIC = 0x103, SHOE = 0x104;
+const DAGGER = 0x100, SWORD = 0x101, SMELT = 0x102, DAEDRIC = 0x103, SHOE = 0x104, TANTO = 0x105, TANTO_APART = 0x106;
 recipe(DAGGER, 'IronDagger', ['IngotIron', 'LeatherStrips']);
 recipe(SWORD, 'SteelSword', ['IngotSteel', 'IngotIron', 'LeatherStrips']);
 recipe(SMELT, 'IngotIron', ['OreIron']);
 recipe(DAEDRIC, 'IronDagger', ['IngotEbony', 'DaedraHeart']);
 recipe(SHOE, 'Horseshoe', ['IngotIron']);
+recipe(TANTO, 'IronTanto', ['IngotIron', 'LeatherStrips']);          // IWRecipeIronTanto at the forge
+recipe(TANTO_APART, 'IngotIron', ['IronTanto']);                    // IWBreakdownIronTanto at the smelter
 const recordOf = (id) => world.get(id >>> 0) || null;
 const fieldsOf = (lr, type) => ((lr && lr.record && lr.record.fields) || []).filter((f) => f.type === type && f.data instanceof Uint8Array);
 
@@ -122,6 +126,12 @@ ok('guard: a different product is untouched', craft(r, SHOE) === 2.5 && craft(r,
 ok('guard: another character is untouched', r.rateFor(B, 'blacksmith', 'craft', { recipeId: DAGGER }) === 2.5);
 ok('guard: any recipe making that product counts', craft(r, DAEDRIC) === 0);
 ok('guard: a non-craft act is untouched', r.rateFor(A, 'miner', 'mine', {}) === 2);
+// The smelter's own breakdown recipes (IWBreakdown*, IAB*) take an item apart without salvage.js
+ok('guard: forging an iron tanto is x2.5', craft(r, TANTO) === 2.5);
+ok('guard: smelting it back (IWBreakdownIronTanto) is a tier 1 craft, x2.5', craft(r, TANTO_APART) === 2.5);
+ok('guard: ...and remaking the tanto within the hour is worth nothing', craft(r, TANTO) === 0);
+ok('guard: ...for that character only', r.rateFor(B, 'blacksmith', 'craft', { recipeId: TANTO }) === 2.5);
+ok('guard: the breakdown recipe lists what it takes apart', JSON.stringify(r.recipeOf(TANTO_APART).consumes) === JSON.stringify([ITEM.IronTanto]) && r.recipeOf(TANTO).consumes.length === 0);
 clock += 59 * 60000;
 ok('guard: still within the hour', craft(r, DAGGER) === 0);
 const kept = load(GUARD);
@@ -136,6 +146,8 @@ ok('guard: ...for its own window (30 min)', r.rateFor(B, 'blacksmith', 'craft', 
 globalThis.__dboSkillRates = undefined;
 r = load(PROPOSAL);
 r.noteBreakdown(B, ITEM.Horseshoe);
+r.rateFor(B, 'blacksmith', 'craft', { recipeId: TANTO_APART });
+ok('guard off: a smelter breakdown is not recorded either', !globalThis.__dboSkillRates.brokeDown.has(`${B >>> 0}:${ITEM.IronTanto}`));
 ok('guard off: a breakdown is not even recorded', !globalThis.__dboSkillRates.brokeDown.has(`${B >>> 0}:${ITEM.Horseshoe}`));
 
 // ---- a config that is missing or broken -------------------------------------------------------------------------------
