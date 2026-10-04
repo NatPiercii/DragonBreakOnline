@@ -22,9 +22,7 @@
         "heading": "Magic",
         "items": [
           "The Magic tab shows your five schools of magic with their level and rank and which tomes your rank lets you read, your prepared spells, every spell you know, and a few tomes to look for next.",
-          "You can pick a school's first spell here too, anywhere outside a fight. Prepared spells are still changed at a Scholars' Ledger.",
-          "Frost Crag Spire: you can now learn spells from tomes in its study upstairs, beside the Scholars' Ledger and the Class Lecterns, as well as at the Study Magic shelf by the alchemy table.",
-          "Reading a tome too far from a study spot now tells you how far away the nearest one in that place is."
+          "You can pick a school's first spell here too, anywhere outside a fight. Prepared spells are still changed at a Scholars' Ledger."
         ]
       },
       {
@@ -131,6 +129,13 @@
         "items": [
           "Oakflesh, Stoneflesh, Ironflesh and Ebonyflesh now really protect you. While one lasts, the server counts its armour (40, 60, 80 or 100) against weapon and unarmed hits, on top of what you wear.",
           "A new Flesh spell replaces the one before it; they don't stack."
+        ]
+      },
+      {
+        "heading": "Studying tomes",
+        "items": [
+          "Frost Crag Spire: you can now learn spells from tomes in its study upstairs, beside the Scholars' Ledger and the Class Lecterns, as well as at the Study Magic shelf by the alchemy table.",
+          "Reading a tome too far from a study spot now tells you how far away the nearest one in that place is."
         ]
       }
     ]
