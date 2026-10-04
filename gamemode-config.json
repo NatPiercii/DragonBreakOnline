@@ -847,5 +847,9 @@
  "housingPlaces": {
   "_comment": "Places (N3, fork housingSystem.ts): staff profiles whose claims the place migration leaves exactly as they are and the one-place cap never counts (Nate, 3 Oct: storage lent to players). Read when the migration plan runs; no restart needed.",
   "staffProfiles": [4]
+ },
+ "hud": {
+  "_comment": "The HUD panel (dboHud, gamemode.js pushHud): gold hides the gold row (Nate, 4 Oct: \"I want it gone, it makes it look convoluted\"); vitals and watermark as before. Hot reload.",
+  "gold": false
  }
 }

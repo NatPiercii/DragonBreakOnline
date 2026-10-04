@@ -100,5 +100,15 @@ else {
   check('the hide key\'s flag is window.__dboChatHidden with the dbo:chatHidden event', /window\.__dboChatHidden/.test(chat) && /const HIDDEN_EVENT = 'dbo:chatHidden'/.test(chat));
 }
 
+// The status panel (hunger, voice) fades with the bars (Nate, 4 Oct: "fade out when inactive"; fork client-hud-fade).
+// A client from before it has no cornerShown and skips.
+if (typeof H.cornerShown === 'function') {
+  const c = (o, talking, ms, stage) => H.cornerShown(Object.assign({}, H.UI_DEFAULTS, o), talking, ms, stage);
+  check('the status panel fades with the bars: shown just after a change, gone after vitalsFadeSeconds', c({}, false, 1000, 'sated') === true && c({}, false, 6000, 'sated') === false);
+  check('...but stays while talking, and while Hungry or Starving', c({}, true, 60000, 'sated') && c({}, false, 60000, 'hungry') && c({}, false, 60000, 'starving') && !c({}, false, 60000, 'peckish'));
+  check('...Always keeps it; Hidden shows it only while talking', c({ vitals: 'always' }, false, 60000, 'sated') && !c({ vitals: 'hidden' }, false, 1000, 'hungry') && c({ vitals: 'hidden' }, true, 60000, 'sated'));
+  check('...and follows the fade seconds chosen', c({ vitalsFadeSeconds: 10 }, false, 8000, 'sated') === true);
+} else console.log('ok   (this client has no status-panel fade: its checks skipped)');
+
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);
