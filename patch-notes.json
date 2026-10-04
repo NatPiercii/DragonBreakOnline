@@ -1,7 +1,7 @@
 [
   {
     "title": "Call a GM from the game",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -17,7 +17,7 @@
   },
   {
     "title": "Fixes",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -31,7 +31,7 @@
   },
   {
     "title": "A cleaner HUD",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
