@@ -137,6 +137,32 @@ ok('...the saved stamps follow the edit', fileEntry('county-bruma', LEAD).title 
 load(false);
 ok('...and a reload leaves the roster as the edit left it', entry('county-bruma', LEAD).rank === capRank && !logs.some((l) => /keeps the title/.test(l)), [entry('county-bruma', LEAD), logs]);
 
+// An unstamped entry in a faction with a guild-overrides.json override was indexed against the override (R-steward)
+{
+  writeDefs(DEFS);
+  const fg = DEFS.factions.find((f) => f.id === 'fighters-guild');
+  const base = (fg.ranks || DEFS.templates[fg.template]).map((r) => ({ title: r.title, role: r.role }));
+  const A = 0x31, B = 0x32, C = 0x33;
+  const run = (label, ovr, roster, expect) => {
+    fs.writeFileSync(path.join(dir, 'guild-overrides.json'), JSON.stringify({ 'fighters-guild': { ranks: ovr } }));
+    fs.writeFileSync(GFILE, JSON.stringify({ 'fighters-guild': roster }));
+    load(true);
+    const got = Object.fromEntries(Object.keys(roster).map((k) => [k, entry('fighters-guild', Number(k)).rank]));
+    ok(label, JSON.stringify(got) === JSON.stringify(expect), { got, expect });
+    load(true);
+    const again = Object.fromEntries(Object.keys(roster).map((k) => [k, entry('fighters-guild', Number(k)).rank]));
+    ok(`${label}: a second load moves nobody`, JSON.stringify(again) === JSON.stringify(expect), again);
+    ok(`${label}: the stamps name the override's titles`, Object.keys(roster).every((k) => fileEntry('fighters-guild', Number(k)).title === ovr[expect[k]].title));
+  };
+  const renamed = base.map((r, i) => (i === 2 ? { title: 'Shield-Brother', role: r.role } : r));
+  run('an override renaming a title: unstamped holders keep their index (and the new title)', renamed,
+    { [A]: { rank: 2, name: 'A', tag: 'AAAA', since: 1 }, [B]: { rank: base.length - 1, name: 'B', tag: 'BBBB', since: 2 } }, { [A]: 2, [B]: base.length - 1 });
+  const swapped = base.slice(); [swapped[1], swapped[2]] = [swapped[2], swapped[1]];
+  run('an override swapping two ranks: unstamped holders stay on the override\'s index', swapped,
+    { [A]: { rank: 1, name: 'A', tag: 'AAAA', since: 1 }, [B]: { rank: 2, name: 'B', tag: 'BBBB', since: 2 }, [C]: { rank: 0, name: 'C', tag: 'CCCC', since: 3 } }, { [A]: 1, [B]: 2, [C]: 0 });
+  fs.unlinkSync(path.join(dir, 'guild-overrides.json'));
+}
+
 // Nothing of "added" reaches a payload
 writeDefs(DEFS);
 delete require.cache[GUILDS]; delete globalThis.__dboGuildState;

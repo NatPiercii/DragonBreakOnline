@@ -79,6 +79,8 @@ module.exports = (api) => {
     const bad = ranksProblem(ranks);
     if (bad) { log(`guild-overrides.json: ${fid} kept its own ranks (${bad})`); continue; }
     f.ranks = ranks;
+    // An override was written with the roster remapped to it, so an unstamped entry of this faction is indexed against it
+    BEFORE_STAMPS.set(fid, ranks.map((r) => r.title));
   }
   const saveOverrides = () => { fs.writeFileSync(OVR_PATH + '.tmp', JSON.stringify(OVR, null, 1)); fs.renameSync(OVR_PATH + '.tmp', OVR_PATH); };
 
@@ -97,6 +99,8 @@ module.exports = (api) => {
   // with that title, or to the lowest rank when the title is gone. An entry with no stamp was written before stamping
   // began, against the defs without their "added" ranks, and is mapped from there. Loading twice changes nothing, and a
   // guilds.json restored from before or after stamping comes out the same.
+  // Rollback: guilds.js or guild-defs.json rolled back alone reads the stamped, remapped indexes against the old list, so
+  // restore the guilds.json saved before this shipped with them (the stamps are ignored by older code).
   const lower = (t) => String(t || '').toLowerCase();
   const nthOf = (titles, i) => titles.slice(0, i).filter((t) => lower(t) === lower(titles[i])).length;
   const indexOfNth = (titles, title, nth) => {
