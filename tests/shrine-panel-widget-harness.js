@@ -99,7 +99,7 @@ check('an answer from the server shows under the choice', /Arkay has no ear.*Lea
 check('a success shows as one', /shrine__result--ok/.test(html(Object.assign({}, neither, { result: 'The black soul gem drinks the curse from you. You are mortal again.', resultKind: 'ok' }))));
 t = text(html(oldClient));
 check('a client that cannot judge its own strikes: the Embrace in a quiet line, closed until it updates, no rite button',
-  /Pray Perform the Rite Molag Bal's Embrace needs the newer game client.*until you update\. Leave$/.test(t) && !/>Perform the Rite<span/.test(html(oldClient)), t);
+  /Molag Bal's Embrace needs the latest game client\..*come back to the shrine\. Leave$/.test(t) && !/>Perform the Rite<span/.test(html(oldClient)), t);
 check('a panel missing a choice still draws', /Shrine of Molag Bal/.test(text(html(Object.assign({}, both, { pray: undefined, rite: undefined })))));
 check('the widget id is a number', both.id === 74 && typeof both.id === 'number', both.id);
 // The confirm view's hold must outlast the server's guard after the choice, or a Kneel the front lets through is one the
