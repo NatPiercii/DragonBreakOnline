@@ -1,5 +1,19 @@
 [
   {
+    "title": "A cleaner HUD",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Interface",
+        "items": [
+          "The gold count is gone from the HUD panel. Your inventory shows your gold as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your journal holds it all (F3)",
     "date": "2026-10-04",
     "version": "Server + Client 0.3.76",
