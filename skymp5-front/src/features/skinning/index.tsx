@@ -28,6 +28,7 @@ export interface SkinningData {
   seams: number[];   // centre of the seam for cut 1..n, rolled by the server
   sweepMs: number;   // the blade takes this long to cross the hide
   totalMs: number;   // time limit
+  reachMs?: number;  // a cut also counts if the blade was on the seam this many ms before it
   result?: string;   // set by the server when the attempt is judged
   resultKind?: 'win' | 'lose';
   judge?: 'client' | 'server'; // 'client': this widget's verdict stands and is shown at once
@@ -50,6 +51,14 @@ const bladeAt = (ms: number, sweepMs: number): number => {
   return phase <= 1 ? phase : 2 - phase;
 };
 
+// Must stay identical to bladeOff() in server\gamemode.js: how near the blade came to the seam at t
+// or in the reachMs before it. A slow machine draws the blade and delivers the key late.
+const bladeOff = (t: number, sweepMs: number, reachMs: number, seam: number): number => {
+  let d = Math.abs(bladeAt(t, sweepMs) - seam);
+  for (let s = Math.max(0, t - reachMs); s < t; s++) d = Math.min(d, Math.abs(bladeAt(s, sweepMs) - seam));
+  return d;
+};
+
 const num = (v: unknown, fallback: number): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -61,6 +70,7 @@ const Skinning = ({ data }: { data: SkinningData }) => {
   const width = Math.max(0.05, Math.min(0.5, num(data.seam, 0.15)));
   const sweepMs = Math.max(400, Math.floor(num(data.sweepMs, 900)));
   const total = Math.max(1000, Math.floor(num(data.totalMs, 15000)));
+  const reachMs = Math.max(0, Math.min(400, Math.round(num(data.reachMs, 0))));
   // The server sends one seam per cut; a short list just repeats its last seam
   const seamAt = (i: number): number => {
     const list = Array.isArray(data.seams) ? data.seams : [];
@@ -144,7 +154,7 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     // The cut is timed at the frame on screen, not at the keypress: what the player saw is what the
     // server scores.
     const t = sampleRef.current;
-    const clean = Math.abs(bladeAt(t, sweepMs) - seamAt(hitsRef.current)) <= width / 2;
+    const clean = bladeOff(t, sweepMs, reachMs, seamAt(hitsRef.current)) <= width / 2;
     timesRef.current.push(t);
     setFlash(clean ? 'hit' : 'miss');
     window.setTimeout(() => setFlash(''), 180);
