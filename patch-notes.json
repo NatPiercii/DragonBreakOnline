@@ -223,6 +223,20 @@
     ]
   },
   {
+    "title": "The character creator",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Character creation",
+        "items": [
+          "The character creator: you no longer spawn inside another player, and other players creating a character are hidden from you."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Followers keep formation",
     "date": "SHIP_DATE",
     "version": "Client 0.3.76",
