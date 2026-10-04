@@ -420,7 +420,7 @@ module.exports = (api) => {
     bookLedger.delete(a >>> 0);
     const first = String(Array.isArray(args) ? args[0] : args || '').trim();
     openFromCommand(a, /^forget\b/i.test(first) ? RETIRED : '');
-  }, { help: 'your spellbook: every spell you have studied, and the prepared ones (changed at a magic college)' });
+  }, { help: 'your spellbook: every spell you have studied, and the prepared ones (changed at a Scholars\' Ledger or a magic college)' });
   registerChatCommand('forget', (a) => openFromCommand(a, RETIRED), { hidden: true, help: 'retired; /spells opens your spellbook' });
 
   // { ok, text } of preparing or putting away one spell

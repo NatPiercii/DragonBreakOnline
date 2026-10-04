@@ -16,6 +16,20 @@
     ]
   },
   {
+    "title": "Fixes",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "The U menu is up to date: your journal and its keys, magic, mining and smelting, rites and cures, homes and courts are all in it, and Help & trouble has a button for each kind of ticket. Before, the one ticket button only listed the kinds."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your journal holds it all (F3)",
     "date": "2026-10-04",
     "version": "Server + Client 0.3.76",

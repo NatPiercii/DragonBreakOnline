@@ -558,23 +558,52 @@ const aliasChatCommand = (oldName, newName, note) => {
 // Topics for /help and the U panel. `names` are commands worth typing; `hints` are the things you reach by
 // walking up to an object or pressing a key, which do not belong in a command list. `role` hides a whole topic
 // from players it cannot apply to. Commands merged into others are registered hidden and never appear here.
+// A name shows only while its command is registered (usable below), so a command still being built on another branch
+// can be named here before it ships, and a module that fails to load drops its line. Every line must be true on live:
+// tests/menu-coverage-harness.js
+// checks that each command named here exists, that each key named matches the client's default, and that no player
+// command is left out of the menu without a reason.
+// TODO(playtime, L-slot150): add 'playtime' to the character topic when playtime.js ships, once its help no longer
+// promises the 150-hour slot while config playtimeSlot.enabled is false (the command is registered either way).
 const HELP_GROUPS = [
   { key: 'people', title: 'Chat and people', names: ['players'],
-    hints: ['Introducing yourself, trading or inspecting someone: look at them and press X.', 'Hiding your face: press H.'] },
-  { key: 'character', title: 'Your character', names: ['status'],
-    hints: ['Your skills: press K.', 'Spending a level: /status tells you when you have a point.',
-      'Your spells: /spells. Spell tomes: the Synod Conclave in Bruma.'] },
+    hints: ['Talking: type in chat (T). /low /whisper /wide /shout set how far you carry; /me /my /do emote; /looc is out of character.',
+      'Introducing yourself, trading or inspecting someone: look at them and press X.', 'Emotes: press B.', 'Hiding your face: press H.',
+      'Letters by pigeon, and yours to read: a notice board. A bird flies only to someone you have met.',
+      'Everyone you have met: the ledger at a notice board or in your home (/ledger).'] },
+  { key: 'character', title: 'Your character', names: ['status', 'boost'],
+    hints: ['Your journal: press F3. Profile, stats, skills, magic, your god, and settings such as your keys.',
+      'Your skills: press K (the Skills tab of your journal).', 'Spending a level: /status tells you when you have a point.',
+      'Magic begins with Arcane Arts: study at a Study Magic shelf, such as the Synod Conclave\'s bookcases.',
+      'At Arcane Arts 25 you choose a school; at 25 in a school, its first spell, no tome needed. Restoration\'s comes at Priest 25.',
+      'Your spells: /spells, or F3 Magic. Prepared spells are changed at a Scholars\' Ledger or a magic college.',
+      'Changing a school of magic: a Scholars\' Ledger or a Study Magic shelf, once every 7 days.',
+      'Spell tomes: bought in the Synod Conclave, read at a study spot there or in Frost Crag Spire.',
+      'Classes: a Class Lectern. At Expert in Arcane Arts or Priest you can /teach a spell to someone beside you.'] },
   { key: 'faith', title: 'Faith and the unseen', names: ['pray'],
-    hints: ['Choosing or changing a god: a shrine, then /deity.', 'The rites, and offerings: a shrine.'] },
-  { key: 'beast', title: 'The beast in you', names: ['beast', 'forms', 'hunt', 'blood'], role: 'beast' },
-  { key: 'work', title: 'Work and the world', names: ['time'],
-    hints: ['Hunting work: the Contracts tab of the expedition board (Synod Conclave, Fighters Guild).', 'Other work for pay: a notice board, then /commission.', 'Your money: a bank counter.',
+    hints: ['Your god, and turning to another: F3, the Deity tab, or /deity.',
+      'Offerings and rites: a shrine. Molag Bal gives the Embrace, Hircine the Great Hunt; Arkay or Stendarr lift a curse for a filled black soul gem.',
+      'A fever caught from a vampire or a werewolf: a Cure Disease potion, or prayer at a shrine of the Divines.'] },
+  { key: 'beast', title: 'The beast in you', names: ['beast', 'forms', 'hunt', 'blood'], role: 'beast',
+    hints: ['Your curse and its powers: F3, the Supernatural tab.',
+      'Silver and fire hurt a vampire more; silver and poison spells hurt a werewolf more in beast form.'] },
+  { key: 'work', title: 'Work and the world', names: ['time', 'property'],
+    hints: ['Hunting work: the Contracts tab of the expedition board (Synod Conclave, Fighters Guild).', 'Other work for pay: a notice board, then /commission.',
+      'Mining and woodcutting: an ore vein or a chopping block. Richer ores need a higher Miner tier.',
+      'The Bleak-Frost Mine, west of Bruma: iron, corundum and gold, and meteoric iron for Adept miners.',
+      'Smelting ore into ingots: a smelter. Enchanting and disenchanting: an arcane enchanter.',
+      'Breaking gear down, with its skill: the station of its trade (a smelter, a tanning rack, a loom; books at a writing desk).',
+      'A house you own or rent: look at its door and press X.', 'Your money: a bank counter.',
       'Your business: its ledger book.', 'Where you are: /whereami.'] },
-  { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'tax', 'property', 'ledgerpoint'], role: 'official' },
-  { key: 'groups', title: 'Groups and dungeons', names: ['party'],
-    hints: ['Your factions: press F3.', 'A dungeon: its door, then /dungeon.',
+  { key: 'rule', title: 'Rule and property', names: ['officials', 'appoint', 'dismiss', 'tax', 'ledgerpoint'], role: 'official',
+    hints: ['Your court: F3, the Court tab. A post you appoint someone to is offered, and they accept it.'] },
+  { key: 'groups', title: 'Groups and dungeons', names: ['party', 'court', 'charter'],
+    hints: ['Your factions and your court: F3, the Faction and Court tabs.',
+      'A dungeon: its door. The party leader picks Novice, Adept, Expert or Master; /dungeon says what is claimed.',
       'An expedition: the board in the Synod Conclave or the Fighters Guild.'] },
-  { key: 'trouble', title: 'Trouble and help', names: ['gm', 'unstuck', 'struggle', 'bug', 'ticket', 'help'] },
+  { key: 'trouble', title: 'Trouble and help', names: ['gm', 'unstuck', 'struggle', 'bug', 'ticket', 'name', 'help'],
+    hints: ['Where you stand, your ids and the effects on you: press F7.',
+      'Your keys: F3, Settings. A new key works from the next time you start the game.'] },
 ];
 // A topic with a `role` is only shown to players it applies to: officials hold a rank somewhere, beasts carry
 // the curse. Everyone else never sees commands they cannot use.
@@ -612,7 +641,7 @@ const helpLine = (n) => { const c = commands.get(n); return `/${n}${c && c.help 
 // listed under Other staff tools.
 const STAFF_HELP = [
   { key: 'players', title: 'Players', items: ['kick', 'tp', 'fixloc', 'chargen', 'rename', 'sethunger', 'wipechars',
-    ['tokens', '<player|#TAG>: someone\'s Patreon tier and identity rerolls left'], 'stats'] },
+    ['tokens', '<player|#TAG>: someone\'s Patreon tier and identity rerolls left'], 'stats', 'charstats'] },
   { key: 'calls', title: 'GM calls from players', items: [['gm list', '[all]: the open calls (all: and the last ten closed)'],
     ['gm take', '<n>: the call is yours; the player is told you are on the way, other staff who took it'],
     ['gm goto', '<n>: go to the caller (to where they called from, if they are offline); takes the call if nobody has'],
@@ -621,17 +650,19 @@ const STAFF_HELP = [
   { key: 'announce', title: 'Announcements and restarts', items: [['admin', '<text>: talk in this admin tab'], 'announce', 'schedule', 'update'] },
   { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
     ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint',
-    ['rolename', 'list <court|faction> | <court> <office> <new title> | <faction> <rank number> <new title> | reset <court> <office> | reset <faction> <rank number>: rename an office or rank for everyone who holds it, at once (Lead GM; F3 Court and the Faction tab\'s rank editor do it too)']] },
+    ['rolename', 'list <court|faction> | <court> <office> <new title> | <faction> <rank number> <new title> | reset <court> <office> | reset <faction> <rank number>: rename an office or rank for everyone who holds it, at once (Lead GM; F3 Court and the Faction tab\'s rank editor do it too)'], 'war'] },
   { key: 'appoint', title: 'Appointments and property', items: [
     ['appoint', '<player|#TAG|profile id> <zone> <rank> [override]: make someone an official, online or offline. A Jarl must be a Nord or an Imperial; only the Owners may add override. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
     ['dismiss', '<player|#TAG|profile id> <zone>: remove an official, online or offline (told if online). Officials may dismiss the ranks they may appoint'],
     ['officials', '[zone]: who holds which rank where'],
     ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
-  { key: 'beasts', title: 'Beasts and the supernatural', items: ['beastform', 'curse', 'vlremote', 'wwremote', 'raid', 'warband'] },
+  { key: 'beasts', title: 'Beasts and the supernatural', items: ['beastform', 'curse', 'vlremote', 'wwremote', 'feedpair', 'raid', 'warband'] },
+  { key: 'magic', title: 'Magic and crafts', items: ['schools', 'classteacher', 'preacher', 'manual'] },
   { key: 'law', title: 'Law', items: ['jail'] },
   { key: 'world', title: 'World', items: ['settime', 'setweather', 'timescale', 'region', ['dungeon end', '<dungeon id|name>: end a dungeon claim now'],
-    'placed', 'placeexport', 'masktest'] },
-  { key: 'debug', title: 'Server and debugging', items: ['monitor', 'load', 'selftest', 'npc', 'mv', 'driftset', 'driftspawn', 'driftrepair'] },
+    'placed', 'placeundo', 'placeexport', 'masktest'] },
+  { key: 'debug', title: 'Server and debugging', items: ['monitor', 'load', 'selftest', 'npc', 'mv', 'driftset', 'driftspawn', 'driftrepair',
+    'staffdiag', 'staffstats', 'gearswap', 'factiongear'] },
 ];
 const staffSay = (a, text) => deliver(a, `[[A]]#{${C.SYS}}${text}`);
 const staffTopics = () => {
@@ -2431,26 +2462,53 @@ try {
 // The same topics /help lists, as a window: a topic added to HELP_GROUPS reaches both. Each entry is a command with one
 // line of what it does; a few ask for words in a box before they are sent; the rest of a topic is plain lines, because
 // it is reached by a key or by walking up to something. Only a client whose UI said it draws the panel (dbo:uiCaps
-// 'playerMenu') gets it, so an older client still gets /help in chat.
+// 'playerMenu') gets it, so an older client still gets /help in chat. Everything here is data the server sends with the
+// widget (front features/playerMenu draws whatever tabs, entries and hints arrive), so a change goes live on a reload.
 const PANEL_WIDGET_ID = 52;
 const PANEL_TITLES = { people: 'People', character: 'Character', faith: 'Faith', beast: 'The beast', work: 'Work',
-  rule: 'Rule & property', groups: 'Groups', trouble: 'Help & trouble', other: 'Other' };
+  rule: 'Rule & property', groups: 'Groups', trouble: 'Help & trouble', other: 'Other', staff: 'Staff' };
 // A command the panel asks for words first. Each field is a box; they are joined with a space behind the command.
 const PANEL_ASK = {
   gm: [{ label: 'What you need', placeholder: 'staff in the game are told at once, with where you stand', lines: 3 }],
   bug: [{ label: 'What went wrong', placeholder: 'what you were doing, and what happened', lines: 3 }],
-  ticket: [{ label: 'What you need', placeholder: 'a staff member reads this', lines: 3 }],
   pm: [{ label: 'To', placeholder: 'name or #TAG' }, { label: 'Message', placeholder: '', lines: 2 }],
 };
 // A button named in words rather than as its command (the box still sends /<command> <words>)
 const PANEL_LABEL = { gm: 'Contact a GM' };
+// A command whose first word picks what it does gets one button per choice, the word sent behind it ("/ticket mod
+// <words>"), since the panel has no drop-downs (a native <select> never draws in the game) and one box sent "/ticket
+// <words>", whose first word was taken for the kind. Each name is "<command> <word>", which menuRun offers like any other.
+const PANEL_SPLIT = {
+  ticket: [
+    { word: 'mod', desc: 'a private ticket with staff on Discord: help from a moderator', ask: [{ label: 'What you need', placeholder: 'what happened, when, and who was there', lines: 3 }] },
+    { word: 'report', desc: 'a private ticket with staff on Discord: report a player', ask: [{ label: 'What happened', placeholder: 'who, when, and what they did', lines: 3 }] },
+    { word: 'pk', desc: 'a private ticket with staff on Discord: ask them to approve killing a character', ask: [{ label: 'Your request', placeholder: 'whose character, and why', lines: 3 }] },
+  ],
+};
 // Chat reaches these another way (they are not registered commands), so the panel adds them to their topic
 const PANEL_EXTRA = { people: [{ name: 'pm', desc: 'say something to one person, privately' }] };
+// Staff alone are given this tab (isAdmin, the check every staff command makes). Its buttons are views that need no words;
+// everything else a member of staff does is typed, and /adminhelp lists it in the admin tab.
+const PANEL_STAFF = {
+  names: ['adminhelp', 'update', 'load', 'monitor', 'raid', 'placed'],
+  hints: ['The admin panel: press F7. Players, Skills, Items, Powers, Teleport, Place, Modes and NPCs.',
+    'Placing objects: F7, the Place tab; /placeundo takes back your last one.',
+    'Warbands: /warband raise <npc> [n], then follow, attack, charge or unleash; /warband side picks a side.',
+    'Renaming an office or a rank for everyone who holds it: /rolename, or F3 Court and the Faction tab (Lead GM).',
+    'Rites: /curse <player> riteclear lets them try again; /curse <#TAG> restore brings back a character a rite killed.',
+    'Every staff command, by topic: /adminhelp, or /help admin <topic>.'],
+};
+const panelEntry = (n) => ({ name: n, label: PANEL_LABEL[n] || '/' + n, desc: (commands.get(n) || {}).help || '', ask: PANEL_ASK[n] || null });
 const panelTabsFor = (a) => {
   const tabs = [];
-  for (const g of helpGroupsFor(a)) {
-    const entries = g.names.filter((n) => n !== 'help')
-      .map((n) => ({ name: n, label: PANEL_LABEL[n] || '/' + n, desc: (commands.get(n) || {}).help || '', ask: PANEL_ASK[n] || null }));
+  const groups = helpGroupsFor(a);
+  if (isAdmin(a)) groups.push({ key: 'staff', title: 'Staff', names: PANEL_STAFF.names.filter((n) => commands.has(n)), hints: PANEL_STAFF.hints });
+  for (const g of groups) {
+    const entries = [];
+    for (const n of g.names.filter((x) => x !== 'help')) {
+      if (PANEL_SPLIT[n]) for (const s of PANEL_SPLIT[n]) entries.push({ name: `${n} ${s.word}`, label: `/${n} ${s.word}`, desc: s.desc, ask: s.ask || null });
+      else entries.push(panelEntry(n));
+    }
     for (const e of PANEL_EXTRA[g.key] || []) entries.push({ name: e.name, label: '/' + e.name, desc: e.desc, ask: PANEL_ASK[e.name] || null });
     const hints = (g.hints || []).slice();
     if (!entries.length && !hints.length) continue;
