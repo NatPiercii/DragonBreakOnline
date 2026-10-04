@@ -1715,9 +1715,10 @@ module.exports = (api) => {
       if (baseId === GOLD_BASE) { const n = Math.round(Math.min(count, diff.gold[1]) * Math.max(0, Number(C.corpseGoldMult))); if (n > 0) kept.push({ baseId, count: n }); continue; }
       if (rec && (BANNED_LOOT.test(String(rec.editorId || '')) || ARTIFACT.test(String(rec.editorId || '')))) continue;
       if (rec && AYLEID_NAMES.has(String(rec.editorId || ''))) continue;   // only the Ayleid table hands these out, by difficulty
-      // Arrows are rare (1 Oct): an archer's quiver stays arrowChance of the time, a few of them. Arrows, ingots and ores
-      // above the ceiling stay on the body as they are: the player's game shows its own copy of a body's inventory, so
-      // a steel ingot put in their place could never be taken; a take of one gives its swap target (gearswap.js take)
+      // Arrows are rare (1 Oct): an archer's quiver stays arrowChance of the time, a few of them. What a lease creature's
+      // body keeps is never handed over today (the client blocks activation of actors, and only wild:* bodies are
+      // searched with E), so arrows, ingots and ores above the ceiling are left as they are; gearswap.js's dormant body
+      // take would swap them if bodies ever opened
       if (type === 'AMMO') { const st = stackOr(C.corpseArrows, [1, 3]); if (Math.random() < ARROW_CHANCE) kept.push({ baseId, count: Math.min(count, rnd(st[0], st[1])) }); continue; }
       // A creature's own potions stay only now and then, one at most (food and poisons are not ranked, so they stay)
       if (type === 'ALCH' && rankOf(String((rec && rec.editorId) || ''))) { if (Math.random() < Number(POT.corpseKeep)) kept.push({ baseId, count: 1 }); continue; }

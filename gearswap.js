@@ -10,9 +10,13 @@
 // charge, named "<replacement> of <...>". A piece whose enchantment cannot go across is kept as it is, never made plain.
 // The pieces swapped plain before that (3-4 Oct) get theirs back at the character's next login, once, from
 // gearswap-restore.json (tools/loot/gearswap_restore_plan.js, written from the audit lines and the world backups).
-// A take from an NPC's body (any actor that is not a player) of something above the cap gives its replacement instead
-// (Nate, 4 Oct: bodies outside a dungeon lease opened with their full kit). The body cannot be swapped beforehand: the
-// player's game shows its own copy of an actor's inventory, so a replacement put on the server's copy could never be taken.
+// What a body hands over with E (gamemode.js __dboAnimalBody: a giant's or goblin's whole kit; Nate, 4 Oct) passes
+// lootCap: metals never come from loot (loottiers.js aboveCap: the swap's metals and LOOT_ONLY_METALS), gear and arrows
+// above the cap become their replacement through the plan (an enchantment kept), and arrows follow the cap.
+// The body take (a TakeItem from an NPC's body) is a dormant safety net: it cannot run today. The engine refuses a take
+// from a ref the taker does not occupy, and only a CONT opened or the player search sets an occupant; the client blocks
+// activation of every actor (R-swapdodge's review, 4 Oct: 0 such takes in the logs). Kept for a fork change that opens
+// bodies, when a take of something above the cap would give its replacement instead.
 // Config "gearSwap": { mode: "on" | "log" | "off", version, exemptProfiles: [], containers, bodies, restore, restoreFile }.
 // Loaded by gamemode.js.
 'use strict';
@@ -24,6 +28,9 @@ const MARK = 'private.dboGearSwap';
 const NEVER_SWAP = new Set(['DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
 const RESTORE_MARK = 'private.dboGearRestore';
 const RESTORE_FILE = 'gearswap-restore.json';
+// The mined metals swapped for steel before they came off the swap's list (Nate, 4 Oct: "Keep mined ores, swap only
+// gear"), given back once: tools/loot/gearswap_metal_restore_plan.js writes it, characters and containers
+const METAL_RESTORE_FILE = 'gearswap-restore-metals.json';
 
 // The extras that make an enchantment on an inventory entry (fork skymp5-server/ts/systems/inventoryExtras.ts, the
 // mirror of Inventory::ExtraData). Charge is stored as the charge itself (ExtraCharge), not a percentage.
@@ -151,6 +158,20 @@ const restore = ({ entries, items, enchantOf, typeOf, nameOf, descOf, idOf }) =>
     const from = (idOf(it.from) || 0) >>> 0, to = (idOf(it.to) || 0) >>> 0;
     if (!from || !to) { failed.push({ id: it.id, why: 'plugin not loaded' }); continue; }
     const count = Math.max(1, Math.min(Math.floor(Number(it.count) || 1), 100));
+    // A mined metal swapped for steel: the original comes back, count for count, and the plain replacement the swap gave
+    // goes, as much of it as is left (one used up since is not asked back)
+    if (it.kind === 'metal') {
+      let left = count, back = 0;
+      for (const e of out) {
+        if (!left) break;
+        if ((Number(e.baseId) >>> 0) !== to || !(Number(e.count) > 0) || hasEnchantment(e) || isSet(e.health) || e.worn || e.wornLeft) continue;
+        const n = Math.min(left, Number(e.count)); e.count -= n; left -= n; back += n;
+      }
+      const hit = out.find((e) => (Number(e.baseId) >>> 0) === from && Object.keys(e).every((k) => k === 'baseId' || k === 'count' || !isSet(e[k])));
+      if (hit) hit.count = (Number(hit.count) || 0) + count; else out.push({ baseId: from, count });
+      done.push({ id: it.id, from, to, count, converted: back, granted: count, metal: true, fromEdid: String(it.fromEdid || ''), toEdid: String(it.toEdid || '') });
+      continue;
+    }
     const extras = {};
     for (const k of [...ENCHANT_KEYS, 'name']) if (it.extras && isSet(it.extras[k])) extras[k] = it.extras[k];
     if (extras.enchantmentEffects && !validEffects(extras.enchantmentEffects)) { failed.push({ id: it.id, why: 'bad effects in the plan' }); continue; }
@@ -189,6 +210,11 @@ module.exports = (api) => {
     cfg: ((cfg && cfg.dungeons) || {}).lootTiers,
   });
   const SWAP = readJson('gear-swap.json', { items: {}, metals: {} });
+  // The same tiers with the swap's lists, for lootCap's metals and arrows (loottiers.js aboveCap)
+  const CAPS = require(LOOT_TIERS_JS)({
+    materials: readJson('loot-materials.json', { items: {} }), factionGear: readJson('faction-gear.json', { items: {} }),
+    overrides: readJson('loot-overrides.json', { never: {} }), swap: SWAP, cfg: ((cfg && cfg.dungeons) || {}).lootTiers,
+  });
   const normD = require(LOOT_TIERS_JS).normDesc;
   const SWAP_KEYS = new Set([].concat(...['metals', 'ammo'].map((k) => Object.keys(SWAP[k] || {}))).map(normD));
   // Dragon bone and scales are on the metals list, but a slain dragon's body is their one source (dragon-materials.json,
@@ -307,7 +333,25 @@ module.exports = (api) => {
     }
     mp.set(ref, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
   };
-  // A take from an NPC's body: the take is refused, and then the body's server copy loses what was taken and the pack
+  // Loot handed over from a body (Nate, 4 Oct). -> { entries: what may be given (replacements carry their extras),
+  // swaps: the plan's, dropped: entries kept back (metals) }. Never refuses: what it cannot place it keeps as it is.
+  const lootCap = (entries) => {
+    const rest = [], asIs = [], dropped = [];
+    for (const e of entries || []) {
+      const baseId = Number(e && e.baseId) >>> 0;
+      if (!baseId || !(Number(e.count) > 0)) continue;
+      const d = normD(descOf(baseId));
+      if (DRAGON_PARTS.has(d)) { asIs.push(e); continue; }
+      const a = CAPS.aboveCap(d, '');
+      if (a && a.kind === 'metal') { dropped.push(e); continue; }
+      // An arrow on the swap's list is above the cap only while there is one (aboveCap 'ammo' is null at cap 'none')
+      if (SWAP_KEYS.has(d) && !CAPS.aboveCap(d, 'ammo')) { asIs.push(e); continue; }
+      rest.push(e);
+    }
+    const p = plan(Object.assign({ entries: rest, descOf, classOf: TIERS.classOf, swap: SWAP, idOf, edidOf, isArtifact: (x) => !!ARTIFACT && ARTIFACT.test(x) }, extra));
+    return { entries: asIs.concat(p.entries), swaps: p.swaps, dropped };
+  };
+  // A take from an NPC's body (dormant, see the header): the take is refused, and then the body's server copy loses what was taken and the pack
   // gets the plan's entries for it (the replacement; a piece whose enchantment cannot go across, or an artifact, as it
   // is), the body first, so a failed write never hands out twice. The pack's own write sets the player's game right,
   // which had already moved the item. Staff and exempt profiles take what they take; a player's body is its owner's
@@ -371,26 +415,57 @@ module.exports = (api) => {
   // The pieces swapped plain on 3-4 Oct get their enchantment back at the character's next login, once per plan item
   // (gearswap-restore.json, re-read when it changes; the character's mark lists the items done). Matched by profile and
   // character tag, and by the character's form when the plan knows it.
+  // The mined metals' plan (gearswap-restore-metals.json) is read beside it, the same way; it also names containers, given
+  // back the first time each is opened after the plan is installed (the container's own mark lists the items done)
   const restoreFile = path.join(__dirname, String(C.restoreFile || RESTORE_FILE));
-  let restorePlan = { mtimeMs: -1, byChar: new Map(), version: '' };
+  const metalRestoreFile = path.resolve(__dirname, String(C.metalRestoreFile || METAL_RESTORE_FILE));
+  let restorePlan = { mtimeMs: -1, byChar: new Map(), byRef: new Map(), version: '' };
   const restorePlanNow = () => {
-    let st = null; try { st = fs.statSync(restoreFile); } catch (e) { st = null; }
-    const mtimeMs = st ? st.mtimeMs : 0;
+    const files = [restoreFile, metalRestoreFile].map((f) => { let st = null; try { st = fs.statSync(f); } catch (e) { st = null; } return { f, st }; });
+    const mtimeMs = files.map(({ st }) => (st ? st.mtimeMs : 0)).join('|');
     if (mtimeMs === restorePlan.mtimeMs) return restorePlan;
-    const byChar = new Map();
-    let version = '';
-    if (st) {
+    const byChar = new Map(), byRef = new Map();
+    const versions = [];
+    for (const { f, st } of files) {
+      if (!st) continue;
       try {
-        const j = JSON.parse(fs.readFileSync(restoreFile, 'utf8'));
-        version = String(j.version || '');
+        const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+        if (j.version) versions.push(String(j.version));
         for (const c of Array.isArray(j.characters) ? j.characters : []) {
-          if (c && Number.isFinite(Number(c.profileId)) && typeof c.tag === 'string' && Array.isArray(c.items)) byChar.set(`${Number(c.profileId)}|${c.tag}`, c);
+          if (!(c && Number.isFinite(Number(c.profileId)) && typeof c.tag === 'string' && Array.isArray(c.items))) continue;
+          const k = `${Number(c.profileId)}|${c.tag}`, had = byChar.get(k);
+          byChar.set(k, had ? Object.assign({}, had, { formDesc: had.formDesc || c.formDesc, items: had.items.concat(c.items) }) : c);
         }
-        log(`gearswap: restore plan ${version || '(no version)'}, ${byChar.size} character(s), ${[...byChar.values()].reduce((n, c) => n + c.items.length, 0)} item(s)`);
-      } catch (e) { log(`gearswap: ${path.basename(restoreFile)} unreadable`, e.message); }
+        for (const c of Array.isArray(j.containers) ? j.containers : []) {
+          if (!(c && /^[0-9a-f]+$/i.test(String(c.ref)) && Array.isArray(c.items))) continue;
+          const k = parseInt(c.ref, 16) >>> 0, had = byRef.get(k);
+          byRef.set(k, had ? { ref: c.ref, items: had.items.concat(c.items) } : c);
+        }
+        log(`gearswap: restore plan ${j.version || '(no version)'}, ${(j.characters || []).length} character(s), ${(j.characters || []).reduce((n, c) => n + ((c && c.items) || []).length, 0)} item(s), ${(j.containers || []).length} container(s) (${path.basename(f)})`);
+      } catch (e) { log(`gearswap: ${path.basename(f)} unreadable`, e.message); }
     }
-    restorePlan = { mtimeMs, byChar, version };
+    restorePlan = { mtimeMs, byChar, byRef, version: versions.join('+') };
     return restorePlan;
+  };
+  // A container in the mined metals' plan, the first time it is opened after the plan is installed: before the sweep
+  const restoreContainer = (ref) => {
+    ref = ref >>> 0;
+    if (C.restore === false || C.mode === 'off') return;
+    const rp = restorePlanNow();
+    const c = rp.byRef.get(ref);
+    if (!c) return;
+    let mark = null; try { mark = mp.get(ref, RESTORE_MARK); } catch (e) { return; }
+    const seen = new Set((mark && Array.isArray(mark.done) ? mark.done : []).concat(mark && Array.isArray(mark.failed) ? mark.failed : []).map(String));
+    const todo = c.items.filter((it) => it && it.id && it.kind === 'metal' && !seen.has(String(it.id)));
+    if (!todo.length) return;
+    let inv; try { inv = mp.get(ref, 'inventory'); } catch (e) { return; }
+    const r = restore(Object.assign({ entries: inv && Array.isArray(inv.entries) ? inv.entries : [], items: todo, descOf, idOf }, extra));
+    if (C.mode === 'log') { log(`gearswap would give back ${r.done.reduce((n, d) => n + d.count, 0)} mined metal(s) in container ${ref.toString(16)}`); return; }
+    if (r.done.length) mp.set(ref, 'inventory', { entries: r.entries });
+    mp.set(ref, RESTORE_MARK, { version: rp.version, at: Date.now(), done: [...(mark && Array.isArray(mark.done) ? mark.done : []), ...r.done.map((d) => d.id)],
+      failed: [...(mark && Array.isArray(mark.failed) ? mark.failed : []), ...r.failed.map((f) => f.id)] });
+    for (const d of r.done) audit(`GEARRESTORE container ${ref.toString(16)}: ${d.count} x ${edidOf(d.from) || d.fromEdid || d.from.toString(16)} back for ${d.converted} x ${edidOf(d.to) || d.toEdid || d.to.toString(16)} [${d.id}]`);
+    for (const f of r.failed) log(`gearswap restore: container ${ref.toString(16)} item ${f.id} not restored: ${f.why}`);
   };
   const restoreAt = (a) => {
     a = a >>> 0;
@@ -407,7 +482,7 @@ module.exports = (api) => {
     if (!todo.length || busy(a)) return;
     const inv = mp.get(a, 'inventory') || { entries: [] };
     const r = restore(Object.assign({ entries: Array.isArray(inv.entries) ? inv.entries : [], items: todo, descOf, idOf }, extra));
-    if (C.mode === 'log') { log(`gearswap would restore ${r.done.length} enchantment(s) to ${who(a)}, ${r.failed.length} cannot be`); return; }
+    if (C.mode === 'log') { log(`gearswap would restore ${r.done.length} item(s) to ${who(a)}, ${r.failed.length} cannot be`); return; }
     // The mark goes on straight after the inventory, so nothing after it (re-equip, audit, message) can leave an item
     // restored but not marked, and given twice
     const markNow = () => mp.set(a, RESTORE_MARK, { version: rp.version, at: Date.now(), done: [...(mark && Array.isArray(mark.done) ? mark.done : []), ...r.done.map((d) => d.id)],
@@ -421,18 +496,28 @@ module.exports = (api) => {
       for (const d of r.done) if (!again.has(d.to) && worn.has(d.to)) again.set(d.to, { to: d.to, worn: worn.get(d.to) === 'right', wornLeft: worn.get(d.to) === 'left' });
       rewear(a, [...again.values()]);
       for (const d of r.done) {
+        if (d.metal) { audit(`GEARRESTORE ${who(a)}: ${d.count} x ${edidOf(d.from) || d.fromEdid || d.from.toString(16)} back for ${d.converted} x ${edidOf(d.to) || d.toEdid || d.to.toString(16)} [${d.id}]`); continue; }
         const how = d.carried.enchantmentId ? `enchantment ${edidOf(d.carried.enchantmentId) || d.carried.enchantmentId.toString(16)}` : `${(d.carried.enchantmentEffects || []).length} crafted effect(s)`;
         audit(`GEARRESTORE ${who(a)}: ${d.count} x ${edidOf(d.to) || d.to.toString(16)} gets the ${how} of its ${edidOf(d.from) || d.from.toString(16)} back (${d.converted} on the copy carried, ${d.granted} given)${d.carried.name ? ` as "${d.carried.name}"` : ''} [${d.id}]`);
       }
-      const n = r.done.reduce((x, d) => x + d.count, 0);
-      const names = [...new Set(r.done.map((d) => d.carried.name || nameOf(descOf(d.to)) || edidOf(d.to)))].slice(0, 4).join(', ');
-      personal(a, `Your enchanted gear that was swapped for steel has its enchantment back: ${n} piece${n === 1 ? '' : 's'}${names ? ` (${names})` : ''}.`);
+      const ench = r.done.filter((d) => !d.metal), metal = r.done.filter((d) => d.metal);
+      const n = ench.reduce((x, d) => x + d.count, 0);
+      const names = [...new Set(ench.map((d) => d.carried.name || nameOf(descOf(d.to)) || edidOf(d.to)))].slice(0, 4).join(', ');
+      if (n) personal(a, `Your enchanted gear that was swapped for steel has its enchantment back: ${n} piece${n === 1 ? '' : 's'}${names ? ` (${names})` : ''}.`);
+      const m = metal.reduce((x, d) => x + d.count, 0);
+      const mnames = [...new Set(metal.map((d) => nameOf(descOf(d.from)) || edidOf(d.from) || d.fromEdid))].slice(0, 4).join(', ');
+      if (m) personal(a, `Mined ores and their ingots are no longer swapped for steel: ${m} of yours ${m === 1 ? 'is' : 'are'} back${mnames ? ` (${mnames})` : ''}, and the steel or iron given for them is taken back.`);
     }
     for (const f of r.failed) log(`gearswap restore: ${who(a)} item ${f.id} not restored: ${f.why}`);
   };
-  // From gamemode.js's take chain, after the item guards (so the body holds what is taken): true refuses the take
+  globalThis.__dboGearSwapLoot = (entries) => { try { return lootCap(entries); } catch (e) { log('gearswap loot cap failed', e.message); return null; } };
+  // From gamemode.js's take chain, after the item guards (so the body holds what is taken): true refuses the take.
+  // Dormant: no take from a body reaches the server today (see the header)
   globalThis.__dboGearSwapTake = (source, actor, baseId, count) => { try { return bodyTake(source, actor, baseId, count) === true; } catch (e) { log('gearswap take failed', e.message); return false; } };
-  globalThis.__dboGearSwapContainer = (ref) => { try { sweepContainer(ref); } catch (e) { log('gearswap container failed', (ref >>> 0).toString(16), e.message); } };
+  globalThis.__dboGearSwapContainer = (ref) => {
+    try { restoreContainer(ref); } catch (e) { log('gearswap container restore failed', (ref >>> 0).toString(16), e.message); }
+    try { sweepContainer(ref); } catch (e) { log('gearswap container failed', (ref >>> 0).toString(16), e.message); }
+  };
   // From gamemode.js's login path (onCharacterReady), when the character has loaded and no menu is open
   globalThis.__dboGearSwapLogin = (a) => {
     if (C.mode === 'off') return;
@@ -451,7 +536,7 @@ module.exports = (api) => {
   }
   log(`gearswap: mode ${C.mode}, version ${C.version}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}, enchantments kept`);
   restorePlanNow();
-  return { plan, sweep, sweepContainer, bodyTake, busy, restoreAt, enchantOf };
+  return { plan, sweep, sweepContainer, bodyTake, lootCap, busy, restoreAt, restoreContainer, enchantOf };
 };
 module.exports.plan = plan;
 module.exports.wornIn = wornIn;
@@ -461,4 +546,5 @@ module.exports.carryOf = carryOf;
 module.exports.renamed = renamed;
 module.exports.RESTORE_MARK = RESTORE_MARK;
 module.exports.RESTORE_FILE = RESTORE_FILE;
+module.exports.METAL_RESTORE_FILE = METAL_RESTORE_FILE;
 module.exports.VERSION = VERSION;

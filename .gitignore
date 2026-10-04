@@ -105,3 +105,4 @@ guild-overrides.json
 
 # The gear swap restore plan (tools/loot/gearswap_restore_plan.js): names characters, live data only
 gearswap-restore.json
+gearswap-restore-metals.json

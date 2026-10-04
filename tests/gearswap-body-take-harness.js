@@ -1,3 +1,5 @@
+// DORMANT: no take from a body reaches the server today (the engine refuses a take from a ref the taker does not occupy,
+// and the client blocks activation of actors; R-swapdodge, 4 Oct); this tests the safety net for a fork that opens bodies.
 // Scripted test for gearswap.js's body take (Nate, 4 Oct 2026: NPC bodies outside a dungeon lease opened with their full
 // kit, and a creature's corpse in a lease keeps its arrows and ingots). The player's game shows its own copy of an actor's
 // inventory, so the server swaps at the take: a take from a body that is not a player's, of gear, an ingot, an ore or an
@@ -14,7 +16,7 @@ const PLUG = { 0: 'Skyrim.esm', 7: 'BSAssets.esm', 8: 'BSHeartland.esm' };
 const descOf = (id) => `${((id >>> 0) & 0xffffff).toString(16)}:${PLUG[(id >>> 0) >>> 24] || 'X.esp'}`;
 const idOf = (desc) => { const m = /^([0-9a-f]+):(.+)$/i.exec(String(desc)); if (!m) return 0; const top = Object.keys(PLUG).find((k) => PLUG[k].toLowerCase() === m[2].toLowerCase()); return top === undefined ? 0 : ((Number(top) << 24) | parseInt(m[1], 16)) >>> 0; };
 const ID = {
-  ElvenArrow: 0x139bd, IronArrow: 0x1397d, SteelArrow: 0x1397f, IngotIMoonstone: 0x5ad9f, IngotSteel: 0x5ace5, BSKIngotAdamantium: 0x07602099,
+  ElvenArrow: 0x139bd, IronArrow: 0x1397d, SteelArrow: 0x1397f, IngotIMoonstone: 0x5ad9f, IngotDwarven: 0xdb8a2, OreMoonstone: 0x5ace0, IngotSteel: 0x5ace5, BSKIngotAdamantium: 0x07602099,
   GlassSword: 0x139a9, SteelSword: 0x13989, IronSword: 0x12eb7, DA08EbonyBlade: 0x4a38f, Gold: 0xf, DragonBone: 0x3ada4, BSKIngotMeteoricIron: 0x07601c91, BSKOreMeteoricIron: 0x07601c92, OreIron: 0x71cf3,
 };
 const EDID = Object.fromEntries(Object.entries(ID).map(([k, v]) => [v >>> 0, k]));
@@ -22,7 +24,7 @@ const EDID = Object.fromEntries(Object.entries(ID).map(([k, v]) => [v >>> 0, k])
 const BODY = 0xff000500, PLAYER = 0xff000303, STAFF = 0xff000304, EXEMPT = 0xff000305, PBODY = 0xff000306, CHEST = 0x0800f001;
 const store = {};
 const reset = () => {
-  store[BODY] = { type: 'MpActor', profileId: -1, inventory: { entries: [{ baseId: ID.ElvenArrow, count: 5 }, { baseId: ID.IngotIMoonstone, count: 2 }, { baseId: ID.GlassSword, count: 1 }, { baseId: ID.IronSword, count: 1 }, { baseId: ID.BSKIngotAdamantium, count: 1 }, { baseId: ID.DA08EbonyBlade, count: 1 }, { baseId: ID.DragonBone, count: 2 }, { baseId: ID.BSKIngotMeteoricIron, count: 1 }, { baseId: ID.BSKOreMeteoricIron, count: 2 }] } };
+  store[BODY] = { type: 'MpActor', profileId: -1, inventory: { entries: [{ baseId: ID.ElvenArrow, count: 5 }, { baseId: ID.IngotDwarven, count: 2 }, { baseId: ID.IngotIMoonstone, count: 2 }, { baseId: ID.OreMoonstone, count: 3 }, { baseId: ID.GlassSword, count: 1 }, { baseId: ID.IronSword, count: 1 }, { baseId: ID.BSKIngotAdamantium, count: 1 }, { baseId: ID.DA08EbonyBlade, count: 1 }, { baseId: ID.DragonBone, count: 2 }, { baseId: ID.BSKIngotMeteoricIron, count: 1 }, { baseId: ID.BSKOreMeteoricIron, count: 2 }] } };
   store[PLAYER] = { type: 'MpActor', profileId: 30, inventory: { entries: [{ baseId: ID.IronArrow, count: 10 }, { baseId: ID.Gold, count: 40 }] } };
   store[STAFF] = { type: 'MpActor', profileId: 4, inventory: { entries: [] } };
   store[EXEMPT] = { type: 'MpActor', profileId: 7, inventory: { entries: [] } };
@@ -53,9 +55,10 @@ const count = (who, base) => (store[who].inventory.entries || []).filter((e) => 
   check('...the body loses those 3, the pack gets 3 iron arrows on its own iron stack', count(BODY, ID.ElvenArrow) === 2 && count(PLAYER, ID.IronArrow) === 13 && count(PLAYER, ID.ElvenArrow) === 0
     && store[PLAYER].inventory.entries.filter((e) => e.baseId === ID.IronArrow).length === 1, store[PLAYER].inventory.entries);
   check('...with an audit line and a word to the player', audits.some((t) => t === 'GEARSWAP take Pff000303 from body ff000500: 3 x ElvenArrow -> IronArrow') && said.some(([a, t]) => a === PLAYER && /^To match the loot rules, .*Arrow x3 from the body became .*Iron Arrow x3\.$/.test(t)), { audits, said });
-  check('a take of refined moonstone gives steel ingots', take(BODY, PLAYER, ID.IngotIMoonstone, 2) === true);
+  check('a take of Dwarven metal ingots (no ore to mine) gives steel ingots', take(BODY, PLAYER, ID.IngotDwarven, 2) === true);
   await tick();
-  check('...2 for 2, the moonstone gone from the body', count(BODY, ID.IngotIMoonstone) === 0 && count(PLAYER, ID.IngotSteel) === 2 && count(PLAYER, ID.IngotIMoonstone) === 0);
+  check('...2 for 2, the Dwarven gone from the body', count(BODY, ID.IngotDwarven) === 0 && count(PLAYER, ID.IngotSteel) === 2 && count(PLAYER, ID.IngotDwarven) === 0);
+  check('refined moonstone and moonstone ore, which players mine, are ordinary takes (Nate, 4 Oct: "Keep mined ores, swap only gear")', take(BODY, PLAYER, ID.IngotIMoonstone, 2) === false && take(BODY, PLAYER, ID.OreMoonstone, 3) === false);
   check('Adamantium (Beyond Skyrim) is swapped the same way', take(BODY, PLAYER, ID.BSKIngotAdamantium, 1) === true);
   await tick();
   check('...for a steel ingot', count(PLAYER, ID.IngotSteel) === 3 && count(BODY, ID.BSKIngotAdamantium) === 0);
@@ -65,12 +68,25 @@ const count = (who, base) => (store[who].inventory.entries || []).filter((e) => 
     const G = require(path.join(SERVER, 'gearswap.js'));
     const SWAP = JSON.parse(fs.readFileSync(path.join(SERVER, 'gear-swap.json'), 'utf8'));
     const TIERS = require(path.join(SERVER, 'loottiers.js'))({ materials: JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')), swap: SWAP });
-    const p = G.plan({ entries: [{ baseId: ID.BSKIngotMeteoricIron, count: 5 }, { baseId: ID.BSKOreMeteoricIron, count: 8 }, { baseId: ID.IngotIMoonstone, count: 1 }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, isArtifact: () => false, edidOf: (id) => EDID[id >>> 0] || '' });
-    check('a carried or stored Meteoric ingot or ore is not swapped (the plan the login and container sweeps use); refined moonstone beside it is',
-      p.swaps.length === 1 && p.swaps[0].edid === 'IngotIMoonstone' && p.entries.some((e) => e.baseId === ID.BSKIngotMeteoricIron && e.count === 5) && p.entries.some((e) => e.baseId === ID.BSKOreMeteoricIron && e.count === 8), p.swaps);
+    const p = G.plan({ entries: [{ baseId: ID.BSKIngotMeteoricIron, count: 5 }, { baseId: ID.BSKOreMeteoricIron, count: 8 }, { baseId: ID.IngotIMoonstone, count: 4 }, { baseId: ID.OreMoonstone, count: 6 }, { baseId: ID.IngotDwarven, count: 1 }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, isArtifact: () => false, edidOf: (id) => EDID[id >>> 0] || '' });
+    check('a carried or stored Meteoric or moonstone ingot or ore is not swapped (the plan the login and container sweeps use); a Dwarven ingot beside them is',
+      p.swaps.length === 1 && p.swaps[0].edid === 'IngotDwarven' && p.entries.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 4) && p.entries.some((e) => e.baseId === ID.OreMoonstone && e.count === 6) && p.entries.some((e) => e.baseId === ID.BSKIngotMeteoricIron && e.count === 5) && p.entries.some((e) => e.baseId === ID.BSKOreMeteoricIron && e.count === 8), p.swaps);
     check('...and it is not on gear-swap.json\'s metals, yet loottiers keeps it out of loot', !SWAP.metals['601c91:bsassets.esm'] && !SWAP.metals['601c92:bsassets.esm'] && TIERS.aboveCap('601c91:BSAssets.esm', 'metal').lootOnly === true);
   }
-  check('a slain dragon\'s bone is never swapped, though the metals list names it: its body is the one source (Nate, 2026-09-30)', take(BODY, PLAYER, ID.DragonBone, 2) === false);
+  check('a slain dragon\'s bone is never swapped at a take: its body is the one source (Nate, 2026-09-30)', take(BODY, PLAYER, ID.DragonBone, 2) === false);
+  {
+    const G = require(path.join(SERVER, 'gearswap.js'));
+    const SWAP = JSON.parse(fs.readFileSync(path.join(SERVER, 'gear-swap.json'), 'utf8'));
+    const DM = JSON.parse(fs.readFileSync(path.join(SERVER, 'dragon-materials.json'), 'utf8'));
+    const TIERS = require(path.join(SERVER, 'loottiers.js'))({ materials: JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')), swap: SWAP });
+    const norm = require(path.join(SERVER, 'loottiers.js')).normDesc;
+    const onList = (DM.materials || []).filter((d) => SWAP.metals[norm(d)] || SWAP.ammo[norm(d)] || SWAP.items[norm(d)]);
+    check('no dragon material (dragon-materials.json) is on any of the swap\'s lists, so no version bump or first container open sweeps a dragon\'s bones to steel', (DM.materials || []).length >= 2 && !onList.length, onList);
+    const p = G.plan({ entries: [{ baseId: ID.DragonBone, count: 3 }, { baseId: 0x3ada3, count: 2 }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, isArtifact: () => false, edidOf: (id) => EDID[id >>> 0] || '' });
+    check('...the sweeps\' plan keeps dragon bone and scales as they are', p.swaps.length === 0 && p.entries.length === 2, p.swaps);
+    const lc = globalThis.__dboGearSwapLoot([{ baseId: ID.DragonBone, count: 3 }, { baseId: ID.IngotDwarven, count: 1 }, { baseId: ID.IngotIMoonstone, count: 1 }]);
+    check('...and a slain dragon\'s body hands them over through the loot cap, while the cap keeps Dwarven and moonstone ingots back', lc && lc.entries.length === 1 && lc.entries[0].baseId === ID.DragonBone && lc.entries[0].count === 3 && lc.dropped.length === 2, lc);
+  }
   check('a glass sword from a body becomes a steel sword', take(BODY, PLAYER, ID.GlassSword, 1) === true);
   await tick();
   check('...in the pack, gone from the body', count(PLAYER, ID.SteelSword) === 1 && count(BODY, ID.GlassSword) === 0 && count(PLAYER, ID.GlassSword) === 0);

@@ -13,8 +13,9 @@
 //      dungeons.js under it: no weapon or armour above iron and steel at any difficulty. Parts 1 and 2 run with
 //      cap 'none', so they keep testing the tiers beneath it.
 //   4. The same ceiling over ingots, ores and arrows (Nate, 4 Oct): under it no path hands out anything gear-swap.json's
-//      metals or ammo names (chests, urns, bosses, bodies, masters, the enemies' quivers); a creature's corpse keeps what
-//      it carried and the take swaps it (tests/gearswap-body-take-harness.js). Linen wraps drop (the same 4 Oct ask).
+//      metals or ammo names, nor a mined metal (loottiers.js LOOT_ONLY_METALS), on any path (chests, urns, bosses, bodies,
+//      masters, the enemies' quivers); a creature's corpse keeps what it carried, which nothing hands over today. The two
+//      metal lists against skills.json oreByTier: what players mine is never swapped. Linen wraps drop (the same 4 Oct ask).
 //      The metals stay out at cap 'none' too ("people should have to craft higher tiers and grind for it"): checked on
 //      part 2's uncapped sweep, where the arrows come back.
 //   node tests/loot-tiers-harness.js   (from server/; CLAIMS=n for more claims per dungeon and difficulty)
@@ -284,9 +285,9 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   const any = anySeen.splice(anyBefore);
   const S0 = tiersWith(undefined);
   const S1 = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES, swap: SWAP });
-  ok(S1.aboveCap('5ad9f:Skyrim.esm', 'metal') && S1.aboveCap('5ad9f:Skyrim.esm').toEdid === 'IngotSteel' && S1.aboveCap('139bd:Skyrim.esm').kind === 'ammo'
+  ok(S1.aboveCap('5ad9f:Skyrim.esm', 'metal') && S1.aboveCap('5ad9f:Skyrim.esm').lootOnly && S1.aboveCap('db8a2:Skyrim.esm').toEdid === 'IngotSteel' && S1.aboveCap('139bd:Skyrim.esm').kind === 'ammo'
     && S1.aboveCap('5ace5:Skyrim.esm', 'metal') === null && S1.aboveCap('1397d:Skyrim.esm', 'ammo') === null && S1.aboveCap('5ad93:Skyrim.esm', 'metal') === null,
-    'loottiers aboveCap: refined moonstone and Elven arrows are above the steel ceiling (the swap\'s own entries); steel and corundum ingots and iron arrows are not');
+    'loottiers aboveCap: refined moonstone (loot-only), the Dwarven ingot (the swap\'s entry) and Elven arrows are above the steel ceiling; steel and corundum ingots and iron arrows are not');
   ok(S1.aboveCap('601c91:BSAssets.esm', 'metal').lootOnly && S1.aboveCap('601c92:BSAssets.esm', 'metal').lootOnly && !SWAPPED.has(normD('601c91:BSAssets.esm')) && !SWAPPED.has(normD('601c92:BSAssets.esm')),
     'Meteoric Iron, ingot and ore, is kept out of loot but is not on the swap\'s lists (it is mined: Nate, 4 Oct)');
   ok(S0.aboveCap('5ace5:Skyrim.esm', 'metal') && S0.aboveCap('1397d:Skyrim.esm', 'ammo') && S0.aboveCap('5ace5:Skyrim.esm', '') === null,
@@ -298,7 +299,22 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
     [...new Set(leaked.map((x) => `${x.path} ${x.diff}: ${x.name}`))].slice(0, 10));
   const kept = [...new Set(any.filter((x) => x.path === 'creature corpse' && SWAPPED.has(x.desc)).map((x) => x.name))];
   ok(kept.length > 0 && kept.every((n) => [...Object.values(SWAP.metals), ...Object.values(SWAP.ammo)].some((m) => m.edid === n && m.to)),
-    `a creature's corpse keeps what it carried (${kept.join(', ')}), each with a swap target for the take (the player's game shows its own copy of a body)`, kept);
+    `a creature's corpse keeps what it carried (${kept.join(', ')}), each with a swap target, for a dormant body take; nothing hands a lease creature's body over today`, kept);
+  // The two metal lists against what players mine (Nate, 4 Oct: "Keep mined ores, swap only gear"): every ore in skills.json
+  // oreByTier above steel, and the ingot its smelter recipe makes, is loot-only and never on the swap's list
+  {
+    const LO = require(path.join(ROOT, 'loottiers.js')).LOOT_ONLY_METALS;
+    const lab = fs.readFileSync(path.join(ROOT, 'labour.js'), 'utf8');
+    const ITEMS = Object.fromEntries([...lab.slice(lab.indexOf('const ITEMS = Object.assign({'), lab.indexOf('}, CFG.gemOre')).matchAll(/(\w+): '([0-9a-f]+:[^']+)'/g)].map((m) => [m[1], normD(m[2])]));
+    const ores = (read('skills.json').skills.find((k) => k.id === 'miner').oreByTier || []).flat().map((o) => String(o).toLowerCase());
+    const ABOVE = ['quicksilver', 'orichalcum', 'moonstone', 'malachite', 'ebony'];
+    const INGOT = { quicksilver: '5ada0:skyrim.esm', orichalcum: '5ad99:skyrim.esm', moonstone: '5ad9f:skyrim.esm', malachite: '5ada1:skyrim.esm', ebony: '5ad9d:skyrim.esm' };
+    const minedSwapped = ores.filter((o) => ITEMS[o] && SWAP.metals[ITEMS[o]]);
+    ok(!minedSwapped.length && ABOVE.every((o) => ores.includes(o) && LO[ITEMS[o]] && LO[INGOT[o]] && !SWAP.metals[INGOT[o]]),
+      `no ore players mine (${ores.join(', ')}) is on the swap's metals; the ${ABOVE.length} above steel and their ingots are loot-only`, { minedSwapped });
+    ok(Object.keys(LO).every((k) => !SWAP.metals[k] && !SWAP.ammo[k]) && Object.keys(SWAP.metals).every((k) => !ores.some((o) => ITEMS[o] === k)),
+      `the ${Object.keys(LO).length} loot-only metals and the ${Object.keys(SWAP.metals).length} swapped ones (${Object.values(SWAP.metals).map((m) => m.edid).join(', ')}) never overlap`);
+  }
   const names = new Set(any.map((x) => x.name));
   ok(['IngotSteel', 'IngotIron', 'Leather01', 'IronArrow', 'SteelArrow'].every((n) => names.has(n)) && !names.has('BSKIngotMeteoricIron'), 'materials and arrows still drop under the ceiling: steel and iron ingots, leather, iron and steel arrows; no Meteoric Iron');
   const steelShare = (() => { const m = any.filter((x) => ['chest', 'boss chest'].includes(x.path) && LOOT.materials.some((it) => normD(it.id) === x.desc)); return m.filter((x) => x.name === 'IngotSteel').length / Math.max(1, m.length); })();

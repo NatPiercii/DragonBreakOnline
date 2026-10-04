@@ -60,6 +60,11 @@ module.exports = (api) => {
   };
   // The loot cap's metals (gear-swap.json "metals", which gearswap.js applies to packs and containers): what comes back is
   // capped by the same list, so an Elven piece gives steel and the two can never drift. Re-read when the file changes.
+  // The metals players mine are off that list (never swapped; Nate, 4 Oct) but no more come out of salvage than out of
+  // loot: loottiers.js LOOT_ONLY_METALS names what salvage gives for each (a steel ingot, iron ore)
+  const LOOT_ONLY = (() => {
+    try { const f = path.join(__dirname, 'loottiers.js'); delete require.cache[f]; return require(f).LOOT_ONLY_METALS || {}; } catch (e) { log('salvage: loottiers.js unreadable, mined metals not capped', e.message); return {}; }
+  })();
   let capMap = null, capMtime = -1;
   const capped = () => {
     const file = path.resolve('gear-swap.json');
@@ -67,7 +72,7 @@ module.exports = (api) => {
       const m = fs.statSync(file).mtimeMs;
       if (m !== capMtime) {
         capMtime = m;
-        capMap = new Map(Object.entries(JSON.parse(fs.readFileSync(file, 'utf8')).metals || {}).filter(([, v]) => v && v.to).map(([k, v]) => [norm(k), String(v.to)]));
+        capMap = new Map(Object.entries(Object.assign({}, LOOT_ONLY, JSON.parse(fs.readFileSync(file, 'utf8')).metals || {})).filter(([, v]) => v && v.to).map(([k, v]) => [norm(k), String(v.to)]));
       }
     } catch (e) { if (capMap === null) log('salvage: gear-swap.json unreadable, metals not capped', e.message); capMap = capMap || new Map(); }
     return capMap;

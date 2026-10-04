@@ -3900,6 +3900,19 @@ const isAnimalPart = (r) => {
   if ((ANIMAL_BODY.allowTypes || []).includes(type)) return true;
   return (ANIMAL_BODY.partTypes || []).includes(type) && ANIMAL_ALLOW.some((x) => x.test(edid));
 };
+// A plain entry goes on its plain stack (giveItem); one with extras (an enchantment the loot cap carried over) as itself
+const giveAnimalEntry = (a, e) => {
+  const extras = Object.keys(e).filter((k) => !['baseId', 'count', 'worn', 'wornLeft'].includes(k) && e[k] !== undefined && e[k] !== null);
+  if (!extras.length) return giveItem(a, Number(e.baseId) >>> 0, Number(e.count) || 0);
+  try {
+    const inv = mp.get(a, 'inventory') || { entries: [] };
+    const out = Array.isArray(inv.entries) ? inv.entries.map((x) => Object.assign({}, x)) : [];
+    const copy = Object.assign({}, e); delete copy.worn; delete copy.wornLeft;
+    out.push(copy);
+    mp.set(a, 'inventory', { entries: out });
+    return true;
+  } catch (err) { log('animal body give failed', err.message); return false; }
+};
 globalThis.__dboAnimalBody = (targetId, casterId) => {
   if (targetId < 0xff000000 || profileOf(casterId) < 0) return null;
   let tag = ''; try { tag = String(mp.get(targetId, 'private.npcSpawner') || ''); } catch (e) { return null; }
@@ -3917,12 +3930,29 @@ globalThis.__dboAnimalBody = (targetId, casterId) => {
   }
   const keepAll = (ANIMAL_BODY.keepAllKinds || []).includes(tag.split(':')[1]);
   const got = [], dropped = [];
+  const said = (baseId, count) => { const r = recordOf(baseId); return `${count}x ${(r && r.record.editorId) || baseId.toString(16)}`; };
+  let give = [];
   for (const e of entries) {
     const baseId = Number(e.baseId) >>> 0, count = Number(e.count) || 0;
     if (!baseId || count <= 0) continue;
     const r = recordOf(baseId);
-    if (!keepAll && !isAnimalPart(r)) { dropped.push(`${count}x ${(r && r.record.editorId) || baseId.toString(16)}`); continue; }
-    if (giveItem(casterId, baseId, count)) got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'something').replace(/^Food /, '')}`);
+    if (!keepAll && !isAnimalPart(r)) { dropped.push(said(baseId, count)); continue; }
+    give.push(Object.assign({}, e, { baseId, count }));
+  }
+  // The loot cap (Nate, 4 Oct; a goblin's body handed over an Orichalcum ingot and a Dwarven bow): no metal above steel
+  // ever comes from a body, gear and arrows above the cap become their replacement, an enchantment kept (gearswap.js
+  // lootCap). Without gearswap.js a keep-everything body hands over only its animal parts (fails closed)
+  const cap = typeof globalThis.__dboGearSwapLoot === 'function' ? globalThis.__dboGearSwapLoot(give) : null;
+  if (cap) {
+    for (const e of cap.dropped) dropped.push(said(Number(e.baseId) >>> 0, Number(e.count) || 0));
+    for (const s of cap.swaps) log(`animal body ${display(casterId)}: ${s.count}x ${s.edid || s.from.toString(16)} from ${tag} handed over as ${s.toEdid || s.to.toString(16)} (loot cap)`);
+    give = cap.entries;
+  } else give = give.filter((e) => { const ok = isAnimalPart(recordOf(Number(e.baseId) >>> 0)); if (!ok) dropped.push(said(Number(e.baseId) >>> 0, Number(e.count) || 0)); return ok; });
+  for (const e of give) {
+    const baseId = Number(e.baseId) >>> 0, count = Number(e.count) || 0;
+    if (!baseId || count <= 0) continue;
+    const r = recordOf(baseId);
+    if (giveAnimalEntry(casterId, e)) got.push(`${count > 1 ? count + ' ' : ''}${e.name || edidWords(r && r.record.editorId, 'something').replace(/^Food /, '')}`);
   }
   try { mp.set(targetId, 'inventory', { entries: [] }); } catch (e) { log('animal body empty failed', e.message); }
   personal(casterId, got.length ? `You take ${got.join(', ')}.` : 'There is nothing left to take.');
@@ -4358,7 +4388,8 @@ const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
   // server\itemguards.js: a count below 1 or a record that is not an item never moves (audit B2)
   try { if (typeof globalThis.__dboTakeGuard === 'function' && globalThis.__dboTakeGuard(sourceId, actorId, baseId, count) === false) return false; } catch (e) { log('take guard failed', e.message); }
   try { if (dragonTakeRefused(Number(sourceId) >>> 0, Number(actorId) >>> 0, Number(baseId) >>> 0)) return false; } catch (e) { log('dragon take check failed', e.message); }
-  // Gear, ingots, ores and arrows above the loot cap taken from an NPC's body become their replacement (gearswap.js)
+  // Gear, ingots, ores and arrows above the loot cap taken from an NPC's body become their replacement (gearswap.js). Dormant:
+  // no take from a body reaches the server today (the engine needs an occupant, the client blocks activating actors)
   try { if (typeof globalThis.__dboGearSwapTake === 'function' && globalThis.__dboGearSwapTake(Number(sourceId) >>> 0, Number(actorId) >>> 0, Number(baseId) >>> 0, Number(count) || 0) === true) return false; } catch (e) { log('gearswap take check failed', e.message); }
   const prev = globalThis.__dboPrevTake;
   let verdict;
