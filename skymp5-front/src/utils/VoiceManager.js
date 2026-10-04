@@ -12,7 +12,8 @@
 //   setPrefsInGame(patch)      F3, Settings, Voice: kept in the chat-settings file's ui.voice with the launcher's value of
 //                             the moment, and dropped key by key once the launcher's value differs (uiSettings.ts)
 //   releaseDomPtt()           the game side saw the talk key go up (the page had lost the keyboard): stop the page's own
-//                             push-to-talk; cfg.pttScanCode in connect() names the launcher's talk key (DirectInput code)
+//                             push-to-talk; cfg.pttScanCode in connect() names the launcher's talk key (DirectInput code,
+//                             256 + the button for a mouse button)
 // Events back to the game (window.skyrimPlatform.sendMessage):
 //   'voice::ready', 'voice::micDenied', 'voice::error' <text>,
 //   'voice::speaking' <json array of {id, level}: own voice plus audible speakers, every 150 ms while anyone talks, [] once when quiet>
@@ -77,6 +78,10 @@ const DX_TO_CODE = (() => {
     0x28: 'Quote', 0x33: 'Comma', 0x34: 'Period', 0x35: 'Slash' });
   return m;
 })();
+// A mouse talk key (DxScanCode 256 + the DirectInput button) -> MouseEvent.button. While a window has the browser focus the
+// game hears no mouse button, and SkyrimPlatform hands the page only left, right and middle (CEF has no other button
+// type), so the middle button is the only one the page can talk with; left and right stay the window's clicks.
+const DX_TO_MOUSE_BUTTON = { 258: 1 };
 // A field the player types letters into keeps the letter; buttons, number fields (the trade window's amounts, where a
 // letter cannot be typed anyway) and the rest of a window do not
 const isTextField = (el) => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
@@ -105,6 +110,7 @@ class VoiceManager {
     this.peerRanges = {};      // identity -> that speaker's mode range
     this.ptt = false;
     this.pttCode = 'KeyV';     // the talk key while the page has the keyboard (the game side sees it otherwise)
+    this.pttMouseButton = null; // the talk key's MouseEvent.button when it is a mouse button the page receives
     this.domPtt = false;       // the page's own push-to-talk is holding the mic
     this.audioEls = new Map(); // identity -> HTMLAudioElement
     this.bannerEl = null;
@@ -503,7 +509,10 @@ class VoiceManager {
     if (!cfg || typeof cfg !== 'object') return;
     if (Array.isArray(cfg.modes) && cfg.modes.length) this.modes = cfg.modes;
     if (cfg.mode && this.modeByKey(cfg.mode)) this.mode = cfg.mode;
-    if (typeof cfg.pttScanCode === 'number') this.pttCode = DX_TO_CODE[cfg.pttScanCode] || null;
+    if (typeof cfg.pttScanCode === 'number') {
+      this.pttCode = DX_TO_CODE[cfg.pttScanCode] || null;
+      this.pttMouseButton = cfg.pttScanCode in DX_TO_MOUSE_BUTTON ? DX_TO_MOUSE_BUTTON[cfg.pttScanCode] : null;
+    }
   }
 
   modeByKey(key) {
@@ -811,6 +820,19 @@ window.addEventListener('keyup', (e) => {
   if (vm && e.code === vm.pttCode) vm.releaseDomPtt();
 }, true);
 window.addEventListener('blur', () => { const vm = window.__alduinakVoice; if (vm) vm.releaseDomPtt(); });
+// The same for a middle-button talk key (no text field check: a mouse button types nothing). Its default, Chromium's
+// autoscroll and a middle click's auxclick, is kept from the window.
+const isMouseTalk = (e) => { const vm = window.__alduinakVoice; return !!vm && vm.pttMouseButton !== null && e.button === vm.pttMouseButton; };
+window.addEventListener('mousedown', (e) => {
+  if (!isMouseTalk(e)) return;
+  e.preventDefault();
+  const vm = window.__alduinakVoice;
+  if (vm.domPtt) return;
+  vm.domPtt = true;
+  vm.setPtt(true);
+}, true);
+window.addEventListener('mouseup', (e) => { if (isMouseTalk(e)) window.__alduinakVoice.releaseDomPtt(); }, true);
+window.addEventListener('auxclick', (e) => { if (isMouseTalk(e)) e.preventDefault(); }, true);
 
 // Failsafe: if the game stops feeding distances (main menu, script reload), go silent instead of playing stale volumes.
 // Also heartbeat the range so listeners who missed the data packet eventually heal.

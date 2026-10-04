@@ -12,7 +12,7 @@ import { IdentityMap, parseIdentityMap, peerKey } from "./voicePeerKey";
 // The page's mic summary, e.g. "mics 1, aec on, cap live, ctx running, mix running, loop connected"; nothing else passes
 const MIC_SHAPE = /^mics \d{1,2}(, [a-z]{2,4} [a-z?]{1,12}){1,6}$/;
 
-// Proximity voice chat: push-to-talk (default V, launcher-configurable via voicePushToTalkKeyCode) + LiveKit room managed by VoiceManager in the skymp5-front CEF page.
+// Proximity voice chat: push-to-talk (default V, launcher-configurable via voicePushToTalkKeyCode, a key or a mouse button) + LiveKit room managed by VoiceManager in the skymp5-front CEF page.
 // This service owns the game side: room token requests, peer distances to the browser, and the PTT key; audibility is distance vs the server-provided range (chat "say" range by default), same-world only.
 
 const PEERS_INTERVAL_MS = 400;
@@ -31,6 +31,12 @@ const DEFAULT_MODES: VoiceMode[] = [
   { key: "talk", label: "Talk", units: 840 },
   { key: "shout", label: "Shout", units: 3150 },
 ];
+
+// The talk key's mouse button, or null for a keyboard key. Left and right click attack and block; the wheel has no hold.
+// 256..263 are DxScanCode.LeftMouseButton..MouseButton7 in the platform typings (Input.isKeyPressed numbering).
+export function mouseTalkButton(code: number): number | null {
+  return Number.isInteger(code) && code >= DxScanCode.MiddleMouseButton && code <= DxScanCode.MouseButton7 ? code - DxScanCode.LeftMouseButton : null;
+}
 
 export class VoiceService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -96,6 +102,7 @@ export class VoiceService extends ClientListener {
   }
 
   private onButtonEventImpl(e: ButtonEvent) {
+    if (e.device === InputDeviceType.Mouse) { this.onMouseButton(e); return; }
     if (e.device !== InputDeviceType.Keyboard) return;
 
     if (this.modeKey !== DxScanCode.LeftAlt && e.code === this.modeKey) {
@@ -125,6 +132,26 @@ export class VoiceService extends ClientListener {
         if (e.isDown) this.cycleMode();
         return;
       }
+      this.pttDown = true;
+      this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPtt(true)`);
+      this.sendAfkPing();
+    } else if (e.isUp && this.pttDown) {
+      this.releasePtt();
+    }
+  }
+
+  // A mouse button as the talk key (the launcher stores it as 256 + the button, the DxScanCode numbering); the game's
+  // mouse ButtonEvent carries the button alone (0 left, 1 right, 2 middle, 3-7 the side buttons), so it is compared
+  // without the 256. The game hears no mouse button while one of our windows has the browser focus (the platform hides
+  // them), and only the middle one reaches the page: the page handles that one itself (VoiceManager).
+  private onMouseButton(e: ButtonEvent) {
+    const button = mouseTalkButton(this.voiceKey);
+    if (button === null || e.code !== button) return;
+    if (e.isUp) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
+    if ((e.isDown || e.isHeld) && !this.pttDown) {
+      if (this.sp.browser.isFocused() || isConsoleOpen(this.sp)) return;
+      // A button held with Alt still talks, and that Alt press no longer cycles the range on its release
+      if (this.altDown) this.altUsedAsModifier = true;
       this.pttDown = true;
       this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPtt(true)`);
       this.sendAfkPing();

@@ -19,7 +19,7 @@ export const KEY_ROWS: KeyRow[] = [
   { id: 'nametags', group: 'view', label: 'Nametags', names: ['nametagKeyCode'] },
   { id: 'hideUi', group: 'view', label: 'Hide interface', names: ['hideUiKeyCode'] },
   { id: 'hideChat', group: 'view', label: 'Hide chat', names: ['hideChatKeyCode'], optional: true, hint: 'Hides the chat until pressed again; T still opens it.' },
-  { id: 'ptt', group: 'view', label: 'Push to talk', names: ['voicePushToTalkKeyCode'] },
+  { id: 'ptt', group: 'view', label: 'Push to talk', names: ['voicePushToTalkKeyCode'], hint: 'A mouse button can be set in the launcher.' },
   { id: 'range', group: 'view', label: 'Voice range', names: ['voiceModeKeyCode'] },
   { id: 'mask', group: 'view', label: 'Mask', names: ['maskToggleKeyCode'] },
   { id: 'admin', group: 'menus', label: 'Admin panel', names: ['adminMenuKeyCode'], staff: true },

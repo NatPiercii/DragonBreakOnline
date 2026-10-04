@@ -105,6 +105,8 @@ export const DOM_TO_DX: Record<string, [number, string]> = {
 
 const DX_NAME: Record<number, string> = {};
 for (const k of Object.keys(DOM_TO_DX)) { const [code, name] = DOM_TO_DX[k]; if (!(code in DX_NAME)) DX_NAME[code] = name; }
+// Mouse buttons (DxScanCode 256 + the DirectInput button), which the launcher can set as the talk key
+Object.assign(DX_NAME, { 256: 'Left Mouse', 257: 'Right Mouse', 258: 'Middle Mouse', 259: 'Mouse 4', 260: 'Mouse 5', 261: 'Mouse 6', 262: 'Mouse 7', 263: 'Mouse 8' });
 
 // The name of a scan code ('' for none)
 export const keyName = (code: number): string => (code > 0 ? DX_NAME[code] || `Key ${code}` : '');
