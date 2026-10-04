@@ -34,10 +34,14 @@ module.exports = (api) => {
   const ROLES = DEFS.roles || {};
   const CAPS = Object.assign({}, DEFS.roleCaps || {}, (cfg.factions || {}).roleCaps || {});
   const FACTIONS = new Map();
+  // fid -> the rank titles before any rank marked "added" in the defs: what a roster entry written before its faction's
+  // titles were stamped (guilds.json from before 4 Oct 2026) was indexed against
+  const BEFORE_STAMPS = new Map();
   for (const f of DEFS.factions || []) {
-    const ranks = Array.isArray(f.ranks) ? f.ranks : ((DEFS.templates || {})[f.template] || []);
-    if (!f.id || !ranks.length) { log(`faction ${f.id || '?'} has no ranks, skipped`); continue; }
-    FACTIONS.set(f.id, Object.assign({}, f, { ranks }));
+    const raw = Array.isArray(f.ranks) ? f.ranks : ((DEFS.templates || {})[f.template] || []);
+    if (!f.id || !raw.length) { log(`faction ${f.id || '?'} has no ranks, skipped`); continue; }
+    FACTIONS.set(f.id, Object.assign({}, f, { ranks: raw.map((r) => ({ title: String(r.title), role: String(r.role) })) }));
+    BEFORE_STAMPS.set(f.id, raw.filter((r) => !r.added).map((r) => String(r.title)));
   }
   // Factions founded by players' charters (charters.js) live in player-factions.json, written at runtime and never in git;
   // guild-defs.json stays the hand-kept canon list. A defs id always wins over a player faction of the same id.
@@ -82,36 +86,51 @@ module.exports = (api) => {
   // { factionId: { actorId: { rank, name, tag, since } } }
   const ST = globalThis.__dboGuildState || (globalThis.__dboGuildState = { members: readJson(STATE_PATH, {}), invites: new Map(), nonces: new Map() });
   const save = () => {
+    stampAll();
     try { fs.writeFileSync(STATE_PATH + '.tmp', JSON.stringify(ST.members, null, 1)); fs.renameSync(STATE_PATH + '.tmp', STATE_PATH); }
     catch (e) { log('guilds.json write failed', e.message); }
   };
   // ---- a rank list changed in guild-defs.json keeps every member on their title -----------------------------------
-  // Members are stored by rank index, so a rank inserted or moved in the defs would shift everyone below it. Each
-  // faction's titles are kept in guild-ranks-seen.json (runtime, gitignored); at load a faction whose titles differ
-  // from that snapshot has its roster remapped by title, and a member whose title is gone takes the lowest rank. With
-  // no snapshot yet, the previous list is taken to be today's without the ranks marked "added" in the defs.
-  const SEEN_PATH = path.resolve('guild-ranks-seen.json');
-  const SEEN = readJson(SEEN_PATH, {});
-  const saveSeen = () => { try { fs.writeFileSync(SEEN_PATH + '.tmp', JSON.stringify(SEEN, null, 1)); fs.renameSync(SEEN_PATH + '.tmp', SEEN_PATH); } catch (e) { log('guild-ranks-seen.json write failed', e.message); } };
+  // Members are stored by rank index, so a rank inserted or moved in the defs would shift everyone below it. Every
+  // entry therefore carries its rank's title (title, and nth when the faction has that title more than once: the Blades
+  // have two Blades), stamped on every save. At load an entry whose stamp no longer names its index is moved to the rank
+  // with that title, or to the lowest rank when the title is gone. An entry with no stamp was written before stamping
+  // began, against the defs without their "added" ranks, and is mapped from there. Loading twice changes nothing, and a
+  // guilds.json restored from before or after stamping comes out the same.
+  const lower = (t) => String(t || '').toLowerCase();
+  const nthOf = (titles, i) => titles.slice(0, i).filter((t) => lower(t) === lower(titles[i])).length;
+  const indexOfNth = (titles, title, nth) => {
+    let seen = 0;
+    for (let i = 0; i < titles.length; i++) if (lower(titles[i]) === lower(title)) { if (seen === (nth || 0)) return i; seen++; }
+    return -1;
+  };
+  const stamp = (f, e) => {
+    const titles = f.ranks.map((r) => r.title);
+    if (!(e.rank >= 0 && e.rank < titles.length)) return;
+    e.title = titles[e.rank];
+    const n = nthOf(titles, e.rank);
+    if (n) e.nth = n; else delete e.nth;
+  };
+  const stampAll = () => { for (const [fid, roster] of Object.entries(ST.members)) { const f = FACTIONS.get(fid); if (f) for (const e of Object.values(roster || {})) stamp(f, e); } };
   const remapByTitle = () => {
-    let moved = 0;
-    for (const f of FACTIONS.values()) {
-      const now = f.ranks.map((r) => String(r.title).toLowerCase());
-      const was = Array.isArray(SEEN[f.id]) ? SEEN[f.id].map((t) => String(t).toLowerCase())
-        : f.ranks.filter((r) => !r.added).map((r) => String(r.title).toLowerCase());
-      SEEN[f.id] = f.ranks.map((r) => r.title);
-      if (was.join('|') === now.join('|')) continue;
-      const roster = ST.members[f.id] || {};
-      for (const e of Object.values(roster)) {
-        const at = now.indexOf(was[e.rank]);
+    let moved = 0, unstamped = 0;
+    for (const [fid, roster] of Object.entries(ST.members)) {
+      const f = FACTIONS.get(fid);
+      if (!f) continue;
+      const now = f.ranks.map((r) => r.title);
+      const before = BEFORE_STAMPS.get(fid) || now;
+      for (const e of Object.values(roster || {})) {
+        let title, nth;
+        if (typeof e.title === 'string') { title = e.title; nth = Number(e.nth) || 0; }
+        else { unstamped++; title = before[e.rank]; nth = title === undefined ? 0 : nthOf(before, e.rank); }
+        if (title !== undefined && lower(now[e.rank]) === lower(title) && nthOf(now, e.rank) === nth) continue;
+        const at = title === undefined ? -1 : indexOfNth(now, title, nth);
         const to = at >= 0 ? at : now.length - 1;
-        if (to !== e.rank) { e.rank = to; moved++; }
+        if (to !== e.rank) { log(`guilds: ${e.name || '?'} in ${fid} keeps the title ${title === undefined ? '(unknown)' : title}: rank ${e.rank} -> ${to}${at < 0 ? ' (the title is gone: the lowest rank)' : ''}`); e.rank = to; moved++; }
       }
-      log(`guilds: ${f.id}'s ranks changed (${was.join(', ')} -> ${now.join(', ')}); its members keep their titles`);
     }
-    if (moved) save();
-    saveSeen();
-    return moved;
+    if (moved || unstamped) save();
+    return { moved, unstamped };
   };
   remapByTitle();
   // ---- the faction's storage ---------------------------------------------------------------------
@@ -496,7 +515,6 @@ module.exports = (api) => {
     f.ranks = ranks;
     for (const e of Object.values(roster)) e.rank = newIndex(e.rank);
     save();
-    SEEN[fid] = ranks.map((r) => r.title); saveSeen();
     for (const id of Object.keys(roster).map(Number)) if (isOnline(id)) mirror(id);
     // economy.js keeps a non-hold faction's wages by rank title: every rename at once, so a swap or a chain keeps each wage
     if (renamed.length && typeof globalThis.__dboEconomyRanksRenamed === 'function') { try { globalThis.__dboEconomyRanksRenamed(fid, renamed); } catch (e) { log('guilds: wage rename failed', e.message); } }

@@ -173,7 +173,8 @@
         "heading": "Offices",
         "items": [
           "When a ruler or another official appoints someone to an office, it is now an offer. The person accepts or declines it: type /court offers to see yours, then /court accept or /court decline. An offer lapses after 24 hours. Staff still appoint outright.",
-          "Holding an office now gives you its rank in the hold's household, and leaving the office takes that rank away. The household ranks that offices set can't be renamed."
+          "Holding an office now gives you its rank in the hold's household, and leaving the office takes that rank away. The household ranks that offices set can't be renamed.",
+          "Holds and the County of Bruma now have a Steward rank, right under the Jarl or Count: appointing a Steward gives them that rank, and everyone already in a household keeps their rank."
         ]
       }
     ]
