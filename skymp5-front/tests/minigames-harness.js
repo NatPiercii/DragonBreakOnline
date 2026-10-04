@@ -203,12 +203,15 @@ section('skinning', () => {
   check('skinning: frame health rides along', v && v.frames > 50 && v.maxFrameMs >= 15 && v.maxFrameMs <= 17, v);
   check('skinning: judge client shows the clean hide at once', w.text().includes('The hide comes away clean.') && w.hasClass('skinning__panel--win'));
   check('skinning: the hide is put away and Close offered', !w.hasClass('skinning__hide') && w.text().includes('Close'));
+  check('skinning: the clean cuts stay on the lifted pelt', w.byClass('skinning__mark--clean').length === 2 && w.hasClass('skinning__opened'));
 
   w = mount(Skinning, Object.assign({}, round, { nonce: 'k2' }));
-  w.advance(100); w.key(' ', 'Space'); w.advance(100); w.key(' ', 'Space');
+  w.advance(100); w.key(' ', 'Space');
+  check('skinning: a slip leaves a tear and the line counts the slips left', w.hasClass('skinning__mark--slip') && w.text().includes('One more slip will tear it.'), w.text());
+  w.advance(100); w.key(' ', 'Space');
   const l = last('dbo:skinning');
   check('skinning: slips past the allowance report a loss', l && json(l[4]).win === false && json(l[4]).slips === 2, l);
-  check('skinning: and show it', w.text().includes('The knife slips') && w.hasClass('skinning__panel--lose'));
+  check('skinning: and show it', w.text().includes('The knife slips') && w.hasClass('skinning__panel--lose') && w.hasClass('skinning__mark--rip'));
 
   w = mount(Skinning, Object.assign({}, round, { nonce: 'k3' }));
   w.advance(200); w.key('Escape'); w.advance(11000);

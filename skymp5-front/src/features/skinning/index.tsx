@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+import { capitalise, countWord } from '../../utils/countWord';
 import './styles.scss';
 
-// Skinner mini-game, opened by the gamemode through the dbo relay (widget type "skinning"). A blade
-// sweeps along the hide; cut while it crosses the seam. Enough clean cuts before the time runs out
-// and the pelt comes away; too many slips tear it.
+// Skinning a kill, opened by the gamemode through the dbo relay (widget type "skinning"). The hide is stretched on a
+// frame and the knife runs along its seam; cut while the blade is over the loose stretch, the lit band. A clean cut
+// leaves a straight slit, a slip a ragged tear; enough clean cuts before the time runs out and the pelt comes away,
+// too many slips and it tears.
 //
 // The round belongs to the server: it rolls the seed, the seam for every cut, the blade's period and
 // the time limit, and sends them here. This widget only draws that round and reports WHEN each cut
@@ -64,6 +66,29 @@ const num = (v: unknown, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+// What the skinner reads: the work before the first cut, then how the hide stands after each one
+const cutsLeftText = (n: number): string => (n === 1 ? 'One more clean cut.' : `${capitalise(countWord(n))} more clean cuts.`);
+const slipsLeftText = (n: number): string => (n <= 0 ? 'One more slip will tear it.' : `The hide will bear ${countWord(n)} more slip${n === 1 ? '' : 's'}.`);
+const startText = (cuts: number, allowed: number): string =>
+  `${capitalise(countWord(cuts))} clean cut${cuts === 1 ? '' : 's'} free the pelt; ` +
+  (allowed <= 0 ? 'the first slip tears it.' : `the hide will bear ${countWord(allowed)} slip${allowed === 1 ? '' : 's'}.`);
+
+// The skinning knife above the hide, its point at x = 16 so it sits on the blade line
+const Knife = () => (
+  <svg className="skinning__knife" viewBox="0 0 32 28" aria-hidden="true">
+    <rect className="skinning__knife-grip" x="14" y="0.5" width="4" height="9.5" rx="1.6" />
+    <rect className="skinning__knife-guard" x="11.5" y="9.6" width="9" height="2.2" rx="0.8" />
+    <path className="skinning__knife-blade" d="M16 27.5 C12.2 21.5 12 15.5 13 11.8 L19 11.8 C19.6 17 18.6 22.4 16 27.5 Z" />
+  </svg>
+);
+
+// A slip: the hide torn ragged where the blade snagged
+const Tear = ({ big }: { big?: boolean }) => (
+  <svg className={'skinning__tear' + (big ? ' skinning__tear--big' : '')} viewBox="0 0 26 30" aria-hidden="true">
+    <path d="M2 15 L6 9 L8.5 13 L12 5 L14.5 11 L18 6.5 L20 12.5 L24.5 9.5 L22.5 16 L25 19 L19.5 19.5 L17 25 L13.5 19 L10 26 L8 19.5 L3.5 21 Z" />
+  </svg>
+);
+
 const Skinning = ({ data }: { data: SkinningData }) => {
   const cuts = Math.max(1, Math.floor(num(data.cuts, 3)));
   const allowed = Math.max(0, Math.floor(num(data.misses, 2)));
@@ -84,6 +109,8 @@ const Skinning = ({ data }: { data: SkinningData }) => {
   const [sent, setSent] = useState(false);
   const [flash, setFlash] = useState('');
   const [own, setOwn] = useState<'win' | 'lose' | null>(null);
+  // Drawing only: each cut where it fell on the hide, and the last one for the line under the title
+  const [marks, setMarks] = useState<{ id: number; x: number; clean: boolean }[]>([]);
   // performance.now() so the round's clock cannot be stepped by the machine's time service
   const startedAt = useRef(performance.now());
   const sampleRef = useRef(0);  // ms into the round of the frame currently on screen
@@ -104,6 +131,7 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     setFlash('');
     setBlade(0);
     setOwn(null);
+    setMarks([]);
     hitsRef.current = 0;
     missRef.current = 0;
     sentRef.current = false;
@@ -149,6 +177,14 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sent, data.result, data.nonce]);
 
+  // A clean cut is drawn inside the loose stretch it counted for, a slip where the blade was
+  const showCut = (t: number, clean: boolean) => {
+    const at = bladeAt(t, sweepMs) * 100;
+    const s = seamAt(hitsRef.current) * 100;
+    const x = clean ? Math.max(s - width * 50, Math.min(s + width * 50, at)) : at;
+    setMarks((m) => m.concat({ id: m.length + 1, x, clean }));
+  };
+
   const cut = () => {
     if (sentRef.current || data.result) return;
     // The cut is timed at the frame on screen, not at the keypress: what the player saw is what the
@@ -158,6 +194,7 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     timesRef.current.push(t);
     setFlash(clean ? 'hit' : 'miss');
     window.setTimeout(() => setFlash(''), 180);
+    showCut(t, clean);
     if (clean) {
       const next = hitsRef.current + 1;
       hitsRef.current = next;
@@ -195,34 +232,69 @@ const Skinning = ({ data }: { data: SkinningData }) => {
   const seam = seamAt(Math.min(hits, cuts - 1));
   const done = !!data.result || !!own;
   const doneKind = data.resultKind || own;
-  const ownText = own === 'win' ? 'The hide comes away clean.' : own === 'lose' ? 'The knife slips and the hide tears.' : '';
+  const torn = misses > allowed;
+  const ownText = own === 'win' ? 'The hide comes away clean.'
+    : own === 'lose' ? (torn ? 'The knife slips and the hide tears.' : 'You take too long and the cut goes ragged. The hide tears.') : '';
+  const lastMark = marks.length ? marks[marks.length - 1] : null;
+  const after = lastMark
+    ? (lastMark.clean ? 'A clean line. ' + cutsLeftText(cuts - hits) : 'The blade snags. ' + slipsLeftText(allowed - misses))
+    : startText(cuts, allowed);
+  const line = data.result || ownText || after;
+  const lastTear = [...marks].reverse().find((m) => !m.clean);
+  const markEls = marks.map((m) => (
+    <div key={m.id} className={'skinning__mark skinning__mark--' + (m.clean ? 'clean' : 'slip')} style={{ left: m.x + '%' }}>
+      {m.clean ? <span className="skinning__slit" /> : <Tear />}
+    </div>
+  ));
 
   return (
     <div className="skinning">
       <div className="skinning__fade" />
       <div className={'skinning__panel' + (doneKind ? ' skinning__panel--' + doneKind : '')}>
-        <h1 className="skinning__title">{done ? 'Skinning' : 'Skinning the ' + (data.name || 'animal')}</h1>
-        <p className="skinning__hint">
-          {data.result ? data.result : ownText || 'Cut when the blade crosses the seam. ' + cuts + ' clean cuts, ' + allowed + ' slip' + (allowed === 1 ? '' : 's') + ' allowed. Space or click to cut.'}
-        </p>
+        <h1 className="skinning__title">{'Skinning the ' + (data.name || 'animal')}</h1>
+        <p className={'skinning__hint' + (!done && lastMark ? ' skinning__hint--' + (lastMark.clean ? 'hit' : 'miss') : '')}>{line}</p>
 
-        {!done && (
-          <>
+        <div className={'skinning__frame' + (done ? ' skinning__frame--' + (doneKind || 'done') : '')}>
+          <span className="skinning__post skinning__post--left" />
+          <span className="skinning__post skinning__post--right" />
+          {!done ? (
             <div className={'skinning__hide' + (flash ? ' skinning__hide--' + flash : '')} onMouseDown={cut}>
+              <div className="skinning__pelt"><span className="skinning__line" /></div>
+              {markEls}
               <div className="skinning__seam" style={{ left: (seam - width / 2) * 100 + '%', width: width * 100 + '%' }} />
-              <div className="skinning__blade" style={{ left: blade * 100 + '%' }} />
+              <div className="skinning__blade" style={{ left: blade * 100 + '%' }}><Knife /></div>
             </div>
-            <div className="skinning__tally">
-              <span>Cuts {hits}/{cuts}</span>
-              <span>Slips {misses}/{allowed}</span>
+          ) : (
+            <div className={'skinning__result skinning__result--' + (doneKind || 'wait')}>
+              <div className="skinning__pelt"><span className="skinning__line" /></div>
+              {markEls}
+              {doneKind === 'win' && <span className="skinning__opened" />}
+              {doneKind === 'lose' && (
+                <div className="skinning__mark skinning__mark--rip" style={{ left: (lastTear ? lastTear.x : 50) + '%' }}><Tear big /></div>
+              )}
             </div>
-            <div className="skinning__timer" title="Time">
-              <div className="skinning__time" style={{ width: pct + '%' }} />
-            </div>
-          </>
-        )}
+          )}
+        </div>
+
+        <div className="skinning__tally">
+          <span className="skinning__pips">
+            {Array.from({ length: cuts }).map((_, i) => (
+              <span key={i} className={'skinning__pip' + (i < hits ? ' skinning__pip--done' : '')} />
+            ))}
+          </span>
+          <span className="skinning__nicks">
+            {Array.from({ length: allowed }).map((_, i) => (
+              <span key={i} className={'skinning__nick' + (i < misses ? ' skinning__nick--used' : '')} />
+            ))}
+          </span>
+          <span className="skinning__clock-label">Steady hand</span>
+          <div className="skinning__timer">
+            <div className="skinning__time" style={{ width: pct + '%' }} />
+          </div>
+        </div>
 
         <div className="skinning__actions">
+          {!done && <span className="skinning__keys">Space or click to cut. Escape to stop.</span>}
           <button className="skinning__button" onClick={stop}>{done ? 'Close' : 'Stop'}</button>
         </div>
       </div>

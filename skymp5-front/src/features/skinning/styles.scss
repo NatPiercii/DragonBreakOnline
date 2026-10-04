@@ -1,6 +1,16 @@
-// Skinner mini-game in the DragonBreak palette (src/dbo-theme.scss): a panel with the hide strip,
-// the seam to hit, the sweeping blade, the tally and a timer.
+// Skinning in the DragonBreak palette (src/dbo-theme.scss): the house panel, and inside it a hide stretched between two
+// posts of a drying frame, the seam line the knife follows, the loose stretch to cut and the knife riding above.
 @import '../../dbo-theme.scss';
+
+// Materials of the frame and the hide; the panel itself keeps the theme
+$skin-hide: #6b5139;
+$skin-hide-mid: #57412d;
+$skin-hide-dark: #3d2b1e;
+$skin-flesh: #2a110b;
+$skin-post: #5a3d24;
+$skin-post-dark: #2e1e10;
+$skin-cord: #c2a571;
+$skin-steel: #dfe6e7;
 
 .skinning {
   position: fixed;
@@ -26,8 +36,8 @@
     width: min(640px, calc(90 * var(--dbo-vw)));
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 24px 28px 20px;
+    gap: 10px;
+    padding: 22px 28px 18px;
     @include dbo-panel;
     @include dbo-panel-cap;
     transition: box-shadow $dbo-fast;
@@ -37,7 +47,7 @@
     }
 
     &--lose {
-      box-shadow: 0 0 22px rgba(201, 138, 58, 0.35);
+      box-shadow: 0 0 22px rgba(201, 70, 58, 0.35);
     }
   }
 
@@ -50,62 +60,281 @@
 
   &__hint {
     margin: 0;
+    min-height: 20px;
     color: $dbo-text-dim;
     font-family: $dbo-book-font;
     font-size: 16px;
     font-style: italic;
     text-align: center;
-  }
-
-  &__hide {
-    position: relative;
-    height: 64px;
-    cursor: crosshair;
-    background: linear-gradient(180deg, #6b5139, #533d2b 55%, #3f2e21);
-    border: 1px solid $dbo-border-strong;
-    box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6);
-    transition: box-shadow $dbo-fast;
+    transition: color $dbo-fast;
 
     &--hit {
-      box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6), 0 0 16px dbo-accent(0.6);
+      color: $dbo-text;
     }
 
     &--miss {
-      box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6), 0 0 16px rgba(201, 138, 58, 0.7);
+      color: #e8907f;
     }
   }
 
+  // ---- the drying frame: two posts, cords to the hide's edges ----
+  &__frame {
+    position: relative;
+    padding: 36px 24px 8px;
+    background:
+      linear-gradient(90deg, transparent 10px, $skin-cord 10px, $skin-cord 24px, transparent 24px) 0 calc(36px + 14px) / 100% 1.5px no-repeat,
+      linear-gradient(90deg, transparent 10px, $skin-cord 10px, $skin-cord 24px, transparent 24px) 0 calc(36px + 46px) / 100% 1.5px no-repeat,
+      linear-gradient(270deg, transparent 10px, $skin-cord 10px, $skin-cord 24px, transparent 24px) 0 calc(36px + 14px) / 100% 1.5px no-repeat,
+      linear-gradient(270deg, transparent 10px, $skin-cord 10px, $skin-cord 24px, transparent 24px) 0 calc(36px + 46px) / 100% 1.5px no-repeat;
+  }
+
+  &__post {
+    position: absolute;
+    top: 26px;
+    bottom: 0;
+    width: 10px;
+    border-radius: 2px;
+    background:
+      repeating-linear-gradient(180deg, transparent 0 7px, rgba(0, 0, 0, 0.25) 7px 8px),
+      linear-gradient(90deg, $skin-post-dark, $skin-post 45%, $skin-post-dark);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+
+    &--left {
+      left: 2px;
+    }
+
+    &--right {
+      right: 2px;
+    }
+  }
+
+  // ---- the hide: the blade's coordinate box, exactly as wide as the sweep ----
+  &__hide,
+  &__result {
+    position: relative;
+    height: 64px;
+  }
+
+  &__hide {
+    cursor: crosshair;
+  }
+
+  &__pelt {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 30% 60% at 22% 40%, rgba(255, 230, 190, 0.08), transparent 70%),
+      radial-gradient(ellipse 25% 50% at 72% 62%, rgba(0, 0, 0, 0.18), transparent 70%),
+      repeating-linear-gradient(104deg, transparent 0 3px, rgba(0, 0, 0, 0.12) 3px 4px, transparent 4px 7px),
+      linear-gradient(180deg, $skin-hide, $skin-hide-mid 55%, $skin-hide-dark);
+    clip-path: polygon(0 12%, 7% 2%, 16% 9%, 27% 0, 39% 7%, 50% 1%, 61% 8%, 73% 0, 84% 7%, 93% 1%, 100% 10%,
+      99% 50%, 100% 88%, 92% 99%, 81% 92%, 69% 100%, 57% 93%, 45% 100%, 33% 92%, 21% 99%, 9% 93%, 0 90%, 1% 50%);
+    transition: transform 300ms ease, filter 300ms ease;
+  }
+
+  // The seam line along the belly, which the knife follows
+  &__line {
+    position: absolute;
+    left: 3%;
+    right: 3%;
+    top: calc(50% - 1px);
+    height: 0;
+    border-top: 2px dashed rgba(232, 214, 160, 0.42);
+  }
+
+  &__hide--hit &__pelt {
+    filter: brightness(1.12);
+  }
+
+  &__hide--miss &__pelt {
+    filter: brightness(0.85) sepia(0.3);
+  }
+
+  // ---- the loose stretch to cut: bright edges and a dark rim, so it reads on the hide ----
   &__seam {
     position: absolute;
     top: 0;
     bottom: 0;
-    background: dbo-accent(0.28);
-    border-left: 1px dashed $dbo-aqua;
-    border-right: 1px dashed $dbo-aqua;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(232, 214, 160, 0.3), rgba(232, 214, 160, 0.18));
+    border-left: 2px solid $dbo-gold-border-strong;
+    border-right: 2px solid $dbo-gold-border-strong;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 12px rgba(232, 214, 160, 0.3);
   }
 
+  // The blade line: centred on its left so its middle is the sweep's point
   &__blade {
     position: absolute;
     top: -6px;
     bottom: -6px;
+    z-index: 3;
     width: 3px;
-    margin-left: -1px;
+    margin-left: -1.5px;
+    pointer-events: none;
     background: linear-gradient(180deg, #f4f7f7, #b9c6c6);
     box-shadow: 0 0 8px rgba(244, 247, 247, 0.8);
   }
 
+  // The knife above the hide, its point on the blade line; it never reaches into the hide
+  &__knife {
+    position: absolute;
+    bottom: calc(100% + 1px);
+    left: 50%;
+    width: 38px;
+    height: 33px;
+    margin-left: -19px;
+    overflow: visible;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8));
+  }
+
+  &__knife-blade {
+    fill: $skin-steel;
+    stroke: #3a4447;
+    stroke-width: 0.7;
+  }
+
+  &__knife-guard {
+    fill: #8c7a55;
+  }
+
+  &__knife-grip {
+    fill: $skin-post;
+    stroke: $skin-post-dark;
+    stroke-width: 0.6;
+  }
+
+  // ---- what each cut leaves on the hide ----
+  &__mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 0;
+    pointer-events: none;
+  }
+
+  // A clean cut: a straight slit along the seam line
+  &__slit {
+    position: absolute;
+    left: -16px;
+    top: calc(50% - 3px);
+    width: 32px;
+    height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, $skin-flesh 0 45%, #5a2418 70%, rgba(232, 214, 160, 0.55) 100%);
+    box-shadow: 0 0 0 1px rgba(232, 214, 160, 0.35);
+    animation: skinning-slit 160ms ease-out;
+  }
+
+  // A slip: a ragged tear
+  &__tear {
+    position: absolute;
+    left: -13px;
+    top: calc(50% - 15px);
+    width: 26px;
+    height: 30px;
+    overflow: visible;
+    animation: skinning-tear 180ms ease-out;
+
+    path {
+      fill: $skin-flesh;
+      stroke: rgba(214, 120, 88, 0.75);
+      stroke-width: 1;
+      stroke-linejoin: bevel;
+    }
+
+    &--big {
+      left: -26px;
+      top: calc(50% - 30px);
+      width: 52px;
+      height: 60px;
+    }
+  }
+
+  // ---- the end: the pelt lifted whole, opened along the seam, or torn ----
+  &__result--win &__pelt {
+    transform: translateY(-3px);
+    filter: brightness(1.1) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.6));
+  }
+
+  &__result--lose &__pelt {
+    filter: brightness(0.8) saturate(0.7);
+  }
+
+  &__opened {
+    position: absolute;
+    left: 3%;
+    right: 3%;
+    top: calc(50% - 5px);
+    height: 4px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, rgba(232, 214, 160, 0.6), $skin-flesh 40%, $skin-flesh 60%, rgba(232, 214, 160, 0.6));
+    transform-origin: 0 50%;
+    animation: skinning-open 420ms ease-out;
+  }
+
+  // ---- clean cuts made, slips the hide can still bear, and the skinner's steady hand ----
   &__tally {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-height: 20px;
+  }
+
+  &__pips,
+  &__nicks {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  &__pip {
+    width: 18px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid $dbo-stone;
+
+    &--done {
+      background: $dbo-gold;
+      border-color: $dbo-gold-border-strong;
+      box-shadow: 0 0 8px rgba(232, 214, 160, 0.5);
+    }
+  }
+
+  &__nick {
+    width: 9px;
+    height: 9px;
+    transform: rotate(45deg);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(214, 120, 88, 0.6);
+
+    &--used {
+      background: rgba(201, 70, 58, 0.85);
+      border-color: rgba(232, 110, 96, 0.95);
+    }
+  }
+
+  &__nicks:empty {
+    display: none;
+  }
+
+  &__clock-label {
+    margin-left: 6px;
     color: $dbo-text-dim;
-    font-size: 15px;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   &__timer {
     position: relative;
-    height: 10px;
-    border: 1px solid $dbo-border-strong;
-    background: rgba(8, 25, 28, 0.7);
+    flex: 1;
+    height: 6px;
+    border: 1px solid $dbo-stone-dark;
+    background: rgba(0, 0, 0, 0.4);
   }
 
   &__time {
@@ -115,11 +344,34 @@
 
   &__actions {
     display: flex;
+    align-items: center;
     justify-content: center;
     gap: 10px;
+  }
+
+  &__keys {
+    flex: 1;
+    color: $dbo-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.04em;
   }
 
   &__button {
     @include dbo-button;
   }
+}
+
+@keyframes skinning-slit {
+  from { transform: scaleX(0.15); opacity: 0.5; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes skinning-tear {
+  from { transform: scale(0.4) rotate(-12deg); opacity: 0.4; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes skinning-open {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
