@@ -105,6 +105,21 @@ ok(weapons.length > 300 && !names.includes('CYRIronFalchion') && !names.some((n)
   ok(!none.some((n) => LOOT.weapons.some((w) => w.name === n)) && none.length > 0, 'without the material check the camp chest gives no weapon, and still its gold and the rest');
   globalThis.__dboLootable = saved;
 }
+// Ingots and ores above the gear ceiling (gear-swap.json metals; Nate, 4 Oct: Eldacar had 2 Adamantium ingots from a camp
+// chest at 02:05Z) never come out of a camp chest; without dungeons.js's check no material does
+{
+  const SWAP = JSON.parse(fs.readFileSync(path.join(ROOT, 'gear-swap.json'), 'utf8'));
+  const above = new Set(Object.values(SWAP.metals).map((m) => m.edid));
+  const mats = names.filter((n) => LOOT.materials.some((m) => m.name === n));
+  const leaked = mats.filter((n) => above.has(n));
+  ok(typeof globalThis.__dboLootAboveCap === 'function' && mats.length > 500 && !leaked.length && mats.includes('IngotSteel') && mats.includes('IngotIron'),
+    `4000 camp chests: ${mats.length} materials, none of them Dwarven, Quicksilver, Moonstone, Malachite or Adamantium (iron and steel ingots still)`, [...new Set(leaked)]);
+  const saved = globalThis.__dboLootAboveCap;
+  delete globalThis.__dboLootAboveCap;
+  const none = roll(1000);
+  ok(!none.some((n) => LOOT.materials.some((m) => m.name === n)) && none.length > 0, 'without the ceiling\'s check the camp chest gives no material, and still its gold and the rest');
+  globalThis.__dboLootAboveCap = saved;
+}
 delete globalThis.__dboBannedLoot;
 const bare = roll(1000);
 ok(!bare.some((n) => LOOT.weapons.some((w) => w.name === n) || LOOT.materials.some((m) => m.name === n)), 'without the ban the camp chest gives no weapon and no material (fails closed)');

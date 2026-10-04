@@ -12,6 +12,9 @@
 //   3. The steel ceiling (Jake and Nate, 1 Oct, a stopgap): loottiers.js's default cap, and every path of the real
 //      dungeons.js under it: no weapon or armour above iron and steel at any difficulty. Parts 1 and 2 run with
 //      cap 'none', so they keep testing the tiers beneath it.
+//   4. The same ceiling over ingots, ores and arrows (Nate, 4 Oct): under it no path hands out anything gear-swap.json's
+//      metals or ammo names (chests, urns, bosses, bodies, masters, the enemies' quivers); a creature's corpse keeps what
+//      it carried and the take swaps it (tests/gearswap-body-take-harness.js). Linen wraps drop (the same 4 Oct ask).
 //   node tests/loot-tiers-harness.js   (from server/; CLAIMS=n for more claims per dungeon and difficulty)
 'use strict';
 const fs = require('fs');
@@ -23,7 +26,7 @@ const CLAIMS = Number(process.env.CLAIMS) || 24;
 let fails = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c || got === undefined ? '' : '   ' + JSON.stringify(got).slice(0, 600)}`); if (!c) fails++; };
 const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
-const MATERIALS = read('loot-materials.json'), FACTION = read('faction-gear.json'), OVERRIDES = read('loot-overrides.json'), LOOT = read('loot.json').pools;
+const MATERIALS = read('loot-materials.json'), FACTION = read('faction-gear.json'), OVERRIDES = read('loot-overrides.json'), LOOT = read('loot.json').pools, SWAP = read('gear-swap.json');
 const tiersWith = (cfg) => require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES, cfg });
 const T = tiersWith({ cap: 'none' });
 const UNCAPPED = { lootTiers: { cap: 'none' } };
@@ -95,12 +98,18 @@ const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|
 const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
 // What a body or a creature carries when it falls, besides its own arms: the worst cases, so the trim has to work
 const CARRIED = ['EbonySword', 'ArmorDaedricCuirass', 'ArmorDragonplateCuirass', 'DLC2StalhrimSword', 'OrcishWarAxe', 'ArmorStormcloakCuirass', 'CYRGlassSword', 'ArmorGlassCuirass',
-  'ArmorSteelPlateCuirass', 'IronSword', 'ArmorIronCuirass', 'CYRSteelSword', 'ArmorScaledCuirass'].filter((n) => byName.has(n)).map((n) => idOf(byName.get(n).id));
+  'ArmorSteelPlateCuirass', 'IronSword', 'ArmorIronCuirass', 'CYRSteelSword', 'ArmorScaledCuirass', 'ElvenArrow', 'CYRAyleidArrow', 'IngotIMoonstone', 'BSKIngotAdamantium'].filter((n) => byName.has(n)).map((n) => idOf(byName.get(n).id));
+// The ceiling's ingots, ores and arrows: gear-swap.json's own lists
+const normD = require(path.join(ROOT, 'loottiers.js')).normDesc;
+const SWAPPED = new Set(Object.keys(SWAP.metals).concat(Object.keys(SWAP.ammo)).map(normD));
+const LINEN = '34cd6:skyrim.esm';
 
 const A = 0x14;
 const seen = [];   // { path, diff, name, id, kind, tier }
+const anySeen = [];   // every item of any kind: { path, diff, desc, name, count }
 const add = (pathName, diff, baseId, extra = {}) => {
   const desc = descs.get(baseId); if (!desc) return;
+  anySeen.push({ path: pathName, diff, desc: normD(desc), name: NAME.get(baseId) || desc, count: Number(extra.count) || 1 });
   const r = REC.get(baseId); if (!r || (r.type !== 'WEAP' && r.type !== 'ARMO')) return;
   const c = T.classOf(desc);
   seen.push(Object.assign({ path: pathName, diff, desc, name: NAME.get(baseId), kind: c.kind, tier: c.tier, ench: r.fields.length > 0, type: r.type }, extra));
@@ -146,7 +155,7 @@ const run = (d, expedition, diffId, claims, modulePath = path.join(ROOT, 'dungeo
       const boss = ch.big && (/boss/i.test(ch.edid) || named.has(ch.ref.toLowerCase()));
       const lock = lease.locked.has(id) ? lease.locked.get(id) : undefined;
       const p = !ch.big ? 'container' : boss ? (expedition && d.kind === 'raid' ? 'raid boss chest' : 'boss chest') : lock !== undefined ? `locked chest (lock ${lock})` : 'chest';
-      for (const e of ((props.get(`${id}|inventory`) || { entries: [] }).entries)) add(p, diffId, e.baseId, { lock, raid: expedition && d.kind === 'raid' });
+      for (const e of ((props.get(`${id}|inventory`) || { entries: [] }).entries)) add(p, diffId, e.baseId, { lock, raid: expedition && d.kind === 'raid', count: e.count });
     }
     // The enemies, as the spawn system places them: humanoids are armed by the arm tick, then fall carrying the worst gear
     const spawned = [];
@@ -160,14 +169,14 @@ const run = (d, expedition, diffId, claims, modulePath = path.join(ROOT, 'dungeo
     if (timers.get('dungeons.arm')) timers.get('dungeons.arm')();
     for (const s of spawned) {
       const inv = (props.get(`${s.id}|inventory`) || { entries: [] }).entries;
-      for (const e of inv) add('enemy arms', diffId, e.baseId, { boss: s.boss, iron: /^Iron(Sword|WarAxe|Mace)$/.test(NAME.get(e.baseId) || '') });
+      for (const e of inv) add('enemy arms', diffId, e.baseId, { boss: s.boss, iron: /^Iron(Sword|WarAxe|Mace)$/.test(NAME.get(e.baseId) || ''), count: e.count });
       props.set(`${s.id}|inventory`, { entries: inv.concat(CARRIED.map((b) => ({ baseId: b, count: 1 }))) });
       props.set(`${s.id}|isDead`, true);
       globalThis.__dboTrimCorpse(s.id);
       if (!s.humanoid && !s.master) { for (const e of ((props.get(`${s.id}|inventory`) || { entries: [] }).entries)) add('creature corpse', diffId, e.baseId, { boss: s.boss }); continue; }
       given.length = 0;
       if (globalThis.__dboCorpseLoot(s.id, A) !== false) continue;
-      for (const [b] of given) add(s.master ? (d.kind === 'raid' ? 'raid master' : 'master') : 'humanoid body', diffId, b, { boss: s.boss, raid: d.kind === 'raid' });
+      for (const [b, n] of given) add(s.master ? (d.kind === 'raid' ? 'raid master' : 'master') : 'humanoid body', diffId, b, { boss: s.boss, raid: d.kind === 'raid', count: n });
     }
     if (!keepState) cmds.get('dungeon')(A, `end ${d.id.toLowerCase()}`);
   }
@@ -212,7 +221,10 @@ for (const diff of DIFFS) {
   const got = [1, 2, 3, 4].map((t) => list.filter((s) => s.tier === t).length / Math.max(1, list.length));
   const want = [1, 2, 3, 4].map((t) => (row[t] || 0) / total);
   const worst = Math.max(...got.map((g, i) => Math.abs(g - want[i])));
-  ok(list.length > 80 && worst < 0.07, `${diff}: ${list.length} chest armour pieces, tiers ${got.map((g) => Math.round(g * 100)).join('/')}% against ${want.map((w) => Math.round(w * 100)).join('/')}%`, { worst });
+  // Within 7 points, or three standard errors of a share from this many pieces when that is wider (Master's few hundred
+  // chest pieces put 7 points at 2.4 errors: any change to how many rolls a chest makes moved the seeded sample past it)
+  const tol = Math.max(0.07, 3 * Math.sqrt(0.25 / Math.max(1, list.length)));
+  ok(list.length > 80 && worst < tol, `${diff}: ${list.length} chest armour pieces, tiers ${got.map((g) => Math.round(g * 100)).join('/')}% against ${want.map((w) => Math.round(w * 100)).join('/')}%`, { worst });
 }
 // Weapons: at Expert and Master a tier 3 roll gives a high Elven weapon (half or so of the chest weapons there), at Novice none
 {
@@ -223,6 +235,13 @@ for (const diff of DIFFS) {
 ok(!seen.some((s) => s.name === 'CYRIronFalchion'), 'CYRIronFalchion never comes out of any path', seen.filter((s) => s.name === 'CYRIronFalchion').map((s) => s.path).slice(0, 5));
 ok(seen.some((s) => s.path === 'chest' && s.diff === 'hard' && ['ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorElvenGildedCuirass'].some((n) => s.name.startsWith(n.slice(0, -7)))), 'Steel plate, Scaled and Elven gilded drop in Bruma (Nate\'s option 1)');
 ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) => s.path === 'creature corpse').every((s) => s.kind === 'gear' || s.kind === 'trinket'), 'bodies hand over gear within their tiers, and a creature\'s corpse keeps none of what it may not');
+{
+  // Without the ceiling the materials and arrows pools are as they were: what the ceiling takes out is the ceiling's doing
+  const T0 = tiersWith({ cap: 'none' });
+  const swappedFound = [...new Set(anySeen.filter((x) => SWAPPED.has(x.desc) && x.path !== 'creature corpse').map((x) => x.name))];
+  ok(T0.aboveCap(Object.keys(SWAP.metals)[0], 'metal') === null && swappedFound.some((n) => /Ingot/.test(n)) && swappedFound.some((n) => /Arrow/.test(n)),
+    `cap "none": the old ingots and arrows still drop (${swappedFound.slice(0, 6).join(', ')})`, swappedFound);
+}
 
 // ---- 3. the steel ceiling ------------------------------------------------------------------------------------------
 {
@@ -242,7 +261,7 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   ok(picked.length === 2000 && fams.every((f) => ['iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'silver'].includes(f)) && fams.includes('steel'), `a Master raid boss roll (80% tier 4) falls to steel: ${fams.join(', ')}`, fams);
 
   // Every path of the real dungeons.js under the default ceiling
-  const before = seen.length;
+  const before = seen.length, anyBefore = anySeen.length;
   const claims = Math.max(4, Math.round(CLAIMS / 3));
   for (const d of ORD) for (const diff of DIFFS) run(d, false, diff, claims, undefined, false, {});
   for (const d of EXP) for (const diff of DIFFS) run(d, true, diff, claims * 3, undefined, false, {});
@@ -253,6 +272,31 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   ok(capped.length > 500 && ['chest', 'boss chest', 'enemy arms', 'humanoid body', 'master'].every((p) => byPath.includes(p)), 'the ceiling sweep exercised the chests, boss chests, enemy arms, bodies and masters', byPath);
   ok(!bad.length, 'no path hands out a weapon or armour above iron and steel at any difficulty, enchanted or not (chests, locks, bosses, raid bosses, enemy arms, bodies, corpses)', [...new Set(bad.map((x) => `${x.path} ${x.diff}: ${x.name} (${S.classOf(x.desc).family})`))].slice(0, 10));
   ok(capped.some((x) => x.ench && x.kind === 'gear'), 'enchanted gear still drops, of iron and steel');
+
+  // ---- 4. the same ceiling over ingots, ores and arrows (gear-swap.json metals and ammo; Nate, 4 Oct) ----------------
+  const any = anySeen.splice(anyBefore);
+  const S0 = tiersWith(undefined);
+  const S1 = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES, swap: SWAP });
+  ok(S1.aboveCap('5ad9f:Skyrim.esm', 'metal') && S1.aboveCap('5ad9f:Skyrim.esm').toEdid === 'IngotSteel' && S1.aboveCap('139bd:Skyrim.esm').kind === 'ammo'
+    && S1.aboveCap('5ace5:Skyrim.esm', 'metal') === null && S1.aboveCap('1397d:Skyrim.esm', 'ammo') === null && S1.aboveCap('5ad93:Skyrim.esm', 'metal') === null,
+    'loottiers aboveCap: refined moonstone and Elven arrows are above the steel ceiling (the swap\'s own entries); steel and corundum ingots and iron arrows are not');
+  ok(S0.aboveCap('5ace5:Skyrim.esm', 'metal') && S0.aboveCap('1397d:Skyrim.esm', 'ammo') && S0.aboveCap('5ace5:Skyrim.esm', '') === null,
+    'without gear-swap.json every ingot and arrow counts as above the ceiling (fail closed); other items do not');
+  const leaked = any.filter((x) => SWAPPED.has(x.desc) && x.path !== 'creature corpse');
+  const byP = [...new Set(any.map((x) => x.path))].sort();
+  ok(any.length > 1000 && ['chest', 'boss chest', 'container', 'enemy arms', 'humanoid body', 'master'].every((p) => byP.includes(p)), `the sweep saw ${any.length} stacks of every kind on the paths ${byP.join(', ')}`, byP);
+  ok(!leaked.length, 'no chest, urn, boss chest, locked chest, body, master or enemy quiver holds an ingot, ore or arrow the gear swap would take away (Dwarven, Quicksilver, Moonstone, Malachite, Adamantium; Elven, Ayleid, Ancient Imperial arrows)',
+    [...new Set(leaked.map((x) => `${x.path} ${x.diff}: ${x.name}`))].slice(0, 10));
+  const kept = [...new Set(any.filter((x) => x.path === 'creature corpse' && SWAPPED.has(x.desc)).map((x) => x.name))];
+  ok(kept.length > 0 && kept.every((n) => [...Object.values(SWAP.metals), ...Object.values(SWAP.ammo)].some((m) => m.edid === n && m.to)),
+    `a creature's corpse keeps what it carried (${kept.join(', ')}), each with a swap target for the take (the player's game shows its own copy of a body)`, kept);
+  const names = new Set(any.map((x) => x.name));
+  ok(['IngotSteel', 'IngotIron', 'Leather01', 'IronArrow', 'SteelArrow'].every((n) => names.has(n)), 'materials and arrows still drop under the ceiling: steel and iron ingots, leather, iron and steel arrows');
+  const steelShare = (() => { const m = any.filter((x) => ['chest', 'boss chest'].includes(x.path) && LOOT.materials.some((it) => normD(it.id) === x.desc)); return m.filter((x) => x.name === 'IngotSteel').length / Math.max(1, m.length); })();
+  ok(steelShare < 0.15, `steel ingots stay an ordinary share of the materials found (${Math.round(100 * steelShare)}%; dropping the above-cap ingots, not turning them into steel)`, steelShare);
+  const linen = any.filter((x) => x.desc === LINEN);
+  const lp = [...new Set(linen.map((x) => x.path))].sort();
+  ok(linen.length > 0 && ['chest', 'boss chest', 'container'].every((p) => lp.includes(p)) && linen.every((x) => x.count >= 1 && x.count <= (/^raid/.test(x.path) ? 6 : 3)), `linen wraps drop, 1 to 3 at a time (a raid boss's second roll can add another stack) (${linen.length} stacks; ${lp.join(', ')})`, linen.filter((x) => x.count > 3).slice(0, 5));
 }
 
 // ---- live-then-new: a claim made by the live dungeons.js, searched after this one loads over the same state ----------

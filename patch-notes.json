@@ -276,6 +276,27 @@
     ]
   },
   {
+    "title": "Loot keeps to the steel cap, and linen in the dungeons",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Ingots and arrows",
+        "items": [
+          "Dungeon chests, urns and camp chests no longer hold Dwarven metal, quicksilver, refined moonstone, refined malachite or adamantium ingots, or Elven, Ayleid or Ancient Imperial arrows. They still hold the other materials, and iron and steel arrows, as often as before.",
+          "Gear, ingots, ores and arrows above the steel cap that you take from an NPC's or creature's body, in a dungeon or anywhere else, become their steel or iron equivalent as you take them, the same swap your own gear had. Enchanted pieces keep their enchantment."
+        ]
+      },
+      {
+        "heading": "Linen wraps",
+        "items": [
+          "Linen wraps now turn up in dungeons: 1 to 3 in about one chest in eight, more often in a boss chest, and once in a while 1 in an urn or sack. Nordic tombs hold twice as many. Linen capes, robes and hoods are made from them."
+        ]
+      }
+    ]
+  },
+  {
     "title": "A new admin panel",
     "date": "SHIP_DATE",
     "version": "Server + Client 0.3.76",

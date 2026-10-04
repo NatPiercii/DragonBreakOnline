@@ -12,6 +12,10 @@
 // A ceiling over all of it (Jake and Nate, 1 Oct, a stopgap until rarity is designed): `cap` names the families that may
 // drop as weapons and armour at all, whatever a row rolls. Gear of any other family is 'capped' and never loot, at every
 // path that asks this module (chests, bosses, enemy arms, bodies, camps, the Ayleid table, enchanted gear).
+// The same ceiling over ingots, ores and ammunition (Nate, 4 Oct): under any cap, an item gear-swap.json's `metals` or
+// `ammo` map names (the list gearswap.js swaps away from what players own) is above it, and aboveCap says so, with the
+// swap's own entry. One list for both, so what the swap takes away no loot path hands back. Without the file (`swap`
+// not given or unreadable) every ingot, ore and arrow counts as above the cap, as an unknown weapon is not loot.
 'use strict';
 
 const TIER_OF = {
@@ -51,7 +55,7 @@ const ENCH_CAP = { story: 2, normal: 3, hard: 4, nightmare: 6 };
 
 const normDesc = (d) => { const s = String(d || ''); const i = s.indexOf(':'); if (i < 0) return s.toLowerCase(); const n = parseInt(s.slice(0, i), 16); return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase(); };
 
-module.exports = ({ materials, factionGear, overrides, cfg }) => {
+module.exports = ({ materials, factionGear, overrides, cfg, swap }) => {
   const C = cfg || {};
   const tierOf = Object.assign({}, TIER_OF, C.tierOf || {});
   const rows = { chest: Object.assign({}, ROWS.chest, (C.rows || {}).chest || {}), boss: Object.assign({}, ROWS.boss, (C.rows || {}).boss || {}), raidBoss: Object.assign({}, ROWS.raidBoss, (C.rows || {}).raidBoss || {}) };
@@ -77,6 +81,19 @@ module.exports = ({ materials, factionGear, overrides, cfg }) => {
     return capSet && !capSet.has(f) ? { kind: 'capped', family: f, tier: t } : { kind: 'gear', family: f, tier: t };
   };
   const lootable = (desc) => { const c = classOf(desc); return c.kind === 'gear' || c.kind === 'trinket'; };
+  // Ingots, ores and arrows above the ceiling: gear-swap.json's metals and ammo, by the same normalised desc
+  const swapMap = (name) => new Map(Object.entries((swap && swap[name]) || {}).filter(([k]) => k[0] !== '_').map(([k, v]) => [normDesc(k), v]));
+  const METALS = swapMap('metals'), AMMO = swapMap('ammo');
+  const swapKnown = !!(swap && swap.metals && swap.ammo);
+  // -> null (under the cap, or no cap), else { kind: 'metal' | 'ammo' | 'unknown', to, edid, toEdid }
+  const aboveCap = (desc, type) => {
+    if (!capSet) return null;
+    const d = normDesc(desc);
+    const m = METALS.get(d); if (m) return Object.assign({ kind: 'metal' }, m);
+    const a = AMMO.get(d); if (a) return Object.assign({ kind: 'ammo' }, a);
+    // Without the lists nothing of these kinds can be told apart, so none of it is loot (fail closed)
+    return !swapKnown && (type === 'metal' || type === 'ammo') ? { kind: 'unknown' } : null;
+  };
   // The row a roll uses: a chest, a boss, a raid boss, or a locked chest by its lock (Novice/Apprentice the chest row,
   // Adept halfway to the boss row, Expert and Master the boss row)
   const rowFor = (diffId, kind, lockLevel) => {
@@ -117,6 +134,6 @@ module.exports = ({ materials, factionGear, overrides, cfg }) => {
     }
     return null;
   };
-  return { cap: capSet ? capName : 'none', classOf, lootable, rowFor, rollTier, enchRank, enchOk, enemyTiers, pickTier, anyProvince: (desc) => ANY_PROVINCE.has(classOf(desc).family), T3_WEAPON_STANDIN, ROWS: rows };
+  return { cap: capSet ? capName : 'none', classOf, lootable, aboveCap, swapKnown, rowFor, rollTier, enchRank, enchOk, enemyTiers, pickTier, anyProvince: (desc) => ANY_PROVINCE.has(classOf(desc).family), T3_WEAPON_STANDIN, ROWS: rows };
 };
 module.exports.normDesc = normDesc;

@@ -24,6 +24,9 @@ for (const list of Object.values(loot.pools)) for (const it of list) VALUE.set(i
 const AYLEID = new Map(JSON.parse(fs.readFileSync(path.join(ROOT, 'ayleid-loot.json'), 'utf8')).items.map((it) => [idOf(it.id), it]));
 for (const [id, it] of AYLEID) VALUE.set(id, Number(it.value) || 0);
 const GOLD = idOf('f:Skyrim.esm');
+// Linen wraps (Nate, 4 Oct: "in a reasonable amount"), counted on their own; vanilla's value is 2
+const LINEN = idOf('34cd6:Skyrim.esm');
+VALUE.set(LINEN, 2);
 // A humanoid carries a plain weapon from the pools, so the body's gear roll (2026-09-30) is measured through the real trim
 const WEAPONS = (loot.pools.weapons || []).filter((it) => !/Ebony|Daedric/i.test(it.name) && Number(it.value) > 0).map((it) => ({ id: idOf(it.id), desc: it.id, name: it.name, value: Number(it.value) }));
 // Spawned foes are armed within their difficulty's material tiers (dungeons.js weaponFor, loottiers.js ENEMY)
@@ -77,6 +80,7 @@ const measure = (d, diffId, claims = CLAIMS) => {
     for (const [base, n] of entries) {
       if (base === GOLD) { gold += n; tot.gold += n; tot.value += n; continue; }
       items += n; tot.items += n; tot.stacks++; tot.value += (VALUE.get(base) || 0) * n;
+      if (base === LINEN) tot.linen = (tot.linen || 0) + n;
       const ay = AYLEID.get(base); if (ay) { tot.ayleid++; if (ay.tier === 'rarest') tot.rarest++; }
     }
     if (bucket) { bucket.n++; bucket.items += items; if (bucket.gold !== undefined) bucket.gold += gold; }
@@ -122,7 +126,7 @@ const measure = (d, diffId, claims = CLAIMS) => {
   global.setTimeout = savedTimeout; process.chdir(here); fs.rmSync(dir, { recursive: true, force: true });
   const per = (x) => (tot.claims ? x / tot.claims : 0);
   const avg = (b, k) => (b.n ? b[k] / b.n : 0);
-  return { claims: tot.claims, items: per(tot.items), gold: per(tot.gold), value: per(tot.value), ayleid: per(tot.ayleid), rarest: per(tot.rarest),
+  return { claims: tot.claims, linen: per(tot.linen || 0), items: per(tot.items), gold: per(tot.gold), value: per(tot.value), ayleid: per(tot.ayleid), rarest: per(tot.rarest),
     bossChest: { items: avg(tot.boss, 'items'), gold: avg(tot.boss, 'gold'), value: avg(tot.boss, 'value') }, bigChest: avg(tot.big, 'items'),
     small: { items: avg(tot.small, 'items'), empty: tot.small.n ? tot.small.empty / tot.small.n : 0 }, body: avg(tot.bodies, 'items'),
     torch: tot.big.n ? tot.torchChests / tot.big.n : 0, bodyGear: tot.bodies.n ? tot.gearBodies / tot.bodies.n : 0, master: { items: avg(tot.masters, 'items'), gold: avg(tot.masters, 'gold') } };
@@ -145,6 +149,18 @@ console.log(`per solo clear, ${CLAIMS} claims each: items / gold / value | boss 
 for (const { d, diff, m } of rows) console.log(`${(d.name + ' (' + d.kind + ')').padEnd(34)} ${diff.padEnd(9)} ${f1(m.items).padStart(6)} ${f0(m.gold).padStart(6)} ${f0(m.value).padStart(7)} | ${f1(m.bossChest.items).padStart(5)} ${f0(m.bossChest.gold).padStart(4)} ${f0(m.bossChest.value).padStart(5)} | ${f1(m.bigChest).padStart(4)} | ${f1(m.small.items)} (${f0(100 * m.small.empty)}%) | ${f1(m.body)} | ${f1(m.master.items)}, ${f0(m.master.gold)} | ${m.ayleid.toFixed(2)} (${m.rarest.toFixed(3)})`);
 const JSON_OUT = process.argv.indexOf('--json');
 if (JSON_OUT > 0) fs.writeFileSync(process.argv[JSON_OUT + 1], JSON.stringify(Object.fromEntries(rows.map((r) => [`${r.d.raw.id}|${r.diff}`, r.m])), null, 1) + '\n');
+{
+  // Linen wraps per solo clear: ordinary dungeons (untrimmed) and expeditions (their trim thins every roll)
+  const avgL = (list) => list.reduce((n, r) => n + r.m.linen, 0) / Math.max(1, list.length);
+  const ordL = (diff) => avgL(rows.filter((r) => !r.d.expedition && r.diff === diff)), expL = (diff) => avgL(rows.filter((r) => r.d.expedition && r.diff === diff));
+  console.log(`linen wraps per solo clear, Novice/Adept/Expert/Master: ordinary ${DIFFS.map((x) => ordL(x).toFixed(2)).join(' / ')}; expeditions ${DIFFS.map((x) => expL(x).toFixed(2)).join(' / ')}`);
+  const most = rows.filter((r) => r.diff === 'normal').sort((a, b) => b.m.linen - a.m.linen).slice(0, 3).map((r) => `${r.d.name} ${r.m.linen.toFixed(1)}`);
+  console.log(`      the most at Adept: ${most.join(', ')}`);
+  if (!TABLE_ONLY) {
+    check(`linen wraps: about 2 to 3 per ordinary clear (${DIFFS.map((x) => ordL(x).toFixed(1)).join(', ')}), fewer in a trimmed expedition (${DIFFS.map((x) => expL(x).toFixed(1)).join(', ')})`,
+      DIFFS.every((x) => ordL(x) > 1 && ordL(x) < 4.5 && expL(x) > 0.3 && expL(x) < ordL(x) * 1.5));
+  }
+}
 if (TABLE_ONLY) process.exit(0);
 
 // ---- the budget (2026-09-28): fewer things per clear, Novice lowest, ordinary dungeons unchanged ----------------------

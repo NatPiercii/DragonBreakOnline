@@ -4358,6 +4358,8 @@ const takeHook = (sourceId, actorId, baseId, count, ...rest) => {
   // server\itemguards.js: a count below 1 or a record that is not an item never moves (audit B2)
   try { if (typeof globalThis.__dboTakeGuard === 'function' && globalThis.__dboTakeGuard(sourceId, actorId, baseId, count) === false) return false; } catch (e) { log('take guard failed', e.message); }
   try { if (dragonTakeRefused(Number(sourceId) >>> 0, Number(actorId) >>> 0, Number(baseId) >>> 0)) return false; } catch (e) { log('dragon take check failed', e.message); }
+  // Gear, ingots, ores and arrows above the loot cap taken from an NPC's body become their replacement (gearswap.js)
+  try { if (typeof globalThis.__dboGearSwapTake === 'function' && globalThis.__dboGearSwapTake(Number(sourceId) >>> 0, Number(actorId) >>> 0, Number(baseId) >>> 0, Number(count) || 0) === true) return false; } catch (e) { log('gearswap take check failed', e.message); }
   const prev = globalThis.__dboPrevTake;
   let verdict;
   if (prev) { try { verdict = prev(sourceId, actorId, baseId, count, ...rest); } catch (e) { log('take chain failed', e.message); } }

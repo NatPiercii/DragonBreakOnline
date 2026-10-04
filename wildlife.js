@@ -107,14 +107,20 @@ module.exports = (api) => {
   // uniforms, anything the map does not know); without it, no weapon. Both are looked up as the chest fills, so either
   // module may load first
   // Weapons are also of the camp's province (Nate: gear is region-locked; dungeons.js's own rule through
-  // globalThis.__dboLootInProvince, the province from where the chest is opened); no province known, no weapon
+  // globalThis.__dboLootInProvince, the province from where the chest is opened); no province known, no weapon.
+  // Ingots and ores above the gear ceiling (gear-swap.json metals, the list the swap takes from players; Nate, 4 Oct:
+  // Eldacar had two Adamantium ingots from a camp chest at 02:05Z) leave the materials pool, through dungeons.js's own
+  // check (globalThis.__dboLootAboveCap); without it, no material
   const pool = (name, province = '') => {
     const banned = globalThis.__dboBannedLoot instanceof RegExp ? globalThis.__dboBannedLoot : null;
     const lootable = typeof globalThis.__dboLootable === 'function' ? globalThis.__dboLootable : null;
     const inProvince = typeof globalThis.__dboLootInProvince === 'function' ? globalThis.__dboLootInProvince : null;
+    const aboveCap = typeof globalThis.__dboLootAboveCap === 'function' ? globalThis.__dboLootAboveCap : null;
     if (!banned && (name === 'weapons' || name === 'materials')) return [];
+    if (!aboveCap && name === 'materials') return [];
     if ((!lootable || !inProvince || !province) && name === 'weapons') return [];
-    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || ''))) && (name !== 'weapons' || (lootable(it.id) && inProvince(it, province))));
+    return (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !(banned && banned.test(String(it.name || '')))
+      && !(aboveCap && aboveCap(it.id, name === 'materials' ? 'metal' : name === 'arrows' ? 'ammo' : '')) && (name !== 'weapons' || (lootable(it.id) && inProvince(it, province))));
   };
   const provinceOf = (a) => { try { const R = globalThis.__dboRegions; const p = R && typeof R.provinceAt === 'function' ? R.provinceAt(a) : null; return p && typeof p.province === 'string' && p.province !== 'none' ? p.province : ''; } catch (e) { return ''; } };
   const campLoot = (province = '') => {

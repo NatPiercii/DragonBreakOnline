@@ -10,7 +10,10 @@
 // charge, named "<replacement> of <...>". A piece whose enchantment cannot go across is kept as it is, never made plain.
 // The pieces swapped plain before that (3-4 Oct) get theirs back at the character's next login, once, from
 // gearswap-restore.json (tools/loot/gearswap_restore_plan.js, written from the audit lines and the world backups).
-// Config "gearSwap": { mode: "on" | "log" | "off", version, exemptProfiles: [], containers, restore, restoreFile }.
+// A take from an NPC's body (any actor that is not a player) of something above the cap gives its replacement instead
+// (Nate, 4 Oct: bodies outside a dungeon lease opened with their full kit). The body cannot be swapped beforehand: the
+// player's game shows its own copy of an actor's inventory, so a replacement put on the server's copy could never be taken.
+// Config "gearSwap": { mode: "on" | "log" | "off", version, exemptProfiles: [], containers, bodies, restore, restoreFile }.
 // Loaded by gamemode.js.
 'use strict';
 const fs = require('fs');
@@ -186,6 +189,8 @@ module.exports = (api) => {
     cfg: ((cfg && cfg.dungeons) || {}).lootTiers,
   });
   const SWAP = readJson('gear-swap.json', { items: {}, metals: {} });
+  const normD = require(LOOT_TIERS_JS).normDesc;
+  const SWAP_KEYS = new Set([].concat(...['metals', 'ammo'].map((k) => Object.keys(SWAP[k] || {}))).map(normD));
   const ARTIFACT = (() => {
     const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
     try { return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/; } catch (e) { log('gearswap: artifacts.json has a bad pattern', e.message); return null; }
@@ -299,6 +304,66 @@ module.exports = (api) => {
     }
     mp.set(ref, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
   };
+  // A take from an NPC's body: the take is refused, and then the body's server copy loses what was taken and the pack
+  // gets the plan's entries for it (the replacement; a piece whose enchantment cannot go across, or an artifact, as it
+  // is), the body first, so a failed write never hands out twice. The pack's own write sets the player's game right,
+  // which had already moved the item. Staff and exempt profiles take what they take; a player's body is its owner's
+  // (gamemode.js __dboLootBody). -> true when the take is handled here (refused), else false (the take goes ahead).
+  const bodyTake = (source, actor, baseId, count) => {
+    if (C.mode === 'off' || C.bodies === false) return false;
+    source = source >>> 0; actor = actor >>> 0; baseId = baseId >>> 0; count = Math.floor(Number(count) || 0);
+    if (!source || !actor || !baseId || count <= 0 || source === actor) return false;
+    let type = '', sp = -1, ap = -1;
+    try { type = String(mp.get(source, 'type') || ''); sp = Number(mp.get(source, 'profileId')); ap = Number(mp.get(actor, 'profileId')); } catch (e) { return false; }
+    if (type !== 'MpActor' || sp > 0 || !(ap > 0) || exempt.has(ap) || isStaff(actor)) return false;
+    // Most takes are of nothing above the cap: told apart before the plan, which builds its maps on every call
+    const d = normD(descOf(baseId));
+    if (d && !SWAP_KEYS.has(d)) { const c = TIERS.classOf(d); if (c.kind !== 'capped' && c.kind !== 'never') return false; }
+    const one = plan(Object.assign({ entries: [{ baseId, count }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, edidOf,
+      isArtifact: (e) => !!ARTIFACT && ARTIFACT.test(e) }, extra));
+    if (!one.swaps.length) return false;
+    const s0 = one.swaps[0];
+    if (C.mode === 'log') { log(`gearswap would swap a take of ${count} x ${s0.edid || baseId.toString(16)} from body ${source.toString(16)} by ${who(actor)}`); return false; }
+    setTimeout(() => {
+      try {
+        // The body's units of that base, plain ones first (a take names no extras); what it no longer holds is not given
+        const inv = mp.get(source, 'inventory');
+        const body = (inv && Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+        const mine = body.filter((e) => (Number(e.baseId) >>> 0) === baseId && Number(e.count) > 0)
+          .sort((a, b) => (Object.keys(a).length - Object.keys(b).length));
+        // Gone meanwhile (another player took it): nothing is given, and the pack is sent as it is, since the player's game
+        // had already moved the item into it
+        if (mine.reduce((n, e) => n + Number(e.count), 0) < count) { const own = mp.get(actor, 'inventory'); if (own && Array.isArray(own.entries)) mp.set(actor, 'inventory', own); return; }
+        const taken = [];
+        let left = count;
+        for (const e of mine) {
+          if (!left) break;
+          const n = Math.min(left, Number(e.count));
+          const copy = Object.assign({}, e, { count: n }); delete copy.worn; delete copy.wornLeft;
+          taken.push(copy); e.count -= n; left -= n;
+        }
+        const p = plan(Object.assign({ entries: taken, descOf, classOf: TIERS.classOf, swap: SWAP, idOf, edidOf,
+          isArtifact: (e) => !!ARTIFACT && ARTIFACT.test(e) }, extra));
+        mp.set(source, 'inventory', { entries: body.filter((e) => Number(e.count) > 0) });
+        const pack = ((mp.get(actor, 'inventory') || {}).entries || []).map((e) => Object.assign({}, e));
+        const plain = (e) => Object.keys(e).every((k) => k === 'baseId' || k === 'count' || e[k] === undefined || e[k] === null || e[k] === false);
+        for (const e of p.entries) {
+          const hit = plain(e) && pack.find((x) => (Number(x.baseId) >>> 0) === (Number(e.baseId) >>> 0) && plain(x));
+          if (hit) hit.count = (Number(hit.count) || 0) + Number(e.count); else pack.push(Object.assign({}, e));
+        }
+        mp.set(actor, 'inventory', { entries: pack });
+        for (const sw of p.swaps) audit(`GEARSWAP take ${who(actor)} from body ${source.toString(16)}: ${sw.count} x ${sw.edid || sw.from.toString(16)} -> ${sw.toEdid || sw.to.toString(16)}${sw.carried ? ' (enchantment kept)' : ''}`);
+        const n = p.swaps.reduce((x, sw) => x + sw.count, 0);
+        if (n) {
+          const sw = p.swaps[0];
+          const from = nameOf(descOf(sw.from)) || sw.edid || 'it', to = nameOf(descOf(sw.to)) || sw.toEdid || 'its steel equivalent';
+          const x = n > 1 ? ` x${n}` : '';
+          personal(actor, `To match the loot rules, ${from}${x} from the body became ${to}${x}.`);
+        }
+      } catch (e) { log('gearswap body take failed', source.toString(16), e.message); }
+    }, 0);
+    return true;
+  };
   // The pieces swapped plain on 3-4 Oct get their enchantment back at the character's next login, once per plan item
   // (gearswap-restore.json, re-read when it changes; the character's mark lists the items done). Matched by profile and
   // character tag, and by the character's form when the plan knows it.
@@ -361,6 +426,8 @@ module.exports = (api) => {
     }
     for (const f of r.failed) log(`gearswap restore: ${who(a)} item ${f.id} not restored: ${f.why}`);
   };
+  // From gamemode.js's take chain, after the item guards (so the body holds what is taken): true refuses the take
+  globalThis.__dboGearSwapTake = (source, actor, baseId, count) => { try { return bodyTake(source, actor, baseId, count) === true; } catch (e) { log('gearswap take failed', e.message); return false; } };
   globalThis.__dboGearSwapContainer = (ref) => { try { sweepContainer(ref); } catch (e) { log('gearswap container failed', (ref >>> 0).toString(16), e.message); } };
   // From gamemode.js's login path (onCharacterReady), when the character has loaded and no menu is open
   globalThis.__dboGearSwapLogin = (a) => {
@@ -380,7 +447,7 @@ module.exports = (api) => {
   }
   log(`gearswap: mode ${C.mode}, version ${C.version}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}, enchantments kept`);
   restorePlanNow();
-  return { plan, sweep, sweepContainer, busy, restoreAt, enchantOf };
+  return { plan, sweep, sweepContainer, bodyTake, busy, restoreAt, enchantOf };
 };
 module.exports.plan = plan;
 module.exports.wornIn = wornIn;
