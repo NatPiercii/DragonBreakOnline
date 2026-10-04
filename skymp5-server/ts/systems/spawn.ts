@@ -177,7 +177,8 @@ export class Spawn implements System {
     (ctx.svr as any)._onSpawnAllowed = listenerFn;
   }
 
-  // The last reservedSlots places of maxPlayers are kept for priority patrons (Grand Champion) and staff
+  // maxPlayers places are open to everyone; the native layer holds reservedSlots more on top (scampNative.ts), which
+  // only priority patrons (Grand Champion) and staff may take
   private admit(ctx: SystemContext, userId: number, roles: string[]): boolean {
     const reserved = reservedSlots();
     if (reserved <= 0) return true;
@@ -192,10 +193,10 @@ export class Spawn implements System {
       if (u === userId) continue;
       try { if (mp.isConnected(u)) others++; } catch { /* free slot */ }
     }
-    const open = Math.max(0, Number(this.settingsObject.maxPlayers) - reserved);
+    const open = Math.max(0, Number(this.settingsObject.maxPlayers));
     if (others < open) return true;
-    this.log("Refused user", userId, "(server holds its last " + reserved + " places for priority members; " + others + " online)");
-    kickWithReason(mp, userId, "The server is full for now: its last places are held for Grand Champions and staff. Please try again in a little while.");
+    this.log("Refused user", userId, "(public places full; " + reserved + " more are held for priority members; " + others + " online)");
+    kickWithReason(mp, userId, "The server is full for now (the extra places are held for Grand Champions and staff). Please try again in a little while.");
     return false;
   }
 

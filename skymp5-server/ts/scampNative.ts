@@ -1,3 +1,4 @@
+import { reservedSlots } from "./systems/patronTiers";
 const scampNativeNode = require(process.cwd() + "/scam_native.node");
 
 export declare interface Bot {
@@ -52,8 +53,12 @@ export interface ScampServer {
   getPrometheusMetrics(): string;
 }
 
+// maxPlayers is the public cap; the native layer gets it plus the places patron-tiers.json reserves for priority
+// members and staff (spawn.ts admit), so the reserve sits on top of the 100 rather than inside it
 export const createScampServer = (serverSettings: Record<string, unknown>) => {
-  const res = new scampNativeNode.ScampServer(JSON.stringify(serverSettings));
+  const publicCap = Number(serverSettings["maxPlayers"]) || 0;
+  const nativeSettings = { ...serverSettings, maxPlayers: Math.min(1000, publicCap + reservedSlots()) };
+  const res = new scampNativeNode.ScampServer(JSON.stringify(nativeSettings));
   res._setSelf(res);
   return res;
 }
