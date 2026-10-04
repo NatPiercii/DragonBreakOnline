@@ -1,6 +1,7 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
-import { openFormMenu, closeFormMenu, readMenuKeyCode, readMenuLanguage, isMenuHotkeyBlocked } from "./widgetMenuUtil";
+import { openFormMenu, closeFormMenu, readMenuKeyCode, readMenuLanguage, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
@@ -142,17 +143,19 @@ export class FactionService extends ClientListener {
   }
 
   private onButtonEvent(e: ButtonEvent): void {
-    // Gamepad idCodes are bitmasks that alias onto keyboard scancodes
-    if (e.device !== InputDeviceType.Keyboard) return;
+    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto
+    // keyboard scancodes and are never a key here
+    const code = buttonKeyCode(e);
+    if (code === null) return;
     // Escape closes an open menu.
-    if (e.code === DxScanCode.Escape && e.isDown && this.menuOpen) {
+    if (code === DxScanCode.Escape && e.isDown && this.menuOpen) {
       this.closeMenu();
       return;
     }
-    if (e.code !== this.menuKey || !e.isDown) {
+    if (code !== this.menuKey || !e.isDown) {
       return;
     }
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) {
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) {
       if (this.sp.browser.isFocused()) {
         notifyNextUpdate(this.controller, this.sp, "Faction menu: press Escape to leave the chat box, then F3.");
       }

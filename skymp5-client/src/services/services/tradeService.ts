@@ -2,7 +2,8 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, notifyNextUpdate } from "./customPacketUtil";
-import { closeWidget, isMenuHotkeyBlocked, readMenuKeyCode, showUi } from "./widgetMenuUtil";
+import { closeWidget, readMenuKeyCode, showUi, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 import { FunctionInfo } from "../../lib/functionInfo";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, Form, FormType, InputDeviceType, ObjectReference } from "skyrimPlatform";
 import { getInventory, Entry, EnchantmentEffect, effectsKey, isBoundItem, PROPERTY_KEY_BASE_ID } from "../../sync/inventory";
@@ -189,18 +190,19 @@ export class TradeService extends ClientListener {
   }
 
   // The interact key gives a waiting trade request the cursor; Escape hands the keyboard back and the request keeps
-  // waiting. Keyboard only: gamepad idCodes alias onto keyboard scancodes.
+  // waiting. A key or a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto keyboard scancodes.
   private onButtonEvent(e: ButtonEvent): void {
-    if (!e.isDown || e.device !== InputDeviceType.Keyboard || !this.invitePending) return;
+    const code = buttonKeyCode(e);
+    if (!e.isDown || code === null || !this.invitePending) return;
     // Past the server's lifetime the request is gone there: drop the prompt instead of giving it the keyboard
     if (!isTradeInviteWaiting()) { this.closeInvite(); return; }
-    if (e.code === DxScanCode.Escape && this.inviteFocused) {
+    if (code === DxScanCode.Escape && this.inviteFocused) {
       this.inviteFocused = false;
       this.sp.browser.setFocused(false);
       return;
     }
-    if (e.code !== this.interactKey || this.inviteFocused || this.windowOpen) return;
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    if (code !== this.interactKey || this.inviteFocused || this.windowOpen) return;
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) return;
     this.inviteFocused = true;
     this.sp.browser.setVisible(true);
     this.sp.browser.setFocused(true);

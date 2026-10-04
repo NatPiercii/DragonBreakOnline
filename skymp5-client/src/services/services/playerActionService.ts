@@ -1,6 +1,7 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, notifyNextUpdate, parseCustomPacket } from "./customPacketUtil";
-import { openFormMenu, closeFormMenu, isMenuHotkeyBlocked, readMenuKeyCode } from "./widgetMenuUtil";
+import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldViewMisc";
 import { logTrace } from "../../logging";
@@ -85,16 +86,20 @@ export class PlayerActionService extends ClientListener {
 
   private onButtonEvent(e: ButtonEvent): void {
     if (!e.isDown) return;
-    // Escape closes an open menu; gamepad idCodes alias onto keyboard scancodes, so only the keyboard counts here
-    if (e.device === InputDeviceType.Keyboard && e.code === DxScanCode.Escape && this.menuOpen) {
+    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto
+    // keyboard scancodes and are never a key here
+    const code = buttonKeyCode(e);
+    if (code === null) return;
+    // Escape closes an open menu
+    if (code === DxScanCode.Escape && this.menuOpen) {
       this.closeMenu();
       return;
     }
     // The engine stamps the live control map's event name on every device, so a rebind applies at once
-    // DragonBreak Online: the interaction menu lives on the X key (keyboard only), not on Activate.
-    const xPressed = e.device === InputDeviceType.Keyboard && e.code === this.interactKey;
+    // DragonBreak Online: the interaction menu lives on the X key (or the mouse button bound to it), not on Activate.
+    const xPressed = code === this.interactKey;
     // H pulls a mask up or down; the gamemode dresses the character and swaps the shown name
-    const hPressed = e.device === InputDeviceType.Keyboard && e.code === this.maskKey;
+    const hPressed = code === this.maskKey;
     if ((!xPressed && !hPressed) || this.menuOpen) {
       if (xPressed) this.xSkip("menu open");
       return;
@@ -104,7 +109,7 @@ export class PlayerActionService extends ClientListener {
       this.xSkip("invite waiting");
       return;
     }
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) {
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) {
       if (xPressed) this.xSkip("hotkey blocked");
       return;
     }

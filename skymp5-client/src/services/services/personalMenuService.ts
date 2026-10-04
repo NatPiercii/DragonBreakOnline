@@ -1,6 +1,7 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket } from "./customPacketUtil";
-import { readMenuKeyCode, isMenuHotkeyBlocked } from "./widgetMenuUtil";
+import { readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { MsgType } from "../../messages";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
@@ -27,10 +28,12 @@ export class PersonalMenuService extends ClientListener {
   }
 
   private onButtonEvent(e: ButtonEvent): void {
-    // Gamepad idCodes are bitmasks that alias onto keyboard scancodes
-    if (e.device !== InputDeviceType.Keyboard) return;
-    if (e.code !== this.menuKey || !e.isDown) return;
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto
+    // keyboard scancodes and are never a key here
+    const code = buttonKeyCode(e);
+    if (code === null) return;
+    if (code !== this.menuKey || !e.isDown) return;
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) return;
 
     logTrace(this, `Requesting the player menu`);
     sendCustomPacket(this.controller, { customPacketType: "dbo", event: "menuOpen", args: [], widget: 0 });

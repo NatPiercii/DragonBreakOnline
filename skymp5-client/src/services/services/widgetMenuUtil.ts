@@ -2,7 +2,7 @@ import { CombinedController, Sp } from "./clientListener";
 import { logTrace } from "../../logging";
 import { BrowserService } from "./browserService";
 import { FunctionInfo } from "../../lib/functionInfo";
-import { Menu, once } from "skyrimPlatform";
+import { ButtonEvent, InputDeviceType, Menu, once } from "skyrimPlatform";
 
 // Shared helpers for CEF form-widget menus; widget setters stay per-service (browser-side, injected vars).
 
@@ -148,6 +148,19 @@ export function isGameInputBlocked(sp: Sp, controller: CombinedController): bool
 // Menu hotkeys are also inert while the interface is hidden.
 export function isMenuHotkeyBlocked(sp: Sp, controller: CombinedController): boolean {
   return isUiHidden(controller) || isGameInputBlocked(sp, controller);
+}
+
+// The same for the press of a menu key. A mouse-button key types nothing, so an open chat or window (the browser focus)
+// does not block it; the console, a hidden interface and the vanilla menus that swallow input still do. (The platform
+// hides mouse buttons from the game while the browser has focus; a SkyrimPlatform change lets the side buttons through.)
+export function isMenuKeyPressBlocked(sp: Sp, controller: CombinedController, e: ButtonEvent): boolean {
+  if (e.device !== InputDeviceType.Mouse) return isMenuHotkeyBlocked(sp, controller);
+  if (isUiHidden(controller) || isConsoleOpen(sp)) return true;
+  try {
+    return controller.lookupListener(BrowserService).isBlockingMenuOpen();
+  } catch {
+    return false;
+  }
 }
 
 // Live query: the console can swallow input without a tracked menuOpen event

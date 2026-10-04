@@ -8,6 +8,7 @@ import { RemoteServer } from "./remoteServer";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, Menu } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 import { IdentityMap, parseIdentityMap, peerKey } from "./voicePeerKey";
+import { buttonKeyCode, isMouseKey, mouseKeyButton } from "./mouseKeys";
 
 // The page's mic summary, e.g. "mics 1, aec on, cap live, ctx running, mix running, loop connected"; nothing else passes
 const MIC_SHAPE = /^mics \d{1,2}(, [a-z]{2,4} [a-z?]{1,12}){1,6}$/;
@@ -32,11 +33,8 @@ const DEFAULT_MODES: VoiceMode[] = [
   { key: "shout", label: "Shout", units: 3150 },
 ];
 
-// The talk key's mouse button, or null for a keyboard key. Left and right click attack and block; the wheel has no hold.
-// 256..263 are DxScanCode.LeftMouseButton..MouseButton7 in the platform typings (Input.isKeyPressed numbering).
-export function mouseTalkButton(code: number): number | null {
-  return Number.isInteger(code) && code >= DxScanCode.MiddleMouseButton && code <= DxScanCode.MouseButton7 ? code - DxScanCode.LeftMouseButton : null;
-}
+// The talk key's mouse button as the game reports it, or null for a keyboard key (mouseKeys.ts)
+export const mouseTalkButton = mouseKeyButton;
 
 export class VoiceService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -102,56 +100,41 @@ export class VoiceService extends ClientListener {
   }
 
   private onButtonEventImpl(e: ButtonEvent) {
-    if (e.device === InputDeviceType.Mouse) { this.onMouseButton(e); return; }
-    if (e.device !== InputDeviceType.Keyboard) return;
+    // The scan code for a key, 256 + the button for a bindable mouse button (mouseKeys.ts); the gamepad never
+    const code = buttonKeyCode(e);
+    if (code === null) return;
+    // A mouse button types nothing, so an open chat or window does not stop it (the platform hides mouse buttons from
+    // the game while the browser has focus; a SkyrimPlatform change lets the side buttons through)
+    const typing = e.device === InputDeviceType.Keyboard && this.sp.browser.isFocused();
 
-    if (this.modeKey !== DxScanCode.LeftAlt && e.code === this.modeKey) {
-      if (e.isDown && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
+    if (this.modeKey !== DxScanCode.LeftAlt && code === this.modeKey) {
+      if (e.isDown && !typing && !isConsoleOpen(this.sp)) this.cycleMode();
       return;
     }
 
     // Track Alt: a plain tap of Left Alt cycles whisper -> talk -> shout; Alt+V still does too
-    if (e.code === DxScanCode.LeftAlt || e.code === DxScanCode.RightAlt) {
+    if (code === DxScanCode.LeftAlt || code === DxScanCode.RightAlt) {
       if (e.isDown) { this.altDown = true; this.altUsedAsModifier = false; }
       else if (e.isUp) {
         this.altDown = false;
-        if (e.code === DxScanCode.LeftAlt && this.modeKey === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
+        if (code === DxScanCode.LeftAlt && this.modeKey === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
       }
       return;
     }
     if (this.altDown && e.isDown) this.altUsedAsModifier = true;
-    if (e.code !== this.voiceKey) return;
+    if (code !== this.voiceKey) return;
     // The key went up here, so the page lost the keyboard while holding it (a window closed mid-talk): let its mic go
     if (e.isUp) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
 
     // isHeld frames let a V hold that outlives the Alt+V cycle start transmitting once Alt releases (isDown fires only on the press frame)
     if ((e.isDown || e.isHeld) && !this.pttDown) {
       // Typing in chat or the console must not open the mic; other menus may
-      if (this.sp.browser.isFocused() || isConsoleOpen(this.sp)) return;
-      if (this.altDown) {
+      if (typing || isConsoleOpen(this.sp)) return;
+      // Alt+key cycles the range; a mouse button held with Alt still talks (that Alt then cycles nothing on release)
+      if (this.altDown && e.device === InputDeviceType.Keyboard) {
         if (e.isDown) this.cycleMode();
         return;
       }
-      this.pttDown = true;
-      this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPtt(true)`);
-      this.sendAfkPing();
-    } else if (e.isUp && this.pttDown) {
-      this.releasePtt();
-    }
-  }
-
-  // A mouse button as the talk key (the launcher stores it as 256 + the button, the DxScanCode numbering); the game's
-  // mouse ButtonEvent carries the button alone (0 left, 1 right, 2 middle, 3-7 the side buttons), so it is compared
-  // without the 256. The game hears no mouse button while one of our windows has the browser focus (the platform hides
-  // them), and only the middle one reaches the page: the page handles that one itself (VoiceManager).
-  private onMouseButton(e: ButtonEvent) {
-    const button = mouseTalkButton(this.voiceKey);
-    if (button === null || e.code !== button) return;
-    if (e.isUp) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
-    if ((e.isDown || e.isHeld) && !this.pttDown) {
-      if (this.sp.browser.isFocused() || isConsoleOpen(this.sp)) return;
-      // A button held with Alt still talks, and that Alt press no longer cycles the range on its release
-      if (this.altDown) this.altUsedAsModifier = true;
       this.pttDown = true;
       this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPtt(true)`);
       this.sendAfkPing();
@@ -366,7 +349,8 @@ export class VoiceService extends ClientListener {
     }
 
     // Chat focus steals the key-up event, so drop the mic when typing starts; same when our actor despawns (character park, connection loss)
-    if (this.pttDown && (this.sp.browser.isFocused() || isConsoleOpen(this.sp) || !myRefr)) this.releasePtt();
+    // (a mouse talk button is not typing: the game reports its release, or the platform hiding it as one)
+    if (this.pttDown && ((this.sp.browser.isFocused() && !isMouseKey(this.voiceKey)) || isConsoleOpen(this.sp) || !myRefr)) this.releasePtt();
     // A window closing takes the page's keyboard with it: let go of a talk key the page was holding (its own blur should too)
     const focused = this.sp.browser.isFocused();
     if (this.browserWasFocused && !focused) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
