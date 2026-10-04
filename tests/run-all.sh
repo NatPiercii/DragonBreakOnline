@@ -86,6 +86,7 @@ declare -A NEEDS=(
   [housing-places-names]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-places-rooms]=server:skymp5-server/ts/systems/housingSystem.ts
   [housing-places-migrate]=server:skymp5-server/ts/systems/housingSystem.ts
+  [housing-places-building]=server:skymp5-server/ts/systems/housingSystem.ts
   [mastery-melee]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-shadow]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-values]=server:skymp5-server/ts/systems/masterySystem.ts

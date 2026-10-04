@@ -1,5 +1,6 @@
 // The place cap (fork housingSystem.ts overCap; Nate's N3, 3 Oct), only with housingPlaceMigration "apply": one place per
-// player, a place being a house with its doors and chests (members are not counted) or a lone claim. A hand-over, a grant
+// player, a place being a house with its doors and chests (members are not counted); since 4 Oct (Nate) a chest or room door
+// claimed on its own is no property (housingMaxClaims limits those). A hand-over, a grant
 // (tenancy) or an open claim to someone who already holds one is refused; nothing they hold is taken. Staff are exempt:
 // the profiles in gamemode-config.json housingPlaces.staffProfiles, and anyone online with an admin tier. Officials who
 // claim to hand a property on are not capped at the claim. Without "apply" the old per-claim limit stands.
@@ -20,6 +21,9 @@ const OWNER = 0xff000002, NEWBIE = 0xff000009, AKATOSH = 0xff000004, GM = 0xff00
 const PROFILE = { [OWNER]: 2, [NEWBIE]: 9, [AKATOSH]: 4, [GM]: 21, [STEWARD]: 41, [OVER]: 60 };
 const ROLES = { [GM]: ['role-gm'] };
 const USER = { [OWNER]: 1, [NEWBIE]: 2, [AKATOSH]: 3, [GM]: 4, [STEWARD]: 5, [OVER]: 6 };
+const BUILDING = typeof HousingSystem.prototype.isBuilding === 'function';
+const LOOSE_CHEST = H(0x99003);
+const ENTRANCES = new Set([NEW_DOOR, NEW_CHEST, BARREL, H(0x5c0d7), H(0x8b4c7), H(0xb452a), H(0x6216a), H(0x99001), H(0x99002)]);
 const props = new Map();
 const notices = [];
 const mp = {
@@ -61,6 +65,8 @@ const build = (mode) => {
   sys.partnerOf = () => 0;
   sys.withinReach = () => true; sys.nearProperty = () => true;
   sys.claimed = [HOUSE, HOUSE_DOOR, CHEST_IN, BARREL, H(0x5c0d7), H(0x8b4c7), H(0xb452a), H(0x6216a)];
+  // With the building rule (Nate, 4 Oct) only buildings count: here the claims below stand for doors into houses
+  if (BUILDING) sys.isEntrance = (c, p) => ENTRANCES.has(p >>> 0);
   return sys;
 };
 const rec = (ref) => props.get(`${ref}:private.housing`);
@@ -103,6 +109,11 @@ try {
   notices.length = 0;
   sys.doClaim(ctx, USER[OWNER], OWNER, free2, base({}), false);
   ok(!rec(free2) && /You already hold a property; one each/.test(notices.map((n) => n[1]).join()), 'an open claim by someone who holds a place is refused', notices);
+  if (BUILDING) {
+    notices.length = 0;
+    sys.doClaim(ctx, USER[OWNER], OWNER, LOOSE_CHEST, base({}), false);
+    ok(rec(LOOSE_CHEST) && rec(LOOSE_CHEST).owner === 2 && sys.countPlaces(ctx, 2) === 1, '...but a chest is no property: she claims it and still holds one', notices);
+  }
 
   // Without "apply": the old limit of housingMaxClaims (8)
   seed();

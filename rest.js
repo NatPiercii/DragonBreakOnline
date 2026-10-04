@@ -121,7 +121,9 @@ module.exports = (api) => {
   // Every claim with the interior cells it covers. housing.json is only the index of claimed doors; the
   // owner is a profile id. Only a door pair between the outside and an interior makes a house or an inn
   // yours: a container, or a room door inside, is not the building. An exterior door's place is its
-  // worldspace, which must not count, or owning a house would make every bed outdoors yours.
+  // worldspace, which must not count, or owning a house would make every bed outdoors yours. A building the
+  // housing system has made a place (fork housingSystem.ts, housingPlaceMigration "apply") covers every
+  // interior cell of it, its rooms upstairs and below included (Nate, 4 Oct). A faction's hall is its members' too.
   const interiors = new Map(); // place id -> is an interior CELL
   const isInterior = (place) => {
     if (!place) return false;
@@ -141,13 +143,16 @@ module.exports = (api) => {
       if (!rec || !(Number(rec.owner) > 0) || !partner) continue;
       const inside = [cellOf(door), cellOf(partner)].filter(isInterior);
       if (inside.length !== 1) continue;
-      out.push({ primary: door, owner: Number(rec.owner), ownerName: String(rec.ownerName || ''), cells: new Set(inside.map(groupOf)) });
+      const rooms = rec.place && Array.isArray(rec.place.cells) ? rec.place.cells.map(idOf).filter(isInterior) : [];
+      out.push({ primary: door, partner, owner: Number(rec.owner), ownerName: String(rec.ownerName || ''), cells: new Set(inside.concat(rooms).map(groupOf)) });
     }
     return out;
   };
   // A claim on an inn's door covers every cell of that inn (its beds.json group). Claims are sorted by id, so
   // an inn with two claimed entrances always pays the same one.
-  const ownsCell = (a, cell) => { const p = profileOf(a); return p >= 0 && claims().some((c) => c.owner === p && c.cells.has(groupOf(cell))); };
+  // A faction's hall (guilds.js __dboHallMember): its members sleep in its beds as its owner does (Nate, 4 Oct)
+  const hallMember = (c, a) => { try { return typeof globalThis.__dboHallMember === 'function' && globalThis.__dboHallMember([c.primary, c.partner], c.owner, a) === true; } catch (e) { return false; } };
+  const ownsCell = (a, cell) => { const p = profileOf(a); return p >= 0 && claims().some((c) => c.cells.has(groupOf(cell)) && (c.owner === p || hallMember(c, a))); };
   const innOwner = (cell) => claims().find((x) => x.cells.has(groupOf(cell))) || null;
   const innClaims = (cell) => { const g = groupOf(cell); return claims().filter((c) => c.cells.has(g)); };
   // The bed this claim's owner keeps as their own. It carries the profile that chose it, so a claim released

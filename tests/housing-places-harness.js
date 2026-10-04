@@ -71,8 +71,11 @@ ok(place(0x62169) && place(0x62169).kind === 'house', "Akatosh's house is a hous
 ok(place(0x8b4c7) && place(0x8b4c7).kind === 'interior chest' && place(0xb452a) && place(0xb452a).kind === 'outdoor chest', '...the cathedral chest and the outdoor chest are places of their own');
 ok(place(0xb452a) && place(0xb452a).openChests.length === 0, 'an unlocked outdoor chest claim keeps its state (only chests inside a house become owner-only)');
 ok(place(0x7586e) && place(0x7586f) && place(0x7586e).owner === 35 && place(0x7586f).owner === 49, 'two owners\' chests in one room stay two places, one each');
-ok(plan.overCap.length === 1 && plan.overCap[0].owner === 4 && plan.overCap[0].places.length === 3, 'Akatosh is listed with 3 places for Nate; nobody else is', plan.overCap);
-ok(logs.some((l) => /place plan \(dry run, nothing changed\): 13 owned claims -> 7 places/.test(l)) && logs.some((l) => /Davius Phink \/ Akatosh \(4\) would hold 3 places .*kept, for Nate to decide/.test(l)), 'the plan is in the log', logs.slice(0, 3));
+// With the building rule (Nate, 4 Oct) only houses count: Akatosh's two chests are no properties
+const BUILDING = typeof HousingSystem.prototype.isBuilding === 'function';
+if (BUILDING) ok(plan.overCap.length === 0, "only houses count: Akatosh's house and two chests are one property, and nobody is over the cap", plan.overCap);
+else ok(plan.overCap.length === 1 && plan.overCap[0].owner === 4 && plan.overCap[0].places.length === 3, 'Akatosh is listed with 3 places for Nate; nobody else is', plan.overCap);
+ok(logs.some((l) => /place plan \(dry run, nothing changed\): 13 owned claims -> 7 places/.test(l)) && (BUILDING ? !logs.some((l) => /would hold/.test(l)) : logs.some((l) => /Davius Phink \/ Akatosh \(4\) would hold 3 places .*kept, for Nate to decide/.test(l))), 'the plan is in the log', logs.slice(0, 3));
 ok(logs.some((l) => /Fort Caractacus" .*open chests becoming owner-only=80b5c86/.test(l)), '...with the chest that changes named');
 // Not readable yet (right after boot): no plan, try again later
 const sys2 = new HousingSystem(() => {});

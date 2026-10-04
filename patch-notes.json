@@ -1,5 +1,38 @@
 [
   {
+    "title": "A house is one property",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Property",
+        "items": [
+          "Owning a house now means owning all of it: its doors in from the street and its rooms inside, upstairs and below. Every door and chest inside is yours without being granted one by one (one that another player already owns there stays theirs), and handing the house over or giving it up takes everything inside with it.",
+          "Chests inside open only for you (and the hold's property officials) unless you share one with your household or give it to someone from the property menu's Rooms and chests. Doors inside stay open unless you lock them or give them to someone.",
+          "Aim at a door or chest inside and press the housing key: Lock locks just that one. Naming, keys, handing over and giving up act on the whole house from anywhere inside it. Locking a door in from the street locks every way in, not the doors inside.",
+          "Each player holds one property, and only a building counts: a chest or a room door granted on its own is not a property. Nobody loses anything they hold today.",
+          "A faction's hall owned by the faction's leader is shared with its members, as Frostcrag Spire is with the College of Whispers and the Fighters Guild hall with the Fighters Guild: members sleep in its beds and open, lock and use its chests and doors as the owner does. Members cannot hand it over, give it up, rename it or cut its keys.",
+          "Every bed in any of a house's rooms is its owner's own bed."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Property tax once per house",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Property",
+        "items": [
+          "A house with several doors was taxed once for each of them in the weekly reckoning. A house now pays its property tax once, and the treasury's report lists it once."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Expeditions from Frostcrag Spire",
     "date": "2026-10-04",
     "version": "Server update",

@@ -86,7 +86,7 @@ let lines = staffOut(STAFF, 'admin');
 check('/help admin answers in the admin tab only', lines.length > 1 && lines.every((l) => l.tab === 'admin'), JSON.stringify(lines.map((l) => l.tab)));
 const text = lines.map((l) => l.text.replace(/#\{[0-9a-f]{6}\}/g, '').replace('[[A]]', ''));
 check('topics come one per line: Players with /kick and /tp', text.some((l) => l === 'Players (/help admin players): /kick  /tp'), text.find((l) => l.startsWith('Players')));
-check('admin powers inside player commands are listed (Factions)', text.some((l) => l.startsWith('Factions (/help admin factions): /faction leader  /faction remove  /faction list  /ledgerpoint')), text.find((l) => l.startsWith('Factions')));
+check('admin powers inside player commands are listed (Factions)', text.some((l) => l.startsWith('Factions (/help admin factions): /faction leader  /faction remove  /faction hallmark  /faction list  /ledgerpoint')), text.find((l) => l.startsWith('Factions')));
 check('Beasts lists /curse', text.some((l) => l.startsWith('Beasts and the supernatural') && l.includes('/curse')));
 check('an admin command no topic lists lands under Other staff tools', text.some((l) => l.startsWith('Other staff tools') && l.includes('/newtool') && !l.includes('/adminhelp')), text.find((l) => l.startsWith('Other staff')));
 check('a topic whose commands are missing is left out (Law: no /jail here)', !text.some((l) => l.startsWith('Law')));

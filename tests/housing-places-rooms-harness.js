@@ -73,6 +73,8 @@ sys.baseTypeOf = (c, id) => (byId.get(id >>> 0) ? byId.get(id >>> 0).type : '');
 sys.partnerOf = (c, id) => (byId.get(id >>> 0) ? byId.get(id >>> 0).partner : 0);
 sys.claimed = [];
 const rec = (r) => props.get(`${r}:private.housing`);
+// With the building rule (Nate, 4 Oct) the menu at a door or chest inside answers for what was aimed at, else for the root
+const AIMED = typeof HousingSystem.prototype.isBuilding === 'function';
 const menuFor = (who, target) => { sent.length = 0; sys.sendMenu(ctx, USER[who], who, target); const m = sent.find(([, p]) => p.customPacketType === 'propertyMenu'); return m ? m[1] : null; };
 const request = (who, action, target, extra) => { sent.length = 0; sys.lastRequestMs.clear(); sys.onPropertyRequest(ctx, USER[who], Object.assign({ action, target }, extra || {})); return sent.filter(([, p]) => p.customPacketType === 'propertyNotice').map(([u, p]) => `${u}:${p.text}`).join(' | '); };
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-placesrooms-'));
@@ -97,7 +99,7 @@ try {
   ok(rec(E1).assigned && rec(E1).assigned[C1.toString(16)].profile === 9 && /Strongbox is Tavia's now/.test(said) && /2:Strongbox in Valerio Residence is yours to use/.test(said), "assigning the strongbox to Tavia: recorded, and both are told", said);
   ok(sys.onActivate(ctx, C1, TENANT) === true && sys.onActivate(ctx, C1, STRANGER) === false && sys.onActivate(ctx, C1, OWNER) === true, '...it opens for Tavia and Augustine, not a stranger');
   m = menuFor(TENANT, C1);
-  ok(m && m.assignedToYou === true && m.place === null && m.placeName === 'Valerio Residence' && m.target === E1, "Tavia aiming at it: the place's menu, telling her it is hers, without the owner's panel", m);
+  ok(m && m.assignedToYou === true && m.place === null && m.placeName === 'Valerio Residence' && m.target === (AIMED ? C1 : E1), "Tavia aiming at it: the place's menu, telling her it is hers, without the owner's panel", m);
   // Share the cellar strongbox
   said = request(OWNER, 'share', E1, { ref: C2 });
   ok((rec(E1).shared || []).includes(C2.toString(16)) && /shared with everyone who has a key/.test(said), 'sharing the cellar strongbox', said);
@@ -115,7 +117,7 @@ try {
   ok(!rec(E1).assigned, 'a stranger cannot assign anything', said);
   // Aiming at the wardrobe inside opens the place's menu, the wardrobe first
   m = menuFor(OWNER, C3);
-  ok(m && m.target === E1 && m.place && m.place.here === C3 && m.place.rooms[0].ref === C3, "the owner aiming at the wardrobe: the place's menu with it first", m && m.place);
+  ok(m && m.target === (AIMED ? C3 : E1) && m.place && m.place.here === C3 && m.place.rooms[0].ref === C3, "the owner aiming at the wardrobe: the place's menu with it first", m && m.place);
   // In the cellar, far from the front door, Augustine may still manage it
   where[OWNER] = { cell: BASEMENT, pos: [9000, 9000, 0] };
   said = request(OWNER, 'assign', E1, { ref: C2, recipient: TENANT });
