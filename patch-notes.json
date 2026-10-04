@@ -1,5 +1,19 @@
 [
   {
+    "title": "Fixes",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Enchantments you learn by disenchanting are kept when you log out: the next time you log in your character still knows them at the arcane enchanter."
+        ]
+      }
+    ]
+  },
+  {
     "title": "A house is one property",
     "date": "2026-10-04",
     "version": "Server update",

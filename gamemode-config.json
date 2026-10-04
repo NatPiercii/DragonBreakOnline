@@ -840,8 +840,8 @@
   "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 }
  },
  "learnedEnchantments": {
-  "_comment": "Enchantments learned by disenchanting, kept across relogs (server\\alchemy.js, #bugs thread 7): each disenchant writes the enchantment's effects on the character (private.dboEnchLearned, newest last, at most max); at login they go back to the client as dboEnchLearned, which marks them known. Recorded always; sent only when enabled, which waits for the client that reads the packet.",
-  "enabled": false,
+  "_comment": "Enchantments learned by disenchanting, kept across relogs (server\\alchemy.js, #bugs thread 7): each disenchant writes the enchantment's effects on the character (private.dboEnchLearned, newest last, at most max); at login they go back to the client as dboEnchLearned, which marks them known. Recorded always; sent only when enabled. On since the client that reads the packet (0.3.76) is live (Nate, 4 Oct).",
+  "enabled": true,
   "max": 256
  },
  "housingPlaces": {

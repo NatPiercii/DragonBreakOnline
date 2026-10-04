@@ -76,7 +76,7 @@ disenchant(Q, [DAGGER]); disenchant(Q, [AMULET]);
 ok(JSON.stringify(learned(Q)) === JSON.stringify([STAMINA, FIRE]), 'max 2 keeps the two newest', learned(Q));
 // The config: the key exists and is off
 const cfg = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
-ok(cfg.learnedEnchantments && cfg.learnedEnchantments.enabled === false, 'gamemode-config.json carries learnedEnchantments, off until the client ships', cfg.learnedEnchantments);
+ok(cfg.learnedEnchantments && cfg.learnedEnchantments.enabled === true, 'gamemode-config.json carries learnedEnchantments, on (client 0.3.76 reads dboEnchLearned; Nate, 4 Oct)', cfg.learnedEnchantments);
 const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 ok(/globalThis\.__dboEnchLearnedLogin\(a\)/.test(gm) && /require\(ALCHEMY_JS\)\(\{[^}]*cfg, sendPacket \}\)/.test(gm), 'gamemode.js calls it at login and hands alchemy.js cfg and sendPacket');
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
