@@ -20,7 +20,7 @@ module.exports = (api) => {
   const { mp, log, personal, audit, who, onlineActors, recordOf, adminItemName, openWidget, closeWidget, onUi, sendPacket, every, cfg } = api;
   const C = Object.assign({
     enabled: true, maxDistance: 300, answerSeconds: 20, goldShare: 0.15, itemCount: 3, keyChance: 0.0005,
-    contestMinutes: 10, robberMinutes: 10, victimMinutes: 30, combatSeconds: 15,
+    contestMinutes: 10, robberMinutes: 10, victimMinutes: 30, combatSeconds: 15, leaveDistance: 600,
   }, cfg.robbery || {});
   const WIDGET_ID = 49;
   const GOLD = 0x0000000f;
@@ -37,11 +37,11 @@ module.exports = (api) => {
   const handsTied = (a) => { const r = get(a, 'private.restrained', null) || {}; return !!(r.boundHands || r.carried); };
   const inBeastForm = (a) => { const s = get(a, 'private.beast', null); return !!(s && s.form); };
   const online = (a) => onlineActors().includes(a >>> 0);
-  const near = (a, b) => {
+  const near = (a, b, reach = C.maxDistance) => {
     try {
       if (mp.get(a, 'worldOrCellDesc') !== mp.get(b, 'worldOrCellDesc')) return false;
       const p = mp.get(a, 'pos'), q = mp.get(b, 'pos');
-      return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= C.maxDistance;
+      return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= reach;
     } catch (e) { return false; }
   };
   const sameParty = (a, t) => {
@@ -188,6 +188,15 @@ module.exports = (api) => {
       rob(p.robber, p.victim, p.nameFor);
       return;
     }
+    // The robber walked off (past leaveDistance) or logged out while the victim had the panel: the demand lapses and the
+    // panel closes (Nate, 4 Oct: it stayed up after they parted). No contest; the robber still waits robberMinutes
+    if (choice === 'left') {
+      S.robberAt.set(p.robber, Date.now());
+      personal(p.victim, `${p.robberName} walks away. The demand is dropped.`);
+      if (online(p.robber)) personal(p.robber, `You walked away from ${p.victimName === 'They' ? 'them' : p.victimName}. The demand is dropped.`);
+      audit(`ROBBERY ${who(p.robber)} -> ${who(p.victim)}: the robber left before an answer`);
+      return;
+    }
     // Fight or flee, by choice or by silence
     S.contests.set(p.victim, { robber: p.robber, until: Date.now() + C.contestMinutes * 60000 });
     S.victimAt.set(p.victim, Date.now()); S.robberAt.set(p.robber, Date.now());
@@ -231,6 +240,8 @@ module.exports = (api) => {
     const now = Date.now();
     for (const p of [...S.pending.values()]) {
       if (!online(p.victim)) { S.pending.delete(p.victim); continue; }
+      const leash = Math.max(C.maxDistance, Number(C.leaveDistance) || 0);
+      if (!online(p.robber) || !near(p.robber, p.victim, leash)) { finish(p, 'left', 'left'); continue; }
       if (now >= p.until) finish(p, 'fight', 'timeout');
     }
     for (const [v, c] of S.contests) if (now >= c.until) S.contests.delete(v);

@@ -216,5 +216,23 @@ check('a failing trade hook blocks nothing', menu(ROBBER, VICTIM).length === 1);
 delete globalThis.__alduinakInTrade;
 check('a server without the hook blocks nothing', menu(ROBBER, VICTIM).length === 1);
 
+// The robber walks off while the victim has the panel: it closes and the demand lapses, with no contest (Nate, 4 Oct)
+{
+  globalThis.__dboRobbery.pending.clear(); globalThis.__dboRobbery.contests.clear();
+  globalThis.__dboRobbery.robberAt.clear(); globalThis.__dboRobbery.victimAt.clear();
+  handlers.get('uiCaps')(VICTIM, ['robPrompt']);
+  act(ROBBER, VICTIM);
+  check('leash: the demand is pending', globalThis.__dboRobbery.pending.has(VICTIM));
+  set(ROBBER, 'pos', [500, 0, 0]); out.closed.length = 0; timers.get('robbery')();
+  check('leash: 500 units off (under leaveDistance 600) keeps the panel', globalThis.__dboRobbery.pending.has(VICTIM) && out.closed.length === 0);
+  set(ROBBER, 'pos', [700, 0, 0]); out.personal.length = 0; timers.get('robbery')();
+  check('leash: past 600 the demand lapses', !globalThis.__dboRobbery.pending.has(VICTIM));
+  check('leash: the victim\'s panel closes', out.closed.some((c) => c.a === VICTIM && c.id === 49));
+  check('leash: both are told', out.personal.some((x) => x.a === VICTIM && /walks away/.test(x.t)) && out.personal.some((x) => x.a === ROBBER && /walked away/.test(x.t)));
+  check('leash: no contest is left behind', !globalThis.__dboRobbery.contests.has(VICTIM));
+  check('leash: the robber waits as after any demand', globalThis.__dboRobbery.robberAt.has(ROBBER));
+  set(ROBBER, 'pos', [0, 0, 0]);
+}
+
 console.log(failures ? `${failures} failure(s)` : 'all passed');
 process.exit(failures ? 1 : 0);

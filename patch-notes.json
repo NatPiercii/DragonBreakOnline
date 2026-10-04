@@ -27,6 +27,7 @@
         "heading": "Fixes",
         "items": [
           "Enchantments you learn by disenchanting are kept when you log out: the next time you log in your character still knows them at the arcane enchanter.",
+          "A robbery demand is dropped when the robber walks away before you answer: your panel closes and you keep everything.",
           "A locked chest in a dungeon or expedition always holds something once you pick it: about a third of them used to open on nothing, and those now hold coin. Coin purses inside fill again for each new claim, so a party that claims straight after another no longer finds every purse emptied.",
           "Some enemies in Underpall, Red Ruby Cave, Fort Cutpurse, Anga, Niryastare, Plundered Mine and Silorn failed to appear on their first try and turned up a little later. They now appear with the rest.",
           "After changing your school of magic, Study Magic at the shelves teaches your new school until you learn a spell of it. Before, a spell of your old school kept the shelves closed (\"You have learned ...; the shelves have nothing more to teach you\").",
