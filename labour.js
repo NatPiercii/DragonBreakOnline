@@ -62,8 +62,10 @@ module.exports = (api) => {
     // it): 'log' lets it stand if it is no faster than the round's exact minimum, with a LABOUR-MISMATCH audit line;
     // 'refuse' refuses it. 'log' for the first week of the new client, then Jake decides (DESIGN.md section 12, item 1).
     replayCheck: 'log',
-    // Salt 4 (was 2): a cook needs a lot of it, and Bruma's deposits are few (groundedpasta, 2026-09-29; Nate: more yield)
-    oreYieldByOre: { copper: 3, tin: 3, iron: 3, corundum: 2, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 4 },
+    // Salt 4 (was 2): a cook needs a lot of it, and Bruma's deposits are few (groundedpasta, 2026-09-29; Nate: more yield).
+    // Iron 5 (was 3) and corundum 3 (was 2): more iron (Nate, 4 Oct). The config's labour block is merged shallowly, so a
+    // config oreYieldByOre would replace this whole map: the defaults are changed here.
+    oreYieldByOre: { copper: 3, tin: 3, iron: 5, corundum: 3, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 4 },
     // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
     // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems
     extraOreTier: { salt: 0, geode: 1, amethyst: 1, topaz: 1, ruby: 2, sapphire: 2, emerald: 3, diamond: 4 },
@@ -74,7 +76,7 @@ module.exports = (api) => {
     // Empty soul gems by weight; never black
     geodeGems: { '2e4e2:Skyrim.esm': 40, '2e4e4:Skyrim.esm': 30, '2e4e6:Skyrim.esm': 18, '2e4f4:Skyrim.esm': 9, '2e4fc:Skyrim.esm': 3 },
     firewoodByTier: [3, 4, 5, 6, 8],
-    veinRestMinutes: 45,
+    veinRestMinutes: 30,   // 45 until 4 Oct (Nate: more iron); gamemode-config sets it too
     // A Sea Salt Deposit glows while it has salt for you (GroundedPasta, 30 Sep: "Finally found salt, they are very
     // small, very hard to see"). audience: 'miners' (Miner taken up, at extraOreTier.salt or above) or 'everyone'
     saltGlow: { enabled: true, audience: 'miners', seconds: 30 },

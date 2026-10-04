@@ -289,7 +289,8 @@ module.exports = (api) => {
     const below = (options || []).filter((o) => o[0] <= band[1]).sort((x, y) => y[0] - x[0]);
     return below.length ? below[0][1] : pickOption(options, 'low');
   };
-  // Solo 0.7, two 1.0, four 1.6, six 1.8 enemies per placement, before the difficulty multiplier
+  // Enemies per placement, before the difficulty multiplier: countBase + countPerPlayer x n (defaults 0.4 + 0.3 n: solo 0.7,
+  // two 1.0, four 1.6, six 1.8; live config 0.55 + 0.15 n since 4 Oct: solo 0.7, two 0.85, four 1.15, six 1.45)
   const partyCountMult = (n) => Math.max(Number(C.countMin) || 0.6, Math.min(Number(C.countMax) || 1.8, (Number(C.countBase) || 0.4) + (Number(C.countPerPlayer) || 0.3) * n));
   const dist3 = (a, b) => Math.hypot((a[0] || 0) - (b[0] || 0), (a[1] || 0) - (b[1] || 0), (a[2] || 0) - (b[2] || 0));
   const zonesFor = (d, diff, scale = { lvl: 1, n: 1 }) => {
