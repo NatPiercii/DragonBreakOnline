@@ -9,7 +9,8 @@
 // unlearning/forgetting a spell"): every spell studied or taught stays in the character's spellbook, with no limit, and
 // at most `prepared` (3) of them, whatever their school, are on the character at a time (Actor.AddSpell / RemoveSpell).
 // The spellbook panel (/spells, front widget "spellbook") shows them all; the prepared ones are changed only at a magic
-// college (prepareCells: the Synod Conclave, the College of Winterhold; the College of Whispers has no hall yet).
+// college (prepareCells: the Synod Conclave, the College of Winterhold) or beside a Scholars' Ledger. The College of
+// Whispers' hall, Frostcrag Spire, is not a prepareCells college: its mages change them at its ledger (Nate, 4 Oct).
 // Spells the engine holds outside the book (granted outright, never studied) take no place. /forget is retired.
 // /teach passes a spell to a nearby player, /tomes is the college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
 // tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
@@ -126,19 +127,23 @@ module.exports = (api) => {
     return STUDY_POINTS.find((p) => p.cells.has(cell) && (!school || p.schools.includes(school))
       && (p.places ? nearPlace(a, p) : !p.refr || distanceMeters(a, idOf(p.refr)) <= p.radius)) || null;
   };
-  // Meters to the nearest study spot of the school in the reader's own cell, or null when the cell has none: a reader
-  // inside Frost Crag Spire or the Synod was told only the places' names, which named the place they stood in
+  // The nearest study spot of the school in the reader's own cell, { meters, radius } (its place's radiusMeters), or null
+  // when the cell has none: a reader inside Frost Crag Spire or the Synod was told only the places' names, which named
+  // the place they stood in. Places differ in radius (Frost Crag Spire 8 m, the others 4), so the hint says which.
   const nearestHere = (a, school) => {
     const cell = norm(get(a, 'worldOrCellDesc', ''));
     const pos = get(a, 'pos', null);
-    let best = Infinity;
+    let best = null;
     if (Array.isArray(pos)) {
       for (const p of STUDY_POINTS) {
         if (!p.places || !p.cells.has(cell) || !p.schools.includes(school)) continue;
-        for (const q of p.places) best = Math.min(best, Math.hypot(pos[0] - q[0], pos[1] - q[1], pos[2] - q[2]) / UNITS_PER_METER);
+        for (const q of p.places) {
+          const meters = Math.hypot(pos[0] - q[0], pos[1] - q[1], pos[2] - q[2]) / UNITS_PER_METER;
+          if (!best || meters < best.meters) best = { meters, radius: p.radius };
+        }
       }
     }
-    return best < Infinity ? best : null;
+    return best;
   };
   const studyPointNames = (school) => [...new Set(STUDY_POINTS.filter((p) => p.schools.includes(school)).map((p) => (p.places ? `Study Magic in ${p.name.replace(/^The /, 'the ')}` : p.name)))].join(', ');
 
@@ -341,7 +346,7 @@ module.exports = (api) => {
     if (why) return refuse(why);
     if (!studyPointAt(a, tome.school)) {
       const near = nearestHere(a, tome.school);
-      return refuse(`a tome is studied at a spell study point: ${studyPointNames(tome.school) || 'none is set'}.${near === null ? '' : ` The nearest one here is ${Math.max(1, Math.round(near))} m away.`}`);
+      return refuse(`a tome is studied at a spell study point: ${studyPointNames(tome.school) || 'none is set'}.${near === null ? '' : ` The nearest one here is ${Math.max(1, Math.round(near.meters))} m away; read within ${near.radius} m of it.`}`);
     }
     const skill = bookSkillFor(a, tome);
     return {

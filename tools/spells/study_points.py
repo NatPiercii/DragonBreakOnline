@@ -38,6 +38,12 @@ TAG = 'tools/spells/study_points.py'
 EXTRA = {
     ('bsheartland.esm', 0x6ff7d): [('dragonbreak online edits.esp', 0x13f775), ('dragonbreak online edits.esp', 0x15e4c4)],
 }
+# A place's own radius, where RADIUS_METERS is too tight. Frost Crag Spire's bookshelves (DLE's books around -182, 1204, the
+# hall's reading corner) stand 4.5-5.5 m from its Study Magic shelf, and a mage who found a tome there and read it on the
+# spot was refused (Caius Ves, 4 Oct 02:02). Nate, 4 Oct: about 8 m, Frost Crag only.
+RADIUS = {
+    ('bsheartland.esm', 0x6ff7d): 8,
+}
 
 
 def main():
@@ -124,7 +130,7 @@ def main():
         'name': PLACES.get(where) or re.sub(r'([a-z])([A-Z])', r'\1 \2', re.sub(r'^CYR', '', cells.get(where, desc(where)))),
         'requires': desc(base),
         'cell': desc(where),
-        'radiusMeters': RADIUS_METERS,
+        'radiusMeters': RADIUS.get(where, RADIUS_METERS),
         'places': places,
         'schools': SCHOOLS,
         '_generated': f'{TAG}: the {EDID} activators, {shelves[where]} here'
