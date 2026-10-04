@@ -73,8 +73,14 @@ const store = {
 };
 const calls = [], said = [], audits = [], timers = {};
 let online = [A];
+// The server's own properties (fork PropertyBindingFactory.cpp) and private.* ones; any other name throws there, as
+// 'baseId' did on live (3-4 Oct: no container was ever swapped), so it throws here too
+const BOUND = new Set(['actorNeighbors', 'angle', 'appearance', 'baseDesc', 'equipment', 'inventory', 'isDead', 'isDisabled', 'isOnline', 'isOpen',
+  'locationalData', 'neighbors', 'onlinePlayers', 'percentages', 'pos', 'profileId', 'spawnPoint', 'type', 'worldOrCellDesc', 'idx',
+  'consoleCommandsAllowed', 'spawnDelay', 'templateChain', 'lastAnimEvent', 'respawnPercentages']);
+const getProp = (a, k) => { if (!BOUND.has(k) && !/^private\./.test(k)) throw new Error(`Property '${k}' doesn't exist`); return (store[a] || {})[k]; };
 const mp = {
-  get: (a, k) => (store[a] || {})[k], set: (a, k, v) => { store[a][k] = v; },
+  get: getProp, set: (a, k, v) => { store[a][k] = v; },
   getDescFromId: (id) => (id >>> 24 === 0xff ? (id & 0xffffff).toString(16) : descOf(id)), getIdFromDesc: idOf,
   callPapyrusFunction: (...args) => calls.push(args),
 };
@@ -132,8 +138,8 @@ loginAll();
 check('a staff character (admin tier from the roles source) is left alone', store[S1].inventory.entries[0].baseId === ID.GlassSword && !store[S1]['private.dboGearSwap'] && !said.length);
 // containers, swapped once as they are opened
 const CH = 0x0800f001, BAR = 0x0800f002;
-store[CH] = { baseId: CHEST_BASE, inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }, { baseId: ID.ElvenArrow, count: 12 }, { baseId: ID.DA08EbonyBlade, count: 1 }] } };
-store[BAR] = { baseId: BARREL_BASE, inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+store[CH] = { baseDesc: descOf(CHEST_BASE), inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }, { baseId: ID.ElvenArrow, count: 12 }, { baseId: ID.DA08EbonyBlade, count: 1 }] } };
+store[BAR] = { baseDesc: descOf(BARREL_BASE), inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
 audits.length = 0; said.length = 0;
 globalThis.__dboGearSwapContainer(CH);
 const cinv = store[CH].inventory.entries;
@@ -142,7 +148,7 @@ check('an opened container\'s over-cap gear and arrows become steel and iron, it
 check('...with an audit line per swap and no message to anyone', audits.length === 2 && audits.every((t) => /^GEARSWAP container 800f001: /.test(t)) && said.length === 0, audits);
 cinv.push({ baseId: ID.GlassSword, count: 1 });
 globalThis.__dboGearSwapContainer(CH);
-check('...once only: a container is marked', cinv.some((e) => e.baseId === ID.GlassSword) && store[CH]['private.dboGearSwap'].version === G.VERSION);
+check('...once only: a container is marked', cinv.some((e) => e.baseId === ID.GlassSword) && (store[CH]['private.dboGearSwap'] || {}).version === G.VERSION);
 globalThis.__dboGearSwapContainer(BAR);
 check('something that is not a container (CONT) is never touched', store[BAR].inventory.entries[0].baseId === ID.GlassSword && !store[BAR]['private.dboGearSwap']);
 const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');

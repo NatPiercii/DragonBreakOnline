@@ -122,8 +122,13 @@ const store = {
   [N]: { inventory: { entries: [{ baseId: ID.EnchArmorElvenCuirassHealth03, count: 1 }, { baseId: ID.CYREnchAyleidBowShock02, count: 1, chargePercent: 100 }] }, equipment: { inv: { entries: [{ baseId: ID.EnchArmorElvenCuirassHealth03, worn: true }] } }, profileId: 77, 'private.charTag': 'NEW1' },
 };
 const calls = [], said = [], audits = [], logs = [], events = [];
+// As the server: its own properties (fork PropertyBindingFactory.cpp) and private.* ones; any other name throws
+const BOUND = new Set(['actorNeighbors', 'angle', 'appearance', 'baseDesc', 'equipment', 'inventory', 'isDead', 'isDisabled', 'isOnline', 'isOpen',
+  'locationalData', 'neighbors', 'onlinePlayers', 'percentages', 'pos', 'profileId', 'spawnPoint', 'type', 'worldOrCellDesc', 'idx',
+  'consoleCommandsAllowed', 'spawnDelay', 'templateChain', 'lastAnimEvent', 'respawnPercentages']);
 const mp = {
-  get: (a, k) => (store[a] || {})[k], set: (a, k, v) => { events.push(`set ${k}`); store[a][k] = v; },
+  get: (a, k) => { if (!BOUND.has(k) && !/^private\./.test(k)) throw new Error(`Property '${k}' doesn't exist`); return (store[a] || {})[k]; },
+  set: (a, k, v) => { events.push(`set ${k}`); store[a][k] = v; },
   getDescFromId: (id) => (id >>> 24 === 0xff ? (id & 0xffffff).toString(16) : descOf(id)), getIdFromDesc: idOf,
   callPapyrusFunction: (...args) => { events.push('papyrus'); calls.push(args); },
 };

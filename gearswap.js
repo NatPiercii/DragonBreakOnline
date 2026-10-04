@@ -284,7 +284,8 @@ module.exports = (api) => {
   const sweepContainer = (ref) => {
     ref = ref >>> 0;
     if (C.mode === 'off' || C.containers === false) return;
-    let base = 0; try { base = mp.get(ref, 'baseId') >>> 0; } catch (e) { return; }
+    // The base form comes from 'baseDesc': the server has no 'baseId' property, and asking for one throws
+    let base = 0; try { base = idOf(String(mp.get(ref, 'baseDesc') || '')) >>> 0; } catch (e) { return; }
     const r = base && recordOf(base);
     if (!r || !r.record || String(r.record.type) !== 'CONT') return;
     let mark = null; try { mark = mp.get(ref, MARK); } catch (e) { return; }
