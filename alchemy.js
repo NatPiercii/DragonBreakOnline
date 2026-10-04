@@ -271,6 +271,17 @@ module.exports = (api) => {
     return item.ench;
   };
   const isSoulGem = (id) => { const lr = lookup(id); return !!lr && String(lr.record.type) === 'SLGM'; };
+  // Azura's Star and the Black Star (keyword ReusableSoulGem, ed2f1:Skyrim.esm) enchant without being used up, so whether
+  // one shows in the report is not known; holding one means a plain item may have been enchanted with no gem reported
+  const REUSABLE_SOUL_GEM = 0x000ed2f1;
+  const isReusableGem = (id) => {
+    const lr = lookup(id);
+    if (!lr || String(lr.record.type) !== 'SLGM') return false;
+    const kwda = (lr.record.fields || []).find((f) => f.type === 'KWDA');
+    const n = kwda && kwda.data instanceof Uint8Array ? Math.floor(kwda.data.byteLength / 4) : 0;
+    for (let i = 0; i < n; i++) { try { if ((lr.toGlobalRecordId(u32(kwda, i * 4)) >>> 0) === REUSABLE_SOUL_GEM) return true; } catch (e) { /* unmapped */ } }
+    return false;
+  };
   // An enchantment taught once is known for the rest of the session, and vanilla never offers a known one again; a
   // report naming it again is the server's own removal of the item seen by the client's report (or a stale one), never a
   // second disenchant. Cleared at each login (the client forgets what it learned unless learnedEnchantments restores it).
@@ -330,23 +341,38 @@ module.exports = (api) => {
     if (!atLab(a, workbenchId)) return log(`disenchant: ${display(a)} reported a disenchant at ${workbenchId.toString(16)} while not at it; ignored`);
     const taken = [];   // [baseId, entry copy, ench]
     const session = sessionOf(a);
+    const reusableHeld = entries.some((e) => (Number(e.count) || 0) > 0 && isReusableGem(Number(e.baseId) >>> 0));
+    const reusableReported = reported.some((e) => isReusableGem(Number(e.baseId) >>> 0));
     for (const b of due) {
-      // One copy per enchantment it can teach, at most as many as left the pack
-      const seen = new Set();
+      // The enchantments this base's copies could still teach, each with the copy that goes for it (unworn and plainest
+      // first). One already taught this session narrows the choice: vanilla no longer offers it
+      const byEnch = new Map();
+      const known = new Set();
       for (const e of b.candidates.slice().sort(order)) {
-        if (b.n <= 0) break;
         const ench = copyEnch(e, b.item);
-        if (seen.has(ench) || (Number(e.count) || 0) <= 0) continue;
-        seen.add(ench);
-        if (knownThisSession(a, ench)) { log(`disenchant: ${display(a)} reported ${ingredientName(b.id)} (${enchName(ench)}), already taught this session; ignored`); continue; }
-        const one = Object.assign({}, e, { count: 1 });
+        if (byEnch.has(ench) || known.has(ench)) continue;
+        if (knownThisSession(a, ench)) known.add(ench); else byEnch.set(ench, e);
+      }
+      if (known.size) log(`disenchant: ${display(a)} reported ${ingredientName(b.id)}: ${[...known].map(enchName).join(', ')} already taught this session; not taken again`);
+      if (!byEnch.size) { log(`disenchant: ${display(a)} reported ${ingredientName(b.id)}, nothing taken (no copy with an enchantment it could still teach)`); continue; }
+      // The report names the base only: with more enchantments to choose from than copies that left, the server cannot
+      // tell which went (gearswap.js makes many steel copies of one base, each carrying its own enchantment). Taking the
+      // wrong one would destroy a kept item and record the wrong enchantment as learned, so none is taken and staff settle it
+      const why = byEnch.size > b.n ? `${b.n} left the pack, ${byEnch.size} enchantments to choose from`
+        : b.enchantable && reusableHeld && !reusableReported ? 'a reusable soul gem held could have enchanted a plain copy' : '';
+      if (why) {
+        const copies = b.candidates.map((e) => { const note = copyNote(e); return `${enchName(copyEnch(e, b.item))}${note ? `; ${note}` : ''}${(Number(e.count) || 0) > 1 ? ` x${Number(e.count)}` : ''}`; }).join(' | ');
+        log(`disenchant: ${display(a)} reported ${ingredientName(b.id)} at ${workbenchId.toString(16)}: ${why}; nothing taken`);
+        audit(`DISENCHANT-AMBIGUOUS ${who(a)} ${ingredientName(b.id)} (${(b.id >>> 0).toString(16)}): ${why}; nothing taken, nothing learned [${copies}]`);
+        continue;
+      }
+      for (const [ench, e] of byEnch) {
+        if ((Number(e.count) || 0) <= 0) continue;
+        taken.push([b.id, Object.assign({}, e, { count: 1 }), ench]);
         e.count = (Number(e.count) || 0) - 1;
-        b.n -= 1;
-        taken.push([b.id, one, ench]);
         session.ench.add(ench);
         for (const x of effectsOfEnch(ench)) session.effects.add(x);
       }
-      if (b.n > 0 && !taken.some(([id]) => id === b.id)) log(`disenchant: ${display(a)} reported ${ingredientName(b.id)}, nothing taken (no copy with an enchantment it could still teach)`);
     }
     if (!taken.length) return;
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`disenchant: inventory write failed for ${display(a)}: ${e.message}`); return; }
