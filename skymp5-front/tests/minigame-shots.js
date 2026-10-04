@@ -6,6 +6,9 @@
 //
 // Needs puppeteer (PUPPETEER_DIR, default ~/claude-c-layout/node_modules/puppeteer) and esbuild (ESBUILD, default the
 // fork's skymp5-server copy). Writes <out>/<kind>-<state>-<w>x<h>.png (and the panel alone in <out>/panel), <out>/sent.json and <out>/layout.json.
+// The pick rounds (mode 'pick', no timing) go to <out>/pick: their spots are checked against the server's x and y, the right
+// cue against the decoys, and every report against the picks played. Their blows come from tests/pick-steps.json, rolled
+// by the server's minigames.js pickSteps.
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -321,6 +324,146 @@ const RESULTS = {
       await shot(kind, 'timeout');
       sentAll[`${res} ${kind} timeout`] = await pg.evaluate(() => window.__sent);
     }
+
+    // ---- pick rounds ("Read the stone", no timing): spots where the server put them, the right cue the clearest ----
+    {
+      const PICKDIR = path.join(OUTDIR, 'pick');
+      fs.mkdirSync(path.join(PICKDIR, 'panel'), { recursive: true });
+      const pshot = async (name) => {
+        await pg.screenshot({ path: path.join(PICKDIR, `${name}-${res}.png`) });
+        const box = await pg.evaluate(() => { const el = document.querySelector('.labour__bench, .skinning__panel'); const r = el && el.getBoundingClientRect(); return r && { x: r.left, y: r.top, width: r.width, height: r.height }; });
+        if (box) await pg.screenshot({ path: path.join(PICKDIR, 'panel', `${name}-${res}.png`), clip: box });
+      };
+      const rightOf = (spots) => spots.reduce((bst, q, i) => (q[2] > spots[bst][2] ? i : bst), 0);
+      const checkSpots = async (label, type, spots) => {
+        const m = await pg.evaluate((tp) => {
+          const track = document.querySelector(tp === 'skinning' ? '.skinning__hide' : '.labour__bar');
+          const r = track.getBoundingClientRect();
+          const inner = { x: r.left + track.clientLeft, y: r.top + track.clientTop, w: track.clientWidth, h: track.clientHeight };
+          const list = [...document.querySelectorAll(tp === 'skinning' ? '.skinning__spot' : '.labour__spot')].map((el) => {
+            const q = el.getBoundingClientRect();
+            return { cx: q.left + q.width / 2, cy: q.top + q.height / 2, op: Number(getComputedStyle(el.querySelector('svg')).opacity) };
+          });
+          const panel = document.querySelector(tp === 'skinning' ? '.skinning__panel' : '.labour__bench').getBoundingClientRect();
+          return { inner, list, panel: { x: panel.left, y: panel.top, w: panel.width, h: panel.height } };
+        }, type);
+        layout.push({ res, kind: label, state: 'pick', panel: m.panel, track: { w: m.inner.w, h: m.inner.h }, text: '' });
+        const placed = m.list.length === spots.length && spots.every((q, i) => Math.abs(m.list[i].cx - (m.inner.x + q[0] / 100 * m.inner.w)) <= 1 && Math.abs(m.list[i].cy - (m.inner.y + q[1] / 100 * m.inner.h)) <= 1);
+        note(placed, `${res} ${label}: ${m.list.length} spots drawn at the server's x, y`);
+        const r = rightOf(spots);
+        note(m.list.every((q, i) => i === r || q.op < m.list[r].op), `${res} ${label}: the right spot's cue is the clearest drawn (${m.list.map((q) => q.op.toFixed(2)).join(' ')})`);
+      };
+      const STEPS = JSON.parse(fs.readFileSync(path.join(__dirname, 'pick-steps.json'), 'utf8'));
+      const pickKey = async (i) => key(String(i + 1));
+      const open = async (type, d) => {
+        await pg.evaluate(() => { window.hide(); window.__sent = []; window.__t = 0; });
+        await pg.evaluate((tp, dd) => window.show(tp, dd), type, d);
+        await wait(450);
+      };
+      // A frame of the blow's animation, held still: the widget's timers are stopped and every animation the pick began is
+      // set to ms into itself, so a slow screenshot cannot miss the swing. Afterwards they finish and the timers come back.
+      const holdTimers = () => pg.evaluate(() => { window.__realSetTimeout = window.setTimeout; window.setTimeout = () => 0; });
+      const freeze = (ms) => pg.evaluate((m) => {
+        const now = document.timeline.currentTime;
+        window.__frozen = document.getAnimations().filter((x) => x.startTime === null || now - x.startTime < 1000 * 60 && x.playState !== 'finished');
+        for (const x of window.__frozen) { x.pause(); x.currentTime = m; }
+      }, ms);
+      const release = () => pg.evaluate(() => { for (const x of window.__frozen || []) x.finish(); window.__frozen = []; if (window.__realSetTimeout) window.setTimeout = window.__realSetTimeout; });
+      // Plays a list of picks 500 ms apart on the round's clock, shooting held frames after the named ones
+      const playPicks = async (type, d, list, shots) => {
+        const sentList = [];
+        let t = 0;
+        for (let k = 0; k < list.length; k++) {
+          t += 500;
+          await at(t);
+          const sh = shots[k];
+          if (sh) await holdTimers();
+          await pickKey(list[k]);
+          sentList.push([list[k], t]);
+          if (sh) {
+            await wait(30);
+            for (const [ms, name] of sh) { await freeze(ms); await pshot(name); }
+            await release();
+          } else await wait(260);
+          const sets = await pg.evaluate(() => document.querySelectorAll('.labour__spots, .skinning__spots').length);
+          if (sets > 1) note(false, `${res} ${type} pick ${k + 1}: ${sets} sets of spots on the face at once`);
+        }
+        return { sentList, t };
+      };
+      const expectSent = async (label, ev, list, at0, win, hits, slips) => {
+        const got = await pg.evaluate(() => window.__sent);
+        const r = got.find((g) => g[0] === ev);
+        const v = r ? JSON.parse(r[4]) : {};
+        note(!!r && r[2] === JSON.stringify(list) && r[3] === at0 && v.mode === 'pick' && v.win === win && v.hits === hits && v.slips === slips, `${res} ${label}: reports ${r ? r[2] : 'nothing'} at ${r ? r[3] : '-'} with ${r ? r[4] : '-'}`);
+        sentAll[`${res} pick ${label}`] = got;
+      };
+      const wrongOf = (spots) => (rightOf(spots) + 1) % spots.length;
+
+      // Mining at Novice: four spots, two wasted blows allowed
+      const M = { id: 31, nonce: 'pk-m-' + res, kind: 'mining', title: 'Iron Seam', mode: 'pick', strikes: 6, slips: 2, steps: STEPS.mining0, totalMs: 90000, minPickMs: 150, judge: 'client' };
+      await open('labour', M);
+      await checkSpots('mining start', 'labour', M.steps[0]);
+      await pshot('mining-start');
+      let seq = [rightOf(M.steps[0]), wrongOf(M.steps[1]), ...M.steps.slice(2, 7).map(rightOf)];
+      let run = await playPicks('labour', M, seq, { 0: [[200, 'mining-strike'], [700, 'mining-landed']], 1: [[200, 'mining-glance'], [700, 'mining-miss']], 2: [[700, 'mining-mid']] });
+      await wait(300);
+      await pshot('mining-win');
+      await expectSent('mining win', 'dbo:labour', run.sentList, run.t, true, 6, 1);
+      await pg.evaluate((d) => window.show('labour', d), Object.assign({}, M, { result: 'The seam gives way: 3 Iron Ore.', resultKind: 'win' }));
+      await wait(80);
+      await pshot('mining-win-server');
+      const M2 = Object.assign({}, M, { nonce: 'pk-m2-' + res });
+      await open('labour', M2);
+      seq = M2.steps.slice(0, 3).map(wrongOf);
+      run = await playPicks('labour', M2, seq, { 2: [[700, 'mining-lose']] });
+      await expectSent('mining lose', 'dbo:labour', run.sentList, run.t, false, 0, 3);
+      await pg.evaluate((d) => window.show('labour', d), Object.assign({}, M2, { result: 'The seam holds. Your arms give out before the rock does.', resultKind: 'lose' }));
+      await wait(80);
+      await pshot('mining-lose-server');
+      const M3 = Object.assign({}, M, { nonce: 'pk-m3-' + res });
+      await open('labour', M3);
+      run = await playPicks('labour', M3, [rightOf(M3.steps[0])], {});
+      await at(90005);
+      await wait(150);
+      await pshot('mining-idle');
+      await expectSent('mining idle', 'dbo:labour', run.sentList, 90005, false, 1, 0);
+      const MM = Object.assign({}, M, { nonce: 'pk-mm-' + res, title: 'Ebony Seam', slips: 4, steps: STEPS.mining4 });
+      await open('labour', MM);
+      await checkSpots('mining master start', 'labour', MM.steps[0]);
+      await pshot('mining-master-start');
+
+      // Chopping at Apprentice
+      const C = { id: 31, nonce: 'pk-c-' + res, kind: 'chopping', title: 'Chopping Block', mode: 'pick', strikes: 8, slips: 3, steps: STEPS.chop1, totalMs: 90000, minPickMs: 150, judge: 'client' };
+      await open('labour', C);
+      await checkSpots('chopping start', 'labour', C.steps[0]);
+      await pshot('chopping-start');
+      run = await playPicks('labour', C, C.steps.slice(0, 8).map(rightOf), { 0: [[200, 'chopping-strike'], [700, 'chopping-landed']], 3: [[700, 'chopping-mid']] });
+      await wait(300);
+      await pshot('chopping-win');
+      await expectSent('chopping win', 'dbo:labour', run.sentList, run.t, true, 8, 0);
+
+      // Skinning at Novice: four points, two slips borne
+      const K = { id: 33, nonce: 'pk-k-' + res, name: 'deer', mode: 'pick', cuts: 3, misses: 2, steps: STEPS.skin0, totalMs: 90000, minPickMs: 150, judge: 'client' };
+      await open('skinning', K);
+      await checkSpots('skinning start', 'skinning', K.steps[0]);
+      await pshot('skinning-start');
+      seq = [rightOf(K.steps[0]), wrongOf(K.steps[1]), rightOf(K.steps[2]), rightOf(K.steps[3])];
+      run = await playPicks('skinning', K, seq, { 0: [[200, 'skinning-stroke'], [700, 'skinning-landed']], 1: [[200, 'skinning-snag'], [700, 'skinning-slip']] });
+      await wait(450);
+      await pshot('skinning-win');
+      await expectSent('skinning win', 'dbo:skinning', run.sentList, run.t, true, 3, 1);
+      await pg.evaluate((d) => window.show('skinning', d), Object.assign({}, K, { result: 'The hide comes away clean: Deer Hide.', resultKind: 'win' }));
+      await wait(80);
+      await pshot('skinning-win-server');
+      const K2 = Object.assign({}, K, { nonce: 'pk-k2-' + res });
+      await open('skinning', K2);
+      run = await playPicks('skinning', K2, K2.steps.slice(0, 3).map(wrongOf), { 2: [[700, 'skinning-lose']] });
+      await expectSent('skinning lose', 'dbo:skinning', run.sentList, run.t, false, 0, 3);
+      const KM = Object.assign({}, K, { nonce: 'pk-km-' + res, steps: STEPS.skin4 });
+      await open('skinning', KM);
+      await checkSpots('skinning master start', 'skinning', KM.steps[0]);
+      await pshot('skinning-master-start');
+    }
   }
   await b.close();
   fs.writeFileSync(path.join(OUTDIR, 'sent.json'), JSON.stringify(sentAll, null, 1));
@@ -329,7 +472,7 @@ const RESULTS = {
     const base = JSON.parse(fs.readFileSync(process.env.BASELINE, 'utf8'));
     const strip = (list) => JSON.stringify((list || []).map((a) => a.map((v, i) => (i === 4 && typeof v === 'string' ? v.replace(/"frames":\d+,/, '') : v))));
     for (const k of Object.keys(base)) note(strip(base[k]) === strip(sentAll[k]), `wire: ${k} sends what the baseline sent`);
-    note(Object.keys(base).length === Object.keys(sentAll).length, 'wire: the same reports as the baseline');
+    note(Object.keys(base).length === Object.keys(sentAll).filter((k) => !/ pick /.test(k)).length, 'wire: the same timing reports as the baseline');
   }
   fs.writeFileSync(path.join(OUTDIR, 'layout.json'), JSON.stringify(layout, null, 1));
   console.log('\nres        kind      state        panel x,y  w x h          track w x h');
@@ -337,7 +480,7 @@ const RESULTS = {
     const p = l.panel || { x: 0, y: 0, w: 0, h: 0 }, tr = l.track || { w: 0, h: 0 };
     console.log(`${l.res.padEnd(10)} ${l.kind.padEnd(9)} ${l.state.padEnd(12)} ${Math.round(p.x)},${Math.round(p.y)}  ${Math.round(p.w)} x ${Math.round(p.h)}`.padEnd(64) + `${Math.round(tr.w)} x ${Math.round(tr.h)}   ${l.text.slice(0, 90)}`);
   }
-  fs.rmSync(TMP, { recursive: true, force: true });
+  if (process.env.KEEP_PAGE) console.log(`page kept: ${path.join(TMP, "page.html")}`); else fs.rmSync(TMP, { recursive: true, force: true });
   console.log(`\n${failures ? failures + ' FAILED' : 'all marker and band checks passed'}; shots in ${OUTDIR}`);
   process.exit(failures ? 1 : 0);
 })().catch((e) => { console.error(e); fs.rmSync(TMP, { recursive: true, force: true }); process.exit(1); });
