@@ -122,8 +122,11 @@ globalThis.__dboSuperHit(B, A);
 ok(state().disease && state().disease.kind === 'vampire', '...but a mortal still does');
 
 store.set(`${A}|private.supernatural`, { kind: 'vampire', disease: null, stage: 1 });
+// A GM cannot give a vampire the other side's disease either (super-cure-paths 4b0b664c): winning its rite would end the
+// curse with no black soul gem, so the GM is told to lift the curse first
+said.length = 0;
 cmds.curse(A, "me infectwerewolf");
-ok(state().disease && state().disease.kind === 'werewolf', '...and an admin can still convert one on purpose');
+ok(!state().disease && state().kind === 'vampire' && said.some((t) => /Lift that curse first/.test(t)), '...and an admin cannot give one the other disease: lift the curse first', said);
 Math.random = rndImmune;
 
 console.log(fail ? `${fail} failed` : 'all checks passed');
