@@ -1175,6 +1175,10 @@ export class FormView {
     return !!this.appearanceState.appearance;
   }
 
+  getAppearance(): Appearance | null {
+    return this.appearanceState.appearance;
+  }
+
   private refrId = 0;
   private ready = false;
   // undefined until the first update, so the first sight of an actor is not reported as a change
