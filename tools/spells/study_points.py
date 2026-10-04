@@ -31,6 +31,13 @@ PLACES = {
 }
 ORDER = list(PLACES)
 TAG = 'tools/spells/study_points.py'
+# Other references that count as study spots of a place, beside its activators; their positions are read from the plugin
+# too. Frost Crag Spire's one shelf stands by the alchemy table on the ground floor, while its study (the Scholars'
+# Ledger by the enchanting table, the Class Lecterns) is about 21 m away on the floor above, where its mages read their
+# tomes and were refused (Nate, 4 Oct: "Frostcrag needs to be able to have players learn spells").
+EXTRA = {
+    ('bsheartland.esm', 0x6ff7d): [('dragonbreak online edits.esp', 0x13f775), ('dragonbreak online edits.esp', 0x15e4c4)],
+}
 
 
 def main():
@@ -83,7 +90,8 @@ def main():
         sys.exit(f'expected one ACTI {EDID} in the load order, found {len(bases)}: {[desc(k) for k in bases]}')
     base = next(iter(bases))
     # Its references: only a plugin that is or masters the base's plugin can place one; the last one in the order wins
-    refs = {}
+    refs, extra = {}, {}
+    wanted = {r: where for where, rs in EXTRA.items() for r in rs}
     for p in plugins:
         if p.key != base[0] and base[0] not in (m.lower() for m in p.masters):
             continue
@@ -92,6 +100,10 @@ def main():
                 continue
             k = src(p, fid)
             d = dict(esplib.subrecords(p.data_at(p.fh, off, sz, fl)))
+            if k in wanted:
+                w, c, _g = ctx
+                ok = not fl & (DELETED | DISABLED) and b'DATA' in d and (src(p, w) if w else src(p, c)) == wanted[k]
+                extra[k] = [round(x, 1) for x in struct.unpack('<3f', d[b'DATA'][:12])] if ok else None
             if b'NAME' not in d or src(p, struct.unpack('<I', d[b'NAME'][:4])[0]) != base:
                 refs.pop(k, None)
                 continue
@@ -102,6 +114,12 @@ def main():
     for k, v in sorted(refs.items()):
         if v:
             by_place.setdefault(v[0], []).append({'refr': desc(k), 'pos': v[1]})
+    shelves = {where: len(places) for where, places in by_place.items()}
+    for k, where in wanted.items():
+        if not extra.get(k):
+            sys.exit(f'{desc(k)}, a study spot of {desc(where)}, is missing, deleted, disabled or elsewhere in the load order')
+        if where in by_place:  # a place counts only once its own activators are there
+            by_place[where].append({'refr': desc(k), 'pos': extra[k]})
     entries = [{
         'name': PLACES.get(where) or re.sub(r'([a-z])([A-Z])', r'\1 \2', re.sub(r'^CYR', '', cells.get(where, desc(where)))),
         'requires': desc(base),
@@ -109,7 +127,9 @@ def main():
         'radiusMeters': RADIUS_METERS,
         'places': places,
         'schools': SCHOOLS,
-        '_generated': f'{TAG}: the {EDID} activators, {len(places)} here; within radiusMeters of one',
+        '_generated': f'{TAG}: the {EDID} activators, {shelves[where]} here'
+                      + (f', and {len(places) - shelves[where]} more study spots (EXTRA)' if len(places) > shelves[where] else '')
+                      + '; within radiusMeters of one',
     } for where, places in sorted(by_place.items(), key=lambda kv: (ORDER.index(kv[0]) if kv[0] in ORDER else len(ORDER), desc(kv[0])))]
 
     text = open(a.skills, encoding='utf-8').read()
@@ -123,7 +143,7 @@ def main():
     arr = json.dumps(kept + entries, indent=1, ensure_ascii=False).replace('\n', '\n ')
     new = text[:m.start(1)] + arr + text[m.end(1):]
     json.loads(new)
-    print(f'{EDID} {desc(base)}: {sum(len(e["places"]) for e in entries)} activators in {len(entries)} places')
+    print(f'{EDID} {desc(base)}: {sum(shelves.values())} activators in {len(entries)} places, {sum(len(e["places"]) for e in entries) - sum(shelves.values())} more study spots')
     for e in entries:
         print(f'  {len(e["places"]):3d}  {e["name"]} ({e["cell"]})')
     if new == text:
