@@ -121,7 +121,9 @@ module.exports = (api) => {
   // Every claim with the interior cells it covers. housing.json is only the index of claimed doors; the
   // owner is a profile id. Only a door pair between the outside and an interior makes a house or an inn
   // yours: a container, or a room door inside, is not the building. An exterior door's place is its
-  // worldspace, which must not count, or owning a house would make every bed outdoors yours.
+  // worldspace, which must not count, or owning a house would make every bed outdoors yours. A building the
+  // housing system has made a place (fork housingSystem.ts, housingPlaceMigration "apply") covers every
+  // interior cell of it, its rooms upstairs and below included (Nate, 4 Oct).
   const interiors = new Map(); // place id -> is an interior CELL
   const isInterior = (place) => {
     if (!place) return false;
@@ -141,7 +143,8 @@ module.exports = (api) => {
       if (!rec || !(Number(rec.owner) > 0) || !partner) continue;
       const inside = [cellOf(door), cellOf(partner)].filter(isInterior);
       if (inside.length !== 1) continue;
-      out.push({ primary: door, owner: Number(rec.owner), ownerName: String(rec.ownerName || ''), cells: new Set(inside.map(groupOf)) });
+      const rooms = rec.place && Array.isArray(rec.place.cells) ? rec.place.cells.map(idOf).filter(isInterior) : [];
+      out.push({ primary: door, owner: Number(rec.owner), ownerName: String(rec.ownerName || ''), cells: new Set(inside.concat(rooms).map(groupOf)) });
     }
     return out;
   };
