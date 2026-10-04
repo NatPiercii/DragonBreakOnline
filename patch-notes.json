@@ -1,7 +1,7 @@
 [
   {
     "title": "A house is one property",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -20,7 +20,7 @@
   },
   {
     "title": "Property tax once per house",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -34,7 +34,7 @@
   },
   {
     "title": "Faster Mining, Smithing and Skinning",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Balance",
     "sections": [
