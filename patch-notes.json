@@ -162,6 +162,14 @@
           "Prayer cures the fever only at a shrine of the Divines. Praying to a Daedric Prince or to one of the older faiths, or praying away from a shrine, no longer does.",
           "Before such a prayer cures you, the shrine warns you. Pray again within a minute to go on."
         ]
+      },
+      {
+        "heading": "Weaknesses",
+        "items": [
+          "Werewolves now take extra harm from silver only in beast form: 25% more, down from 50%. In human form silver harms them as it harms anyone.",
+          "In beast form, poison spells and venom also strike werewolves 25% harder. Poison on a blade does not count.",
+          "Vampires still take more harm from silver and fire."
+        ]
       }
     ]
   },
