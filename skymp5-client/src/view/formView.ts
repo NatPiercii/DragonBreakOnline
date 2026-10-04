@@ -13,6 +13,7 @@ import { hostBackoff, noteActorCall, noteCopyBorn, noteCopyPlaced, safeDelete } 
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
+import { COPY_MAGICKA, copyMagicka, realBaseMagicka } from "./copyMagicka";
 import { holdsRelayedRagdoll, niNodeWaitsForRagdoll } from "./ragdollHold";
 import { ragdolledAtOf } from "./npcLifetimeRuntime";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
@@ -313,9 +314,12 @@ export class FormView {
       if (actor && !this.localImmortal) {
         actor.startDeferredKill();
         actor.setActorValue("health", 1000000);
-        actor.setActorValue("magicka", 1000000);
+        this.realMagicka = model.appearance ? undefined : this.readBaseMagicka(actor);
+        actor.setActorValue("magicka", COPY_MAGICKA);
+        this.magickaSet = COPY_MAGICKA;
         this.localImmortal = true;
       }
+      if (actor) this.syncHostedMagicka(actor);
       if (actor && !refId) {
         this.applyFactions(actor, model);
         this.applyOutfit(actor, model);
@@ -374,6 +378,8 @@ export class FormView {
     })
 
     this.localImmortal = false;
+    this.realMagicka = undefined;
+    this.magickaSet = undefined;
     this.hostilityApplied = false;
     this.aggressionBeforeRaise = undefined;
     this.factionsSeen = "";
@@ -1079,6 +1085,23 @@ export class FormView {
     } catch (e) { /* diagnostics never break the view */ }
   }
 
+  private readBaseMagicka(actor: Actor): number | undefined {
+    try { return realBaseMagicka(actor.getBaseActorValue("magicka")); } catch (e) { return undefined; }
+  }
+
+  // A copy this client hosts casts from its own base magicka, at full when hosting starts; any other keeps 1,000,000.
+  // hostedLast is the previous applyAll's answer, so the switch lands one update after the host change
+  private syncHostedMagicka(actor: Actor): void {
+    if (this.realMagicka === undefined) return;
+    const want = copyMagicka(this.realMagicka, this.hostedLast === true);
+    if (this.magickaSet === want) return;
+    this.magickaSet = want;
+    try {
+      actor.setActorValue("magicka", want);
+      if (want !== COPY_MAGICKA) actor.restoreActorValue("magicka", COPY_MAGICKA);
+    } catch (e) { /* the copy is gone */ }
+  }
+
   private isSettlingBeast(model: FormModel): boolean {
     return this.isBeastCopy(model) && (this.spawnMoment === 0 || Date.now() - this.spawnMoment < BEAST_SPAWN_SETTLE_MS);
   }
@@ -1196,6 +1219,9 @@ export class FormView {
   private appearanceState = this.getDefaultAppearanceState();
   private eqState = this.getDefaultEquipState();
   private appearanceBasedBaseId = 0;
+  // An NPC copy's own base magicka, and what was last written (copyMagicka.ts)
+  private realMagicka: number | undefined = undefined;
+  private magickaSet: number | undefined = undefined;
   private leveledBaseId = 0;
   private isOnScreen = false;
   private lastNiNodeUpdateMs = 0;
