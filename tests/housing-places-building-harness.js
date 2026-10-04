@@ -36,10 +36,11 @@ const BARREL = ref(0x202, WORLD, 'CONT'), BARREL2 = ref(0x203, WORLD, 'CONT');
 ref(0x300, WORLD, 'DOOR', 0x301); ref(0x301, PUB, 'DOOR', 0x300);
 const R1 = ref(0x302, PUB, 'DOOR', 0x303); ref(0x303, ROOM, 'DOOR', 0x302);
 const S1 = ref(0x400, WORLD, 'DOOR', 0x401); ref(0x401, STAFF, 'DOOR', 0x400);
+const Z1 = ref(0x500, WORLD, 'DOOR', 0x501); ref(0x501, '20ea:BSHeartland.esm', 'DOOR', 0x500);   // a house nobody ever claimed
 const byId = new Map(REFS.map((r) => [r.id, r]));
-const STEWARD = 0xff000041, VIGGO = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004;
-const PROFILE = { [STEWARD]: 41, [VIGGO]: 9, [STRANGER]: 51, [AKATOSH]: 4 };
-const USER = { [STEWARD]: 5, [VIGGO]: 2, [STRANGER]: 3, [AKATOSH]: 4 };
+const STEWARD = 0xff000041, VIGGO = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004, WHISPER = 0xff000061;
+const PROFILE = { [STEWARD]: 41, [VIGGO]: 9, [STRANGER]: 51, [AKATOSH]: 4, [WHISPER]: 61 };
+const USER = { [STEWARD]: 5, [VIGGO]: 2, [STRANGER]: 3, [AKATOSH]: 4, [WHISPER]: 6 };
 let props, notices, menus;
 const descToId = (d) => parseInt(String(d).split(':')[0], 16) | 0x08000000;
 const mp = {
@@ -108,6 +109,8 @@ try {
   const G = globalThis.__dboHousing;
   ok(G.primaryOf(C2) === E1 && G.recordOf(C2).owner === 9 && G.primaryOf(U1) === E1 && G.primaryOf(I2) === E1, 'the gameplay asks a chest or an inner door upstairs and is answered the building', [G.primaryOf(C2), G.primaryOf(U1)]);
   ok(G.primaryOf(BARREL) === BARREL && G.primaryOf(R1) === R1, '...a claim outside any building answers itself');
+  const g = G.grant(Z1, VIGGO);
+  ok(/one each/.test(g) && !(rec(Z1) && rec(Z1).owner), 'renting him a house nobody ever claimed is refused too: it is a building', g);
   // Place-wide actions from an unclaimed chest act on the building
   menus.length = 0;
   said = request(sys, VIGGO, 'rename', C2, { name: 'Hux Hall' });
@@ -140,9 +143,28 @@ try {
   ok(rec(E1).locked === true && rec(E2).locked === true && rec(U1).locked === false && rec(C2).locked === true, 'locking the front door locks every way in, not the door upstairs; the chest keeps its own lock', [rec(E2).locked, rec(U1).locked]);
   request(sys, VIGGO, 'unlock', E1);
   ok(rec(E1).locked === false && rec(E2).locked === false, '...and unlocking it unlocks every way in');
+  // A faction's hall (gameplay guilds.js __dboHallMember): its members use the house as its owner does, nothing more
+  const HALL = typeof HousingSystem.prototype.inHall === 'function';
+  if (HALL) {
+    ok(sys.onActivate(ctx, C1, WHISPER) === false, 'before the house is a hall, a guild member cannot open its chest');
+    globalThis.__dboHallMember = (refs, owner, actor) => refs.includes(E1) && owner === 9 && actor === WHISPER;
+    ok(sys.onActivate(ctx, C1, WHISPER) === true && sys.onActivate(ctx, C1, STRANGER) === false, "as the guild's hall: a member opens the chest downstairs, a stranger still cannot");
+    said = request(sys, WHISPER, 'lock', C1);
+    ok(rec(C1) && rec(C1).locked === true && rec(C1).owner === 9, '...the member locks it (it stays the owner\'s)', said);
+    request(sys, WHISPER, 'unlock', C1);
+    ok(rec(C1).locked === false, '...and unlocks it');
+    said = request(sys, WHISPER, 'transfer', C1, { recipient: WHISPER });
+    ok(rec(E1).owner === 9 && /not yours to hand over/.test(said), 'a member cannot hand the hall over', said);
+    said = request(sys, WHISPER, 'rename', C1, { name: 'Mine Now' });
+    ok(rec(E1).name === 'Hux Hall' && /not yours to name/.test(said), '...nor rename it', said);
+    said = request(sys, WHISPER, 'abandon', C2);
+    ok(rec(E1).owner === 9 && /not yours to give up/.test(said), '...nor give it up', said);
+    delete globalThis.__dboHallMember;
+    ok(sys.onActivate(ctx, C1, WHISPER) === false, 'no longer a hall: the member is a stranger again');
+  }
   // Handing the building over from the chest downstairs: everything inside goes with it
   said = request(sys, VIGGO, 'transfer', C1, { recipient: STRANGER });
-  ok(rec(E1).owner === 51 && rec(E2).owner === 51 && rec(C2).owner === 51 && rec(U1).owner === 51 && rec(X1).owner === 51, 'handed over from a chest inside: the house, its back door and the locked chest and door go to the buyer', said);
+  ok(rec(E1).owner === 51 && rec(E2).owner === 51 && rec(C2).owner === 51 && rec(U1).owner === 51 && rec(X1).owner === 51 && (!rec(C1) || rec(C1).owner === 51), 'handed over from a chest inside: the house, its back door and the locked chest and door go to the buyer', said);
   ok(rec(BARREL).owner === 9 && rec(R1).owner === 9 && sys.countPlaces(ctx, 9) === 0, "...Viggo's barrel and room door stay his; he holds no property now");
   ok(sys.onActivate(ctx, C1, STRANGER) === true && sys.onActivate(ctx, C1, VIGGO) === false, 'the chest nobody claimed opens for the buyer now, not for Viggo');
   said = request(sys, STRANGER, 'abandon', C1);
