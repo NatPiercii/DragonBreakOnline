@@ -2,6 +2,10 @@
 // every emote did nothing, for everyone, and nothing said where it stopped). Bundles the fork's emoteService.ts with
 // SkyrimPlatform stubbed, drives onBrowserMessage with stand-ins and reads the lines handed to __dboDiagNote: the request,
 // a refusal and its reason, the send, the graph's answer, and what ended an emote within two seconds. Logging only.
+// The stubs keep SkyrimPlatform's contexts: a browser message arrives in tick context, where every Papyrus native throws
+// "can't be called in this context" (CallNativeApi.cpp) and EventsApi swallows the throw, and natives work only inside an
+// "update" callback. A stub that ran once() callbacks at once hid the wheel bug: idleBlocker() in onBrowserMessage threw
+// in game, so no wheel emote ever reached "sent" (5bdf7282, 23 Sep).
 //   node tests/emote-diag-harness.js [fork root]   (default $FORK, else ~/dragonbreak/fork)
 'use strict';
 const fs = require('fs');
@@ -29,18 +33,38 @@ const ok = (c, what, got) => { console.log(`${c ? 'PASS' : 'FAIL'}  ${what}${!c 
 const notes = [];
 globalThis.__dboDiagNote = (kind, text) => notes.push(`${kind} ${text}`);
 const sent = [];
-let player = { isWeaponDrawn: () => false, getFurnitureReference: () => null, isSwimming: () => false, isOnMount: () => false };
+// SkyrimPlatform's two contexts: natives only inside an "update" callback (vm set in OnUpdate), anything else is tick
+let inUpdate = false;
+const contextThrows = [];
+const native = (name, fn) => (...a) => {
+  if (!inUpdate) { contextThrows.push(name); throw new Error(`'${name}' can't be called in this context`); }
+  return fn(...a);
+};
+const actor = (o) => Object.fromEntries(Object.entries(o).map(([k, f]) => [k, native(`Actor.${k}`, f)]));
+let player = actor({ isWeaponDrawn: () => false, getFurnitureReference: () => null, isSwimming: () => false, isOnMount: () => false });
 let hook = null;
 const sp = {
-  Game: { getPlayer: () => player },
-  Debug: { sendAnimationEvent: (p, anim) => { sent.push(anim); if (hook) hook.leave({ animEventName: anim, animationSucceeded: anim !== 'IdleRefused' }); } },
+  Game: { getPlayer: native('Game.getPlayer', () => player) },
+  Debug: { sendAnimationEvent: native('Debug.sendAnimationEvent', (p, anim) => { sent.push(anim); if (hook) hook.leave({ animEventName: anim, animationSucceeded: anim !== 'IdleRefused' }); }) },
   Utility: { wait: () => ({ then: () => {} }) },
   hooks: { sendAnimationEvent: { add: (h) => { hook = h; } } },
+  browser: { executeJavaScript: () => {}, setFocused: () => {}, setVisible: () => {}, isFocused: () => false },
 };
-const controller = { on: () => {}, once: (ev, fn) => fn(), emitter: { on: () => {} }, lookupListener: () => ({ isPoseLocked: false }) };
+let queued = [];
+const controller = { on: () => {}, once: (ev, fn) => { if (ev === 'update') queued.push(fn); }, emitter: { on: () => {} }, lookupListener: () => ({ isPoseLocked: false }) };
+// One game frame: the update callbacks queued so far run with natives available; ones they queue wait for the next
+const frame = () => { const now = queued; queued = []; inUpdate = true; try { for (const fn of now) fn(); } finally { inUpdate = false; } };
+const frames = (n = 6) => { for (let i = 0; i < n; i++) frame(); };
 const svc = new EmoteService(sp, controller);
 svc.closeMenu = () => {};   // the menu's own browser calls are not under test
-const play = (anim) => svc.onBrowserMessage({ arguments: ['emote:play', anim] });
+// A wheel pick: the browser message in tick context, a throw swallowed as EventsApi::SendEvent does, then a few frames
+const play = (anim) => { try { svc.onBrowserMessage({ arguments: ['emote:play', anim] }); } catch (e) { /* swallowed by SendEvent */ } frames(); };
+
+contextThrows.length = 0;
+play('IdleApplaud2');
+ok(notes.includes('emote sent IdleApplaud2') && sent.includes('IdleApplaud2'), 'a wheel pick (a browser message, tick context) reaches "sent" and the graph', notes);
+ok(contextThrows.length === 0, '...and no native is called outside an update', contextThrows);
+notes.length = 0; svc.activeEmote = '';
 
 play('IdleWave');
 ok(notes[0] === 'emote play IdleWave (active none)', 'the request is logged with what was playing', notes);
@@ -63,9 +87,23 @@ play('IdleNotInCatalog');
 ok(notes.includes('emote refused IdleNotInCatalog: not in the catalog'), 'an emote outside the catalog is logged as refused', notes);
 
 notes.length = 0;
+player = Object.assign({}, player, { isSwimming: native('Actor.isSwimming', () => { throw new Error('engine said no'); }) });
+play('IdleSalute');
+ok(notes.includes('emote refused IdleSalute: Error: engine said no') && !sent.includes('IdleSalute'), 'a native that throws in the update is logged as the refusal', notes);
+player = Object.assign({}, player, { isSwimming: native('Actor.isSwimming', () => false) });
+
+notes.length = 0;
+try { svc.onBrowserMessage({ arguments: ['emote:play', 'IdleLaugh'] }); } catch (e) { /* swallowed */ }
+frame();   // the pick is taken (activeEmote set); the send is still a frame away
+svc.stopActiveEmote(false, 'movement key 31');
+frames();
+ok(notes.includes('emote stopped IdleLaugh before sent by movement key 31') && !notes.includes('emote sent IdleLaugh'), 'an emote stopped before its send says so, not a time from the last one', notes);
+
+notes.length = 0;
 play('IdleLaugh');
 ok(notes.indexOf('emote sent IdleLaugh') >= 0 && notes.indexOf('emote sent IdleLaugh') < notes.indexOf('emote graph IdleLaugh accepted=true'), 'the send is logged before the graph answers', notes);
 svc.stopActiveEmote(false, 'movement key 17');
+frames();
 ok(notes.some((n) => /^emote stopped IdleLaugh after \d+ ms by movement key 17$/.test(n)), 'an emote ended within two seconds says what ended it', notes);
 const src = fs.readFileSync(FILE, 'utf8');
 ok(/this\.stopActiveEmote\(false, `movement key \$\{e\.code\}`\)/.test(src) && /this\.stopActiveEmote\(true, "the wheel's stop"\)/.test(src), '...a movement key and the wheel\'s stop each name themselves');
