@@ -34,6 +34,7 @@
 #include "UpdateEquipmentMessage.h"
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <deque>
 
@@ -470,6 +471,45 @@ uint32_t StaffEnchantmentOf(WorldState* worldState, uint32_t weaponId)
     return 0;
   }
   return lookup.ToGlobalId(data.enchantmentFormId);
+}
+
+// The charge a dropped weapon copy keeps: the lower charge the dropping client reports, never more than the server holds
+std::optional<float> DroppedCharge(WorldState* worldState,
+                                   const Inventory::Entry& held,
+                                   const std::optional<float>& reported)
+{
+  constexpr float kMinCharge = 0.01f;
+  if (!reported || !std::isfinite(*reported) || *reported < 0.f ||
+      held.count != 1 || !worldState->HasEspm()) {
+    return std::nullopt;
+  }
+  const auto lookup = worldState->GetEspm().GetBrowser().LookupById(held.baseId);
+  const auto weapon = espm::Convert<espm::WEAP>(lookup.rec);
+  if (!weapon) {
+    return std::nullopt;
+  }
+  const bool enchanted = held.enchantmentId.value_or(0) != 0 ||
+    (held.enchantmentEffects && !held.enchantmentEffects->empty()) ||
+    weapon->GetData(worldState->GetEspmCache()).enchantmentFormId != 0;
+  float full = held.maxCharge.value_or(0.f);
+  if (full <= 0.f) {
+    espm::RecordHeaderAccess::IterateFields(
+      weapon,
+      [&](const char* type, uint32_t size, const char* data) {
+        if (!std::memcmp(type, "EAMT", 4) && size >= 2) {
+          full = *reinterpret_cast<const uint16_t*>(data);
+        }
+      },
+      worldState->GetEspmCache());
+  }
+  if (!enchanted || full <= 0.f) {
+    return std::nullopt;
+  }
+  const float current = held.chargePercent.value_or(full);
+  if (*reported >= current - 0.5f) {
+    return std::nullopt;
+  }
+  return std::max(*reported, kMinCharge);
 }
 
 // A hosted NPC's staff comes from its base: its inventory and outfit, its template's when it uses that inventory, leveled items
@@ -1319,6 +1359,17 @@ void ActionListener::OnDropItem(const RawMessageData& rawMsgData,
     return ac->DropItem(baseId, Inventory::Entry(baseId, msg.count));
   }
   for (const auto& e : owned) {
+    // Charge used since the last report would come back full on pickup, so the copy takes the dropping client's charge first
+    if (auto charge = DroppedCharge(worldState, e, msg.chargePercent)) {
+      Inventory::Entry used = e;
+      used.chargePercent = *charge;
+      Inventory inv = ac->GetInventory();
+      inv.RemoveItems({ e });
+      inv.AddItems({ used });
+      ac->SetInventory(inv);
+      ac->DropItem(baseId, used);
+      continue;
+    }
     ac->DropItem(baseId, e);
   }
 }
