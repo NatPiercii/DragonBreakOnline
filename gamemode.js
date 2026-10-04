@@ -496,7 +496,10 @@ try {
       if (ctx.state.next && now < ctx.state.next) return;
       ctx.state.next = now + 2000;
       var p = ctx.sp.Game.getPlayer(); if (!p) return;
-      if (ctx.sp.Ui.isMenuOpen('RaceSex Menu')) return;
+      // Only a height set in the character editor is reported. At login the engine passes through other
+      // values while the body loads, which were saved and then clamped with a message every time (Barush, 4 Oct)
+      if (ctx.sp.Ui.isMenuOpen('RaceSex Menu')) { ctx.state.edited = true; return; }
+      if (!ctx.state.edited) return;
       var s = p.getScale();
       if (typeof ctx.state.last === 'number' && Math.abs(ctx.state.last - s) < 0.001) return;
       ctx.state.last = s;
