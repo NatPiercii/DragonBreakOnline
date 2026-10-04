@@ -1,5 +1,21 @@
 [
   {
+    "title": "Expeditions from Frostcrag Spire",
+    "date": "2026-10-04",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Frostcrag Spire",
+        "items": [
+          "The expedition board in Frostcrag Spire now works. Before, it only told you to go to the Synod Conclave or the Fighters Guild in Bruma.",
+          "Set out from it like from the boards in Bruma: pick a ruin, choose the difficulty and go with your party. Party members anywhere in the Spire, its tower included, come along, and the party comes home to Frostcrag's front hall.",
+          "Its Contracts tab shows Bruma's hunting work, as the other boards do."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dragons are away for now",
     "date": "2026-10-04",
     "version": "Server update",
