@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Settings tab - graphics (SkyrimPrefs.ini) and server hotkeys (client settings)
   graphicsLoad: ()  => ipcRenderer.invoke('graphics:load'),
   graphicsSave: (g) => ipcRenderer.invoke('graphics:save', g),
+  communityShadersLoad: ()   => ipcRenderer.invoke('mods:communityShadersLoad'),
+  communityShadersSet:  (on) => ipcRenderer.invoke('mods:communityShadersSet', !!on),
   hotkeysLoad:  ()  => ipcRenderer.invoke('hotkeys:load'),
   hotkeysSave:  (h) => ipcRenderer.invoke('hotkeys:save', h),
   clientPrefsLoad: ()  => ipcRenderer.invoke('clientprefs:load'),

@@ -212,6 +212,9 @@ async function loadGameSettingsTab() {
       setChk('gfx-precip', g.precip)
       setInputsDisabled(GFX_INPUT_IDS, !g.exists)
     }
+    const cs = await window.electronAPI.communityShadersLoad()
+    const csBox = document.getElementById('gfx-community-shaders')
+    if (csBox && cs && cs.ok) { csBox.checked = !!cs.enabled; csBox.dataset.saved = cs.enabled ? '1' : '0' }
     const gh = await window.electronAPI.gameHotkeysLoad()
     const ghkEditable = !!(gh && gh.ok && gh.hasGamePath)
     setInputsDisabled(Object.keys(GHK_MAP), !ghkEditable)
@@ -266,6 +269,17 @@ async function saveGameSettingsTab() {
         ao:            chk('gfx-ao'),
         precip:        chk('gfx-precip'),
       })
+    }
+    // Only a change is sent: the switch rewrites modlist.txt and is refused while the game runs
+    const csBox = document.getElementById('gfx-community-shaders')
+    if (csBox && csBox.dataset.saved !== undefined && (csBox.checked ? '1' : '0') !== csBox.dataset.saved) {
+      const r = await window.electronAPI.communityShadersSet(csBox.checked)
+      const hint = document.getElementById('gfx-community-shaders-hint')
+      if (r && r.ok) csBox.dataset.saved = csBox.checked ? '1' : '0'
+      else {
+        csBox.checked = csBox.dataset.saved === '1'
+        if (hint && r && r.error) hint.textContent = r.error
+      }
     }
     const ghkFirst = document.getElementById('ghk-activate')
     if (ghkFirst && !ghkFirst.disabled) {
