@@ -51,6 +51,9 @@ module.exports = (api) => {
   // set outright, so every screen has them whether or not its copy is built again. null when unknown: the copy's own then.
   // factions.js is required here, outside the bundle's module tree, so a reload re-requires it (as wildlife.js does)
   const FACTIONS = (() => { try { const p = path.resolve('factions.js'); delete require.cache[p]; return require(p)(mp); } catch (e) { return null; } })();
+  // Creatures that crash nearby players' games (crashycreatures.js, config crashyCreatures): never raised, never unleashed
+  const CRASHY = (() => { try { const p = path.resolve('crashycreatures.js'); delete require.cache[p]; return require(p)(mp, cfg, log); } catch (e) { log('warband: crashycreatures.js failed to load', e.message); return null; } })();
+  const crashy = (base) => { try { return CRASHY ? CRASHY.check(base) : null; } catch (e) { return null; } };
   const recordFactions = (baseId) => {
     try { const src = FACTIONS && FACTIONS.factionSource(Number(baseId) >>> 0); return src ? { f: src.factions.map((x) => [x.id, x.rank]), c: src.crime } : null; } catch (e) { return null; }
   };
@@ -122,6 +125,11 @@ module.exports = (api) => {
     let me, angle;
     try { me = mp.get(a, 'pos'); angle = Number((mp.get(a, 'angle') || [])[2]) || 0; } catch (e) { return personal(a, 'Your position is not known yet.'); }
     const baseId = mp.getIdFromDesc(found.n.desc) >>> 0;
+    const bad = crashy(baseId);
+    if (bad) {
+      audit(`WARBAND ${who(a)} REFUSED ${found.n.name} (${found.n.desc}): crashyCreatures`);
+      return personal(a, `${found.n.name} cannot be raised. ${bad.message}`);
+    }
     const profile = profileOf(a);
     let made = 0;
     for (let i = 0; i < n; i++) {
@@ -177,7 +185,10 @@ module.exports = (api) => {
     let done = 0;
     const kept = [], unread = [];
     const profile = profileOf(a);
+    const gone = [];
     for (const c of mine) {
+      // One raised before the guard loaded goes away instead of into the world
+      if (crashy(c.baseId)) { try { comp().dismiss(c.id); } catch (e) { /* gone */ } S.owners.delete(c.id >>> 0); gone.push(nameOfNpc(c.id)); continue; }
       // An aggression that cannot be read (AI data from a leveled-list template, or no readable record) is not trusted
       const ag = hostile ? 0 : aggressionOf(c.baseId);
       if (!hostile && ag === null) { unread.push(nameOfNpc(c.id)); continue; }
@@ -190,7 +201,8 @@ module.exports = (api) => {
       S.owners.set(id, { gm: a >>> 0, profile, by: who(a), released: true, hostile });
       done++;
     }
-    audit(`WARBAND ${who(a)} ${hostile ? 'UNLEASHED a raid of' : 'settled'} ${done} NPC(s)`);
+    audit(`WARBAND ${who(a)} ${hostile ? 'UNLEASHED a raid of' : 'settled'} ${done} NPC(s)${gone.length ? `; dismissed ${gone.length} (crashyCreatures)` : ''}`);
+    if (gone.length) personal(a, `Dismissed ${gone.length} (${[...new Set(gone)].join(', ')}) instead. ${CRASHY ? CRASHY.message : ''}`.trim());
     if (kept.length) {
       const names = [...new Set(kept)].join(', ');
       log(`warband: ${who(a)} kept ${kept.length} aggressive NPC(s) in the warband instead of settling them (${names})`);
