@@ -77,10 +77,11 @@ export class InteractionPromptService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onDoorNameMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onBlockedDoorsMessage(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onRefDecorMessage(e));
-    // A front reload drops the widget silently.
+    // A front reload drops the widget silently. browserWindowLoaded is emitted from a browser message, in tick context
+    // where getCurrentCrosshairRef throws (refresh swallowed it), so the redraw waits for the next frame
     this.controller.emitter.on("browserWindowLoaded", () => {
       this.promptShown = false;
-      this.refresh();
+      this.controller.once("update", () => this.refresh());
     });
   }
 

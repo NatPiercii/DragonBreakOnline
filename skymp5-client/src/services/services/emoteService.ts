@@ -267,14 +267,25 @@ export class EmoteService extends ClientListener {
         emoteNote(`refused ${anim}: restrained`);
         return;
       }
-      const blocker = this.idleBlocker();
-      if (blocker) {
-        notifyNextUpdate(this.controller, this.sp, blocker);
-        logTrace(this, `Emote refused`, anim, blocker);
-        emoteNote(`refused ${anim}: ${blocker}`);
-        return;
-      }
-      this.playEmote(anim);
+      // Browser messages arrive in tick context, where every Papyrus native throws "can't be called in this context"
+      // and EventsApi swallows the error: idleBlocker() (Game.getPlayer, isWeaponDrawn...) called here threw and
+      // playEmote never ran, so no wheel emote played from 5bdf7282 (23 Sep) on. The blocker check and the emote go
+      // on the next frame, where natives work; the checks above are JS only and stay here.
+      this.controller.once("update", () => {
+        try {
+          const blocker = this.idleBlocker();
+          if (blocker) {
+            notifyNextUpdate(this.controller, this.sp, blocker);
+            logTrace(this, `Emote refused`, anim, blocker);
+            emoteNote(`refused ${anim}: ${blocker}`);
+            return;
+          }
+          this.playEmote(anim);
+        } catch (err) {
+          logTrace(this, `Emote failed`, anim, err);
+          emoteNote(`refused ${anim}: ${err}`);
+        }
+      });
     }
   }
 
@@ -400,6 +411,8 @@ export class EmoteService extends ClientListener {
   private playEmote(anim: string): void {
     const previous = this.activeEmote;
     this.activeEmote = anim;
+    // Not sent yet: a stop before sendEmote runs must not be timed from the previous emote's send
+    this.diagSentAt = 0;
     // Offset overlays live on their own graph layer: crossing between an
     // overlay and a state idle needs the previous emote exited first, and the
     // exit event must go out alone so the single-slot animation sync relays it.
@@ -439,7 +452,8 @@ export class EmoteService extends ClientListener {
     const anim = this.activeEmote;
     this.activeEmote = "";
     // An emote ended within two seconds of being sent is the "nothing happens" the wheel shows: say what ended it
-    if (anim && Date.now() - this.diagSentAt < 2000) emoteNote(`stopped ${anim} after ${Date.now() - this.diagSentAt} ms by ${why}`);
+    if (anim && this.diagSentAt === 0) emoteNote(`stopped ${anim} before sent by ${why}`);
+    else if (anim && Date.now() - this.diagSentAt < 2000) emoteNote(`stopped ${anim} after ${Date.now() - this.diagSentAt} ms by ${why}`);
     if (anim) this.exitEmote(anim, undefined, graceful);
   }
 

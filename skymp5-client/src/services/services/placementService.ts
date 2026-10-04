@@ -84,17 +84,32 @@ export class PlacementService extends ClientListener {
     return this.active;
   }
 
+  // Browser messages arrive in tick context, where every Papyrus native throws: start() (Game.getCameraState,
+  // forceFirstPerson, getFormFromFile, Debug.notification) runs on the next frame, the JSON is read here
   private onBrowserMessage(e: BrowserMessageEvent): void {
     const kind = e.arguments[0];
+    let begin: (() => void) | null = null;
     if (kind === "admin::place") {
       const raw = this.parse(e.arguments[1]);
-      if (raw && raw.desc) this.start({ desc: String(raw.desc), kind: raw.kind === "npc" ? "npc" : "object", name: String(raw.name || "it"), hostile: raw.hostile === true }, null);
+      if (raw && raw.desc) {
+        const pick: Pick = { desc: String(raw.desc), kind: raw.kind === "npc" ? "npc" : "object", name: String(raw.name || "it"), hostile: raw.hostile === true };
+        begin = () => this.start(pick, null);
+      }
     } else if (kind === "admin::placeedit") {
       const raw = this.parse(e.arguments[1]);
-      if (raw) this.startEdit(raw);
+      if (raw) begin = () => this.startEdit(raw);
     } else if (kind === "admin::placeselect" || kind === "admin::placedelete") {
-      this.start(null, null);
+      begin = () => this.start(null, null);
     }
+    if (!begin) return;
+    const run = begin;
+    this.controller.once("update", () => {
+      try {
+        run();
+      } catch (err) {
+        logError(this, `placement mode did not start: ${err}`);
+      }
+    });
   }
 
   // Natives throw in the packet-handler context: the edit is kept and started by the next update
