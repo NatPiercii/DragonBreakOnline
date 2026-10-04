@@ -642,7 +642,7 @@
   ]
  },
  "playtest": {
-  "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
+  "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp, and CYRBleakFrostMine01 177fb6, the Bleak-Frost Mine of DLE v13). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
   "enabled": true,
   "name": "Bruma",
   "arrival": {
@@ -666,7 +666,8 @@
    "bsassets.esm"
   ],
   "allowedCells": [
-   "130040:DragonBreak Online Edits.esp"
+   "130040:DragonBreak Online Edits.esp",
+   "177fb6:DragonBreak Online Edits.esp"
   ],
   "blockedDoors": [
    "877c2:BSHeartland.esm",
