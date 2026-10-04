@@ -231,10 +231,11 @@ module.exports = (api) => {
   // nothing, so the server kept every disenchanted weapon and the next inventory sync handed it back: the enchantment
   // learned, the weapon kept, free to trade on and disenchant again. What the client does send is its craft report from
   // the enchanter: every item that left the pack while seated there, closed by the next one to arrive (usually the
-  // weapon handed back). No recipe matches it, so it ends here. An item enchanted by its own record (EITM, "Elven
-  // Dagger of the Blaze") in it was disenchanted: vanilla's enchanter takes nothing else of the kind (it never enchants
-  // an enchanted item; enchanting takes a plain one and a soul gem, which craftedExtras records). So one unworn copy per
-  // reported one is taken, as vanilla takes it.
+  // disenchanted item handed back by that sync). No recipe matches it, so it ends here, and one copy is taken for each
+  // enchantment it taught, as vanilla takes it. The report names only base items, so the copy is the one the enchanter
+  // could have offered: the base's own enchantment (EITM) or one a plugin enchantment in its extra data gives it
+  // (gearswap.js). A copy the player enchanted is never one (vanilla never disenchants it), except as the last resort on
+  // a base enchanted by its record, where vanilla never makes one.
   const BENCH_ENCHANTING = new Set([3, 4]); // FURN WBDT bench type: Enchanting, EnchantingExperiment
   const isEnchanter = (workbenchId) => {
     let base = 0; try { base = mp.getIdFromDesc(String(mp.get(workbenchId >>> 0, 'baseDesc'))) >>> 0; } catch (e) { return false; }
@@ -244,96 +245,166 @@ module.exports = (api) => {
     return !!wbdt && wbdt.data instanceof Uint8Array && wbdt.data.byteLength > 0 && BENCH_ENCHANTING.has(wbdt.data[0]);
   };
   const DISALLOW_ENCHANTING = 0x000c27bd; // MagicDisallowEnchanting (Skyrim.esm): such an item is never disenchanted
-  const enchantedByRecord = (id) => {
-    const lr = id < 0xff000000 ? lookup(id) : null;
-    if (!lr || !/^(WEAP|ARMO)$/.test(String(lr.record.type)) || !(lr.record.fields || []).some((f) => f.type === 'EITM')) return false;
+  const isPluginId = (id) => id > 0 && id < 0xff000000;
+  // What the enchanter knows of a base item: whether it is a weapon or armour, whether the game refuses to disenchant
+  // it (MagicDisallowEnchanting), and its own enchantment (EITM) as a load-order id, 0 if it has none
+  const itemOf = (id) => {
+    const lr = isPluginId(id) ? lookup(id) : null;
+    if (!lr || !/^(WEAP|ARMO)$/.test(String(lr.record.type))) return null;
+    const fields = lr.record.fields || [];
+    const kwda = fields.find((f) => f.type === 'KWDA');
+    const n = kwda && kwda.data instanceof Uint8Array ? Math.floor(kwda.data.byteLength / 4) : 0;
+    let disallowed = false;
+    for (let i = 0; i < n && !disallowed; i++) { try { disallowed = (lr.toGlobalRecordId(u32(kwda, i * 4)) >>> 0) === DISALLOW_ENCHANTING; } catch (e) { /* unmapped */ } }
+    const eitm = fields.find((f) => f.type === 'EITM');
+    let ench = 0;
+    // An EITM that maps to no load-order id still enchants the item: it is keyed by the base instead
+    if (eitm) { try { ench = lr.toGlobalRecordId(u32(eitm, 0)) >>> 0; } catch (e) { ench = 0; } if (!ench) ench = `eitm:${id.toString(16)}`; }
+    return { disallowed, ench };
+  };
+  const playerMade = (e) => (Number(e.enchantmentId) >>> 0) >= 0xff000000 || (Array.isArray(e.enchantmentEffects) && e.enchantmentEffects.length > 0);
+  // The enchantment the enchanter would teach from this copy: a plugin enchantment in its extra data, else the record's
+  // (0: none, a plain or player-enchanted copy of a base with no enchantment of its own)
+  const copyEnch = (e, item) => {
+    const x = Number(e.enchantmentId) >>> 0;
+    if (isPluginId(x)) return x;
+    return item.ench;
+  };
+  const isSoulGem = (id) => { const lr = lookup(id); return !!lr && String(lr.record.type) === 'SLGM'; };
+  // Azura's Star and the Black Star (keyword ReusableSoulGem, ed2f1:Skyrim.esm) enchant without being used up, so whether
+  // one shows in the report is not known; holding one means a plain item may have been enchanted with no gem reported
+  const REUSABLE_SOUL_GEM = 0x000ed2f1;
+  const isReusableGem = (id) => {
+    const lr = lookup(id);
+    if (!lr || String(lr.record.type) !== 'SLGM') return false;
     const kwda = (lr.record.fields || []).find((f) => f.type === 'KWDA');
     const n = kwda && kwda.data instanceof Uint8Array ? Math.floor(kwda.data.byteLength / 4) : 0;
-    for (let i = 0; i < n; i++) { try { if ((lr.toGlobalRecordId(u32(kwda, i * 4)) >>> 0) === DISALLOW_ENCHANTING) return false; } catch (e) { /* unmapped */ } }
-    return true;
+    for (let i = 0; i < n; i++) { try { if ((lr.toGlobalRecordId(u32(kwda, i * 4)) >>> 0) === REUSABLE_SOUL_GEM) return true; } catch (e) { /* unmapped */ } }
+    return false;
   };
-  // A copy enchanted by extra data naming a plugin enchantment (gearswap.js gives the steel replacement of an enchanted
-  // piece that piece's own ENCH as enchantmentId, 4 Oct) is disenchanted like one enchanted by its record, so the item
-  // must be used up too. A dynamic id (0xff...) is a player-made enchantment, which vanilla never disenchants. A report
-  // holding a soul gem is enchanting (craftedExtras' to record), never a disenchant of such a copy.
-  const extraEnchanted = (e) => { const id = Number(e && e.enchantmentId) >>> 0; return id > 0 && id < 0xff000000; };
-  const isSoulGem = (id) => { const lr = lookup(id); return !!lr && String(lr.record.type) === 'SLGM'; };
-  // Vanilla never offers an enchantment the player already knows, so one base disenchanted twice within this is a repeat
-  const RETAKE_MS = 10 * 60 * 1000;
-  const TAKEN = globalThis.__dboDisenchantTaken || (globalThis.__dboDisenchantTaken = new Map()); // `${actor}|${base}` -> when
-  // Plain copies first: player-named or player-enchanted, then tempered or poisoned ones, are the last taken
-  // (a player-made enchantment is stored as its effects, enchantmentEffects, so those count as enchanted too)
-  const keepScore = (e) => (e.name || e.enchantmentId || (Array.isArray(e.enchantmentEffects) && e.enchantmentEffects.length) ? 2 : 0) + ((Number(e.health) || 1) > 1 || e.poisonId ? 1 : 0);
+  // An enchantment taught once is known for the rest of the session, and vanilla never offers a known one again; a
+  // report naming it again is the server's own removal of the item seen by the client's report (or a stale one), never a
+  // second disenchant. Cleared at each login (the client forgets what it learned unless learnedEnchantments restores it).
+  const SESSION = globalThis.__dboDisenchantSession || (globalThis.__dboDisenchantSession = new Map()); // actor -> { at, ench:Set, effects:Set }
+  const SESSION_MS = 12 * 60 * 60 * 1000;
+  const sessionOf = (a) => {
+    let s = SESSION.get(a);
+    if (!s || Date.now() - s.at > SESSION_MS) { s = { at: Date.now(), ench: new Set(), effects: new Set() }; SESSION.set(a, s); }
+    return s;
+  };
+  const knownThisSession = (a, ench) => {
+    const s = SESSION.get(a);
+    if (!s || Date.now() - s.at > SESSION_MS) return false;
+    if (s.ench.has(ench)) return true;
+    const effects = effectsOfEnch(ench);
+    return effects.length > 0 && effects.every((x) => s.effects.has(x));
+  };
+  // Which copy goes: an unworn one before a worn one (vanilla disenchants worn items too, and the client's report can come
+  // before its equipment report), a copy enchanted by extra data before the record's own, then the plainest: tempered or
+  // poisoned, then player-named ones are the last taken. A copy also carrying a player-made enchantment goes last of all.
+  const extrasScore = (e) => (e.name ? 2 : 0) + ((Number(e.health) || 1) > 1 || e.poisonId ? 1 : 0);
+  const order = (x, y) => ((x.worn || x.wornLeft ? 1 : 0) - (y.worn || y.wornLeft ? 1 : 0))
+    || ((playerMade(x) ? 1 : 0) - (playerMade(y) ? 1 : 0))
+    || ((isPluginId(Number(y.enchantmentId) >>> 0) ? 1 : 0) - (isPluginId(Number(x.enchantmentId) >>> 0) ? 1 : 0))
+    || extrasScore(x) - extrasScore(y);
+  const copyNote = (e) => [e.worn || e.wornLeft ? 'worn' : '', (Number(e.health) || 1) > 1 ? 'tempered' : '', e.name ? `named "${String(e.name).slice(0, 40)}"` : '', e.poisonId ? 'poisoned' : ''].filter(Boolean).join(', ');
+  const enchName = (ench) => { const r = typeof ench === 'number' && ench ? lookup(ench) : null; return r && r.record.editorId ? r.record.editorId : typeof ench === 'number' ? (ench >>> 0).toString(16) : String(ench); };
+
   const disenchant = (a, workbenchId, inputs) => {
-    const reported = inputs && Array.isArray(inputs.entries) ? inputs.entries : [];
-    // One copy per base item per report, whatever the count says
-    const wanted = new Map();
-    const now = Date.now();
-    for (const [k, at] of TAKEN) if (now - at >= RETAKE_MS) TAKEN.delete(k);
+    const reported = (inputs && Array.isArray(inputs.entries) ? inputs.entries : []).filter((e) => e && isPluginId(Number(e.baseId) >>> 0) && (Number(e.count) || 0) > 0);
     const entries = invOf(a);
-    const gem = reported.some((e) => isSoulGem(Number(e.baseId) >>> 0));
-    const unwornExtra = (id) => entries.some((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0 && extraEnchanted(e));
-    const byExtra = new Set();
+    // How many of each base left the pack, and the soul gems among them (each enchant uses one)
+    const left = new Map();
+    let gems = 0;
     for (const e of reported) {
-      const id = Number(e.baseId) >>> 0;
-      if (wanted.has(id)) continue;
-      const extra = !gem && unwornExtra(id);
-      if (!extra && !enchantedByRecord(id)) continue;
-      if (TAKEN.has(`${a}|${id}`)) { log(`disenchant: ${display(a)} reported ${ingredientName(id)} again within ${RETAKE_MS / 60000} min; ignored`); continue; }
-      wanted.set(id, 1);
-      if (extra) byExtra.add(id);
+      const id = Number(e.baseId) >>> 0, n = Math.min(MAX_REPORT_COUNT, Number(e.count) || 0);
+      if (isSoulGem(id)) { gems += n; continue; }
+      left.set(id, (left.get(id) || 0) + n);
     }
-    if (!wanted.size) return;   // enchanting (a plain item and a soul gem): craftedExtras records that
+    // Per base: the copies the enchanter could disenchant (an enchantment not yet taught this session), and whether a
+    // copy could have been the one enchanted (a weapon or armour piece with no enchantment of its own)
+    const bases = [];
+    for (const [id, n] of left) {
+      const item = itemOf(id);
+      if (!item || item.disallowed) continue;
+      const copies = entries.filter((e) => (Number(e.baseId) >>> 0) === id && (Number(e.count) || 0) > 0);
+      const candidates = copies.filter((e) => copyEnch(e, item) && (item.ench || !playerMade(e)));
+      const enchantable = !item.ench && copies.some((e) => !isPluginId(Number(e.enchantmentId) >>> 0));
+      bases.push({ id, n, item, candidates, enchantable });
+    }
+    // A soul gem belongs to the enchant of a plain item, so it goes first to a base that holds nothing to disenchant, then
+    // to one that could be either: a disenchant cannot hide behind a gem spent on something else in the same report
+    for (const b of bases) if (b.enchantable && !b.candidates.length) { const k = Math.min(gems, b.n); gems -= k; b.n -= k; }
+    for (const b of bases) if (b.enchantable && b.candidates.length) { const k = Math.min(gems, b.n); gems -= k; b.n -= k; }
+    const due = bases.filter((b) => b.n > 0 && b.candidates.length);
+    if (!due.length) return;   // enchanting (a plain item and a soul gem): craftedExtras records that
     if (!atLab(a, workbenchId)) return log(`disenchant: ${display(a)} reported a disenchant at ${workbenchId.toString(16)} while not at it; ignored`);
-    const taken = [];
-    for (const [id, n] of wanted) {
-      // Unworn copies only, one the player made nothing of first; a worn one is left and logged. A copy enchanted by
-      // extra data goes first (it is the one disenchanted); of a base with no enchantment of its own, only such a copy
-      const record = enchantedByRecord(id);
-      const copies = entries.filter((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0 && (record || extraEnchanted(e)))
-        .sort((x, y) => (byExtra.has(id) ? (extraEnchanted(y) ? 1 : 0) - (extraEnchanted(x) ? 1 : 0) : 0) || keepScore(x) - keepScore(y));
-      let left = n;
-      for (const e of copies) { if (left <= 0) break; const k = Math.min(left, Number(e.count) || 0); e.count = (Number(e.count) || 0) - k; left -= k; }
-      if (n - left > 0) { taken.push([id, n - left]); TAKEN.set(`${a}|${id}`, now); }
-      if (left > 0) {
-        log(`disenchant: ${display(a)} disenchanted ${ingredientName(id)} x${n} but holds only ${n - left} unworn; ${left} not taken`);
-        if (entries.some((e) => (Number(e.baseId) >>> 0) === id && (e.worn || e.wornLeft))) audit(`DISENCHANT ${who(a)} disenchanted ${ingredientName(id)} but holds only a worn copy; not taken`);
+    const taken = [];   // [baseId, entry copy, ench]
+    const session = sessionOf(a);
+    const reusableHeld = entries.some((e) => (Number(e.count) || 0) > 0 && isReusableGem(Number(e.baseId) >>> 0));
+    const reusableReported = reported.some((e) => isReusableGem(Number(e.baseId) >>> 0));
+    for (const b of due) {
+      // The enchantments this base's copies could still teach, each with the copy that goes for it (unworn and plainest
+      // first). One already taught this session narrows the choice: vanilla no longer offers it
+      const byEnch = new Map();
+      const known = new Set();
+      for (const e of b.candidates.slice().sort(order)) {
+        const ench = copyEnch(e, b.item);
+        if (byEnch.has(ench) || known.has(ench)) continue;
+        if (knownThisSession(a, ench)) known.add(ench); else byEnch.set(ench, e);
+      }
+      if (known.size) log(`disenchant: ${display(a)} reported ${ingredientName(b.id)}: ${[...known].map(enchName).join(', ')} already taught this session; not taken again`);
+      if (!byEnch.size) { log(`disenchant: ${display(a)} reported ${ingredientName(b.id)}, nothing taken (no copy with an enchantment it could still teach)`); continue; }
+      // The report names the base only: with more enchantments to choose from than copies that left, the server cannot
+      // tell which went (gearswap.js makes many steel copies of one base, each carrying its own enchantment). Taking the
+      // wrong one would destroy a kept item and record the wrong enchantment as learned, so none is taken and staff settle it
+      const why = byEnch.size > b.n ? `${b.n} left the pack, ${byEnch.size} enchantments to choose from`
+        : b.enchantable && reusableHeld && !reusableReported ? 'a reusable soul gem held could have enchanted a plain copy' : '';
+      if (why) {
+        const copies = b.candidates.map((e) => { const note = copyNote(e); return `${enchName(copyEnch(e, b.item))}${note ? `; ${note}` : ''}${(Number(e.count) || 0) > 1 ? ` x${Number(e.count)}` : ''}`; }).join(' | ');
+        log(`disenchant: ${display(a)} reported ${ingredientName(b.id)} at ${workbenchId.toString(16)}: ${why}; nothing taken`);
+        audit(`DISENCHANT-AMBIGUOUS ${who(a)} ${ingredientName(b.id)} (${(b.id >>> 0).toString(16)}): ${why}; nothing taken, nothing learned [${copies}]`);
+        continue;
+      }
+      for (const [ench, e] of byEnch) {
+        if ((Number(e.count) || 0) <= 0) continue;
+        taken.push([b.id, Object.assign({}, e, { count: 1 }), ench]);
+        e.count = (Number(e.count) || 0) - 1;
+        session.ench.add(ench);
+        for (const x of effectsOfEnch(ench)) session.effects.add(x);
       }
     }
     if (!taken.length) return;
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`disenchant: inventory write failed for ${display(a)}: ${e.message}`); return; }
-    const what = taken.map(([id, k]) => `${ingredientName(id)}${k > 1 ? ` x${k}` : ''}`).join(', ');
-    log(`disenchant: ${display(a)} disenchanted ${what} at ${workbenchId.toString(16)}; taken`);
-    rememberLearned(a, taken.map(([id]) => id));
-    audit(`DISENCHANT ${who(a)} used up ${what}`);
-    tell(a, `Disenchanting uses up the item: ${what} ${taken.length > 1 || taken[0][1] > 1 ? 'are' : 'is'} gone.`);
+    const what = taken.map(([id]) => ingredientName(id)).join(', ');
+    const detail = taken.map(([id, e, ench]) => { const note = copyNote(e); return `${ingredientName(id)} [${enchName(ench)}${note ? `; ${note}` : ''}]`; }).join(', ');
+    log(`disenchant: ${display(a)} disenchanted ${detail} at ${workbenchId.toString(16)}; taken`);
+    rememberLearned(a, taken.map(([, , ench]) => ench));
+    audit(`DISENCHANT ${who(a)} used up ${detail}`);
+    tell(a, `Disenchanting uses up the item: ${what} ${taken.length > 1 ? 'are' : 'is'} gone.`);
   };
+  const MAX_REPORT_COUNT = 16;
 
   // ---- enchantments learned by disenchanting, kept across relogs (#bugs thread 7) ----------------------------------
   // The game keeps what a character has learned at the table in its own save, which a SkyMP client never loads, so every
-  // learned enchantment was gone at the next login. Each disenchant writes the enchantment's effects (the item's EITM, its
-  // ENCH, its EFIDs, as load-order ids) on the character, newest last and at most max; at login they go back to the client
-  // (dboEnchLearned), which marks each effect known again. Recorded always; sent only with learnedEnchantments.enabled,
-  // since a client before the one that reads the packet would ignore it.
+  // learned enchantment was gone at the next login. Each disenchant writes the enchantment's effects (the copy's
+  // enchantment: its extra data's, else the item's EITM; its EFIDs, as load-order ids) on the character, newest last and
+  // at most max; at login they go back to the client (dboEnchLearned), which marks each effect known again. Recorded
+  // always; sent only with learnedEnchantments.enabled, since a client before the one that reads the packet would ignore it.
   const LEARN = Object.assign({ enabled: false, max: 256 }, (api.cfg || {}).learnedEnchantments || {});
   const LEARNED_PROP = 'private.dboEnchLearned';
-  const enchantEffectsOf = (itemId) => {
-    const lr = lookup(itemId);
-    const eitm = lr && (lr.record.fields || []).find((f) => f.type === 'EITM');
-    if (!eitm) return [];
-    let ench = 0;
-    try { ench = lr.toGlobalRecordId(u32(eitm, 0)) >>> 0; } catch (e) { return []; }
-    const er = ench ? lookup(ench) : null;
+  function effectsOfEnch(ench) {
+    const er = typeof ench === 'number' && ench ? lookup(ench) : null;
     if (!er || String(er.record.type) !== 'ENCH') return [];
     const out = [];
     for (const f of er.record.fields || []) if (f.type === 'EFID') { try { const g = er.toGlobalRecordId(u32(f, 0)) >>> 0; if (g && !out.includes(g)) out.push(g); } catch (e) { /* unmapped */ } }
     return out;
-  };
+  }
   const learnedOf = (a) => { try { const v = mp.get(a, LEARNED_PROP); return Array.isArray(v) ? v.map((x) => Number(x) >>> 0).filter(Boolean) : []; } catch (e) { return []; } };
-  const rememberLearned = (a, itemIds) => {
+  const rememberLearned = (a, enchIds) => {
     const list = learnedOf(a);
     let seen = 0;
-    for (const id of itemIds) for (const effect of enchantEffectsOf(id)) {
+    for (const ench of enchIds) for (const effect of effectsOfEnch(ench)) {
       const at = list.indexOf(effect);
       if (at >= 0) list.splice(at, 1);
       list.push(effect);
@@ -345,6 +416,9 @@ module.exports = (api) => {
     try { mp.set(a, LEARNED_PROP, list); } catch (e) { log(`disenchant: learned enchantments write failed for ${display(a)}: ${e.message}`); }
   };
   globalThis.__dboEnchLearnedLogin = (a) => {
+    // A new session: the client learned nothing at the table yet (the restore below is not counted, so a client that
+    // ignores it can still have its disenchants taken)
+    SESSION.delete(a >>> 0);
     if (!LEARN.enabled || typeof api.sendPacket !== 'function') return false;
     const effects = learnedOf(a >>> 0);
     if (!effects.length) return false;
