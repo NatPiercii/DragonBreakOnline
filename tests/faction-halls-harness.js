@@ -102,6 +102,18 @@ ok(!/storage:/.test(faction(OUTSIDER, 'hall fighters-guild')), 'someone outside 
 ok(/no longer has a storage/.test(faction(LEADER, 'storage clear')), 'a leader can clear it');
 ok(globalThis.__dboGuildStorage('fighters-guild') === null, '...and it is gone');
 
+// ---- a hall as a house (Nate, 4 Oct): the leader's claim on a door guild-defs lists as the hall; members use it ----
+const SPIRE = 0x080859ad, SHOP = 0x08001234;
+api.mp.getDescFromId = (id) => ((id >>> 0) === SPIRE ? '859ad:BSHeartland.esm' : (id >>> 0).toString(16) + ':BSHeartland.esm');
+api.mp.getActorsByProfileId = (pid) => (pid === 501 ? [LEADER] : pid === 502 ? [MEMBER] : pid === 503 ? [OUTSIDER] : []);
+setLeader('college-of-whispers', LEADER);
+setMemberLow('college-of-whispers', MEMBER);
+ok(JSON.stringify(globalThis.__dboHallOf([SPIRE], 501)) === '["college-of-whispers"]', "Frostcrag Spire's door, claimed by the College's leader, is the College's hall", globalThis.__dboHallOf([SPIRE], 501));
+ok(globalThis.__dboHallMember([SPIRE], 501, MEMBER) === true && globalThis.__dboHallMember([SPIRE], 501, LEADER) === true, '...its members use it, the leader too');
+ok(globalThis.__dboHallMember([SPIRE], 501, OUTSIDER) === false, '...someone outside the College does not');
+ok(globalThis.__dboHallMember([SPIRE], 502, MEMBER) === false && globalThis.__dboHallOf([SPIRE], 502).length === 0, 'held by someone who does not lead the College it is no hall');
+ok(globalThis.__dboHallMember([SHOP], 501, MEMBER) === false, "a house of the leader's that is not the hall is not shared");
+
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${fail ? fail + ' FAILED' : 'all checks passed'}`);

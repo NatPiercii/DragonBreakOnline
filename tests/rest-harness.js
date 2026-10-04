@@ -334,6 +334,12 @@ check("with the house a place, a bed in any of its cells is the owner's", activa
 ui('restChoose', ME, ['cancel']);
 check("...and still left to the engine for someone else", activate(UP_BED, OTHER) === false);
 props.set(HOME_DOOR + '|private.housing', { owner: 101, ownerName: 'Me', partner: HOME_DOOR_OUT });
+// A faction's hall (guilds.js __dboHallMember): its members sleep in its beds as its owner does (Nate, 4 Oct)
+globalThis.__dboHallMember = (refs, owner, a) => refs.includes(HOME_DOOR) && owner === 101 && a === OTHER;
+check("my house as my faction's hall: a member's bed there is theirs to sleep in", activate(HOME_BED, OTHER) === true && lastWidget().w.targetName === 'Your bed', lastWidget().w);
+ui('restChoose', OTHER, ['cancel']);
+check('...not for someone outside it', activate(HOME_BED, THIRD) === false);
+delete globalThis.__dboHallMember;
 
 // ---- sleeping ----
 globalThis.__dboPvpAt = new Map([[ME, wallClock - 10000]]);

@@ -335,6 +335,23 @@ module.exports = (api) => {
   // the doors that lead in. The Blades have none on purpose while Cloud Ruler Temple is a ruin.
   globalThis.__dboGuildHall = (id) => { const f = FACTIONS.get(String(id)); return f ? hallOf(f) : null; };
   globalThis.__dboGuildStorage = (id) => storageOf(String(id));
+  // A faction's hall as a house (Nate, 4 Oct: the College of Whispers in Frostcrag Spire): a claimed building one of whose
+  // doors guild-defs lists as the faction's hall, owned by an account that leads the faction. Its members use it as its
+  // owner does (beds in rest.js; chests and doors in fork housingSystem.ts); only the owner sells, hands it over or gives it up.
+  const HALL_DOORS = new Map();
+  for (const f of FACTIONS.values()) for (const d of (hallOf(f) || { doors: [] }).doors) { const k = String(d).toLowerCase(); HALL_DOORS.set(k, (HALL_DOORS.get(k) || []).concat([f.id])); }
+  const leadsAccount = (pid, fid) => { let ids = []; try { ids = (mp.getActorsByProfileId(Number(pid)) || []).map((x) => Number(x) >>> 0); } catch (e) { return false; } return ids.some((x) => (rankOf(fid, x) || {}).role === 'leader'); };
+  // refs: the building's door ids (its record's half and the far half); owner: the profile holding the claim
+  const hallFactionsOf = (refs, owner) => {
+    const out = new Set();
+    for (const r of Array.isArray(refs) ? refs : []) {
+      let desc = ''; try { desc = String(mp.getDescFromId(Number(r) >>> 0) || '').toLowerCase(); } catch (e) { continue; }
+      for (const fid of HALL_DOORS.get(desc) || []) if (leadsAccount(owner, fid)) out.add(fid);
+    }
+    return [...out];
+  };
+  globalThis.__dboHallOf = (refs, owner) => hallFactionsOf(refs, owner);
+  globalThis.__dboHallMember = (refs, owner, actor) => { const a = Number(actor) >>> 0; return !!a && hallFactionsOf(refs, owner).some((fid) => !!entryOf(fid, a)); };
   // charters.js: a faction founded by charter goes live at once (charters.js has already written player-factions.json, so a
   // reload keeps it). The founder takes the leader rank, and each co-founder ({ actor, role }) the rank of their role, or
   // the rank below the leader without one. An error string, or null.
