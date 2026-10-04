@@ -235,6 +235,17 @@ ok('with two offers /court accept asks which', /Which one\?/.test(line) && !seat
 line = chat(KNIGHT, 'decline 2');
 ok('/court decline <number> declines that one', /declined/.test(line) && sec.view(KNIGHT).offers.length === 1, [line, sec.view(KNIGHT).offers]);
 
+// ---- a stronghold's Bane office sets the household's Bane rank (Nate, 4 Oct) ---------------------------------------------
+{
+  const clan = () => globalThis.__dboGuildState.members['clan-largashbur'] || {};
+  const tmpl = JSON.parse(fs.readFileSync(path.join(dir, 'guild-defs.json'), 'utf8')).templates.stronghold;
+  const clanTitle = (a) => { const e = clan()[String(a >>> 0)]; return e ? tmpl[e.rank].title : null; };
+  r = ev('courtAppoint', ADMIN, 'N', 'largashbur', 'Outsider', 'bane');
+  ok('staff seat a Bane of Largashbur: the household rank is Bane', seated('largashbur', 'bane').includes(15) && clanTitle(OUT) === 'Bane', [r, officials.largashbur, clanTitle(OUT)]);
+  r = ev('courtDismiss', ADMIN, 'N', 'largashbur', 15);
+  ok('...dismissed, back to the lowest rank (Blood-Kin)', !seated('largashbur', 'bane').includes(15) && clanTitle(OUT) === 'Blood-Kin', [r, clanTitle(OUT)]);
+}
+
 // ---- expiry -------------------------------------------------------------------------------------------------------------
 const realNow = Date.now;
 Date.now = () => realNow() + 25 * 3600000;
