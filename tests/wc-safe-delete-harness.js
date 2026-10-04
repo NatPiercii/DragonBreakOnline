@@ -24,8 +24,15 @@ check('a calm copy may still be deleted at once by the view (FormView.destroy, u
 check('a deferred delete never runs at once, even for a calm actor', L.deleteNow(calm, now, true) === false);
 check('a dead copy is never deleted at once (the server-spawned body the cleaner reached)', L.deleteNow({ ...calm, dead: true }, now, false) === false);
 check('...nor a downed, bleeding-out or ragdolling one', L.deleteNow({ ...calm, bleedingOut: true }, now, false) === false && L.deleteNow({ ...calm, ragdolledAt: now - 100 }, now, false) === false);
-check('a deferred delete waits for the 3D to go, at least a few frames', L.deleteDecision(1, false) === 'wait' && L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES, false) === 'delete' && L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES, true) === 'wait');
-check('...and never waits for ever', L.deleteDecision(L.SAFE_DELETE_MAX_FRAMES, true) === 'delete');
+if (L.SAFE_DELETE_MAX_FRAMES !== undefined) {
+  check('a deferred delete waits for the 3D to go, at least a few frames', L.deleteDecision(1, false) === 'wait' && L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES, false) === 'delete' && L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES, true) === 'wait');
+  check('...and never waits for ever', L.deleteDecision(L.SAFE_DELETE_MAX_FRAMES, true) === 'delete');
+} else {
+  // client-safedelete-loadwait: the cap gives up (left disabled) instead of deleting; tests/safedelete-loadwait-harness.js
+  const step = (p, loaded) => L.deleteDecision(p, loaded, false, L.SAFE_DELETE_STEP_MS);
+  check('a deferred delete waits for the 3D to go, at least a few updates', step(L.newPendingDelete(), false).decision === 'wait' && step(L.newPendingDelete(), true).decision === 'wait');
+  check('...and never waits for ever: it gives up, leaving the copy disabled', step({ unloadedFrames: 0, waitedMs: L.SAFE_DELETE_GIVE_UP_MS }, true).decision === 'give-up');
+}
 
 // ---- the guard: deletePlan and RecentDeletes ----
 const hasGuard = typeof L.deletePlan === 'function' && typeof L.RecentDeletes === 'function';
@@ -69,7 +76,7 @@ if (!FORK || !fs.existsSync(file('skymp5-client/src/services/services/worldClean
 }
 const wc = fs.readFileSync(file('skymp5-client/src/services/services/worldCleanerService.ts'), 'utf8');
 const rt = fs.readFileSync(file('skymp5-client/src/view/npcLifetimeRuntime.ts'), 'utf8');
-check('the world cleaner deletes through safeDelete, always deferred', /safeDelete\(actor, \{ defer: true \}\);/.test(wc) && /import \{ (isHandedToDelete, )?safeDelete \} from "\.\.\/\.\.\/view\/npcLifetimeRuntime";/.test(wc));
+check('the world cleaner deletes through safeDelete, always deferred', /safeDelete\(actor, \{ defer: true \}\);/.test(wc) && /import \{ (disableOnly, )?(isHandedToDelete, )?safeDelete \} from "\.\.\/\.\.\/view\/npcLifetimeRuntime";/.test(wc));
 check('...and has no delete of its own left (no disable().then(delete))', !/\.delete\(\)/.test(wc) && !/disable\(false\)\.then/.test(wc));
 if (!hasGuard) {
   check('safeDelete takes the defer option through deleteNow', /export const safeDelete = \(refr: ObjectReference, opts\?: \{ defer\?: boolean \}\)/.test(rt) && /deleteNow\(stateOf\(ac, id\), Date\.now\(\), !!\(opts && opts\.defer\)\)/.test(rt));
@@ -94,7 +101,8 @@ const Game = { getFormEx: (id) => W.refs.get(id) || null, getPlayer: () => null 
 const ObjectReference = { from: (f) => f || null };
 const Actor = { from: (f) => (f && f.actor ? f : null) };
 const on = (ev, fn) => { if (ev === 'update') W.update.push(fn); };
-module.exports = { Game, ObjectReference, Actor, on, writeLogs: (_p, line) => W.log.push(line) };`;
+const Ui = { isMenuOpen: (m) => W.menus.has(m) };
+module.exports = { Game, ObjectReference, Actor, Ui, on, writeLogs: (_p, line) => W.log.push(line) };`;
 const stubPlugin = {
   name: 'stubs',
   setup(b) {
@@ -103,7 +111,10 @@ const stubPlugin = {
   },
 };
 (async () => {
-  const W = { refs: new Map(), update: [], log: [], calls: [], tasks: [] };
+  const W = { refs: new Map(), update: [], log: [], calls: [], tasks: [], menus: new Set() };
+  // The runtime counts time outside loading screens (client-safedelete-loadwait): a frame is 16 ms of a fake clock
+  let clock = Date.now();
+  Date.now = () => clock;
   globalThis.__wcFakeWorld = W;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-wcsd-'));
   const out = path.join(dir, 'rt.js');
@@ -140,7 +151,7 @@ const stubPlugin = {
     W.refs.set(id, ref);
     return ref;
   };
-  const frame = () => { for (const t of W.tasks.splice(0)) t(); for (const fn of W.update) fn(); };
+  const frame = () => { clock += 16; for (const t of W.tasks.splice(0)) t(); for (const fn of W.update) fn(); };
   const callsOn = (id, kind) => W.calls.filter((c) => c[1] === id && (!kind || c[0] === kind)).length;
 
   // Johann, 4 Oct 00:10:55: FormView.destroy deletes the copy, and the cleaner reaches it in the same frame and 79 ms later
@@ -165,7 +176,7 @@ const stubPlugin = {
   const c = mkRef(0xff001501);
   R.safeDelete(c, { defer: true });
   R.safeDelete(c);
-  for (let i = 0; i < 10; i++) frame();
+  for (let i = 0; i < 200; i++) frame();
   check('a deferred delete of a loaded copy: one Disable, then one Delete() once its 3D is gone', callsOn(c.getFormID(), 'disableNoWait') === 1 && callsOn(c.getFormID(), 'delete') === 1 && !W.crashed, W.calls.filter((x) => x[1] === c.getFormID()));
   check('...the Disable came first', W.calls.findIndex((x) => x[1] === c.getFormID()) === W.calls.findIndex((x) => x[1] === c.getFormID() && x[0] === 'disableNoWait'));
 
