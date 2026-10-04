@@ -861,6 +861,7 @@
   "rates": {
    "miner": 2,
    "skinner": 1.5,
+   "priest": 1.25,
    "blacksmith": { "default": 1, "craftByTier": [2.5, 1, 1, 1, 1] }
   },
   "materialTiers": {

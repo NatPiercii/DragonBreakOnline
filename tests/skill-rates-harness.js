@@ -18,13 +18,13 @@ const ok = (label, cond, got) => { checks++; if (!cond) { fails++; console.log(`
 const R = CONFIG.skillRates || {};
 const NOTES = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
 ok('config: skillRates is on', R.enabled === true, R.enabled);
-ok('config: miner x2, skinner x1.5', R.rates.miner === 2 && R.rates.skinner === 1.5, R.rates);
+ok('config: miner x2, skinner x1.5, priest x1.25', R.rates.miner === 2 && R.rates.skinner === 1.5 && R.rates.priest === 1.25, R.rates);
 ok('config: blacksmith x2.5 at tier 1 (iron), x1 above', R.rates.blacksmith.default === 1 && JSON.stringify(R.rates.blacksmith.craftByTier) === '[2.5,1,1,1,1]', R.rates.blacksmith);
 ok('config: the salvage loop guard is on, x0 for 60 min', R.salvageLoop && R.salvageLoop.enabled === true && R.salvageLoop.rate === 0 && R.salvageLoop.windowMinutes === 60, R.salvageLoop);
-const NOTE = NOTES.find((n) => n.title === 'Faster Mining, Smithing and Skinning');
+const NOTE = NOTES.find((n) => n.title === 'Faster Mining, Smithing, Skinning and Priest');
 const NOTE_TEXT = JSON.stringify(NOTE || {});
 ok('patch note in patch-notes.json, dated SHIP_DATE or a date', !!NOTE && (NOTE.date === 'SHIP_DATE' || /^\d{4}-\d{2}-\d{2}$/.test(NOTE.date)), NOTE && NOTE.date);
-ok('...naming the rates as shipped', /twice as much toward your Miner/.test(NOTE_TEXT) && /Iron-tier smithing and smelting [^"]*smelting iron, copper, corundum and tin ore\) now counts two and a half times as much toward Blacksmith/.test(NOTE_TEXT) && /higher ores counts as before/.test(NOTE_TEXT) && /half as much again toward Skinner/.test(NOTE_TEXT), NOTE_TEXT);
+ok('...naming the rates as shipped', /twice as much toward your Miner/.test(NOTE_TEXT) && /Iron-tier smithing and smelting [^"]*smelting iron, copper, corundum and tin ore\) now counts two and a half times as much toward Blacksmith/.test(NOTE_TEXT) && /higher ores counts as before/.test(NOTE_TEXT) && /half as much again toward Skinner/.test(NOTE_TEXT) && /a quarter more toward Priest/.test(NOTE_TEXT), NOTE_TEXT);
 ok('...and the loop guard', /broke down in the last hour no longer counts/.test(NOTE_TEXT), NOTE_TEXT);
 ok('...no longer parked in patch-notes-pending', !fs.existsSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'skill-rates.json')));
 ok('config: material tiers are 2..5 (tier 1 is everything unlisted)', Object.entries(R.materialTiers).filter(([k]) => !k.startsWith('_')).every(([, t]) => t >= 2 && t <= 5), R.materialTiers);
@@ -93,7 +93,7 @@ ok('shipped: smelting orichalcum ore x1 (Miner tier 3)', craft(r, SMELT_ORICHALC
 ok('shipped: a skinned wolf x1.5', r.rateFor(A, 'skinner', 'skin', { refrId: 2, value: 10 }) === 1.5);
 ok('shipped: a skill with no entry x1', r.rateFor(A, 'blade', 'hit', { targetId: 3 }) === 1);
 ok('shipped: the hook is published', globalThis.__dboSkillRate === r.rateFor && globalThis.__dboSkillRateBrokeDown === r.noteBreakdown);
-ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner x1.5, blacksmith .*; 28 material tiers; salvage loop x0 for 60 min/.test(logs[logs.length - 1]), logs[logs.length - 1]);
+ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner x1.5, priest x1.25, blacksmith .*; 28 material tiers; salvage loop x0 for 60 min/.test(logs[logs.length - 1]), logs[logs.length - 1]);
 r.noteBreakdown(A, ITEM.IronDagger);
 ok('shipped: a breakdown then the same craft is worth nothing', craft(r, DAGGER) === 0);
 globalThis.__dboSkillRates = undefined;

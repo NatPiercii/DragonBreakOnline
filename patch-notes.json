@@ -33,7 +33,7 @@
     ]
   },
   {
-    "title": "Faster Mining, Smithing and Skinning",
+    "title": "Faster Mining, Smithing, Skinning and Priest",
     "date": "2026-10-04",
     "version": "Server update",
     "tag": "Balance",
@@ -44,6 +44,7 @@
           "Mining a vein now counts twice as much toward your Miner skill.",
           "Iron-tier smithing and smelting (iron, copper and leather gear, horseshoes and fittings, and smelting iron, copper, corundum and tin ore) now counts two and a half times as much toward Blacksmith. Smelting silver, gold, ebony and the other higher ores counts as before.",
           "Skinning, tanning and hunting animals now count half as much again toward Skinner.",
+          "Casting Restoration and Alteration spells and praying now count a quarter more toward Priest.",
           "Your hourly and daily skill limits are unchanged: the same work simply moves you further.",
           "Remaking an item you broke down in the last hour no longer counts toward your skill."
         ]
