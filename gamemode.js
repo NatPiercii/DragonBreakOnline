@@ -3784,6 +3784,10 @@ const SKIN = Object.assign({
   // A claimed win the widget's own cuts do not bear out: 'log' lets it stand with a SKINNING-MISMATCH audit line,
   // 'refuse' refuses it (DESIGN.md section 12, item 1)
   replayCheck: 'log',
+  // A cut also counts when the blade was on the seam at any millisecond this far before it. A slow machine draws the
+  // blade and delivers the key late, and the tier 1 seam is only about 100 ms wide, so a press on what the player saw
+  // landed past it (Hatta'Kahu, 4 Oct: six deer at 0-1 of 3 cuts). Sent to the widget, which judges by the same rule.
+  reachMs: 150,
 }, cfg.skinning || {});
 // Rounds and judged nonces outlive a reload, or every save would strand an attempt in flight
 const skinSessions = globalThis.__dboSkinRounds || (globalThis.__dboSkinRounds = new Map()); // actorId -> round
@@ -3822,6 +3826,12 @@ const skinRng = (seed) => { let s = seed >>> 0; return () => { s = (s + 0x6d2b79
 // Where the blade sits along the hide (0..1) at ms into the round. The widget runs this same
 // arithmetic on the same integer ms, so the two verdicts are the same double. Keep them in step.
 const bladeAt = (ms, sweepMs) => { const phase = (ms % (sweepMs * 2)) / sweepMs; return phase <= 1 ? phase : 2 - phase; };
+// How far the blade came to the seam over the cut's millisecond and the reachMs before it. The widget runs the same loop.
+const bladeOff = (t, round, seam) => {
+  let d = Math.abs(bladeAt(t, round.sweepMs) - seam);
+  for (let s = Math.max(0, t - (round.reachMs || 0)); s < t; s++) d = Math.min(d, Math.abs(bladeAt(s, round.sweepMs) - seam));
+  return d;
+};
 // The round the server issues: the seams come from the seed, and the seam width and the blade's
 // period from the Skinner's tier on the same curves as before, clamped here so the values judged
 // with are the values drawn with.
@@ -3850,6 +3860,7 @@ const skinRound = (casterId, tier, corpse, name) => {
   const round = {
     nonce: `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     corpse, tier, seed, name, cuts, allowed, width, seams, sweepMs,
+    reachMs: Math.max(0, Math.min(400, Math.round(Number(SKIN.reachMs) || 0))),
     totalMs: Math.max(1000, Math.round((Number(SKIN.seconds) || 15) * 1000)), startedAt: performance.now(),
   };
   round.minMs = skinMinMs(round);
@@ -3857,7 +3868,7 @@ const skinRound = (casterId, tier, corpse, name) => {
 };
 // Everything the widget needs to draw the round, and nothing it could use to judge it
 const skinPacket = (round, result, resultKind) => {
-  const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, totalMs: round.totalMs };
+  const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, reachMs: round.reachMs || 0, totalMs: round.totalMs };
   // The widget shows its own verdict at once when it is the judge; an older one ignores the field
   if (MG.clientJudged(SKIN)) w.judge = 'client';
   if (result) { w.result = result; w.resultKind = resultKind; }
@@ -4026,7 +4037,7 @@ const judgeSkin = (round, raw, at, elapsed) => {
     if (!Number.isInteger(t) || t < 0 || t > round.totalMs) { r.bad = 'range'; break; }
     if (t < r.last) { r.bad = 'order'; break; }  // this game has no stagger, so order is the only rule
     if (r.cuts >= round.cuts || r.slips > round.allowed) { r.bad = 'extra'; break; }
-    const d = Math.abs(bladeAt(t, round.sweepMs) - round.seams[r.cuts]);
+    const d = bladeOff(t, round, round.seams[r.cuts]);
     const clean = d <= round.width / 2;
     if (clean) { r.err += d / (round.width / 2); r.cuts++; } else r.slips++;
     if (r.first < 0) r.first = t; else r.minGap = Math.min(r.minGap, t - r.last);
