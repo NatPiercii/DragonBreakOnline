@@ -6,6 +6,7 @@ import { ActiveEffectApplyRemoveEvent, Actor, Armor, ButtonEvent, DxScanCode, Gl
 import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
 import { adoptHeld } from "./beastLoadout";
+import { howlShoutIds, mayHoldHowl, stripDue } from "./beastHowl";
 
 // WerewolfChange 92c48, DLC1VampireChange 0200283b, DLC1RevertForm 0200cd5c (load order: Dawnguard is index 02)
 const BEAST_POWERS = new Set([0x00092c48, 0x0200283b, 0x0200cd5c]);
@@ -81,7 +82,55 @@ export class BeastFormService extends ClientListener {
     this.controller.on("effectStart", (e) => this.onEffectStart(e));
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("update", () => this.onCameraCheck());
+    this.controller.on("update", () => this.onHowlCheck());
+    this.controller.emitter.on("connectionAccepted", () => { this.howlForced = true; });
   }
+
+  // No howl outside the form (beastHowl.ts): a revert, a death or down in the form, a relog, a lost end packet, or a
+  // session that never saw the form start
+  private onHowlCheck(): void {
+    const now = Date.now();
+    if (now < this.nextHowlCheck && !this.howlForced) return;
+    this.nextHowlCheck = now + 500;
+    const forced = this.howlForced;
+    this.howlForced = false;
+    try {
+      const may = this.howlAllowed();
+      if (stripDue(may, this.howlMay, this.howlStrippedAt, now, forced)) this.stripHowls();
+      this.howlMay = may;
+    } catch (e) { logError(this, "howl check failed", e); }
+  }
+
+  private howlAllowed(): boolean {
+    const player = this.sp.Game.getPlayer();
+    if (!player) return false;
+    const race = player.getRace();
+    return mayHoldHowl({ serviceBeastRace: this.beastRace, raceId: race ? race.getFormID() : 0,
+      dead: player.isDead(), bleedingOut: player.isBleedingOut() });
+  }
+
+  private stripHowls(): void {
+    this.howlStrippedAt = Date.now();
+    const player = this.sp.Game.getPlayer();
+    if (!player) return;
+    let removed = 0;
+    for (const id of howlShoutIds(Array.from(this.learnedHowls))) {
+      const shout = Shout.from(this.sp.Game.getFormEx(id));
+      if (!shout) continue;
+      try {
+        const equipped = player.getEquippedShout();
+        if (equipped && equipped.getFormID() === shout.getFormID()) player.unequipShout(shout);
+        if (player.removeShout(shout)) removed++;
+      } catch { /* not held */ }
+    }
+    if (removed) logTrace(this, "Howl removed outside the form", removed);
+  }
+
+  private learnedHowls = new Set<number>();
+  private howlMay: boolean | undefined = undefined;
+  private howlStrippedAt = 0;
+  private nextHowlCheck = 0;
+  private howlForced = true;
 
   // Beast Form, Vampire Lord and Revert Form are powers whose effects are engine-native transformation archetypes
   // (36 and 46): cast locally they start the engine's own change, which locks the controls and never finishes here.
@@ -185,6 +234,7 @@ export class BeastFormService extends ClientListener {
       const spell = Spell.from(this.sp.Game.getFormEx(sp.id));
       if (!spell) { logError(this, "beast spell not in the load order", sp.id.toString(16)); continue; }
       try { if (beast) player.addSpell(spell, false); else player.removeSpell(spell); spells++; } catch { /* already held */ }
+      if (sp.shout) this.learnedHowls.add(sp.shout >>> 0);
       const shout = sp.shout ? Shout.from(this.sp.Game.getFormEx(sp.shout)) : null;
       if (shout) { try { if (beast) player.addShout(shout); else player.removeShout(shout); } catch { /* already held */ } }
     }
@@ -230,6 +280,8 @@ export class BeastFormService extends ClientListener {
   private equipShout(player: Actor, entry: BeastSpell): void {
     const shout = Shout.from(this.sp.Game.getFormEx(entry.shout || 0));
     if (!shout) { logError(this, "howl not in the load order", (entry.shout || 0).toString(16)); return; }
+    // applyHands runs once a second in the form: never hand a howl back to a dead or downed beast (beastHowl.ts)
+    if (!this.howlAllowed()) return;
     const current = player.getEquippedShout();
     if (current && current.getFormID() === shout.getFormID()) return;
     try {
