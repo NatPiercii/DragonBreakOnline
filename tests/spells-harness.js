@@ -417,15 +417,20 @@ check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHE
   at(FC, FROST_CRAG, between);
   const far = Math.round(Math.min(...[ledgerPos, lecternPos, shelfPos].map((q) => Math.hypot(between[0] - q[0], between[1] - q[1], between[2] - q[2]) / 70)));
   check('between the shelf and the study the tome is still refused, and says how far the nearest spot is', (await read(FC, T.sparks)) === false
-    && new RegExp(`Study Magic in Frost Crag Spire.*The nearest one here is ${far} m away`).test(said(FC)) && studied(FC, 'arcane').length === 0, [far, said(FC)]);
+    && new RegExp(`Study Magic in Frost Crag Spire.*The nearest one here is ${far} m away; read within 8 m of it`).test(said(FC)) && studied(FC, 'arcane').length === 0, [far, said(FC)]);
+  // Frost Crag Spire's own radius (Nate, 4 Oct: about 8 m there, the other places keep theirs): the bookshelves by the
+  // shelf, where a mage found a tome in a book and read it on the spot (Caius Ves, 4 Oct 02:02, refused at 4 m)
+  check('Frost Crag Spire studies within 8 m, the Synod Conclave within 4', crag.radiusMeters === 8 && synod.radiusMeters === 4, [crag.radiusMeters, synod.radiusMeters]);
   at(FC, FROST_CRAG, [ledgerPos[0] + 100, ledgerPos[1] - 80, -347]);
   check('beside the Scholars\' Ledger (on the study floor) a tome is learned', (await read(FC, T.sparks)) !== false && studied(FC, 'arcane').length === 1, said(FC));
   at(FC, FROST_CRAG, [lecternPos[0] + 60, lecternPos[1], -345]);
   check('...and at the Class Lectern', (await read(FC, T.boundSword)) !== false && studied(FC, 'arcane').length === 2, said(FC));
-  at(FC, FROST_CRAG, [ledgerPos[0] - 4.5 * 70, ledgerPos[1], ledgerPos[2]]);
-  check('...but not 4.5 m from the ledger', (await read(FC, T.frostbite)) === false && studied(FC, 'arcane').length === 2);
+  at(FC, FROST_CRAG, [-182, 1204, -419]);
+  check('...and at the bookshelves 4.7 m from the Study Magic shelf', (await read(FC, T.frostbite)) !== false && studied(FC, 'arcane').length === 3, said(FC));
+  at(FC, FROST_CRAG, [ledgerPos[0] - 8.5 * 70, ledgerPos[1], ledgerPos[2]]);
+  check('...but not 8.5 m from the ledger', (await read(FC, T.flames)) === false && studied(FC, 'arcane').length === 3 && /spell study point/.test(said(FC)), said(FC));
   at(FC, BRUMA, ledgerPos);
-  check('...nor at the ledger\'s position in another cell', (await read(FC, T.frostbite)) === false);
+  check('...nor at the ledger\'s position in another cell', (await read(FC, T.flames)) === false && studied(FC, 'arcane').length === 3);
   delete RECORDS[idOf(STUDY_MAGIC)];
   out.logs.length = 0;
   load();
