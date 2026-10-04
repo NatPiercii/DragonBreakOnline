@@ -205,7 +205,7 @@ const block = notes.find((n) => n.title === 'Vampirism and lycanthropy, rarer an
 // The note says what changed for werewolves (50% in every form -> 25% in beast form) and that a poisoned blade does not count
 const weak = block && block.sections.find((s) => s.heading === 'Weaknesses');
 const items = (weak && weak.items) || [];
-ok(!!block && block.date === 'SHIP_DATE' && items.length === 3, 'the Weaknesses notes are in the update block', block && block.sections.map((s) => s.heading));
+ok(!!block && (block.date === 'SHIP_DATE' || /^\d{4}-\d{2}-\d{2}$/.test(block.date)) && items.length === 3, 'the Weaknesses notes are in the update block', block && block.sections.map((s) => s.heading));
 ok(/silver only in beast form: 25% more, down from 50%/.test(items[0] || '') && /In human form silver harms them as it harms anyone/.test(items[0] || ''), 'the silver note names the change', items[0]);
 ok(/poison spells and venom also strike werewolves 25% harder/.test(items[1] || '') && /Poison on a blade does not count/.test(items[1] || ''), 'the poison note names its limit', items[1]);
 ok(/Vampires still take more harm from silver and fire/.test(items[2] || ''), 'the vampire note', items[2]);

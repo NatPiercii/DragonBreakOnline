@@ -86,7 +86,7 @@ ok(JSON.stringify(conf.byDifficulty) === JSON.stringify({ story: 0.5, normal: 0.
 const notes = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
 const note = notes.find((n) => n.title === 'Gentler dungeons on the easier difficulties');
 const text = note ? note.sections.map((s) => s.items.join(' ')).join(' ') : '';
-ok(!!note && note.date === 'SHIP_DATE' && /Novice half/.test(text) && /Adept about two thirds/.test(text) && /Expert four fifths/.test(text) && /Master unchanged/.test(text) && !/spell[^s]*softer|spellMult/.test(text),
+ok(!!note && (note.date === 'SHIP_DATE' || /^\d{4}-\d{2}-\d{2}$/.test(note.date)) && /Novice half/.test(text) && /Adept about two thirds/.test(text) && /Expert four fifths/.test(text) && /Master unchanged/.test(text) && !/spell[^s]*softer|spellMult/.test(text),
   'the patch note names the difficulties as players see them and matches the shipped values', note);
 const live = load({ npcPowerHits: { mult: 0.5 }, npcDamage: conf });
 ok(Math.abs(live.npcDifficultyDamageMult(ENCHANTER, PLAYER, 25, S) - 0.65) < 1e-12, 'as shipped, an Adept caster\'s spell takes the Adept factor only (no spellMult)');
