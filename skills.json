@@ -971,7 +971,7 @@
    "name": "Frost Crag Spire",
    "requires": "1636c2:DragonBreak Online Edits.esp",
    "cell": "6ff7d:BSHeartland.esm",
-   "radiusMeters": 4,
+   "radiusMeters": 8,
    "places": [
     {
      "refr": "1636db:DragonBreak Online Edits.esp",

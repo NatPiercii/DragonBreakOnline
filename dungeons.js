@@ -108,12 +108,18 @@ module.exports = (api) => {
   // ruin's main door, which brings them back. Same leases, parties and loot as any dungeon. expeditions.json holds
   // dungeons.json-style entries whose entrance is { expedition: true, cell/pos/rot: the Synod spot, inside*: the ruin }.
   const EXPEDITIONS = (readJson('expeditions.json', { expeditions: [] }).expeditions || []).map((d) => Object.assign({}, d, { expedition: true }));
-  // Expeditions leave from Bruma only: the Synod Conclave or the Fighters Guild (Nate, 2026-09-27), each hall with its
-  // basement; the party comes home to the hall it left from (its front door's arrival spot, from BSHeartland XTEL)
+  // Expeditions leave from the halls that hold an ExpeditionBoard: the Synod Conclave or the Fighters Guild in Bruma
+  // (Nate, 2026-09-27), each with its basement, and Frostcrag Spire above the city, the College of Whispers' tower
+  // (DragonBreak Online Edits 144975-14497b in CYRFrostCragSpire; its Tower and Vault count as the hall too). The party
+  // comes home to the hall it left from (its front door's arrival spot, from BSHeartland XTEL: Frostcrag's is 859ad's).
+  // home: how the way back names it ("You make the long journey back from Silorn to <home>.").
   const EXPEDITION_STARTS = (C.expeditionStarts || [
-    { name: 'the Synod Conclave', cells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm'], cell: '20ff:BSHeartland.esm', pos: [-8.8, -578.4, -114.9], rot: [0, 0, 0] },
-    { name: 'the Fighters Guild', cells: ['f8d:BSHeartland.esm', '6c150:BSHeartland.esm'], cell: 'f8d:BSHeartland.esm', pos: [1.8, -538.2, -221.8], rot: [0, 0, 0] },
+    { name: 'the Synod Conclave', home: 'the Synod Conclave in Bruma', cells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm'], cell: '20ff:BSHeartland.esm', pos: [-8.8, -578.4, -114.9], rot: [0, 0, 0] },
+    { name: 'the Fighters Guild', home: 'the Fighters Guild in Bruma', cells: ['f8d:BSHeartland.esm', '6c150:BSHeartland.esm'], cell: 'f8d:BSHeartland.esm', pos: [1.8, -538.2, -221.8], rot: [0, 0, 0] },
+    { name: 'Frostcrag Spire', home: 'Frostcrag Spire', cells: ['6ff7d:BSHeartland.esm', '781ad:BSHeartland.esm', '6ff7e:BSHeartland.esm'], cell: '6ff7d:BSHeartland.esm', pos: [809.2, 690.0, -551.9], rot: [0, 0, 4.3] },
   ]).map((x) => Object.assign({}, x, { cellSet: new Set((x.cells || []).map((c) => normDesc(c))) }));
+  // The way home's name, for an entrance from expeditionFrom; a lease from before `home` existed names its hall in Bruma
+  const homeName = (e) => (e && e.home) || `${(e && e.from) || 'the Synod Conclave'} in Bruma`;
   DATA.dungeons = (DATA.dungeons || []).concat(EXPEDITIONS.filter((x) => !(DATA.dungeons || []).some((d) => d.id === x.id)));
   // Sites the generator counts as dungeons that are not (Nat: Lakeside Retreat; Nate, 1 Oct: Fort Caractacus, the
   // Legion's fort, whose garrison and prisoner a claim made a party kill). Dropped before anything is built from them,
@@ -842,7 +848,7 @@ module.exports = (api) => {
         const e = lease.entrance || (d.entrances || [])[0];
         if (e && e.pos) teleport(a, e.world || e.cell, e.pos, e.rot);
         system(a, why === 'time' ? `Your hour in ${lease.name} is up. You find yourself back at the entrance.`
-          : why === 'returned' ? `You make the long journey back from ${lease.name} to ${e.from || 'the Synod Conclave'} in Bruma.` : `Your claim on ${lease.name} has ended.`);
+          : why === 'returned' ? `You make the long journey back from ${lease.name} to ${homeName(e)}.` : `Your claim on ${lease.name} has ended.`);
       } else if (why === 'cleared') {
         try { if (globalThis.__dboStatsAdd) globalThis.__dboStatsAdd(a, 'dungeonsCleared'); } catch (e) { /* journal stats only */ }
         system(a, `${lease.name} is cleared. Take your time leaving; it rests ${C.cooldownMinutes} minutes for you afterwards.`);
@@ -858,7 +864,7 @@ module.exports = (api) => {
         const inside = dungeonAround(a);
         if (!inside || inside.id !== lease.id || !e) continue;
         teleport(a, e.world || e.cell, e.pos, e.rot);
-        system(a, why === 'returned' ? `The expedition leaves ${lease.name}, and you with it, back to ${e.from || 'the Synod Conclave'} in Bruma.` : `The claim on ${lease.name} has ended. You find yourself back at the entrance.`);
+        system(a, why === 'returned' ? `The expedition leaves ${lease.name}, and you with it, back to ${homeName(e)}.` : `The claim on ${lease.name} has ended. You find yourself back at the entrance.`);
       }
     }
     // Emptied chests stay empty (CONT reloot is forbidden in server-settings); enemies go with the zones.
@@ -1395,7 +1401,7 @@ module.exports = (api) => {
     const lease = ST.leases.get(d.id);
     const e = lease && lease.entrance && lease.entrance.expedition && lease.members.has(profileOf(a)) ? lease.entrance : fallback;
     teleport(a, e.cell, e.pos, e.rot);
-    system(a, `You make the long journey back from ${d.name} to ${e.from || 'the Synod Conclave'} in Bruma.`);
+    system(a, `You make the long journey back from ${d.name} to ${homeName(e)}.`);
   };
   // Returns false to block the activation, true to let it through, null when it is not ours.
   globalThis.__dboDungeonActivate = (targetId, casterId) => {
@@ -1602,7 +1608,7 @@ module.exports = (api) => {
   const EXPEDITION_WIDGET_ID = 63;
   const expeditionPending = globalThis.__dboExpeditionPending = globalThis.__dboExpeditionPending || new Map(); // actor -> true while the list is open
   const startOf = (a) => EXPEDITION_STARTS.find((x) => x.cellSet.has(whereIs(a))) || null;
-  const WHERE_FROM = 'Expeditions set out from the boards in the Synod Conclave and the Fighters Guild in Bruma.';
+  const WHERE_FROM = 'Expeditions set out from the boards in the Synod Conclave and the Fighters Guild in Bruma, and in Frostcrag Spire.';
   const expeditionStatus = (a, d) => {
     const lease = ST.leases.get(d.id);
     if (lease) return lease.members.has(profileOf(a)) ? `your party is there, ${minutesLeft(lease.endsAt)} min left` : `another party is there, ${minutesLeft(lease.endsAt)} min`;
@@ -1610,7 +1616,7 @@ module.exports = (api) => {
     return cd > Date.now() ? `rests for you ${minutesLeft(cd)} min` : 'open';
   };
   // The ruin's entrance, leaving from (and coming home to) the hall this party is in
-  const expeditionFrom = (d, st) => Object.assign({}, d.entrances[0], { cell: st.cell, pos: st.pos, rot: st.rot, doorPos: st.pos, from: st.name, startCells: [...st.cellSet] });
+  const expeditionFrom = (d, st) => Object.assign({}, d.entrances[0], { cell: st.cell, pos: st.pos, rot: st.rot, doorPos: st.pos, from: st.name, home: st.home || `${st.name} in Bruma`, startCells: [...st.cellSet] });
   // The expedition board (Nate, 2026-09-28: "no more /expedition"): Nat's ExpeditionBoard activator, placed in the Synod
   // Conclave and the Fighters Guild, found by its editor id so a plugin rebuild that moves its form id changes nothing
   const boardBases = new Map(); // base id -> is it the board
@@ -1681,7 +1687,7 @@ module.exports = (api) => {
   // marks it as the way back). Not while down: the fallen wait for a revive or give up, as anywhere else.
   const leaveExpedition = (a) => {
     const d = cellToDungeon.get(whereIs(a));
-    if (!d || !d.expedition) return personal(a, 'You are not on an expedition. In an Ayleid ruin, /expedition leave takes you back to Bruma.');
+    if (!d || !d.expedition) return personal(a, 'You are not on an expedition. In an Ayleid ruin, /expedition leave takes you home.');
     if (typeof globalThis.__dboIsDowned === 'function' && globalThis.__dboIsDowned(a)) return personal(a, 'Not while you are down.');
     expeditionHome(a, d, d.entrances[0]);
   };
@@ -1689,9 +1695,9 @@ module.exports = (api) => {
     if (!C.enabled) return personal(a, 'Dungeons are closed for now.');
     if (/^(leave|return|home)$/i.test(String(args || '').trim())) return leaveExpedition(a);
     // Setting out is the board's job now; the command only brings a party home
-    personal(a, 'Expeditions set out from the expedition board in the Synod Conclave or the Fighters Guild in Bruma. In a ruin, /expedition leave brings you home.');
+    personal(a, 'Expeditions set out from the expedition board in the Synod Conclave or the Fighters Guild in Bruma, or in Frostcrag Spire. In a ruin, /expedition leave brings you home.');
   };
-  const EXPEDITION_HELP = 'leave: in an Ayleid ruin, go home to Bruma. Expeditions set out from the board in the Synod Conclave or the Fighters Guild';
+  const EXPEDITION_HELP = 'leave: in an Ayleid ruin, go home to the hall you set out from. Expeditions set out from the board in the Synod Conclave, the Fighters Guild or Frostcrag Spire';
   registerChatCommand('expeditions', expeditionCommand, { help: EXPEDITION_HELP });
   registerChatCommand('expedition', expeditionCommand, { help: EXPEDITION_HELP });
   onUi('close', (a, args, widgetId) => { if (widgetId === GATE_WIDGET_ID) turnBack(a); });
