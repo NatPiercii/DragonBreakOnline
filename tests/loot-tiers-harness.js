@@ -285,9 +285,9 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   const any = anySeen.splice(anyBefore);
   const S0 = tiersWith(undefined);
   const S1 = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES, swap: SWAP });
-  ok(S1.aboveCap('5ad9f:Skyrim.esm', 'metal') && S1.aboveCap('5ad9f:Skyrim.esm').lootOnly && S1.aboveCap('db8a2:Skyrim.esm').toEdid === 'IngotSteel' && S1.aboveCap('139bd:Skyrim.esm').kind === 'ammo'
+  ok(S1.aboveCap('5ad9f:Skyrim.esm', 'metal') && S1.aboveCap('5ad9f:Skyrim.esm').lootOnly && S1.aboveCap('db8a2:Skyrim.esm', 'metal').lootOnly && S1.aboveCap('602099:BSAssets.esm').toEdid === 'IngotSteel' && S1.aboveCap('139bd:Skyrim.esm').kind === 'ammo'
     && S1.aboveCap('5ace5:Skyrim.esm', 'metal') === null && S1.aboveCap('1397d:Skyrim.esm', 'ammo') === null && S1.aboveCap('5ad93:Skyrim.esm', 'metal') === null,
-    'loottiers aboveCap: refined moonstone (loot-only), the Dwarven ingot (the swap\'s entry) and Elven arrows are above the steel ceiling; steel and corundum ingots and iron arrows are not');
+    'loottiers aboveCap: refined moonstone and the Dwarven ingot (loot-only), the Adamantium ingot (the swap\'s entry) and Elven arrows are above the steel ceiling; steel and corundum ingots and iron arrows are not');
   ok(S1.aboveCap('601c91:BSAssets.esm', 'metal').lootOnly && S1.aboveCap('601c92:BSAssets.esm', 'metal').lootOnly && !SWAPPED.has(normD('601c91:BSAssets.esm')) && !SWAPPED.has(normD('601c92:BSAssets.esm')),
     'Meteoric Iron, ingot and ore, is kept out of loot but is not on the swap\'s lists (it is mined: Nate, 4 Oct)');
   ok(S0.aboveCap('5ace5:Skyrim.esm', 'metal') && S0.aboveCap('1397d:Skyrim.esm', 'ammo') && S0.aboveCap('5ace5:Skyrim.esm', '') === null,

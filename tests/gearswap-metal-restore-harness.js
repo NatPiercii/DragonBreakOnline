@@ -33,13 +33,15 @@ const out = path.join(dir, 'plan.json');
 const said = execFileSync(process.execPath, [path.join(SERVER, 'tools/loot/gearswap_metal_restore_plan.js'), '--from', path.join(dir, 'lines.txt'), '--out', out], { encoding: 'utf8' });
 const P = JSON.parse(fs.readFileSync(out, 'utf8'));
 const sel = P.characters.find((c) => c.tag === 'PXVM');
-check('the plan takes the mined metals only (moonstone, quicksilver, malachite and their ores), never Dwarven, Adamantium or gear', P.counts.lines === 4 && sel && sel.items.length === 3
-  && !JSON.stringify(P).match(/IngotDwarven|BSKIngotAdamantium|GlassSword/), P.counts);
+// Dwarven metal ingots came off the swap's list too (Nate, 4 Oct: "Keep them (crafted, like mined ores)"): given back as well
+const grimbo = P.characters.find((c) => c.tag === 'SB5X');
+check('the plan takes the kept metals only (moonstone, quicksilver, malachite and their ores, and Dwarven ingots), never Adamantium or gear', P.counts.lines === 5 && sel && sel.items.length === 3
+  && grimbo && grimbo.items.length === 1 && grimbo.items[0].fromEdid === 'IngotDwarven' && grimbo.items[0].count === 2 && !JSON.stringify(P).match(/BSKIngotAdamantium|GlassSword/), P.counts);
 check('...from 02:45:57Z by default (the second pass): an earlier line is counted, not planned', P.counts.earlierLines === 1 && !P.characters.some((c) => c.tag === 'AAAA'));
 check('...characters by profile and tag, containers by ref', sel.profileId === 38 && P.containers.length === 1 && P.containers[0].ref === '800284a' && P.containers[0].items[0].count === 7);
 check('...an identical line twice in a log counts once', sel.items.filter((i) => i.fromEdid === 'OreMoonstone').length === 1);
 check('...each item names the original and the replacement as the server spells them', sel.items.every((i) => i.kind === 'metal' && /:Skyrim\.esm$/.test(i.from) && /:Skyrim\.esm$/.test(i.to)), sel.items);
-check('...and the run says what it wrote', /4 swap line\(s\) of a mined metal/.test(said), said);
+check('...and the run says what it wrote', /5 swap line\(s\) of a mined metal/.test(said), said);
 
 // ---- 2. the runtime ----
 const PLUG = { 0: 'Skyrim.esm', 7: 'BSAssets.esm' };
@@ -78,8 +80,8 @@ globalThis.__dboGearSwapContainer(CH);
 check('...once only (the container is marked)', cnt(CH, ID.IngotQuicksilver) === 7 && store[CH]['private.dboGearRestore'].done.length === 1);
 check('...with an audit line', audits.some((t) => /^GEARRESTORE container 800284a: 7 x IngotQuicksilver back for 7 x IngotSteel/.test(t)), audits);
 globalThis.__dboGearSwapContainer(MINER);
-check('a miner\'s chest opened: moonstone ore and malachite ingots stay as they are, the Dwarven ingots become steel (the sweep)',
-  cnt(MINER, ID.OreMoonstone) === 4 && cnt(MINER, ID.IngotMalachite) === 2 && cnt(MINER, 0xdb8a2) === 0 && cnt(MINER, ID.IngotSteel) === 3, store[MINER].inventory.entries);
+check('a miner\'s chest opened: moonstone ore, malachite and Dwarven ingots all stay as they are (the sweep; Dwarven kept since 4 Oct)',
+  cnt(MINER, ID.OreMoonstone) === 4 && cnt(MINER, ID.IngotMalachite) === 2 && cnt(MINER, 0xdb8a2) === 3 && cnt(MINER, ID.IngotSteel) === 0, store[MINER].inventory.entries);
 const G = require(path.join(SERVER, 'gearswap.js'));
 const r = G.restore({ entries: [], items: [{ id: 'x', kind: 'metal', count: 3, from: '5ada1:Skyrim.esm', to: '5ace5:Skyrim.esm' }], descOf, idOf });
 check('used-up steel is not asked back: the originals still come', r.done.length === 1 && r.done[0].converted === 0 && r.entries[0].count === 3);
