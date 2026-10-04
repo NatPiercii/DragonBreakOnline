@@ -621,7 +621,8 @@
       {
         "heading": "Known issues",
         "items": [
-          "RaceMenu's own extras (its Presets tab and saved preset files, the extra sliders, sculpting, overlays and body morphs) are saved only on your own PC, so they don't carry over to your character on the server. Only the standard character creator options are saved with your character."
+          "RaceMenu's own extras (its Presets tab and saved preset files, the extra sliders, sculpting, overlays and body morphs) are saved only on your own PC, so they don't carry over to your character on the server. Only the standard character creator options are saved with your character.",
+          "Enchantments you learn by disenchanting are still forgotten when you log out; a fix is on the way."
         ]
       }
     ]
