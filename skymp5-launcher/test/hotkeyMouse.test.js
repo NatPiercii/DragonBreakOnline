@@ -1,6 +1,6 @@
 'use strict'
-// Settings, server hotkeys: Voice Push-to-Talk takes a mouse button (middle, back, forward) as well as a key, stored as
-// 256 + the DirectInput button like the Skyrim Platform client's DxScanCode; every other hotkey stays keyboard only.
+// Settings, server hotkeys: each takes a mouse button (middle, back, forward) as well as a key, stored as 256 + the
+// DirectInput button like the Skyrim Platform client's DxScanCode; the game hotkeys (controlmap) stay keyboard only.
 // Runs the renderer's hotkey table and press-to-bind capture on a stub window and document.
 const test = require('node:test')
 const assert = require('node:assert')
@@ -35,20 +35,24 @@ function load() {
   return { t: ctx.__t, el, fire, listeners }
 }
 
-test('push-to-talk binds the middle, back and forward buttons as 258, 259 and 260', () => {
-  for (const [button, code, label] of [[1, 258, 'Middle Mouse'], [3, 259, 'Mouse 4'], [4, 260, 'Mouse 5']]) {
-    const { t, el, fire } = load()
-    const btn = el('hk-voice-ptt')
-    t.setKey('hk-voice-ptt', 47)
-    t.startCapture(btn, true)
-    assert.match(btn.textContent, /key or mouse button/)
-    const e = fire('mousedown', { button })
-    assert.ok(e.prevented && e.stopped)
-    assert.strictEqual(t.getKey('hk-voice-ptt'), code)
-    assert.strictEqual(btn.textContent, label)
-    // The press's mouseup and auxclick are kept from the page (back and forward navigate nothing)
-    assert.ok(fire('mouseup', { button }).prevented)
-    assert.ok(fire('auxclick', { button }).prevented)
+const SERVER_IDS = ['hk-chat', 'hk-cursor', 'hk-housing', 'hk-personal', 'hk-faction', 'hk-voice-ptt', 'hk-admin', 'hk-hide-ui', 'hk-skills', 'hk-emote', 'hk-nametag', 'hk-voice-mode', 'hk-mask']
+
+test('every server hotkey binds the middle, back and forward buttons as 258, 259 and 260', () => {
+  for (const id of SERVER_IDS) {
+    for (const [button, code, label] of [[1, 258, 'Middle Mouse'], [3, 259, 'Mouse 4'], [4, 260, 'Mouse 5']]) {
+      const { t, el, fire } = load()
+      const btn = el(id)
+      t.setKey(id, 47)
+      t.startCapture(btn, true)
+      assert.match(btn.textContent, /key or mouse button/, id)
+      const e = fire('mousedown', { button })
+      assert.ok(e.prevented && e.stopped, id)
+      assert.strictEqual(t.getKey(id), code, id)
+      assert.strictEqual(btn.textContent, label, id)
+      // The press's mouseup and auxclick are kept from the page (back and forward navigate nothing)
+      assert.ok(fire('mouseup', { button }).prevented, id)
+      assert.ok(fire('auxclick', { button }).prevented, id)
+    }
   }
 })
 
@@ -65,12 +69,12 @@ test('left and right click do not bind and leave the capture running', () => {
   assert.strictEqual(t.getKey('hk-voice-ptt'), 34)
 })
 
-test('other hotkeys never listen for the mouse', () => {
-  for (const id of ['hk-voice-mode', 'hk-chat', 'ghk-jump']) {
+test('the game hotkeys (controlmap keyboard column) never listen for the mouse', () => {
+  for (const id of ['ghk-activate', 'ghk-jump', 'ghk-sprint', 'ghk-sneak', 'ghk-shout', 'ghk-pov']) {
     const { t, el, fire, listeners } = load()
     const btn = el(id)
     t.setKey(id, 57)
-    t.startCapture(btn, id.startsWith('hk-'))
+    t.startCapture(btn, false)
     assert.ok(!listeners.some((l) => l.type === 'mousedown'), id)
     assert.doesNotMatch(btn.textContent, /mouse/)
     fire('mousedown', { button: 3 })
@@ -100,6 +104,11 @@ test('a saved mouse button shows its name; every code the client reads as a mous
 
 test('the save keeps any number, so a mouse code reaches the client settings file', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8')
-  assert.match(main, /if \(typeof h\.voicePtt === 'number'\)\s+c\.voicePushToTalkKeyCode = h\.voicePtt/)
-  assert.match(main, /voicePtt:\s+numOrNull\(c\.voicePushToTalkKeyCode\)/)
+  for (const [field, setting] of [['freeCursor', 'freeCursorKeyCode'], ['housing', 'housingMenuKeyCode'], ['faction', 'factionMenuKeyCode'],
+    ['personal', 'personalMenuKeyCode'], ['voicePtt', 'voicePushToTalkKeyCode'], ['adminMenu', 'adminMenuKeyCode'], ['hideUi', 'hideUiKeyCode'],
+    ['skills', 'masteryMenuKeyCode'], ['emote', 'emoteWheelKeyCode'], ['nametag', 'nametagKeyCode'], ['voiceMode', 'voiceModeKeyCode'], ['mask', 'maskToggleKeyCode']]) {
+    assert.match(main, new RegExp(`if \\(typeof h\\.${field} === 'number'\\)\\s+\\{?\\s*c\\.${setting}\\s*=\\s*h\\.${field}`), field)
+  }
+  // The chat key goes out as [Enter, the key], which the client reads with Input.isKeyPressed (256+ is the mouse there)
+  assert.match(main, /c\.chatFocusKeyCodes\s+= h\.chatFocus\.filter\(n => typeof n === 'number'\)/)
 })

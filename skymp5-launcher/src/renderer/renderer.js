@@ -81,8 +81,6 @@ for (const [dik, label] of Object.values(KEY_TABLE)) DIK_LABELS[dik] = label
 // numbers left 0, right 1, middle 2, back 3, forward 4. Left and right click stay the game's attack and block.
 const MOUSE_TABLE = { 1: [258, 'Middle Mouse'], 3: [259, 'Mouse 4'], 4: [260, 'Mouse 5'] }
 Object.assign(DIK_LABELS, { 258: 'Middle Mouse', 259: 'Mouse 4', 260: 'Mouse 5', 261: 'Mouse 6', 262: 'Mouse 7', 263: 'Mouse 8' })
-// The client reads a mouse button only for push-to-talk (voiceService.ts)
-const MOUSE_HOTKEY_IDS = ['hk-voice-ptt']
 
 const RESOLUTIONS = ['1280x720', '1366x768', '1600x900', '1920x1080', '2560x1080', '2560x1440', '3440x1440', '3840x2160']
 
@@ -103,6 +101,8 @@ function getKey(id) { const el = document.getElementById(id); return el ? (parse
 // drops code 0, so an unbound game key would silently keep its old binding.
 const SERVER_HOTKEY_IDS = ['hk-chat', 'hk-cursor', 'hk-housing', 'hk-personal', 'hk-faction', 'hk-voice-ptt', 'hk-admin', 'hk-hide-ui', 'hk-skills', 'hk-emote', 'hk-nametag', 'hk-voice-mode', 'hk-mask']
 const GAME_HOTKEY_IDS = ['ghk-activate', 'ghk-jump', 'ghk-sprint', 'ghk-sneak', 'ghk-shout', 'ghk-pov']
+// The server hotkeys take a mouse button too (client mouseKeys.ts); the game hotkeys edit the controlmap's keyboard column
+const MOUSE_HOTKEY_IDS = SERVER_HOTKEY_IDS
 
 let activeCapture = null
 
