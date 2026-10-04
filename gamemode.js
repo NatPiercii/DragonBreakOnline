@@ -5165,6 +5165,56 @@ const npcKindDamageMult = (agg, tgt, dmg) => {
   const m = Number(by[kind]);
   return m > 0 ? m : 1;
 };
+// ---- NPC damage by dungeon difficulty, and NPC spells ------------------------------------------------------------------
+// gamemode-config npcDamage.byDifficulty { story, normal, hard, nightmare: mult } scales every hit (weapon, fists, spells) an
+// enemy of a claimed dungeon or expedition (spawn tag dungeon:<id>:..., dungeons.js) lands on a player, by the difficulty the
+// lease was claimed at. A dungeon's difficulty only picked the enemies' level band and count, never their damage, so an
+// Adept bandit hit a level-2 character as hard as anywhere else (Nate, 4 Oct: "NPCs shouldn't be as strong", a player on
+// Adept downed four times in Telepe). npcDamage.spellMult scales every creature's or NPC's spell hit on a player, in a
+// dungeon or out: their copies cast without running out of magicka (formView sets it to 1000000), so a bolt landed every
+// 1.4 s (median of 4226 caster-on-player gaps, 2-4 Oct). Never a player's hit, PvP, hits on NPCs, or a companion's or a
+// summon's (ff_companionOf names a player). Read per hit, so a config edit or a hot reload takes effect at once.
+const npcLeaseDifficultyOf = (id) => {
+  let tag = ''; try { tag = String(mp.get(id, 'private.npcSpawner') || ''); } catch (e) { return ''; }
+  if (!tag.startsWith('dungeon:')) return '';
+  const st = globalThis.__dboDungeons;
+  if (!st || !(st.leases instanceof Map)) return '';
+  for (const l of st.leases.values()) if (l && l.id && tag.startsWith(`dungeon:${l.id}:`)) return String(l.difficulty || '');
+  return '';
+};
+const npcDifficultyDamageMult = (agg, tgt, dmg, flags) => {
+  const nd = cfg.npcDamage || {};
+  if (!(dmg > 0) || agg === tgt) return 1;
+  if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return 1;
+  try { const owner = Number(mp.get(agg, 'ff_companionOf')) >>> 0; if (owner && profileOf(owner) >= 0) return 1; } catch (e) { /* not an actor */ }
+  let m = 1;
+  const by = nd.byDifficulty;
+  if (by && typeof by === 'object') {
+    const d = npcLeaseDifficultyOf(agg);
+    if (d && Object.prototype.hasOwnProperty.call(by, d)) { const v = Number(by[d]); if (v > 0) m *= v; }
+  }
+  const f = flags && typeof flags === 'object' ? flags : {};
+  const sm = Number(nd.spellMult);
+  if (f.spell && sm > 0) m *= sm;
+  return m;
+};
+// npcDamage.log: one line for every creature's or NPC's hit on a player, x1 hits included (the mastery line is written only
+// when a factor changed the hit), so a player's whole fight can be read: attacker base and spawn tag, the lease difficulty,
+// source, raw damage, the final factor, the flags and the health before. Off unless set.
+const npcHitLog = (agg, tgt, src, dmg, mult, flags) => {
+  if (!(cfg.npcDamage || {}).log || !(dmg > 0) || agg === tgt) return;
+  if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return;
+  const f = flags && typeof flags === 'object' ? flags : {};
+  let base = '', tag = '', hp = NaN;
+  try { base = String(mp.get(agg, 'baseDesc') || ''); } catch (e) { /* not an actor */ }
+  try { tag = String(mp.get(agg, 'private.npcSpawner') || ''); } catch (e) { /* not spawned */ }
+  try { const p = mp.get(tgt, 'percentages'); hp = p ? Number(p.health) : NaN; } catch (e) { /* not an actor */ }
+  const r = base ? (() => { try { return recordOf(mp.getIdFromDesc(base) >>> 0); } catch (e) { return null; } })() : null;
+  const edid = r && r.record ? String(r.record.editorId || '') : '';
+  const max = Number(f.targetMaxHealth);
+  const kind = [f.spell ? 'spell' : '', f.power ? 'power' : '', f.blocked ? 'blocked' : '', f.bash ? 'bash' : '', f.sneak ? 'sneak' : ''].filter(Boolean).join(',');
+  log(`npc hit ${display(agg)} (${edid || base || '?'}${tag ? ' ' + tag : ''}${npcLeaseDifficultyOf(agg) ? ' ' + npcLeaseDifficultyOf(agg) : ''}) -> ${display(tgt)}: source ${src.toString(16)} ${dmg.toFixed(1)} x${mult.toFixed(2)} = ${(dmg * mult).toFixed(1)}${max > 0 ? ` of ${max.toFixed(0)} (${((dmg * mult) / max * 100).toFixed(1)}%)` : ''}${kind ? ' [' + kind + ']' : ''} health ${Number.isFinite(hp) ? (hp * 100).toFixed(1) + '%' : '?'}`);
+};
 // A hit scaled below 1 is given back after the engine applied it (masteryBonusDamage), but only to a target that lived
 // through the engine's full hit: at 50 health a boar's 50-point bite downed a player although the scaled bite would not
 // have, so no scale could make more than a few bites survivable, and npcPowerHits did nothing below 100 health. On a
@@ -5319,6 +5369,9 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     mult *= npcPowerHitMult(agg, tgt, flags, dmg);
     // A kind of creature's or NPC's hits on a player (npcDamage.byKind)
     mult *= npcKindDamageMult(agg, tgt, dmg);
+    // An enemy of a claimed dungeon by the lease's difficulty, and any NPC's spell (npcDamage.byDifficulty, spellMult)
+    mult *= npcDifficultyDamageMult(agg, tgt, dmg, flags);
+    try { npcHitLog(agg, tgt, src, dmg, mult, flags); } catch (e) { log('npc hit log failed', e.message); }
     // Would the engine's full hit down a player the scaled hit would not? Then it lands scaled from the start, and what a
     // capped raise could not hold back is given back after it like any scaled hit
     const guard = npcLethalGuard(agg, tgt, dmg, mult, flags);
