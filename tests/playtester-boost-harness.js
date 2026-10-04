@@ -34,7 +34,7 @@ ok('config: the role is the Pre-Alpha Tester role that grants the second slot', 
 ok('gitignore keeps the runtime windows out of the public repo', /^playtester-boost\.json$/m.test(IGNORE));
 const note = NOTES.find((n) => n.title === BOOST_NOTE) || {};
 ok('patch note in patch-notes.json, a Server update dated the opening', note.version === 'Server update' && note.date === B.startsAt.slice(0, 10), [note.version, note.date, B.startsAt]);
-ok('...among the launch notes on top, under the welcome', NOTES.slice(0, 2).map((n) => n.title).join(' | ') === `Welcome to the Alpha | ${BOOST_NOTE}`, NOTES.slice(0, 2).map((n) => n.title));
+ok('...right under the welcome note (newer updates go above both, Nate 4 Oct)', (() => { const w = NOTES.findIndex((n) => n.title === 'Welcome to the Alpha'); return w >= 0 && NOTES[w + 1] && NOTES[w + 1].title === BOOST_NOTE; })(), NOTES.map((n) => n.title).slice(0, 24));
 ok('...and no longer parked in patch-notes-pending', !fs.existsSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'playtesters-thank-you.json')));
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const dayOf = (d) => `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
