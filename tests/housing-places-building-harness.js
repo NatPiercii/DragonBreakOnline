@@ -43,11 +43,16 @@ const G1 = ref(0x600, WORLD, 'DOOR', 0x601); ref(0x601, CATH, 'DOOR', 0x600);
 const G3 = ref(0x602, WORLD, 'DOOR', 0x603); ref(0x603, CATH, 'DOOR', 0x602);
 const RD = ref(0x604, CATH, 'DOOR', 0x605); ref(0x605, VESTRY, 'DOOR', 0x604);
 const SC1 = ref(0x606, VESTRY, 'CONT'), SC2 = ref(0x607, VESTRY, 'CONT'), STAFFBOX = ref(0x608, CATH, 'CONT'), NAVEBOX = ref(0x609, CATH, 'CONT');
+// Castle Bruma: a front door and six interior cells in a chain, more than the walk takes (four)
+const KEEP = ['6c40f', '6c40e', '6c410', '6c40d', '6c40c', '72653'].map((c) => `${c}:BSHeartland.esm`);
+const F1 = ref(0x700, WORLD, 'DOOR', 0x701); ref(0x701, KEEP[0], 'DOOR', 0x700);
+for (let i = 0; i < 5; i++) { ref(0x710 + 2 * i, KEEP[i], 'DOOR', 0x711 + 2 * i); ref(0x711 + 2 * i, KEEP[i + 1], 'DOOR', 0x710 + 2 * i); }
+const KCHEST = ref(0x720, KEEP[5], 'CONT');
 const Z1 = ref(0x500, WORLD, 'DOOR', 0x501); ref(0x501, '20ea:BSHeartland.esm', 'DOOR', 0x500);   // a house nobody ever claimed
 const byId = new Map(REFS.map((r) => [r.id, r]));
-const STEWARD = 0xff000041, VIGGO = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004, WHISPER = 0xff000061;
-const PROFILE = { [STEWARD]: 41, [VIGGO]: 9, [STRANGER]: 51, [AKATOSH]: 4, [WHISPER]: 61 };
-const USER = { [STEWARD]: 5, [VIGGO]: 2, [STRANGER]: 3, [AKATOSH]: 4, [WHISPER]: 6 };
+const STEWARD = 0xff000041, VIGGO = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004, WHISPER = 0xff000061, SYLVIA_A = 0xff000052, FRIGGA = 0xff000070;
+const PROFILE = { [STEWARD]: 41, [VIGGO]: 9, [STRANGER]: 51, [AKATOSH]: 4, [WHISPER]: 61, [SYLVIA_A]: 52, [FRIGGA]: 70 };
+const USER = { [STEWARD]: 5, [VIGGO]: 2, [STRANGER]: 3, [AKATOSH]: 4, [WHISPER]: 6, [SYLVIA_A]: 7, [FRIGGA]: 8 };
 let props, notices, menus;
 const descToId = (d) => parseInt(String(d).split(':')[0], 16) | 0x08000000;
 const mp = {
@@ -236,14 +241,55 @@ try {
   const backupFile = fs.readdirSync('.').find((f) => /^housing-places-backup-.*\.json$/.test(f));
   const backup = backupFile ? JSON.parse(fs.readFileSync(backupFile, 'utf8')) : {};
   ok(backup.places && backup.places.some((p) => p.root === G1.toString(16) && p.granted === true), 'the backup marks the cathedral as granted', backup.places);
+  said = request(sys, SYLVIA_A, 'lock', NAVEBOX);
+  ok(rec(NAVEBOX) && rec(NAVEBOX).memberOf === G1 && rec(NAVEBOX).locked === true, 'Sylvia locks the nave chest after apply: a member the backup never saw', said);
   sys.placeMigration = 'dryrun';
   sys.restorePlaces(ctx, backupFile);
+  ok(rec(NAVEBOX).owner === 0 && !rec(NAVEBOX).memberOf && !rec(NAVEBOX).locked && rec(NAVEBOX).serial === 2, '...a restore unclaims it too, re-keyed (the review gap)', rec(NAVEBOX));
   ok(rec(G1).owner === 0 && !rec(G1).place && rec(G1).serial === 5 && rec(G3).owner === 0 && rec(RD).owner === SYLVIA && !rec(RD).memberOf && !rec(SC1).ownerOnly, 'a restore takes the grant back (nobody owns the way in, re-keyed again) and leaves her own claims as they were', [rec(G1), rec(RD)]);
   grantCfg([{ door: '600:BSHeartland.esm', profile: SYLVIA }]);
   props.set(`${G1}:private.housing`, { owner: 61, ownerName: 'Fink', name: null, locked: false, serial: 6, partner: H(0x601), containers: [], issued: [] }); sys.claimed.push(G1);
   sys.dryRunPlaces(ctx);
   plan = JSON.parse(fs.readFileSync('housing-places-plan.json', 'utf8'));
   ok(plan.grants[0].granted === false && /Fink/.test(plan.grants[0].why), "a way in someone else holds is never granted over them", plan.grants);
+
+  // ---- Castle Bruma: all six cells, Frigga's; the Steward shares it but does not manage it ----
+  const castle = (mode) => { const x = build(mode); grant(x, F1, FRIGGA); return x; };
+  sys = castle('apply');
+  ok(JSON.stringify(rec(F1).place.cells) === JSON.stringify([KEEP[0]]), 'without the map a castle of six rooms is walked to its first only (the walk takes four)', rec(F1).place);
+  fs.writeFileSync('buildings.json', JSON.stringify({ buildings: [{ id: '701:BSHeartland.esm', cells: KEEP.slice(), entrances: [] }, { id: 'x', cells: [VESTRY], flags: ['dungeon'] }] }));
+  sys = castle('apply');
+  ok(JSON.stringify(rec(F1).place.cells) === JSON.stringify(KEEP), 'with buildings.json the castle is whole: all six cells', rec(F1).place);
+  ok(sys.onActivate(ctx, KCHEST, STRANGER) === false && sys.onActivate(ctx, KCHEST, FRIGGA) === true, "...the chest in its last cell is Frigga's");
+  const STEWARD_HERE = typeof HousingSystem.prototype.sharesByOffice === 'function';
+  if (STEWARD_HERE) {
+    globalThis.__dboHallOffice = (refs, owner, actor) => refs.includes(F1) && actor === STEWARD;
+    globalThis.__dboHallMember = (refs, owner, actor) => globalThis.__dboHallOffice(refs, owner, actor);
+    ok(sys.onActivate(ctx, KCHEST, STEWARD) === true, "the Steward, sharing it, opens the castle's chests");
+    said = request(sys, STEWARD, 'rename', KCHEST, { name: 'Mine' });
+    ok(rec(F1).name !== 'Mine' && /not yours to name/.test(said), '...but cannot rename it', said);
+    said = request(sys, STEWARD, 'transfer', F1, { recipient: STEWARD });
+    ok(rec(F1).owner === 70 && /not yours to hand over/.test(said), '...nor hand it over', said);
+    said = request(sys, STEWARD, 'abandon', F1);
+    ok(rec(F1).owner === 70 && /not yours to give up/.test(said), '...nor give it up', said);
+    said = request(sys, STEWARD, 'revoke', F1);
+    ok(rec(F1).owner === 70 && /cannot revoke/.test(said), '...nor take it back as Steward', said);
+    menus.length = 0; sys.sendMenu(ctx, USER[STEWARD], STEWARD, F1);
+    ok(menus[0] && menus[0].view === 'keyholder', "...the castle's menu shows the Steward its lock, not the owner's panel", menus[0]);
+    delete globalThis.__dboHallOffice; delete globalThis.__dboHallMember;
+    said = request(sys, STEWARD, 'rename', F1, { name: 'Castle Bruma' });
+    ok(rec(F1).name === 'Castle Bruma', 'without the share the Steward manages the castle as a hold official, as before', said);
+  }
+  fs.unlinkSync('buildings.json');
+  // A grant may list the cells instead (gamemode-config.json housingPlaces.grants)
+  sys = build('dryrun');
+  props.set(`${F1}:private.housing`, { owner: 70, ownerName: 'Frigga Hux', name: 'Castle Bruma', locked: false, serial: 1, partner: H(0x701), containers: [], issued: [] }); sys.claimed.push(F1);
+  props.set(`${H(0x701)}:private.housing`, { primary: F1 });
+  grantCfg([{ door: '700:BSHeartland.esm', profile: 70, cells: KEEP.slice() }]);
+  sys.dryRunPlaces(ctx);
+  plan = JSON.parse(fs.readFileSync('housing-places-plan.json', 'utf8'));
+  const keepPlan = plan.details.find((x) => x.root === F1) || {};
+  ok(JSON.stringify(keepPlan.cells) === JSON.stringify(KEEP) && /theirs already; its cells as listed/.test(plan.grants[0].why) && keepPlan.unclaimedChests.includes(KCHEST), "a grant listing the castle's cells gives the plan all six, its chests included", keepPlan);
 } finally {
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });
