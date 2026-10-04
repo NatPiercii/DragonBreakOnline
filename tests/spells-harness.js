@@ -404,6 +404,28 @@ check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHE
   check('Frost Crag Spire\'s activator is', (await read(SM, T.sparks)) !== false && studied(SM, 'arcane').length === 2);
   at(SM, BRUMA, spot);
   check('the same position in another cell is not', (await read(SM, T.boundSword)) === false);
+  check('...and with no study spot in that cell the refusal gives no distance', !/nearest one here/.test(said(SM)), said(SM));
+  // Frost Crag Spire's study upstairs (Nate, 4 Oct: "Frostcrag needs to be able to have players learn spells"): its
+  // mages read at the Scholars' Ledger, 21 m from the one shelf by the alchemy table, and were refused
+  const LEDGER = '13f775:DragonBreak Online Edits.esp', LECTERN = '15e4c4:DragonBreak Online Edits.esp';
+  const spotOf = (refr) => (crag.places.find((q) => q.refr === refr) || {}).pos;
+  check('Frost Crag Spire\'s study spots are its shelf, its Scholars\' Ledger and a Class Lectern', crag.places.length === 3 && !!spotOf(LEDGER) && !!spotOf(LECTERN)
+    && crag.places.filter((q) => q.refr !== LEDGER && q.refr !== LECTERN).length === 1 && gen.filter((p) => p.cell === FROST_CRAG).length === 1, crag.places);
+  const ledgerPos = spotOf(LEDGER), lecternPos = spotOf(LECTERN), shelfPos = crag.places.find((q) => q.refr !== LEDGER && q.refr !== LECTERN).pos;
+  const FC = 0x1a; online.push(FC); mastery(FC, { arcane: 1, priest: 1 });
+  const between = [(ledgerPos[0] + shelfPos[0]) / 2, (ledgerPos[1] + shelfPos[1]) / 2, -539];
+  at(FC, FROST_CRAG, between);
+  const far = Math.round(Math.min(...[ledgerPos, lecternPos, shelfPos].map((q) => Math.hypot(between[0] - q[0], between[1] - q[1], between[2] - q[2]) / 70)));
+  check('between the shelf and the study the tome is still refused, and says how far the nearest spot is', (await read(FC, T.sparks)) === false
+    && new RegExp(`Study Magic in Frost Crag Spire.*The nearest one here is ${far} m away`).test(said(FC)) && studied(FC, 'arcane').length === 0, [far, said(FC)]);
+  at(FC, FROST_CRAG, [ledgerPos[0] + 100, ledgerPos[1] - 80, -347]);
+  check('beside the Scholars\' Ledger (on the study floor) a tome is learned', (await read(FC, T.sparks)) !== false && studied(FC, 'arcane').length === 1, said(FC));
+  at(FC, FROST_CRAG, [lecternPos[0] + 60, lecternPos[1], -345]);
+  check('...and at the Class Lectern', (await read(FC, T.boundSword)) !== false && studied(FC, 'arcane').length === 2, said(FC));
+  at(FC, FROST_CRAG, [ledgerPos[0] - 4.5 * 70, ledgerPos[1], ledgerPos[2]]);
+  check('...but not 4.5 m from the ledger', (await read(FC, T.frostbite)) === false && studied(FC, 'arcane').length === 2);
+  at(FC, BRUMA, ledgerPos);
+  check('...nor at the ledger\'s position in another cell', (await read(FC, T.frostbite)) === false);
   delete RECORDS[idOf(STUDY_MAGIC)];
   out.logs.length = 0;
   load();

@@ -979,6 +979,22 @@
       1113.5,
       -484.1
      ]
+    },
+    {
+     "refr": "13f775:DragonBreak Online Edits.esp",
+     "pos": [
+      -1174.9,
+      -218.9,
+      -282.5
+     ]
+    },
+    {
+     "refr": "15e4c4:DragonBreak Online Edits.esp",
+     "pos": [
+      -803.8,
+      -133.1,
+      -256.9
+     ]
     }
    ],
    "schools": [
@@ -988,7 +1004,7 @@
     "Restoration",
     "Alteration"
    ],
-   "_generated": "tools/spells/study_points.py: the StudyMagic activators, 1 here; within radiusMeters of one"
+   "_generated": "tools/spells/study_points.py: the StudyMagic activators, 1 here, and 2 more study spots (EXTRA); within radiusMeters of one"
   },
   {
    "name": "The Arcanaeum at the College of Winterhold",
