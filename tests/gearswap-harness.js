@@ -50,7 +50,7 @@ check('...but never into a tempered stack', p.entries.length === 2 && p.entries.
 p = planOf([{ baseId: ID.DA08EbonyBlade, count: 1 }]);
 check('an artifact is never touched, even above the cap', p.swaps.length === 0 && p.skipped.artifact === 1 && p.entries[0].baseId === ID.DA08EbonyBlade);
 p = planOf([{ baseId: ID.ArmorEbonyCuirass, count: 1, enchantmentId: 1234 }]);
-check('a player-enchanted piece is swapped and flagged enchanted (it comes back plain)', p.swaps[0].enchanted === true && p.entries[0].baseId === ID.ArmorSteelCuirassA && !p.entries[0].enchantmentId);
+check('a player-enchanted piece is swapped and keeps its enchantment (Nate, 4 Oct; tests/gearswap-enchant-harness.js)', p.swaps[0].enchanted === true && p.entries[0].baseId === ID.ArmorSteelCuirassA && p.entries[0].enchantmentId === 1234);
 p = G.plan({ entries: [{ baseId: ID.GlassSword, count: 1 }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf: () => 0, isArtifact: () => false });
 check('a replacement whose plugin is not loaded keeps the original', p.swaps.length === 0 && p.skipped.unmapped === 1 && p.entries[0].baseId === ID.GlassSword);
 p = G.plan({ entries: [{ baseId: ID.GlassSword, count: 1 }], descOf, classOf: () => ({ kind: 'never', family: 'EBONY', why: 'hand override' }), swap: SWAP, idOf, isArtifact: () => false });
@@ -60,7 +60,7 @@ check('uniforms and trinkets are not swapped', p.swaps.length === 0);
 p = planOf([{ baseId: ID.ElvenArrow, count: 40 }, { baseId: ID.IronArrow, count: 10 }, { baseId: ID.SteelArrow, count: 5 }]);
 check('arrows above the cap become iron arrows count for count; iron and steel arrows stay', p.entries.some((e) => e.baseId === ID.IronArrow && e.count === 50) && p.entries.some((e) => e.baseId === ID.SteelArrow && e.count === 5) && p.swaps[0].family === 'ammo', p.entries);
 check('the ammo list names the vanilla iron arrow and Dawnguard\'s steel bolt only', Object.values(SWAP.ammo).every((m) => m.to === '1397d:Skyrim.esm' || m.to === 'bb3:Dawnguard.esm') && !Object.values(SWAP.ammo).some((m) => /^(IronArrow|SteelArrow|ForswornArrow|FalmerArrow|DraugrArrow|MQ101SteelArrow|boundArrow|DLC1ElvenArrow(Blessed|Blood))$/.test(m.edid)));
-check('the message counts the items and says enchanted ones come back plain', /swapped for steel and iron equivalents: 3 items\. Enchanted pieces come back plain\.$/.test(G.message([{ count: 2 }, { count: 1, enchanted: true }])));
+check('the message counts the items and says enchanted ones keep their enchantment', /swapped for steel and iron equivalents: 3 items\. Enchanted pieces keep their enchantment\.$/.test(G.message([{ count: 2 }, { count: 1, enchanted: true, carried: { enchantmentId: 1 } }])) && !/plain/.test(G.message([{ count: 1, enchanted: true, carried: { enchantmentId: 1 } }])));
 check('wornIn reads the equipment', G.wornIn({ inv: { entries: [{ baseId: 5, worn: true }, { baseId: 6, wornLeft: true }, { baseId: 7 }] } }).get(6) === 'left');
 
 // ---- 3. the runtime, against a stub server ----
@@ -149,7 +149,7 @@ const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 const chain = gm.slice(gm.indexOf('mp.onActivate = (targetId, casterId) => {'), gm.indexOf('if (globalThis.__dboDungeonActivate) {'));
 check('the activate chain swaps a container before it opens and never refuses for it', /\n  if \(globalThis\.__dboGearSwapContainer\) globalThis\.__dboGearSwapContainer\(targetId >>> 0\);\n/.test(chain));
 check('gamemode hands the module its staff check (isAdmin, the roles source)', /require\(GEARSWAP_JS\)\(\{[^}]*isStaff: isAdmin \}\)/.test(gm));
-check('no timer sweeps inventories: the server cannot see an open inventory or container menu (D, 3 Oct)', !Object.keys(timers).length && !/every\(/.test(fs.readFileSync(path.join(SERVER, 'gearswap.js'), 'utf8').replace(/Object\.keys\(e\)\.every\(/g, '')), Object.keys(timers));
+check('no timer sweeps inventories: the server cannot see an open inventory or container menu (D, 3 Oct)', !Object.keys(timers).length && !/(^|[^.\w])every\(/m.test(fs.readFileSync(path.join(SERVER, 'gearswap.js'), 'utf8')), Object.keys(timers));
 check('the login path sweeps each character, beside the rest login', /__dboRestLogin\(a\);[^\n]*\n\s*\/\/[^\n]*\n\s*try \{ if \(globalThis\.__dboGearSwapLogin\) globalThis\.__dboGearSwapLogin\(a\); \}/.test(gm));
 // a left-hand weapon goes back in the left hand
 const LH = 0xff000307;
