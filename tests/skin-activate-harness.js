@@ -46,6 +46,8 @@ const run = ({ pelts, dead = true, skinned = false, worth = 5, cap = 12, pending
     log: () => {},
     display: String,
     skinKeepClosing: () => {},
+    skinIdleStart: () => {},
+    skinIdleStop: () => {},
     performance: { now: () => 0 },
   };
   sandbox.globalThis = sandbox;

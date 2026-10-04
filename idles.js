@@ -26,6 +26,10 @@ module.exports = (api) => {
     // The Character Journal on F3 (journal.js): the wheel's Read Book, IdleBook_TurnManyPages' event; held until the
     // journal's dboIdleStop by a client that knows hold (client-journal-client), 10 s by an older one
     journal: { anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false, hold: true },
+    // Skinning a kill (Nate, 4 Oct: the character works while the panel is open): the warm-hands crouch, proven on the
+    // emote wheel and the chest hold's crouch; held until gamemode.js sends dboIdleStop when the attempt ends. Mining
+    // and chopping have no proven standalone idle (their swings come from furniture markers), so they play none
+    skin: { anim: 'IdleWarmHandsCrouched', seconds: 10, endsItself: false, hold: true },
   };
   const C = Object.assign({ enabled: true }, (cfg && cfg.interactionIdles) || {});
   const IDLES = Object.assign({}, DEFAULTS, C.idles || {});

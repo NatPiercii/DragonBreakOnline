@@ -4159,11 +4159,12 @@ globalThis.__dboSkin = (targetId, casterId) => {
       if (round.issueDist > Number(SKIN.issueUnits)) { skinSay(casterId, 'You are too far from the body.'); return false; }
     }
     const old = skinSessions.get(casterId);
-    if (old) { skinKeepClosing(casterId, old, 'superseded'); log(`skinning superseded ${display(casterId)} ${old.name} after ${Math.round(performance.now() - old.startedAt)} ms by a new attempt`); }
+    if (old) { skinIdleStop(casterId, old); skinKeepClosing(casterId, old, 'superseded'); log(`skinning superseded ${display(casterId)} ${old.name} after ${Math.round(performance.now() - old.startedAt)} ms by a new attempt`); }
     log(`skinning issue ${display(casterId)} ${round.name} t${tier + 1} cuts=${round.cuts}${round.mode === 'pick' ? ` pick spots=${round.steps[0].length}` : ''} min=${round.minMs} judge=client seed=${round.seed.toString(16)}`);
   }
   skinSessions.set(casterId, round);
   openWidget(casterId, skinPacket(round), true);
+  skinIdleStart(casterId, round);
   return false;
 };
 // Replay the attempt against the report. The widget sends the millisecond of every cut it took; the
@@ -4201,6 +4202,20 @@ const judgeSkin = (round, raw, at, elapsed) => {
   if (r.lag < -SKIN.clockSlackMs) r.bad = 'future';      // more time on its clock than the server watched pass
   else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';      // drawn out in real time, or a report from minutes ago
   return r;
+};
+// The skinner crouches at the body while the attempt is open (idles.js 'skin', held), and stands when it ends
+const skinIdleStart = (a, round) => {
+  try {
+    if (typeof globalThis.__dboInteractionIdle !== 'function' || !globalThis.__dboInteractionIdle(a, 'skin')) return;
+    const def = typeof globalThis.__dboInteractionIdleDef === 'function' ? globalThis.__dboInteractionIdleDef('skin') : null;
+    round.idleAnim = def && def.anim ? String(def.anim) : '';
+  } catch (e) { log('skinning idle failed', e.message); }
+};
+const skinIdleStop = (a, round) => {
+  if (!round || round.idleAnim === undefined) return;
+  const anim = round.idleAnim;
+  delete round.idleAnim;
+  try { sendPacket(a, Object.assign({ customPacketType: 'dboIdleStop' }, anim ? { anim } : {})); } catch (e) { /* offline */ }
 };
 // A pick attempt's report: '[[index, ms], ...]' replayed against the points the server rolled, in judgeSkin's fields
 const judgeSkinPick = (round, raw, at, elapsed) => {
@@ -4261,6 +4276,7 @@ const skinReport = (a, args) => {
   }
   skinClosing.delete(nonce);
   if (skinSessions.get(a) === ses) skinSessions.delete(a);
+  skinIdleStop(a, ses);
   skinSpent.set(ses.nonce, Date.now());
   while (skinSpent.size > 200) skinSpent.delete(skinSpent.keys().next().value);
   const elapsed = performance.now() - ses.startedAt;
@@ -4331,7 +4347,7 @@ const skinCancel = (a, args) => {
     if (skinIgnored(a, performance.now())) log(`skinning ignored ${display(a)}: a Stop for ${nonce.slice(0, 40)}, not the live attempt`);
     return;
   }
-  if (ses) { skinKeepClosing(a, ses, 'cancel'); if (MG.clientJudged(SKIN)) log(`skinning abandon(cancel) ${display(a)} ${ses.name} after ${Math.round(performance.now() - ses.startedAt)} ms`); }
+  if (ses) { skinIdleStop(a, ses); skinKeepClosing(a, ses, 'cancel'); if (MG.clientJudged(SKIN)) log(`skinning abandon(cancel) ${display(a)} ${ses.name} after ${Math.round(performance.now() - ses.startedAt)} ms`); }
   skinSessions.delete(a);
   closeWidget(a, SKIN_WIDGET_ID);
 };
@@ -4340,7 +4356,7 @@ onUi('skinningCancel', skinCancel);
 every('skinSweep', 30000, () => {
   if (!MG.clientJudged(SKIN)) return;
   const now = performance.now();
-  for (const [a, ses] of [...skinSessions]) if (now - ses.startedAt > skinLimit(ses)) { skinSessions.delete(a); log(`skinning expired ${display(a)} ${ses.name} after ${Math.round(now - ses.startedAt)} ms, no report`); }
+  for (const [a, ses] of [...skinSessions]) if (now - ses.startedAt > skinLimit(ses)) { skinSessions.delete(a); skinIdleStop(a, ses); log(`skinning expired ${display(a)} ${ses.name} after ${Math.round(now - ses.startedAt)} ms, no report`); }
   for (const [n, c] of skinClosing) if (now - c.round.startedAt > skinLimit(c.round)) skinClosing.delete(n);
 });
 globalThis.__dboSkinLeave = (a) => { const ses = skinSessions.get(a); if (!ses) return; skinSessions.delete(a); log(`skinning abandon(logout) ${display(a)} ${ses.name}`); };

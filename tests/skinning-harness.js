@@ -243,7 +243,7 @@ console.log('client-judged:');
 const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
 const A = 0x14, B = 0x15, CORPSE = 0xff001234, PELT = 0x3ad6f;
 const props = new Map();
-const cj = { logs: [], audits: [], said: [], widgets: [], closed: 0, given: [], events: [] };
+const cj = { logs: [], audits: [], said: [], widgets: [], closed: 0, given: [], events: [], idles: [], packets: [] };
 const SK = { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50, bonusByTier: [0, 0, 0, 0, 0],
   clientJudged: true, roundTimeoutMs: 120000, firstCutMs: 150, cutGapMs: 80, nearUnits: 400, movedUnits: 200, issueUnits: 1500, slowFlagMs: 5000, replayCheck: 'log' };
 const sb = {
@@ -257,12 +257,13 @@ const sb = {
   mp: { get: (id, k) => props.get(id + '|' + k), set: (id, k, v) => props.set(id + '|' + k, v) },
   giveItem: (a, id, n) => { cj.given.push([id, n]); return true; },
   recordOf: () => ({ record: { editorId: 'WolfPelt' } }), edidWords: (e, f) => e || f, peltsWorth: () => 5,
-  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k) },
+  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k), __dboInteractionIdle: (a, key) => { cj.idles.push(key); return true; }, __dboInteractionIdleDef: (key) => (key === 'skin' ? { anim: 'IdleWarmHandsCrouched' } : null) },
+  sendPacket: (a, p) => cj.packets.push(p),
   hasUiCap: (a, cap) => sb.pickUi === true && cap === MG.PICK_CAP,
   pickUi: false,
   out: {},
 };
-const cjNames = ['SKIN_PICK', 'skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
+const cjNames = ['SKIN_PICK', 'skinIdleStart', 'skinIdleStop', 'skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
 vm.runInNewContext(cjNames.map(declOf).join('\n') + `\nout = { ${cjNames.join(', ')} };`, sb);
 const S = sb.out;
 const pos = (id, p) => props.set(id + '|pos', p);
@@ -505,6 +506,16 @@ console.log('pick attempts:');
   }
   check('the widget and the server agree on 200 random pick attempts', agree === 200, `${agree}/200`);
   check('the pick switch off (skinning.pick.enabled false) gives the timing attempt again', (() => { S.SKIN_PICK.enabled = false; const r = issue(); S.SKIN_PICK.enabled = true; return r.mode === undefined && Array.isArray(r.seams); })());
+  // The skinner crouches while the attempt is open and stands when it ends, by report or by Stop
+  cj.idles.length = 0; cj.packets.length = 0;
+  r1 = issue({ tier: 0 }); S.skinIdleStart(A, r1);
+  l1 = picks(r1, [0, 0, 0]);
+  rs = reportS(r1, l1, l1[l1.length - 1][1], 200, claimP(true, 3, 0));
+  check('the skinner crouches for the attempt (idles.js skin) and stands when it is judged', cj.idles[0] === 'skin' && cj.packets.some((q) => q.customPacketType === 'dboIdleStop' && q.anim === 'IdleWarmHandsCrouched'), JSON.stringify(cj.packets));
+  cj.packets.length = 0;
+  r1 = issue({ tier: 0 }); S.skinIdleStart(A, r1);
+  S.skinCancel(A, [r1.nonce]);
+  check('...and when the attempt is stopped', cj.packets.filter((q) => q.customPacketType === 'dboIdleStop').length === 1, JSON.stringify(cj.packets));
   sb.pickUi = false;
 }
 
