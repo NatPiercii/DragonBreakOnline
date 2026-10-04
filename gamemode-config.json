@@ -697,6 +697,9 @@
   "_comment": "exclude: dungeon ids never leased. AbandonedPrisonLocation is out because its main cell is now Windhelm's prison, a jail (Nat, 2026-09-23); its other cell is the spare prison template.",
   "restoreOutfits": true,
   "exclude": ["AbandonedPrisonLocation"],
+  "_count": "Enemies per placement by party size n (dungeons.js partyCountMult): countBase + countPerPlayer x n, between countMin 0.6 and countMax 1.8. Nate, 4 Oct: half the add per member (was 0.4 + 0.3 n): solo 0.7, 2 0.85, 3 1.0, 4 1.15, 6 1.45.",
+  "countBase": 0.55,
+  "countPerPlayer": 0.15,
   "ayleidLoot": {
    "_comment": "Ayleid treasure from ayleid-loot.json, by the lease's difficulty (Nate, 2026-09-28). chestChance: a big chest holds one piece; bossChance: the boss chest. chest/boss: tier weights (common, uncommon, rare = Major jewellery and Shocks arms, rarest = Eminent jewellery and the Lich Helmet). raidBossChance/raidBoss: a raid's boss chests and masters. These pieces never come from the general pools. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
    "enabled": true,
