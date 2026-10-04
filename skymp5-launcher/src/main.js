@@ -455,7 +455,9 @@ ipcMain.handle('mods:communityShadersLoad', () => {
 })
 ipcMain.handle('mods:communityShadersSet', async (_e, on) => {
   // MO2 writes modlist.txt back when it exits, so a change made while it runs would be lost
-  if (await skyrimRunning()) return { ok: false, error: 'Close the game first, then change this setting.' }
+  const running = (await isProcessRunning('SkyrimSE.exe')) || (await isProcessRunning('skse64_loader.exe')) ||
+    (await isProcessRunning('ModOrganizer.exe'))
+  if (running) return { ok: false, error: 'Close the game first, then change this setting.' }
   store.set('communityShadersOff', !on)
   const name = mo2.findModWithFile(COMMUNITY_SHADERS_FILE)
   const applied = name ? mo2.setModEnabled(name, !!on) : false

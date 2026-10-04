@@ -79,5 +79,5 @@ test('main, preload and renderer agree on the switch', () => {
   // Every install applies the stored setting, by Nexus id, and the switch is refused while MO2 or the game runs
   assert.match(main, /mo2\.setModlistOrder\(order, disabledManagedMods\(manifest\)\)/)
   assert.match(main, /COMMUNITY_SHADERS_NEXUS_ID = 86492/)
-  assert.match(main, /communityShadersSet'[\s\S]{0,200}skyrimRunning\(\)/)
+  assert.match(main, /communityShadersSet'[\s\S]{0,300}isProcessRunning\('ModOrganizer\.exe'\)/)
 })
