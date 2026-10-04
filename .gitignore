@@ -108,3 +108,7 @@ role-names.json
 # The gear swap restore plan (tools/loot/gearswap_restore_plan.js): names characters, live data only
 gearswap-restore.json
 gearswap-restore-metals.json
+
+# RaceMenu extras kept per character (appearanceextras.js)
+appearance-extras.json
+appearance-extras.json.tmp

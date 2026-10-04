@@ -1494,6 +1494,12 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       if (a && spell && typeof globalThis.__dboBeastPower === 'function') { try { globalThis.__dboBeastPower(a, spell); } catch (e) { log('beast power failed', e.message); } }
       return;
     }
+    // RaceMenu extras (client AppearanceExtrasService): appearanceextras.js checks, keeps and serves them
+    if (content.customPacketType === 'dboAppearanceExtras' || content.customPacketType === 'dboAppearanceExtrasGet') {
+      const h = globalThis.__dboAppearanceExtrasPacket; const a = actorOf(userId);
+      if (a && typeof h === 'function') { try { h(a, content); } catch (e) { logCapped(`rmx:${userId}`, 6, 'appearance extras packet failed', e.message); } }
+      return;
+    }
     // A player's shout, to be seen by the players around them (client MagicSyncService -> ShoutPushService dboShoutFx):
     // combat.js checks it against the shout gate and cleans it; the server alone lands its hits, as before
     if (content.customPacketType === 'dboShoutCast') {
@@ -5822,6 +5828,13 @@ try {
   const runCommand = (a, name, argStr) => { const c = commands.get(name); if (c && (!c.admin || isAdmin(a))) c.fn(a, argStr); };
   require(PLAYERMENU_JS)({ mp, log, personal, system, registerChatCommand, onUi, sendPacket, display, nameOf, tagOf, profileOf, onlineActors, isAdmin, isLeadStaff, ranksOf, giveItem, makeProp, runCommand, zones: ZONES, zoneOfActor, cfg, every });
 } catch (e) { log('playermenu.js failed to load:', e.stack || e.message); globalThis.__dboPlayerMenuLeave = null; globalThis.__dboPlayerMenuReady = null; globalThis.__dboInstantRestraint = null; }
+
+// ---- RaceMenu extras: overlays, body scales and morphs kept per character (server\appearanceextras.js) ----
+try {
+  const APPEARANCEEXTRAS_JS = path.resolve('appearanceextras.js');
+  delete require.cache[APPEARANCEEXTRAS_JS];
+  require(APPEARANCEEXTRAS_JS)({ mp, log, cfg, sendPacket, onlineActors, profileOf, display });
+} catch (e) { log('appearanceextras.js failed to load:', e.stack || e.message); globalThis.__dboAppearanceExtrasPacket = null; }
 
 // ---- Pickpocket in the X menu while sneaking (server\pickpocket.js) --------------------------------
 try {
