@@ -23,16 +23,27 @@ FORK_SERVER=${FORK_SERVER:-$FORK}
 export FORK FORK_SERVER
 ESBUILD=$FORK_SERVER/skymp5-server/node_modules/.bin/esbuild
 [ -x "$ESBUILD" ] || ESBUILD=$FORK/skymp5-server/node_modules/.bin/esbuild
-OUT=$(mktemp -d /tmp/claude-nate-harness-XXXX)
-trap 'rm -rf "$OUT"' EXIT
+# Every harness writes its throwaway files under os.tmpdir(), and two of them about 350 MB a run each (loot-tiers and
+# expedition-loot-budget, measured 4 Oct). That disk is the live game server's too, and a disk stall freezes its main
+# loop (latency test, 4 Oct: 0.5-7 s freezes at 86% IO pressure). So a run keeps them in RAM (/dev/shm) while 2 GB of it
+# and 4 GB of memory are free, else on /tmp as before. A TMPDIR given to the run wins.
+RUN_TMP=
+if [ -z "${TMPDIR:-}" ] && [ -d /dev/shm ] && [ -w /dev/shm ] \
+  && [ "$(df -Pk /dev/shm | awk 'NR==2 {print $4}')" -gt 2097152 ] && [ "$(awk '/^MemAvailable/ {print $2}' /proc/meminfo)" -gt 4194304 ]; then
+  RUN_TMP=$(mktemp -d /dev/shm/claude-nate-run-XXXX) && export TMPDIR=$RUN_TMP
+fi
+OUT=$(mktemp -d "${TMPDIR:-/tmp}/claude-nate-harness-XXXX")
+trap 'rm -rf "$OUT"; [ -n "$RUN_TMP" ] && rm -rf "$RUN_TMP"' EXIT
 # The bundles above already go to this run's own folder. The fork sources did not: with FORK at the shared clone,
 # another worker switching its branch mid-run changed what half the harnesses read (a dungeon harness flipped for
 # Worker B, 2026-09-30). So the sources a run reads are copied here first, node_modules linked, and every bundle and
 # harness reads the copy. FORK_LABEL keeps the real paths for the report line.
 FORK_LABEL=$FORK FORK_SERVER_LABEL=$FORK_SERVER
+# snapshot <fork> <copy> [parts]: the parts default to all three; the server fork needs only skymp5-server (27 MB of front
+# sources were copied twice a run)
 snapshot() {
   local src=$1 dst=$2 d f sub
-  for d in skymp5-server skymp5-client skymp5-front; do
+  for d in ${3:-skymp5-server skymp5-client skymp5-front}; do
     [ -d "$src/$d" ] || continue
     mkdir -p "$dst/$d"
     for sub in ts src; do [ -d "$src/$d/$sub" ] && cp -r "$src/$d/$sub" "$dst/$d/$sub"; done
@@ -42,7 +53,7 @@ snapshot() {
   return 0
 }
 snapshot "$FORK" "$OUT/fork"
-if [ "$(cd "$FORK_SERVER" && pwd -P)" = "$(cd "$FORK" && pwd -P)" ]; then FORK_SERVER=$OUT/fork; else snapshot "$FORK_SERVER" "$OUT/fork-server"; FORK_SERVER=$OUT/fork-server; fi
+if [ "$(cd "$FORK_SERVER" && pwd -P)" = "$(cd "$FORK" && pwd -P)" ]; then FORK_SERVER=$OUT/fork; else snapshot "$FORK_SERVER" "$OUT/fork-server" skymp5-server; FORK_SERVER=$OUT/fork-server; fi
 FORK=$OUT/fork
 export FORK FORK_SERVER
 
