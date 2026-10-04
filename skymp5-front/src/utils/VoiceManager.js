@@ -19,6 +19,7 @@
 
 import { effectiveActivation, vadBlocked, BLOCKED_NOTICE } from './voiceEchoGate';
 import { readUiExtra, writeUiExtra, UI_EVENT } from './uiSettings';
+import { voiceFalloff } from './voiceFalloff';
 import { Room, RoomEvent, Track } from 'livekit-client';
 
 import whisperImg from '../img/voice/Whisper.png';
@@ -693,16 +694,8 @@ class VoiceManager {
     const r = this.rangeFor(identity);
     if (d === undefined || d > r) return 0;
 
-    // Inverse falloff with a small full-volume core, the way sound actually behaves.
-    // The old curve held 100% across the closest THIRD of the range and then fell
-    // linearly, so everyone nearby sounded identically loud and then cut out.
-    const ref = Math.max(70, r * 0.08);
-    let g = d <= ref ? 1 : ref / (ref + 1.6 * (d - ref));
-
-    // Fade the last quarter to nothing so a voice thins out instead of vanishing
-    const t = d / r;
-    const EDGE = 0.25;
-    if (t > 1 - EDGE) g *= Math.max(0, (1 - t) / EDGE);
+    // Full inside a fifth of the speaker's range, then inverse distance, fading out over the last quarter (voiceFalloff.js)
+    let g = voiceFalloff(d, r);
 
     // A whisper only carries to whoever it is aimed at: full inside a 60 degree
     // cone off the speaker's nose, silent outside it. fa is cos(off angle).
