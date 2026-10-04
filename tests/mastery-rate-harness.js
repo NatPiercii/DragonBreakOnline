@@ -110,7 +110,14 @@ for (const [label, fn, want] of [
   ok(`${label}: 5 veins = ${want} units`, near(gained(PLAYER), want), gained(PLAYER));
 }
 hook(() => 0); start(PLAYER); mineN(PLAYER, 5);
-ok('x0 still charges the bucket (the work was done)', near(miner(PLAYER).bucket.tokens, CFG.bucketBurst - 5), miner(PLAYER).bucket);
+ok('x0 spends no bucket room', miner(PLAYER).bucket === undefined, miner(PLAYER).bucket);
+ok('x0 spends none of the day', !(miner(PLAYER).spentToday > 0) && !(mp.get(PLAYER, 'private.mastery').spentToday > 0), [miner(PLAYER).spentToday, mp.get(PLAYER, 'private.mastery').spentToday]);
+ok('x0 still counts each act in the repeat ring', (miner(PLAYER).ring || []).length === 5, miner(PLAYER).ring);
+// the same vein at x0 then at x1: the x1 act is the second time, so it is worth 1/(1 + 1/8)
+start(PLAYER);
+hook(() => 0); sys.creditActivity(ctx, { kind: 'mine', actorId: PLAYER, detail: { refrId: 0x7777, value: 0 } });
+hook(() => 1); sys.creditActivity(ctx, { kind: 'mine', actorId: PLAYER, detail: { refrId: 0x7777, value: 0 } });
+ok('an act after an x0 one is still a repeat (8/9 of a unit)', near(gained(PLAYER), 8 / 9) && near(miner(PLAYER).bucket.tokens, CFG.bucketBurst - 8 / 9), [gained(PLAYER), miner(PLAYER).bucket]);
 
 // 6. with the playtesters' boost: both apply
 hook(() => 2); start(PLAYER); mp.set(PLAYER, 'private.xpBoost', { mult: 2, until: clock + 3600000 });
