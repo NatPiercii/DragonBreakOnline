@@ -41,7 +41,9 @@ const REC = {
   [ID.EnchWeaponShockDamage02]: { type: 'ENCH', fields: [] }, [ID.EnchArmorFortifyHealth03]: { type: 'ENCH', fields: [] },
 };
 const recordOf = (id) => { const r = REC[id >>> 0]; return r ? { record: { type: r.type, editorId: EDID[id >>> 0] || '', fields: r.fields }, toGlobalRecordId: r.map || ((l) => l) } : null; };
-const NAMES = { 'd30dd:bsheartland.esm': 'Ayleid Bow of Arcing', '13985:skyrim.esm': 'Hunting Bow', 'bdfc5:skyrim.esm': 'Elven Armor of Major Health', '3619e:skyrim.esm': 'Leather Armor',
+REC[0xbef62] = { type: 'WEAP', fields: [{ type: 'EITM', data: u32(0x00045c2c) }, { type: 'EAMT', data: u16(1500) }] };
+REC[0x45c2c] = { type: 'ENCH', fields: [] };
+const NAMES = { 'bef62:skyrim.esm': 'Glass Sword of Scorching', 'd30dd:bsheartland.esm': 'Ayleid Bow of Arcing', '13985:skyrim.esm': 'Hunting Bow', 'bdfc5:skyrim.esm': 'Elven Armor of Major Health', '3619e:skyrim.esm': 'Leather Armor',
   'd30e0:bsheartland.esm': 'Ayleid Dagger of Arcing', '300056:bsheartland.esm': 'Steel Dagger', '139a9:skyrim.esm': 'Glass Sword', '13989:skyrim.esm': 'Steel Sword' };
 const nameOf = (d) => NAMES[String(d).toLowerCase()] || '';
 // The runtime's enchantOf over the same records (gearswap.js builds its own from recordOf; this mirrors it for the pure tests)
@@ -85,6 +87,9 @@ p = planOf([{ baseId: ID.CYREnchAyleidBowShock02, count: 1 }, { baseId: ID.CYREn
 check('two identical enchanted copies stack on one enchanted entry', p.entries.length === 1 && p.entries[0].count === 2 && p.entries[0].enchantmentId === ID.EnchWeaponShockDamage02, p.entries);
 check('the swap message says enchantments are kept, never "plain"', /Enchanted pieces keep their enchantment\.$/.test(G.message(planOf([{ baseId: ID.EnchArmorElvenCuirassHealth03, count: 1 }]).swaps)));
 
+p = planOf([{ baseId: 0xbef62, count: 1 }]);
+check('the patch note\'s example holds: a Glass Sword of Scorching becomes a Steel Sword of Scorching, charge 1500', p.entries[0].baseId === ID.SteelSword && p.entries[0].enchantmentId === 0x45c2c && p.entries[0].maxCharge === 1500 && p.entries[0].name === 'Steel Sword of Scorching', p.entries);
+
 // ---- 3. the restore, pure ----
 const item = (o) => Object.assign({ id: 'x', count: 1, from: 'd30dd:BSHeartland.esm', to: '13985:Skyrim.esm', extras: { chargePercent: 567.98 } }, o);
 let r = G.restore({ entries: [{ baseId: ID.HuntingBow, count: 1, worn: true }, { baseId: 0xf, count: 50 }], items: [item({ id: 'a' })], descOf, idOf, enchantOf, typeOf, nameOf });
@@ -116,11 +121,11 @@ const store = {
   [B]: { inventory: { entries: [] }, equipment: { inv: { entries: [] } }, profileId: 69, 'private.charTag': 'FXWY', 'private.dboGearSwap': { version: G.VERSION } },
   [N]: { inventory: { entries: [{ baseId: ID.EnchArmorElvenCuirassHealth03, count: 1 }, { baseId: ID.CYREnchAyleidBowShock02, count: 1, chargePercent: 100 }] }, equipment: { inv: { entries: [{ baseId: ID.EnchArmorElvenCuirassHealth03, worn: true }] } }, profileId: 77, 'private.charTag': 'NEW1' },
 };
-const calls = [], said = [], audits = [], logs = [];
+const calls = [], said = [], audits = [], logs = [], events = [];
 const mp = {
-  get: (a, k) => (store[a] || {})[k], set: (a, k, v) => { store[a][k] = v; },
+  get: (a, k) => (store[a] || {})[k], set: (a, k, v) => { events.push(`set ${k}`); store[a][k] = v; },
   getDescFromId: (id) => (id >>> 24 === 0xff ? (id & 0xffffff).toString(16) : descOf(id)), getIdFromDesc: idOf,
-  callPapyrusFunction: (...args) => calls.push(args),
+  callPapyrusFunction: (...args) => { events.push('papyrus'); calls.push(args); },
 };
 const plan = {
   version: 'gearrestore-test',
@@ -130,7 +135,7 @@ const plan = {
   ],
 };
 fs.writeFileSync(PLAN, JSON.stringify(plan));
-const load = (gearSwap) => require(path.join(SERVER, 'gearswap.js'))({ mp, log: (...a) => logs.push(a.join(' ')), audit: (t) => audits.push(t), who: (a) => `P${(a >>> 0).toString(16)}`, personal: (a, t) => said.push([a, t]),
+const load = (gearSwap) => require(path.join(SERVER, 'gearswap.js'))({ mp, log: (...a) => logs.push(a.join(' ')), audit: (t) => { events.push('audit'); audits.push(t); }, who: (a) => `P${(a >>> 0).toString(16)}`, personal: (a, t) => { events.push('personal'); said.push([a, t]); },
   onlineActors: () => [], every: () => {}, cfg: { gearSwap: Object.assign({ restoreFile: path.relative(SERVER, PLAN) }, gearSwap || {}) }, registerChatCommand: () => {}, isStaff: () => false, recordOf });
 const M = load({});
 check('the runtime reads the bow\'s own enchantment from its record', JSON.stringify(M.enchantOf(ID.CYREnchAyleidBowShock02)) === JSON.stringify({ enchantmentId: ID.EnchWeaponShockDamage02, maxCharge: 1000 }));
@@ -140,7 +145,9 @@ globalThis.__dboCombatAt = new Map([[A >>> 0, Date.now()]]);
 globalThis.__dboGearSwapLogin(A);
 check('a character in a fight waits: nothing restored, no mark', !store[A].inventory.entries.some((x) => x.enchantmentId) && !store[A][G.RESTORE_MARK]);
 globalThis.__dboCombatAt = new Map();
+events.length = 0;
 globalThis.__dboGearSwapLogin(A);
+check('the restore mark is written straight after the inventory, before the re-equip, audit and message', events.slice(0, 2).join(',') === 'set inventory,set private.dboGearRestore' && events.slice(2).every((x) => !/^set /.test(x)) && events.includes('papyrus') && events.includes('audit') && events.includes('personal'), events);
 e = store[A].inventory.entries.find((x) => x.baseId === ID.HuntingBow);
 check('at the next quiet login Ghazra\'s hunting bow has the arcing enchantment back, with the charge it had', e && e.enchantmentId === ID.EnchWeaponShockDamage02 && Math.abs(e.chargePercent - 567.98) < 1e-6 && e.name === 'Hunting Bow of Arcing' && store[A].inventory.entries.filter((x) => x.baseId === ID.HuntingBow).length === 1, store[A].inventory.entries);
 check('...it is worn, so it is put on again', calls.some((c) => c[2] === 'EquipItem' && c[4][0].desc === descOf(ID.HuntingBow)), calls);
@@ -187,7 +194,16 @@ const LINE = new RegExp(/const LINE = (\/.*\/);/.exec(tool)[1].slice(1, -1));
 const live = '[2026-10-04 00:08:26.139] [console] [info] [gamemode] audit: GEARSWAP Ghazra the Wanderer #4AML (profile 31, <@679660956787277832>): 1 x CYREnchAyleidBowShock02 -> HuntingBow (worn) (enchanted)';
 const m = LINE.exec(live);
 check('the plan tool reads a live "(enchanted)" line: who, how many, from, to, worn', m && m[3] === 'Ghazra the Wanderer' && m[4] === '4AML' && m[5] === '31' && m[6] === '1' && m[7] === 'CYREnchAyleidBowShock02' && m[8] === 'HuntingBow' && !!m[9], m);
-check('...but never a line that kept its enchantment, a plain swap or a container', !LINE.test(live.replace('(enchanted)', '(enchantment kept)')) && !LINE.test(live.replace(' (enchanted)', '')) && !LINE.test('[2026-10-04 00:08:26.139] audit: GEARSWAP container 800f001: 1 x A -> B (enchanted)'));
+check('...but never a line that kept its enchantment, nor a container', !LINE.test(live.replace('(enchanted)', '(enchantment kept)')) && !LINE.test('[2026-10-04 00:08:26.139] audit: GEARSWAP container 800f001: 1 x A -> B (enchanted)'));
+// R-swapench: unmarked lines were swapped plain too when the record carried the enchantment (no extras, no "Ench" prefix)
+const unmarked = '[2026-10-03 23:53:55.575] [console] [info] [gamemode] audit: GEARSWAP Masked Person #PZDY (profile 50, <@978489954294431764>): 1 x BSKEnchArmorGlassBootsWaterWalking -> CYRArmorLeatherBootsA';
+const um = LINE.exec(unmarked);
+check('...and an unmarked line is read too, as unmarked (kept only when its record has an EITM)', um && um[7] === 'BSKEnchArmorGlassBootsWaterWalking' && um[8] === 'CYRArmorLeatherBootsA' && !um[10] && !!m[10], um);
+check('...the tool skips an unmarked line whose record has no enchantment of its own', /if \(!l\.marked && !cands\.some\(\(x\) => \{ const r = recordAt\(x\.from\); return r && r\.eitm; \}\)\) continue;/.test(tool));
+check('...and reads saved audit lines (--from) and rotated .gz logs, each line once', /k === 'from'/.test(tool) && /zlib\.gunzipSync/.test(tool) && /seenText\.has\(raw\)/.test(tool));
+const notes = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8')).find((n) => n.title === 'High-end gear swapped for steel');
+const noteText = JSON.stringify(notes);
+check('the patch note says enchantments are kept, with a real vanilla name (EnchGlassSwordFire03 "Glass Sword of Scorching"), and never "plain"', /a Glass Sword of Scorching becomes a Steel Sword of Scorching/.test(noteText) && /get their enchantment back the next time you log in/.test(noteText) && !/come back plain/.test(noteText));
 check('the plan file is gitignored (it names characters; the remote is public)', /^gearswap-restore\.json$/m.test(fs.readFileSync(path.join(SERVER, '.gitignore'), 'utf8')));
 
 fs.rmSync(DIR, { recursive: true, force: true });

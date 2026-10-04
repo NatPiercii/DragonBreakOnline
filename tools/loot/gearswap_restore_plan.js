@@ -1,10 +1,15 @@
 // The restore plan for gearswap.js: which characters had an enchanted piece swapped plain (3-4 Oct 2026, before the swap
 // kept enchantments) and what goes back on its replacement at their next login. Read-only on the server; writes one file.
 //   sudo node tools/loot/gearswap_restore_plan.js --out <plan.json> [--since 2026-10-03T23:52:00Z] [--until <iso>]
-//        [--log /var/log/skymp-server.log.1 --log /var/log/skymp-server.log] [--backups /opt/skymp-backups/world]
+//        [--log /var/log/skymp-server.log.1 --log /var/log/skymp-server.log] [--from <saved audit lines>]...
+//        [--backups /opt/skymp-backups/world]
 //        [--order /opt/alduinak/deploy/skyrim-data/loadorder.txt] [--data /opt/skyrim-data]
-// Each audit line "GEARSWAP <who>: <n> x <from> -> <to>[ (worn)] (enchanted)" (a container line never says enchanted)
-// becomes one plan item, with an id from its time and text so it is restored once. The original entry's extras (a
+// Each character audit line "GEARSWAP <who>: <n> x <from> -> <to>[ (worn)][ (enchanted)]" (never a container line, nor one
+// ending "(enchantment kept)", which the swap writes since 4 Oct) is a candidate: one marked "(enchanted)" (an entry
+// with extras, or an editor id starting "Ench"), and an unmarked one whose record has an enchantment of its own (EITM:
+// BSKEnchArmorGlassBootsWaterWalking, an unused CYREnchAyleidSwordShock01 were swapped without the mark). Each becomes
+// one plan item, with an id from its time and text so it is restored once. --log and --from read the server log, a
+// rotated .gz one, or a file of saved audit lines; a line found in two of them counts once. The original entry's extras (a
 // player's enchantment, the charge left) come from the newest hourly world backup taken before the swap in which that
 // character is not yet swapped; an item enchanted by its own record (EITM) needs none of that, the server reads the
 // record at the restore. A line whose original was only tempered or named is listed under "skipped", as is one whose
@@ -17,15 +22,15 @@ const zlib = require('zlib');
 const { execFileSync } = require('child_process');
 const SERVER = path.resolve(__dirname, '..', '..');
 
-const args = { log: [], backups: [] };
+const args = { log: [], from: [], backups: [] };
 for (let i = 2; i < process.argv.length; i++) {
   const k = process.argv[i].replace(/^--/, ''), v = process.argv[i + 1];
-  if (k === 'log' || k === 'backups') { args[k].push(v); i++; } else if (v !== undefined && !v.startsWith('--')) { args[k] = v; i++; } else args[k] = true;
+  if (k === 'log' || k === 'from' || k === 'backups') { args[k].push(v); i++; } else if (v !== undefined && !v.startsWith('--')) { args[k] = v; i++; } else args[k] = true;
 }
-if (!args.out) { console.error('usage: node tools/loot/gearswap_restore_plan.js --out <plan.json> [--since iso] [--until iso] [--log f]... [--backups dir]... [--order f] [--data dir]'); process.exit(2); }
+if (!args.out) { console.error('usage: node tools/loot/gearswap_restore_plan.js --out <plan.json> [--since iso] [--until iso] [--log f]... [--from f]... [--backups dir]... [--order f] [--data dir]'); process.exit(2); }
 const SINCE = Date.parse(args.since || '2026-10-03T23:52:00Z');
 const UNTIL = args.until ? Date.parse(args.until) : Infinity;
-const LOGS = args.log.length ? args.log : ['/var/log/skymp-server.log.1', '/var/log/skymp-server.log'];
+const LOGS = args.log.length || args.from.length ? [...args.log, ...args.from] : ['/var/log/skymp-server.log.1', '/var/log/skymp-server.log'];
 const BACKUPS = args.backups.length ? args.backups : ['/opt/skymp-backups/world'];
 const ORDER = args.order || '/opt/alduinak/deploy/skyrim-data/loadorder.txt';
 const DATA = args.data || '/opt/skyrim-data';
@@ -83,17 +88,20 @@ const recordsOf = (file) => {
 const recordAt = (desc) => { const m = /^([0-9a-f]+):(.+)$/i.exec(String(desc)); if (!m) return null; const file = names.find((n) => n.toLowerCase() === m[2].toLowerCase()); return file ? recordsOf(file).get(parseInt(m[1], 16)) || null : null; };
 
 // ---- the audit lines ----
-const LINE = /^\[(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d\.\d{3})\].*?audit: GEARSWAP (?!container )(.*) #(\S{4}) \(profile (-?\d+)(?:, <@\d+>)?\): (\d+) x (\S+) -> (\S+)( \(worn\))? \(enchanted\)\s*$/;
-const lines = [];
+const LINE = /^\[(\d{4}-\d\d-\d\d) (\d\d:\d\d:\d\d\.\d{3})\].*?audit: GEARSWAP (?!container )(.*) #(\S{4}) \(profile (-?\d+)(?:, <@\d+>)?\): (\d+) x (\S+) -> (\S+)( \(worn\))?( \(enchanted\))?\s*$/;
+const lines = [], seenText = new Set();
 for (const f of LOGS) {
-  let text = ''; try { text = fs.readFileSync(f, 'latin1'); } catch (e) { console.error(`cannot read ${f}: ${e.message}`); continue; }
-  for (const raw of text.split('\n')) {
-    if (raw.indexOf('GEARSWAP') < 0) continue;
+  let text = '';
+  try { const buf = fs.readFileSync(f); text = (f.endsWith('.gz') ? zlib.gunzipSync(buf) : buf).toString('latin1'); } catch (e) { console.error(`cannot read ${f}: ${e.message}`); continue; }
+  for (const raw0 of text.split('\n')) {
+    const raw = raw0.replace(/\r$/, '');
+    if (raw.indexOf('GEARSWAP') < 0 || seenText.has(raw)) continue;
     const m = LINE.exec(raw);
     if (!m) continue;
     const at = Date.parse(`${m[1]}T${m[2]}Z`);
     if (!(at >= SINCE && at < UNTIL)) continue;
-    lines.push({ at, stamp: `${m[1]}T${m[2]}Z`, name: m[3], tag: m[4], profileId: Number(m[5]), count: Number(m[6]), fromEdid: m[7], toEdid: m[8], worn: !!m[9], text: raw.slice(raw.indexOf('GEARSWAP')) });
+    seenText.add(raw);
+    lines.push({ at, stamp: `${m[1]}T${m[2]}Z`, name: m[3], tag: m[4], profileId: Number(m[5]), count: Number(m[6]), fromEdid: m[7], toEdid: m[8], worn: !!m[9], marked: !!m[10], text: raw.slice(raw.indexOf('GEARSWAP')) });
   }
 }
 lines.sort((a, b) => a.at - b.at);
@@ -149,8 +157,12 @@ const candidatesOf = (fromEdid, toEdid) => Object.entries(SWAP.items || {}).filt
 const KEEP = ['enchantmentId', 'enchantmentEffects', 'maxCharge', 'chargePercent', 'removeEnchantmentOnUnequip', 'name'];
 const used = new Map(); // backup entry already given to an earlier line of the same character
 const characters = new Map(), skipped = [];
+let unmarkedRecord = 0;
 for (const l of lines) {
   const cands = candidatesOf(l.fromEdid, l.toEdid);
+  // An unmarked line counts only when its record carries an enchantment of its own (the rest were plain swaps)
+  if (!l.marked && !cands.some((x) => { const r = recordAt(x.from); return r && r.eitm; })) continue;
+  if (!l.marked) unmarkedRecord++;
   if (!cands.length) { skipped.push({ id: l.id, line: l.text, why: 'no gear-swap.json item with these editor ids' }); continue; }
   // The newest backup before the swap where this character is not swapped yet
   let found = null;
@@ -196,14 +208,14 @@ const plan = {
   version: `gearrestore-${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')}`,
   since: new Date(SINCE).toISOString(), until: Number.isFinite(UNTIL) ? new Date(UNTIL).toISOString() : null,
   logs: LOGS, backups: backupList.map((b) => path.basename(b.path)).slice(0, 48),
-  counts: { lines: lines.length, characters: characters.size, items: [...characters.values()].reduce((n, c) => n + c.items.length, 0),
+  counts: { lines: lines.length, marked: lines.filter((l) => l.marked).length, unmarkedRecord, characters: characters.size, items: [...characters.values()].reduce((n, c) => n + c.items.length, 0),
     record: [...characters.values()].reduce((n, c) => n + c.items.filter((i) => i.kind === 'record').length, 0),
     crafted: [...characters.values()].reduce((n, c) => n + c.items.filter((i) => i.kind === 'crafted').length, 0), skipped: skipped.length },
   characters: [...characters.values()],
   skipped,
 };
 fs.writeFileSync(args.out, JSON.stringify(plan, null, 1) + '\n', { mode: 0o640 });
-console.log(`${lines.length} enchanted swap line(s) since ${plan.since}: ${plan.counts.items} item(s) for ${plan.counts.characters} character(s) to restore (${plan.counts.record} by their record's enchantment, ${plan.counts.crafted} player enchantments), ${skipped.length} skipped`);
+console.log(`${lines.length} character swap line(s) since ${plan.since} (${plan.counts.marked} marked "(enchanted)", ${unmarkedRecord} unmarked with an enchanted record): ${plan.counts.items} item(s) for ${plan.counts.characters} character(s) to restore (${plan.counts.record} by their record's enchantment, ${plan.counts.crafted} player enchantments), ${skipped.length} skipped`);
 for (const c of plan.characters) for (const i of c.items) console.log(`  ${c.name} #${c.tag} (profile ${c.profileId}): ${i.count} x ${i.fromEdid} -> ${i.toEdid}: ${i.kind}${i.extras.chargePercent ? `, charge ${Math.round(i.extras.chargePercent)}` : ''} [${i.source}]`);
 for (const s of skipped) console.log(`  skipped: ${s.line.replace(/ \(profile [^)]*\)/, '')}: ${s.why}`);
 console.log(`wrote ${args.out}`);

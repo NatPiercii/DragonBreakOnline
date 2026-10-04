@@ -339,8 +339,14 @@ module.exports = (api) => {
     const inv = mp.get(a, 'inventory') || { entries: [] };
     const r = restore(Object.assign({ entries: Array.isArray(inv.entries) ? inv.entries : [], items: todo, descOf, idOf }, extra));
     if (C.mode === 'log') { log(`gearswap would restore ${r.done.length} enchantment(s) to ${who(a)}, ${r.failed.length} cannot be`); return; }
-    if (r.done.length) {
+    // The mark goes on straight after the inventory, so nothing after it (re-equip, audit, message) can leave an item
+    // restored but not marked, and given twice
+    const markNow = () => mp.set(a, RESTORE_MARK, { version: rp.version, at: Date.now(), done: [...(mark && Array.isArray(mark.done) ? mark.done : []), ...r.done.map((d) => d.id)],
+      failed: [...(mark && Array.isArray(mark.failed) ? mark.failed : []), ...r.failed.map((f) => f.id)] });
+    if (!r.done.length) markNow();
+    else {
       mp.set(a, 'inventory', { entries: r.entries });
+      markNow();
       const worn = wornIn(mp.get(a, 'equipment'));
       const again = new Map(r.rewear.map((w) => [w.to, w]));
       for (const d of r.done) if (!again.has(d.to) && worn.has(d.to)) again.set(d.to, { to: d.to, worn: worn.get(d.to) === 'right', wornLeft: worn.get(d.to) === 'left' });
@@ -354,8 +360,6 @@ module.exports = (api) => {
       personal(a, `Your enchanted gear that was swapped for steel has its enchantment back: ${n} piece${n === 1 ? '' : 's'}${names ? ` (${names})` : ''}.`);
     }
     for (const f of r.failed) log(`gearswap restore: ${who(a)} item ${f.id} not restored: ${f.why}`);
-    mp.set(a, RESTORE_MARK, { version: rp.version, at: Date.now(), done: [...(mark && Array.isArray(mark.done) ? mark.done : []), ...r.done.map((d) => d.id)],
-      failed: [...(mark && Array.isArray(mark.failed) ? mark.failed : []), ...r.failed.map((f) => f.id)] });
   };
   globalThis.__dboGearSwapContainer = (ref) => { try { sweepContainer(ref); } catch (e) { log('gearswap container failed', (ref >>> 0).toString(16), e.message); } };
   // From gamemode.js's login path (onCharacterReady), when the character has loaded and no menu is open

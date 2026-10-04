@@ -252,6 +252,12 @@ module.exports = (api) => {
     for (let i = 0; i < n; i++) { try { if ((lr.toGlobalRecordId(u32(kwda, i * 4)) >>> 0) === DISALLOW_ENCHANTING) return false; } catch (e) { /* unmapped */ } }
     return true;
   };
+  // A copy enchanted by extra data naming a plugin enchantment (gearswap.js gives the steel replacement of an enchanted
+  // piece that piece's own ENCH as enchantmentId, 4 Oct) is disenchanted like one enchanted by its record, so the item
+  // must be used up too. A dynamic id (0xff...) is a player-made enchantment, which vanilla never disenchants. A report
+  // holding a soul gem is enchanting (craftedExtras' to record), never a disenchant of such a copy.
+  const extraEnchanted = (e) => { const id = Number(e && e.enchantmentId) >>> 0; return id > 0 && id < 0xff000000; };
+  const isSoulGem = (id) => { const lr = lookup(id); return !!lr && String(lr.record.type) === 'SLGM'; };
   // Vanilla never offers an enchantment the player already knows, so one base disenchanted twice within this is a repeat
   const RETAKE_MS = 10 * 60 * 1000;
   const TAKEN = globalThis.__dboDisenchantTaken || (globalThis.__dboDisenchantTaken = new Map()); // `${actor}|${base}` -> when
@@ -263,20 +269,28 @@ module.exports = (api) => {
     const wanted = new Map();
     const now = Date.now();
     for (const [k, at] of TAKEN) if (now - at >= RETAKE_MS) TAKEN.delete(k);
+    const entries = invOf(a);
+    const gem = reported.some((e) => isSoulGem(Number(e.baseId) >>> 0));
+    const unwornExtra = (id) => entries.some((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0 && extraEnchanted(e));
+    const byExtra = new Set();
     for (const e of reported) {
       const id = Number(e.baseId) >>> 0;
-      if (wanted.has(id) || !enchantedByRecord(id)) continue;
+      if (wanted.has(id)) continue;
+      const extra = !gem && unwornExtra(id);
+      if (!extra && !enchantedByRecord(id)) continue;
       if (TAKEN.has(`${a}|${id}`)) { log(`disenchant: ${display(a)} reported ${ingredientName(id)} again within ${RETAKE_MS / 60000} min; ignored`); continue; }
       wanted.set(id, 1);
+      if (extra) byExtra.add(id);
     }
     if (!wanted.size) return;   // enchanting (a plain item and a soul gem): craftedExtras records that
     if (!atLab(a, workbenchId)) return log(`disenchant: ${display(a)} reported a disenchant at ${workbenchId.toString(16)} while not at it; ignored`);
-    const entries = invOf(a);
     const taken = [];
     for (const [id, n] of wanted) {
-      // Unworn copies only, one the player made nothing of first; a worn one is left and logged
-      const copies = entries.filter((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0)
-        .sort((x, y) => keepScore(x) - keepScore(y));
+      // Unworn copies only, one the player made nothing of first; a worn one is left and logged. A copy enchanted by
+      // extra data goes first (it is the one disenchanted); of a base with no enchantment of its own, only such a copy
+      const record = enchantedByRecord(id);
+      const copies = entries.filter((e) => (Number(e.baseId) >>> 0) === id && !e.worn && !e.wornLeft && (Number(e.count) || 0) > 0 && (record || extraEnchanted(e)))
+        .sort((x, y) => (byExtra.has(id) ? (extraEnchanted(y) ? 1 : 0) - (extraEnchanted(x) ? 1 : 0) : 0) || keepScore(x) - keepScore(y));
       let left = n;
       for (const e of copies) { if (left <= 0) break; const k = Math.min(left, Number(e.count) || 0); e.count = (Number(e.count) || 0) - k; left -= k; }
       if (n - left > 0) { taken.push([id, n - left]); TAKEN.set(`${a}|${id}`, now); }
