@@ -55,7 +55,8 @@
       {
         "heading": "Fixes",
         "items": [
-          "The U menu is up to date: your journal and its keys, magic, mining and smelting, rites and cures, homes and courts are all in it, and Help & trouble has a button for each kind of ticket. Before, the one ticket button only listed the kinds."
+          "The U menu is up to date: your journal and its keys, magic, mining and smelting, rites and cures, homes and courts are all in it, and Help & trouble has a button for each kind of ticket. Before, the one ticket button only listed the kinds.",
+          "Enemies and other NPCs in Fort Cutpurse, Northfringe Sanctum, Underpall and other dungeons no longer slam a door open and shut over and over when they come through it. Once an enemy opens a door it stays open, and you can still open and close it yourself."
         ]
       }
     ]
