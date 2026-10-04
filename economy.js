@@ -385,9 +385,16 @@ module.exports = (api) => {
       factions: led.map((fid) => {
         const f = info(fid) || {};
         let ranks = [];
-        if (f.kind === 'hold' && f.zone) { const z = zoneById(f.zone); ranks = z ? (z.officials || []).slice() : []; }
-        else if (fn('__dboGuildRanks')) ranks = fn('__dboGuildRanks')(fid);
-        return { id: fid, name: nameOfFaction(fid), rate: Number(data().rates[fid]) || 0, wages: Object.assign({}, data().wages[fid] || {}), ranks, report: data().reports[fid] || null };
+        // labels: each wage key (an office id, or a rank's own title) as people read it, staff names included (rolenames.js)
+        let labels = {};
+        if (f.kind === 'hold' && f.zone) {
+          const z = zoneById(f.zone); ranks = z ? (z.officials || []).slice() : [];
+          for (const r of ranks) { try { labels[r] = fn('__dboOfficeTitle') ? String(fn('__dboOfficeTitle')(f.zone, r) || r) : r; } catch (e) { labels[r] = r; } }
+        } else if (fn('__dboGuildRanks')) {
+          ranks = fn('__dboGuildRanks')(fid);
+          try { labels = fn('__dboGuildRankShown') ? fn('__dboGuildRankShown')(fid) || {} : {}; } catch (e) { labels = {}; }
+        }
+        return { id: fid, name: nameOfFaction(fid), rate: Number(data().rates[fid]) || 0, wages: Object.assign({}, data().wages[fid] || {}), ranks, labels, report: data().reports[fid] || null };
       }),
     };
   };

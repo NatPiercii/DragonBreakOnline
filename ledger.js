@@ -99,7 +99,7 @@ module.exports = (api) => {
       try { if (!mp.get(id, 'appearance')) continue; } catch (e) { continue; }
       const e = b[id] || {};
       const name = nameOf(id);
-      const shared = guildsOf(id).filter((g) => mine.has(g.id)).map((g) => ({ name: g.name, title: g.title }));
+      const shared = guildsOf(id).filter((g) => mine.has(g.id)).map((g) => ({ name: g.name, title: g.shown || g.title }));
       let group = e.group || '';
       if (!group && myFamily && familyName(name) === myFamily) group = 'Family';
       if (group === 'none') group = '';
@@ -138,7 +138,7 @@ module.exports = (api) => {
   const showPage = (a, where, pageArg) => {
     const list = contactsOf(a);
     const mine = guildsOf(a);
-    if (mine.length) personal(a, `Your factions: ${mine.map((g) => `${g.name} (${g.title})`).join(', ')}.`);
+    if (mine.length) personal(a, `Your factions: ${mine.map((g) => `${g.name} (${g.shown || g.title})`).join(', ')}.`);
     if (!list.length) return personal(a, `Your ledger at ${where} is empty. Anyone you speak with in person is written in.`);
     // Sections in order: each shared faction, Family, the reader's own groups, then acquaintances. A contact appears once,
     // under the first that fits

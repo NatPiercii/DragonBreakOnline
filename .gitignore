@@ -102,6 +102,8 @@ item-snapshots.json.tmp
 journal/
 court-offers.json
 guild-overrides.json
+# Staff names for offices and ranks (rolenames.js)
+role-names.json
 
 # The gear swap restore plan (tools/loot/gearswap_restore_plan.js): names characters, live data only
 gearswap-restore.json
