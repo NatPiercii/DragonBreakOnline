@@ -190,6 +190,65 @@ section('labour', () => {
   check('struggle: a clean round is not shown as freedom: the server still rolls', w.text().includes('Now the knots decide.') && !w.hasClass('labour__bar--win'), w.text());
 });
 
+// ---- labour pick rounds ("Read the stone": no timing) ---------------------------------------------------------------
+section('labour pick', () => {
+  const Labour = load('features/labour/index.tsx').default;
+  const steps = [[[20, 40, 0.3], [50, 55, 0.8], [80, 45, 0.2]], [[25, 60, 0.9], [55, 35, 0.4], [85, 50, 0.1]], [[15, 50, 0.2], [45, 50, 0.3], [75, 50, 0.85]]];
+  const round = { id: 31, nonce: 'p1', kind: 'mining', title: 'Iron Seam', mode: 'pick', strikes: 2, slips: 1, steps, totalMs: 90000, minPickMs: 150, judge: 'client' };
+  let w = mount(Labour, round);
+  check('labour pick: no band and no marker, one spot per entry of the blow, keyed 1-3', !w.hasClass('labour__band') && !w.hasClass('labour__marker') && w.byClass('labour__spot').length === 3 && w.text().includes('press 1-3'), w.text());
+  w.advance(100); w.key('2', 'Digit2');
+  check('labour pick: a pick before the spots have shown is not taken', count('dbo:labour') === 0 && w.byClass('labour__mark--hit').length === 0);
+  w.advance(200); w.key('2', 'Digit2');
+  check('labour pick: the clearest cue lands the blow where it was struck', w.byClass('labour__mark--hit').length === 1 && w.hasClass('labour__swing--hit') && w.byClass('labour__mark--hit')[0].p.style.top === '55%');
+  w.advance(100); w.key('1', 'Digit1');
+  check('labour pick: no second pick inside the lock', w.byClass('labour__mark--hit').length === 1);
+  w.advance(200); w.key('1', 'Digit1');
+  const r = last('dbo:labour');
+  check('labour pick: the win reports [[index, ms], ...], its clock and {v:2, mode:pick}', r && r[1] === 'p1' && r[2] === '[[1,300],[0,600]]' && r[3] === 600 && r[4] === '{"v":2,"mode":"pick","win":true,"hits":2,"slips":0}', r);
+  check('labour pick: the seam gives up its ore at once', w.text().includes('The seam gives up its ore.') && w.hasClass('labour__split'));
+
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p2' }));
+  w.advance(300); w.key('1', 'Digit1'); w.advance(300); w.key('2', 'Digit2');
+  const l = last('dbo:labour');
+  check('labour pick: a wasted blow past the allowance ends it as a loss', l && l[2] === '[[0,300],[1,600]]' && json(l[4]).win === false && json(l[4]).slips === 2 && w.text().includes('The seam holds.'), l);
+  check('labour pick: the strength pips are spent', w.byClass('labour__pip--spent').length === 2);
+
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p3' }));
+  w.advance(400); w.key('2', 'Digit2'); w.advance(90000);
+  const a = last('dbo:labour');
+  check('labour pick: an idle round ends at its limit as a loss, with its own words', a && json(a[4]).win === false && a[3] >= 90000 && w.text().includes('stand idle at the seam'), a);
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p4', kind: 'chopping', title: 'Chopping Block' }));
+  w.advance(300); w.key(' ');
+  check('labour pick: Space strikes nothing in a pick round', count('dbo:labour') === 0 && w.byClass('labour__mark--hit').length === 0);
+  w.click(w.byClass('labour__spot')[1]);
+  check('labour pick: a click on a spot picks it', w.byClass('labour__mark--hit').length === 1);
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p5', kind: 'struggle', event: 'struggle', bands: [50], band: 8, sweepMs: 1000 }));
+  check('labour pick: the struggle stays a timing round whatever it is sent', w.hasClass('labour__band') && !w.hasClass('labour__spot'));
+});
+
+// ---- skinning pick attempts --------------------------------------------------------------------------------------
+section('skinning pick', () => {
+  const Skinning = load('features/skinning/index.tsx').default;
+  const steps = [[[20, 40, 0.3], [50, 50, 0.8], [80, 62, 0.2]], [[25, 50, 0.9], [55, 35, 0.4], [85, 64, 0.1]], [[15, 66, 0.2], [45, 38, 0.3], [75, 50, 0.85]], [[30, 50, 0.7], [60, 30, 0.2], [90, 70, 0.1]]];
+  const round = { id: 33, nonce: 'q1', name: 'deer', mode: 'pick', cuts: 2, misses: 1, steps, totalMs: 90000, minPickMs: 150, judge: 'client' };
+  let w = mount(Skinning, round);
+  check('skinning pick: no blade and no seam band, points keyed 1-3', !w.hasClass('skinning__blade') && !w.hasClass('skinning__seam') && w.byClass('skinning__spot').length === 3 && !w.hasClass('skinning__timer'));
+  w.advance(300); w.key('2', 'Digit2'); w.advance(300); w.key('3', 'Digit3');
+  check('skinning pick: a pick off the seam is a slip and says so', w.hasClass('skinning__mark--slip') && w.text().includes('The blade snags.'), w.text());
+  w.advance(300); w.key('3', 'Digit3');
+  const r = last('dbo:skinning');
+  const v = r && json(r[4]);
+  check('skinning pick: the clean attempt reports [[index, ms], ...] and {v:2, mode:pick, win, hits, slips}', r && r[2] === '[[1,300],[2,600],[2,900]]' && r[3] === 900 && v.mode === 'pick' && v.win === true && v.hits === 2 && v.slips === 1, r);
+  check('skinning pick: the pelt comes away at once', w.text().includes('The hide comes away clean.') && w.hasClass('skinning__opened'));
+  w = mount(Skinning, Object.assign({}, round, { nonce: 'q2' }));
+  w.advance(300); w.key('1', 'Digit1'); w.advance(300); w.key('2', 'Digit2');
+  check('skinning pick: slips past the allowance tear the hide', json(last('dbo:skinning')[4]).win === false && w.text().includes('The knife slips') && w.hasClass('skinning__mark--rip'));
+  w = mount(Skinning, Object.assign({}, round, { nonce: 'q3' }));
+  w.advance(90100);
+  check('skinning pick: an idle attempt ends at its limit', json(last('dbo:skinning')[4]).win === false && w.text().includes('knife idle'), w.text());
+});
+
 // ---- skinning -----------------------------------------------------------------------------------------------------
 section('skinning', () => {
   const Skinning = load('features/skinning/index.tsx').default;
@@ -437,6 +496,16 @@ section('parity', () => {
     if (J.lockpickLanded(push, set, 450, hold, 70) === server) agree++;
   }
   check(`parity: lockpick set agrees with lockpick.js on ${N} random tries`, agree === N, agree);
+
+  // server minigames.js rightOf (origin/labour-pick): the first spot with the strictly clearest cue
+  const serverRight = (spots) => spots.reduce((best, s, i) => (s[2] > spots[best][2] ? i : best), 0);
+  agree = 0;
+  for (let k = 0; k < N; k++) {
+    const n = 2 + Math.floor(rnd() * 4);
+    const spots = Array.from({ length: n }, () => [rnd() * 100, rnd() * 100, Math.round(rnd() * (k % 3 ? 100 : 4)) / 100]);
+    if (J.pickRight(spots) === serverRight(spots)) agree++;
+  }
+  check(`parity: the pick round's right spot agrees with minigames.js on ${N} random blows (ties included)`, agree === N, agree);
 });
 
 // ---- the capabilities the server keys the lockpick and rite rounds on -------------------------------------------------

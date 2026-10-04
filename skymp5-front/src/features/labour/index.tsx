@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { capitalise, countWord } from '../../utils/countWord';
+import { pickRight } from '../../utils/minigameJudge';
 import './styles.scss';
 
 // Mining and woodcutting at a seam or a chopping block, opened by the gamemode through the dbo relay
@@ -21,6 +22,7 @@ import './styles.scss';
 // server pays from it after checking the strike times. A server without it reads the first three arguments only.
 //
 //   Browser -> client -> server: sendMessage('dbo:<event>', nonce, JSON.stringify(strikeMs), atMs, JSON.stringify({ v: 1, win, hits }))
+//   A pick round:                sendMessage('dbo:labour', nonce, JSON.stringify([[index, ms], ...]), atMs, JSON.stringify({ v: 2, mode: 'pick', win, hits, slips }))
 //   Escape / Walk away:          sendMessage('dbo:<event>Cancel', nonce)
 export interface LabourData {
   id: number;
@@ -44,6 +46,13 @@ export interface LabourData {
   result?: string;      // set by the server when the round is judged
   resultKind?: 'win' | 'lose';
   judge?: 'client' | 'server'; // 'client': this widget's verdict stands and is shown at once
+  // A pick round (mode 'pick', server labour.js for a UI that says uiCaps 'pickRound'): no sweep and no band. Each blow
+  // shows steps[blow] as [x, y, cue] (percent of the face, cue 0..1); the clearest cue is the right spot. slips wasted
+  // blows are allowed; totalMs bounds the whole round; no two picks closer than minPickMs.
+  mode?: 'pick';
+  steps?: number[][][];
+  slips?: number;
+  minPickMs?: number;
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -171,6 +180,22 @@ const SPLITS: Record<Kind, string> = {
   struggle: 'M15 23 L5 10 M15 23 L25 9 M15 23 L4 36 M15 23 L26 37 M15 23 L15 4 M15 23 L15 42',
 };
 
+// ---- the pick round ("Read the stone", Nate 4 Oct: no timing) ----
+// How strongly a cue is drawn: faint cues fade faster than clear ones
+const cueLook = (cue: number) => ({ opacity: Math.max(0.1, Math.pow(Math.max(0, Math.min(1, cue)), 1.5)), scale: 0.55 + 0.6 * Math.max(0, Math.min(1, cue)) });
+// The cue at a spot: a crack along the grain with a glint of ore, or for wood the split line
+const CUES: Record<Kind, string[]> = {
+  mining: ['M-15 2 L-8 -1 L-3 2 L3 -2 L8 1 L15 -1', 'M-14 -1 L-8 2 L-2 -2 L4 1 L9 -2 L15 1', 'M-15 0 L-9 -2 L-4 1 L2 -1 L7 2 L14 0'],
+  chopping: ['M-16 0 L16 0', 'M-16 1 L-2 0 L16 -1', 'M-16 -1 L3 0 L16 1'],
+  struggle: ['M-10 0 L10 0', 'M-10 0 L10 0', 'M-10 0 L10 0'],
+};
+const PICK_LOCK_MS = 220;   // after a pick the next spots fade in; no pick lands before they show
+const IDLE_TEXT: Record<Kind, string> = {
+  mining: 'You stand idle at the seam too long and set the pick down.',
+  chopping: 'You stand idle at the block too long and set the axe down.',
+  struggle: 'Your grip slips. The rope holds.',
+};
+
 const Labour = ({ data }: { data: LabourData }) => {
   const kind = data.kind === 'chopping' || data.kind === 'struggle' ? data.kind : 'mining';
   const event = typeof data.event === 'string' && data.event ? data.event : 'labour';
@@ -196,7 +221,7 @@ const Labour = ({ data }: { data: LabourData }) => {
   const [sent, setSent] = useState(false);
   const [own, setOwn] = useState<'win' | 'lose' | null>(null);
   // Drawing only: where each blow fell on the face (the marker's place at its strike time) and the word it earned
-  const [marks, setMarks] = useState<{ id: number; x: number; landed: boolean }[]>([]);
+  const [marks, setMarks] = useState<{ id: number; x: number; y?: number; landed: boolean }[]>([]);
   const [word, setWord] = useState<{ id: number; text: string; landed: boolean } | null>(null);
   const markId = useRef(0);
   // performance.now() so the round's clock cannot be stepped by the machine's time service
@@ -207,6 +232,15 @@ const Labour = ({ data }: { data: LabourData }) => {
   const hitsRef = useRef(0);
   const sentRef = useRef(false);
   const readyAt = useRef(0);
+  // The pick round: [index, ms] per blow, the wasted ones, and the swing on screen
+  const pick = data.mode === 'pick' && kind !== 'struggle' && Array.isArray(data.steps) && data.steps.length > 0;
+  const steps = pick ? (data.steps as number[][][]) : [];
+  const slipsAllowed = Math.max(0, Math.floor(num(data.slips, 3)));
+  const pickLock = Math.max(PICK_LOCK_MS, Math.floor(num(data.minPickMs, 150)) + 1);
+  const picksRef = useRef<number[][]>([]);
+  const missRef = useRef(0);
+  const [misses, setMisses] = useState(0);
+  const [swing, setSwing] = useState<{ id: number; x: number; y: number; landed: boolean } | null>(null);
   const posAt = (ms: number): number => (sweeps ? markerOn(ms, sweeps, hitAtRef.current) : markerAt(ms, sweepMs));
 
   // A new round (new nonce) resets the bar. The server re-sending the same round with its verdict
@@ -220,11 +254,15 @@ const Labour = ({ data }: { data: LabourData }) => {
     setOwn(null);
     setMarks([]);
     setWord(null);
+    setMisses(0);
+    setSwing(null);
+    picksRef.current = [];
+    missRef.current = 0;
     hitsRef.current = 0;
     sentRef.current = false;
     strikesRef.current = [];
     hitAtRef.current = [];
-    readyAt.current = 0;
+    readyAt.current = pick ? pickLock : 0;
     sampleRef.current = 0;
     startedAt.current = performance.now();
   }, [data.nonce, total, half]);
@@ -234,7 +272,8 @@ const Labour = ({ data }: { data: LabourData }) => {
     sentRef.current = true;
     setSent(true);
     const win = hitsRef.current >= need;
-    send('dbo:' + event, data.nonce, JSON.stringify(strikesRef.current), at, JSON.stringify({ v: 1, win, hits: hitsRef.current }));
+    if (pick) send('dbo:' + event, data.nonce, JSON.stringify(picksRef.current), at, JSON.stringify({ v: 2, mode: 'pick', win, hits: hitsRef.current, slips: missRef.current }));
+    else send('dbo:' + event, data.nonce, JSON.stringify(strikesRef.current), at, JSON.stringify({ v: 1, win, hits: hitsRef.current }));
     if (data.judge === 'client') setOwn(win ? 'win' : 'lose');
   };
 
@@ -244,7 +283,7 @@ const Labour = ({ data }: { data: LabourData }) => {
     const t = window.setInterval(() => {
       const el = Math.floor(performance.now() - startedAt.current);
       sampleRef.current = el;
-      setMarker(posAt(el));
+      if (!pick) setMarker(posAt(el));
       if (el >= total) {
         setLeft(0);
         submit(el);
@@ -256,10 +295,10 @@ const Labour = ({ data }: { data: LabourData }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sent, data.result, data.nonce]);
 
-  const showBlow = (x: number, landed: boolean) => {
+  const showBlow = (x: number, landed: boolean, y?: number) => {
     const id = ++markId.current;
     const [hit, miss] = BLOW_WORDS[kind];
-    setMarks((m) => m.concat({ id, x, landed }).slice(-16));
+    setMarks((m) => m.concat({ id, x, y, landed }).slice(-16));
     setWord({ id, text: landed ? hit[id % hit.length] : miss, landed });
     window.setTimeout(() => setWord((w) => (w && w.id === id ? null : w)), 1100);
   };
@@ -288,11 +327,48 @@ const Labour = ({ data }: { data: LabourData }) => {
     if (next >= need) submit(Math.floor(performance.now() - startedAt.current));
   };
 
+  // A pick: spot i of this blow, on the round's own clock. No timing decides it; the lock only lets the next spots show.
+  const choose = (i: number) => {
+    if (!pick || sentRef.current || data.result) return;
+    const t = Math.floor(performance.now() - startedAt.current);
+    const k = picksRef.current.length;
+    const spots = steps[k];
+    if (!spots || i < 0 || i >= spots.length || t < readyAt.current || t > total) return;
+    readyAt.current = t + pickLock;
+    const landed = i === pickRight(spots);
+    picksRef.current.push([i, t]);
+    const x = num(spots[i][0], 50), y = num(spots[i][1], 50);
+    setSwing({ id: k + 1, x, y, landed });
+    window.setTimeout(() => setSwing((w) => (w && w.id === k + 1 ? null : w)), 380);
+    setFlash(landed ? 'hit' : 'miss');
+    window.setTimeout(() => setFlash(null), 160);
+    showBlow(x, landed, y);
+    if (!landed) {
+      const m = missRef.current + 1;
+      missRef.current = m;
+      setMisses(m);
+      if (m > slipsAllowed) submit(t);
+      return;
+    }
+    const next = hitsRef.current + 1;
+    hitsRef.current = next;
+    setHits(next);
+    if (next >= need) submit(t);
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
         leave();
+        return;
+      }
+      if (pick) {
+        const n = parseInt(e.key, 10);
+        if (!(n >= 1 && n <= 9)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        choose(n - 1);
         return;
       }
       if (e.key !== ' ' && e.key !== 'Enter') return;
@@ -308,7 +384,7 @@ const Labour = ({ data }: { data: LabourData }) => {
   const pct = Math.max(0, Math.min(100, (left / total) * 100));
   const centre = centreAt(Math.min(hits, need - 1));
   const ore = kind === 'mining' ? oreKey(data.title) : '';
-  const hint = data.hint || lead(kind, ore);
+  const hint = data.hint || (pick ? (kind === 'chopping' ? 'Read the grain and pick where the wood will split.' : 'Read the stone and pick where it will break.') : lead(kind, ore));
   // Walked away: the clock running out behind the close must not report the round as well
   const leave = () => { sentRef.current = true; send('dbo:' + event + 'Cancel', data.nonce); };
   // A clean struggle still waits on the server's roll, so only its loss is certain here
@@ -316,7 +392,8 @@ const Labour = ({ data }: { data: LabourData }) => {
     ? (kind === 'chopping' ? 'Split clean.' : kind === 'struggle' ? 'Every pull lands. Now the knots decide.'
       : ore === 'salt' ? 'The crust breaks and the salt comes free.' : ore === 'geode' ? 'The geode splits open.' : 'The seam gives up its ore.')
     : own === 'lose'
-      ? (kind === 'chopping' ? 'The log rolls off the block, still whole.' : kind === 'struggle' ? 'Your grip slips. The rope holds.' : 'The seam holds. Your arms give out before the rock does.')
+      ? (pick && misses <= slipsAllowed ? IDLE_TEXT[kind]
+        : kind === 'chopping' ? 'The log rolls off the block, still whole.' : kind === 'struggle' ? 'Your grip slips. The rope holds.' : 'The seam holds. Your arms give out before the rock does.')
       : '';
   const doneKind = data.resultKind || (kind === 'struggle' && own === 'win' ? null : own);
   const over = !!(data.result || own || sent);
@@ -325,7 +402,9 @@ const Labour = ({ data }: { data: LabourData }) => {
   const strikeLabel = data.strikeLabel || 'Strike';
   const leaveLabel = data.leaveLabel || 'Walk away';
   // The line under the title: the verdict, else a word on the last blow, else the craft before the first and the blows left after
-  const line = data.result || ownText || (word ? word.text : hits === 0 ? hint : remaining(kind, Math.max(0, need - hits), false));
+  const line = data.result || ownText || (word ? word.text : hits === 0 && misses === 0 ? hint : remaining(kind, Math.max(0, need - hits), false));
+  const step = pick && !over ? steps[Math.min(picksRef.current.length, steps.length - 1)] : null;
+  const markStyle = (m: { x: number; y?: number }): React.CSSProperties => (m.y === undefined ? { left: m.x + '%' } : { left: m.x + '%', top: m.y + '%' });
 
   return (
     <div className="labour">
@@ -335,9 +414,9 @@ const Labour = ({ data }: { data: LabourData }) => {
         <p className={'labour__hint' + (word && !data.result && !ownText ? ' labour__hint--' + (word.landed ? 'hit' : 'miss') : '')}>{line}</p>
 
         <div
-          className={'labour__bar' + (flash ? ' labour__bar--' + flash : '') + (doneKind ? ' labour__bar--' + doneKind : '')}
+          className={'labour__bar' + (pick ? ' labour__bar--pick' : '') + (flash ? ' labour__bar--' + flash : '') + (doneKind ? ' labour__bar--' + doneKind : '')}
           style={ore ? ({ '--labour-ore': ORE_TINT[ore] || ORE_TINT.iron } as React.CSSProperties) : undefined}
-          onClick={strike}
+          onClick={pick ? undefined : strike}
         >
           <div className="labour__face">
             {kind === 'mining' && <div className="labour__vein" />}
@@ -345,7 +424,7 @@ const Labour = ({ data }: { data: LabourData }) => {
             {kind === 'struggle' && <div className="labour__rope" />}
           </div>
           {marks.map((m) => (
-            <div key={m.id} className={'labour__mark labour__mark--' + (m.landed ? 'hit' : 'miss')} style={{ left: m.x + '%' }}>
+            <div key={m.id} className={'labour__mark labour__mark--' + (m.landed ? 'hit' : 'miss') + (m.y === undefined ? '' : ' labour__mark--spot')} style={markStyle(m)}>
               <Mark kind={kind} landed={m.landed} n={m.id} />
             </div>
           ))}
@@ -354,8 +433,30 @@ const Labour = ({ data }: { data: LabourData }) => {
               <path d={SPLITS[kind]} />
             </svg>
           )}
-          {!over && <div className="labour__band" style={{ left: (centre - half) + '%', width: (half * 2) + '%' }} />}
-          {!over && <div className="labour__marker" style={{ left: marker + '%' }}><Tool kind={kind} /></div>}
+          {!pick && !over && <div className="labour__band" style={{ left: (centre - half) + '%', width: (half * 2) + '%' }} />}
+          {!pick && !over && <div className="labour__marker" style={{ left: marker + '%' }}><Tool kind={kind} /></div>}
+          {step && (
+            <div key={'step-' + picksRef.current.length} className="labour__spots">
+              {step.map((sp, j) => {
+                const look = cueLook(num(sp[2], 0));
+                return (
+                  <button key={j} className="labour__spot" style={{ left: num(sp[0], 50) + '%', top: num(sp[1], 50) + '%' }} onClick={() => choose(j)}>
+                    <svg className="labour__cue" viewBox="-20 -20 40 40" aria-hidden="true" style={{ opacity: look.opacity }}>
+                      <path className="labour__cue-edge" d={CUES[kind][(picksRef.current.length + j) % 3]} transform={`scale(${look.scale.toFixed(2)})`} />
+                      <path d={CUES[kind][(picksRef.current.length + j) % 3]} transform={`scale(${look.scale.toFixed(2)})`} />
+                      {kind === 'mining' && num(sp[2], 0) >= 0.5 && <circle className="labour__glint" cx={(j % 2 ? -4 : 5) * look.scale} cy="-1" r={1.2 + 2 * num(sp[2], 0)} />}
+                    </svg>
+                    <span className="labour__key">{j + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {swing && (
+            <div key={'swing-' + swing.id} className={'labour__swing labour__swing--' + (swing.landed ? 'hit' : 'miss')} style={{ left: swing.x + '%', top: swing.y + '%' }}>
+              <Tool kind={kind} />
+            </div>
+          )}
         </div>
 
         <div className="labour__tally">
@@ -365,9 +466,17 @@ const Labour = ({ data }: { data: LabourData }) => {
             ))}
           </span>
           <span className="labour__clock-label">Strength</span>
-          <div className="labour__clock">
-            <div className="labour__clock-fill" style={{ width: pct + '%' }} />
-          </div>
+          {pick ? (
+            <span className="labour__strength">
+              {Array.from({ length: slipsAllowed + 1 }).map((_, i) => (
+                <span key={i} className={'labour__pip' + (i < misses ? ' labour__pip--spent' : '')} />
+              ))}
+            </span>
+          ) : (
+            <div className="labour__clock">
+              <div className="labour__clock-fill" style={{ width: pct + '%' }} />
+            </div>
+          )}
         </div>
 
         <div className="labour__actions">
@@ -375,8 +484,10 @@ const Labour = ({ data }: { data: LabourData }) => {
             <button className="labour__button labour__button--primary" onClick={leave}>{data.doneLabel || 'Stand up'}</button>
           ) : (
             <>
-              <span className="labour__keys">Space, Enter or click to {strikeLabel.toLowerCase()}. Escape to {leaveLabel.toLowerCase()}.</span>
-              <button className="labour__button labour__button--primary" disabled={sent} onClick={strike}>{strikeLabel}</button>
+              <span className="labour__keys">{pick
+                ? `Click a spot or press 1-${step ? step.length : 4} to strike. Escape to ${leaveLabel.toLowerCase()}.`
+                : `Space, Enter or click to ${strikeLabel.toLowerCase()}. Escape to ${leaveLabel.toLowerCase()}.`}</span>
+              {!pick && <button className="labour__button labour__button--primary" disabled={sent} onClick={strike}>{strikeLabel}</button>}
               <button className="labour__button" onClick={leave}>{leaveLabel}</button>
             </>
           )}

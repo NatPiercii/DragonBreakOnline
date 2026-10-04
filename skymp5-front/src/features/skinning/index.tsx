@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { capitalise, countWord } from '../../utils/countWord';
+import { pickRight } from '../../utils/minigameJudge';
 import './styles.scss';
 
 // Skinning a kill, opened by the gamemode through the dbo relay (widget type "skinning"). The hide is stretched on a
@@ -19,6 +20,8 @@ import './styles.scss';
 //
 //   Browser -> client -> server: sendMessage('dbo:skinning', nonce, JSON.stringify(cutMs), atMs,
 //                                            JSON.stringify({ v: 2, win, hits, slips, frames, maxFrameMs }))
+//   A pick attempt:              sendMessage('dbo:skinning', nonce, JSON.stringify([[index, ms], ...]), atMs,
+//                                            JSON.stringify({ v: 2, mode: 'pick', win, hits, slips, frames, maxFrameMs }))
 //   Escape / Stop:               sendMessage('dbo:skinningCancel', nonce)
 export interface SkinningData {
   id: number;
@@ -34,6 +37,11 @@ export interface SkinningData {
   result?: string;   // set by the server when the attempt is judged
   resultKind?: 'win' | 'lose';
   judge?: 'client' | 'server'; // 'client': this widget's verdict stands and is shown at once
+  // A pick attempt (mode 'pick', server gamemode.js for a UI that says uiCaps 'pickRound'): no blade. Each cut shows
+  // steps[cut] as [x, y, cue] along the hide; the clearest cue lies on the seam line. totalMs bounds the whole attempt.
+  mode?: 'pick';
+  steps?: number[][][];
+  minPickMs?: number;
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -82,6 +90,10 @@ const Knife = () => (
   </svg>
 );
 
+// A point on the hide, drawn by how clearly the hide lifts from the flesh there; faint cues fade faster than clear ones
+const liftLook = (cue: number): number => Math.max(0.1, Math.pow(Math.max(0, Math.min(1, cue)), 1.5));
+const PICK_LOCK_MS = 220;   // after a pick the next points fade in; no pick lands before they show
+
 // A slip: the hide torn ragged where the blade snagged
 const Tear = ({ big }: { big?: boolean }) => (
   <svg className={'skinning__tear' + (big ? ' skinning__tear--big' : '')} viewBox="0 0 26 30" aria-hidden="true">
@@ -110,7 +122,14 @@ const Skinning = ({ data }: { data: SkinningData }) => {
   const [flash, setFlash] = useState('');
   const [own, setOwn] = useState<'win' | 'lose' | null>(null);
   // Drawing only: each cut where it fell on the hide, and the last one for the line under the title
-  const [marks, setMarks] = useState<{ id: number; x: number; clean: boolean }[]>([]);
+  const [marks, setMarks] = useState<{ id: number; x: number; y?: number; clean: boolean }[]>([]);
+  // The pick attempt: [index, ms] per cut and the knife stroke on screen
+  const pick = data.mode === 'pick' && Array.isArray(data.steps) && data.steps.length > 0;
+  const steps = pick ? (data.steps as number[][][]) : [];
+  const pickLock = Math.max(PICK_LOCK_MS, Math.floor(num(data.minPickMs, 150)) + 1);
+  const picksRef = useRef<number[][]>([]);
+  const readyRef = useRef(0);
+  const [stroke, setStroke] = useState<{ id: number; x: number; y: number; clean: boolean } | null>(null);
   // performance.now() so the round's clock cannot be stepped by the machine's time service
   const startedAt = useRef(performance.now());
   const sampleRef = useRef(0);  // ms into the round of the frame currently on screen
@@ -132,6 +151,9 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     setBlade(0);
     setOwn(null);
     setMarks([]);
+    setStroke(null);
+    picksRef.current = [];
+    readyRef.current = pickLock;
     hitsRef.current = 0;
     missRef.current = 0;
     sentRef.current = false;
@@ -147,8 +169,13 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     setSent(true);
     const win = hitsRef.current >= cuts;
     const f = framesRef.current;
-    send('dbo:skinning', data.nonce, JSON.stringify(timesRef.current), at,
-      JSON.stringify({ v: 2, win, hits: hitsRef.current, slips: missRef.current, frames: f.count, maxFrameMs: Math.round(f.worst) }));
+    if (pick) {
+      send('dbo:skinning', data.nonce, JSON.stringify(picksRef.current), at,
+        JSON.stringify({ v: 2, mode: 'pick', win, hits: hitsRef.current, slips: missRef.current, frames: f.count, maxFrameMs: Math.round(f.worst) }));
+    } else {
+      send('dbo:skinning', data.nonce, JSON.stringify(timesRef.current), at,
+        JSON.stringify({ v: 2, win, hits: hitsRef.current, slips: missRef.current, frames: f.count, maxFrameMs: Math.round(f.worst) }));
+    }
     if (data.judge === 'client') setOwn(win ? 'win' : 'lose');
   };
 
@@ -164,7 +191,7 @@ const Skinning = ({ data }: { data: SkinningData }) => {
       f.last = now;
       const el = Math.floor(now - startedAt.current);
       sampleRef.current = el;
-      setBlade(bladeAt(el, sweepMs));
+      if (!pick) setBlade(bladeAt(el, sweepMs));
       setLeft(Math.max(0, total - el));
       if (el >= total) {
         submit(el);
@@ -208,11 +235,48 @@ const Skinning = ({ data }: { data: SkinningData }) => {
     }
   };
 
+  // A pick: point i of this cut, on the attempt's own clock. No timing decides it; the lock only lets the next points show.
+  const choose = (i: number) => {
+    if (!pick || sentRef.current || data.result) return;
+    const t = Math.floor(performance.now() - startedAt.current);
+    const k = picksRef.current.length;
+    const spots = steps[k];
+    if (!spots || i < 0 || i >= spots.length || t < readyRef.current || t > total) return;
+    readyRef.current = t + pickLock;
+    const clean = i === pickRight(spots);
+    picksRef.current.push([i, t]);
+    const x = num(spots[i][0], 50), y = num(spots[i][1], 50);
+    setStroke({ id: k + 1, x, y, clean });
+    window.setTimeout(() => setStroke((w) => (w && w.id === k + 1 ? null : w)), 380);
+    setFlash(clean ? 'hit' : 'miss');
+    window.setTimeout(() => setFlash(''), 180);
+    setMarks((m) => m.concat({ id: m.length + 1, x, y, clean }));
+    if (clean) {
+      const next = hitsRef.current + 1;
+      hitsRef.current = next;
+      setHits(next);
+      if (next >= cuts) submit(t);
+    } else {
+      const next = missRef.current + 1;
+      missRef.current = next;
+      setMisses(next);
+      if (next > allowed) submit(t);
+    }
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
         stop();
+        return;
+      }
+      if (pick) {
+        const n = parseInt(e.key, 10);
+        if (!(n >= 1 && n <= 9)) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        choose(n - 1);
         return;
       }
       if (e.code === 'Space' || e.key === ' ') {
@@ -234,15 +298,16 @@ const Skinning = ({ data }: { data: SkinningData }) => {
   const doneKind = data.resultKind || own;
   const torn = misses > allowed;
   const ownText = own === 'win' ? 'The hide comes away clean.'
-    : own === 'lose' ? (torn ? 'The knife slips and the hide tears.' : 'You take too long and the cut goes ragged. The hide tears.') : '';
+    : own === 'lose' ? (torn ? 'The knife slips and the hide tears.' : pick ? 'You leave the knife idle too long and set it down.' : 'You take too long and the cut goes ragged. The hide tears.') : '';
   const lastMark = marks.length ? marks[marks.length - 1] : null;
   const after = lastMark
     ? (lastMark.clean ? 'A clean line. ' + cutsLeftText(cuts - hits) : 'The blade snags. ' + slipsLeftText(allowed - misses))
-    : startText(cuts, allowed);
+    : pick ? 'Read the hide and cut where it lifts from the seam.' : startText(cuts, allowed);
   const line = data.result || ownText || after;
   const lastTear = [...marks].reverse().find((m) => !m.clean);
+  const step = pick && !done && !sent ? steps[Math.min(picksRef.current.length, steps.length - 1)] : null;
   const markEls = marks.map((m) => (
-    <div key={m.id} className={'skinning__mark skinning__mark--' + (m.clean ? 'clean' : 'slip')} style={{ left: m.x + '%' }}>
+    <div key={m.id} className={'skinning__mark skinning__mark--' + (m.clean ? 'clean' : 'slip') + (m.y === undefined ? '' : ' skinning__mark--spot')} style={m.y === undefined ? { left: m.x + '%' } : { left: m.x + '%', top: m.y + '%' }}>
       {m.clean ? <span className="skinning__slit" /> : <Tear />}
     </div>
   ));
@@ -254,15 +319,33 @@ const Skinning = ({ data }: { data: SkinningData }) => {
         <h1 className="skinning__title">{'Skinning the ' + (data.name || 'animal')}</h1>
         <p className={'skinning__hint' + (!done && lastMark ? ' skinning__hint--' + (lastMark.clean ? 'hit' : 'miss') : '')}>{line}</p>
 
-        <div className={'skinning__frame' + (done ? ' skinning__frame--' + (doneKind || 'done') : '')}>
+        <div className={'skinning__frame' + (pick ? ' skinning__frame--pick' : '') + (done ? ' skinning__frame--' + (doneKind || 'done') : '')}>
           <span className="skinning__post skinning__post--left" />
           <span className="skinning__post skinning__post--right" />
           {!done ? (
-            <div className={'skinning__hide' + (flash ? ' skinning__hide--' + flash : '')} onMouseDown={cut}>
+            <div className={'skinning__hide' + (flash ? ' skinning__hide--' + flash : '')} onMouseDown={pick ? undefined : cut}>
               <div className="skinning__pelt"><span className="skinning__line" /></div>
               {markEls}
-              <div className="skinning__seam" style={{ left: (seam - width / 2) * 100 + '%', width: width * 100 + '%' }} />
-              <div className="skinning__blade" style={{ left: blade * 100 + '%' }}><Knife /></div>
+              {!pick && <div className="skinning__seam" style={{ left: (seam - width / 2) * 100 + '%', width: width * 100 + '%' }} />}
+              {!pick && <div className="skinning__blade" style={{ left: blade * 100 + '%' }}><Knife /></div>}
+              {step && (
+                <div key={'step-' + picksRef.current.length} className="skinning__spots">
+                  {step.map((sp, j) => (
+                    <button key={j} className="skinning__spot" style={{ left: num(sp[0], 50) + '%', top: num(sp[1], 50) + '%' }} onMouseDown={() => choose(j)}>
+                      <svg className="skinning__lift" viewBox="-20 -20 40 40" aria-hidden="true" style={{ opacity: liftLook(num(sp[2], 0)) }}>
+                        <path className="skinning__lift-fold" d="M-13 1 Q0 -7 13 1" />
+                        <path className="skinning__lift-shade" d="M-11 3 Q0 -3 11 3" />
+                      </svg>
+                      <span className="skinning__key">{j + 1}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {stroke && (
+                <div key={'stroke-' + stroke.id} className={'skinning__stroke skinning__stroke--' + (stroke.clean ? 'clean' : 'slip')} style={{ left: stroke.x + '%', top: stroke.y + '%' }}>
+                  <Knife />
+                </div>
+              )}
             </div>
           ) : (
             <div className={'skinning__result skinning__result--' + (doneKind || 'wait')}>
@@ -287,14 +370,16 @@ const Skinning = ({ data }: { data: SkinningData }) => {
               <span key={i} className={'skinning__nick' + (i < misses ? ' skinning__nick--used' : '')} />
             ))}
           </span>
-          <span className="skinning__clock-label">Steady hand</span>
-          <div className="skinning__timer">
-            <div className="skinning__time" style={{ width: pct + '%' }} />
-          </div>
+          {!pick && <span className="skinning__clock-label">Steady hand</span>}
+          {!pick && (
+            <div className="skinning__timer">
+              <div className="skinning__time" style={{ width: pct + '%' }} />
+            </div>
+          )}
         </div>
 
         <div className="skinning__actions">
-          {!done && <span className="skinning__keys">Space or click to cut. Escape to stop.</span>}
+          {!done && <span className="skinning__keys">{pick ? `Click a point or press 1-${step ? step.length : 4} to cut. Escape to stop.` : 'Space or click to cut. Escape to stop.'}</span>}
           <button className="skinning__button" onClick={stop}>{done ? 'Close' : 'Stop'}</button>
         </div>
       </div>
