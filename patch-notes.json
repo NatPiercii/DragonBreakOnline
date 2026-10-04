@@ -1,5 +1,21 @@
 [
   {
+    "title": "Change your look with /appearance",
+    "date": "2026-10-04",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Characters",
+        "items": [
+          "New command: /appearance reopens the appearance editor for your own character. A new look costs 500 gold, and you can change it once a day. Closing the editor without changing anything costs nothing.",
+          "Your race, sex and name stay as they are. For a new name, ask a GM.",
+          "It can't be used in a fight, inside a dungeon, or while down, jailed or bound. This was the most-voted idea in #suggestions: thank you for voting!"
+        ]
+      }
+    ]
+  },
+  {
     "title": "A house is one property",
     "date": "2026-10-04",
     "version": "Server update",
