@@ -1,7 +1,7 @@
 [
   {
     "title": "Your journal holds it all (F3)",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server + Client 0.3.76",
     "tag": "New",
     "sections": [
@@ -55,7 +55,7 @@
   },
   {
     "title": "A quieter look",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Client 0.3.76",
     "tag": "Change",
     "sections": [
@@ -73,7 +73,7 @@
   },
   {
     "title": "Trading made easier",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Client 0.3.76",
     "tag": "Change",
     "sections": [
@@ -88,7 +88,7 @@
   },
   {
     "title": "Magic: A First Spell for Every School",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -143,7 +143,7 @@
   },
   {
     "title": "Vampirism and lycanthropy, rarer and clearer",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -181,7 +181,7 @@
   },
   {
     "title": "Courts offer their posts",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -198,7 +198,7 @@
   },
   {
     "title": "Adept, not Journeyman",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -212,7 +212,7 @@
   },
   {
     "title": "Gentler dungeons on the easier difficulties",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -226,7 +226,7 @@
   },
   {
     "title": "A farm, a smithy and a mine",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -242,7 +242,7 @@
   },
   {
     "title": "Held gold counts in the launcher",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -256,7 +256,7 @@
   },
   {
     "title": "Followers keep formation",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Client 0.3.76",
     "tag": "Fix",
     "sections": [
@@ -270,7 +270,7 @@
   },
   {
     "title": "Warbands and the Place tab",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -293,7 +293,7 @@
   },
   {
     "title": "Loot keeps to the steel cap, and linen in the dungeons",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -315,7 +315,7 @@
   },
   {
     "title": "A new admin panel",
-    "date": "SHIP_DATE",
+    "date": "2026-10-04",
     "version": "Server + Client 0.3.76",
     "tag": "Change",
     "sections": [
