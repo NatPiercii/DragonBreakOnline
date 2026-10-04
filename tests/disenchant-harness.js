@@ -20,6 +20,8 @@ const descOf = (id) => `${(id & 0xffffff).toString(16)}:${NAMES_OF[id >>> 24] ||
 // The two daggers of the report, a plain sword, a soul gem, and the furniture
 const BLAZE = idOf('be190:Skyrim.esm'), SPARKS = idOf('d30df:BSHeartland.esm'), SWORD = idOf('12eb7:Skyrim.esm'), GEM = idOf('2e4e3:Skyrim.esm');
 const AMULET = idOf('8b5ab:Skyrim.esm'), UNIQUE = idOf('f0001:Skyrim.esm');
+// A steel dagger the gear swap gave the Ayleid dagger's enchantment (EnchWeaponShockDamage02) as extra data
+const STEEL = idOf('300056:BSHeartland.esm'), SHOCK = 0x45d97;
 const ENCHANTER_BASE = idOf('bad0d:Skyrim.esm'), FORGE_BASE = idOf('bad0e:Skyrim.esm'), LAB_BASE = idOf('bad0c:Skyrim.esm');
 const ENCHANTER = 0x080651cb, FORGE = 0x5001, LAB = 0x5002;
 const wbdt = (type) => ({ type: 'WBDT', data: new Uint8Array([type, 0]) });
@@ -28,6 +30,7 @@ const RECORDS = {
   [SPARKS]: { type: 'WEAP', editorId: 'CYREnchAyleidDaggerShock01', fields: [{ type: 'EITM', data: new Uint8Array(4) }] },
   [AMULET]: { type: 'ARMO', editorId: 'EnchNecklaceStamina05', fields: [{ type: 'EITM', data: new Uint8Array(4) }] },
   [SWORD]: { type: 'WEAP', editorId: 'IronSword', fields: [] },
+  [STEEL]: { type: 'WEAP', editorId: 'CYRSteelDagger', fields: [] },
   // An enchanted item the game never lets you disenchant (keyword MagicDisallowEnchanting, c27bd:Skyrim.esm)
   [UNIQUE]: { type: 'WEAP', editorId: 'StandInUniqueWeapon', fields: [{ type: 'EITM', data: new Uint8Array(4) }, { type: 'KWDA', data: new Uint8Array([0x24, 0x00, 0x00, 0x00, 0xbd, 0x27, 0x0c, 0x00]) }] },
   [GEM]: { type: 'SLGM', editorId: 'SoulGemGrandFilled', fields: [] },
@@ -137,6 +140,28 @@ ok(count(PLAYER, BLAZE) === 1, 'the same report from a forge takes nothing');
 reset([{ baseId: BLAZE, count: 1 }]);
 report(LAB, BLAZE, [BLAZE]);
 ok(count(PLAYER, BLAZE) === 1 && logs.some((l) => /alchemy: .*not a lab mix/.test(l)), 'a lab report still goes to brewing, which ignores a dagger', logs);
+
+// A copy enchanted by extra data (gearswap.js keeps an enchantment on the steel replacement, 4 Oct): disenchanting it uses
+// it up too, the enchanted copy before a plain one; enchanting (a soul gem in the report) or a player-made one never
+reset([{ baseId: STEEL, count: 1 }, { baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000, name: 'Steel Dagger of Arcing' }]);
+report(ENCHANTER, STEEL, [STEEL]);
+ok(count(PLAYER, STEEL) === 1 && !inv(PLAYER).some((e) => e.enchantmentId), 'a steel dagger enchanted by extra data is used up, the plain one stays', inv(PLAYER));
+ok(audits.some((t) => /^DISENCHANT .* used up/.test(t)), '...and audited', audits);
+reset([{ baseId: STEEL, count: 1 }, { baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: GEM, count: 1 }]);
+report(ENCHANTER, STEEL, [STEEL, GEM]);
+ok(count(PLAYER, STEEL) === 2 && count(PLAYER, GEM) === 1 && !said.length, 'enchanting a plain steel dagger with a soul gem takes nothing, though an enchanted one is held', inv(PLAYER));
+reset([{ baseId: STEEL, count: 2 }]);
+report(ENCHANTER, STEEL, [STEEL]);
+ok(count(PLAYER, STEEL) === 2 && !said.length, 'a plain steel dagger alone is never taken (nothing to disenchant)', inv(PLAYER));
+reset([{ baseId: STEEL, count: 1, enchantmentId: 0xff000123, maxCharge: 900 }]);
+report(ENCHANTER, STEEL, [STEEL]);
+ok(count(PLAYER, STEEL) === 1, 'a player-made (dynamic) enchantment is never taken', inv(PLAYER));
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000, worn: true }]);
+report(ENCHANTER, STEEL, [STEEL]);
+ok(count(PLAYER, STEEL) === 1, 'a worn copy enchanted by extra data stays', inv(PLAYER));
+reset([{ baseId: BLAZE, count: 1 }, { baseId: BLAZE, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }]);
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(count(PLAYER, BLAZE) === 1 && !inv(PLAYER).some((e) => e.enchantmentId), 'of a base enchanted by its record too, the copy with the extra enchantment goes first', inv(PLAYER));
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

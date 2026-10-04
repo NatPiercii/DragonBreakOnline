@@ -100,3 +100,6 @@ playtester-boost.json.tmp
 item-snapshots.json
 item-snapshots.json.tmp
 journal/
+
+# The gear swap restore plan (tools/loot/gearswap_restore_plan.js): names characters, live data only
+gearswap-restore.json
