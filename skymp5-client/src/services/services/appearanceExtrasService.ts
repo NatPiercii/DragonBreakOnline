@@ -5,7 +5,7 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { RemoteServer } from "./remoteServer";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
-import { isGuardedRaceId } from "../../sync/beastRaceIds";
+import { isGuardedActor, isGuardedRace } from "../../sync/beastRaces";
 import {
   PACKET_GET, PACKET_INDEX, PACKET_REV, PACKET_SET, CopyInfo, Extras, Job, JobRunner, NativeCall, RemoteTracker,
   applyJob, captureJob, clearRef, isEmpty, readExtras, sameExtras,
@@ -127,8 +127,7 @@ export class AppearanceExtrasService extends ClientListener {
     try {
       const player = Game.getPlayer();
       if (!player) return false;
-      const race = player.getRace();
-      this.guardedSelf = !race || isGuardedRaceId(race.getFormID());
+      this.guardedSelf = isGuardedActor(player);
       const base = ActorBase.from(player.getBaseObject());
       this.femaleSelf = !!base && base.getSex() === 1;
       this.loadedSelf = player.is3DLoaded();
@@ -170,7 +169,7 @@ export class AppearanceExtrasService extends ClientListener {
     }
 
     if (this.runner.size) {
-      this.runner.run(this.call, (id) => this.resolve(id), now, CALL_BUDGET, (job: Job, e: unknown) => {
+      this.runner.run(this.call, (id) => this.resolveTarget(id), now, CALL_BUDGET, (job: Job, e: unknown) => {
         const key = job.label;
         if (this.errorsSeen.has(key)) return;
         this.errorsSeen.add(key);
@@ -187,6 +186,16 @@ export class AppearanceExtrasService extends ClientListener {
     } catch (e) {
       return null;
     }
+  }
+
+  // The same, refused when its race turned guarded (a beast form): a job stops at its next step
+  private resolveTarget(id: number): Actor | null {
+    const actor = this.resolve(id);
+    if (!actor || isGuardedActor(actor)) {
+      if (id === PLAYER_ID) this.guardedSelf = true;
+      return null;
+    }
+    return actor;
   }
 
   // 3 s after RaceMenu closed, once our own kept extras are back on the player (a capture before that would replace
@@ -235,13 +244,15 @@ export class AppearanceExtrasService extends ClientListener {
       const local = remoteIdToLocalId(form.refrId) >>> 0;
       if (!local || local < 0xff000000) continue;
       let loaded = false;
+      let guarded = true;
       try {
         const actor = Actor.from(Game.getFormEx(local));
         if (!actor) continue;
         loaded = actor.is3DLoaded();
+        guarded = isGuardedRace(Number(form.appearance.raceId) >>> 0) || isGuardedActor(actor);
       } catch (e) { continue; }
       copies.push({
-        remote: form.refrId >>> 0, local, loaded, guarded: isGuardedRaceId(form.appearance.raceId),
+        remote: form.refrId >>> 0, local, loaded, guarded,
         female: !!form.appearance.isFemale, presetAt: this.presetStamp(local),
       });
     }

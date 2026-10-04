@@ -69,7 +69,7 @@ export const kindOfKey = (key: number): ValueKind | null =>
   key === 9 ? "string" : key === 0 || key === 7 ? "int" : key === 1 || key === 2 || key === 3 || key === 8 ? "float" : null;
 
 const OVERLAY_NODE = /^(Body|Hands|Feet|Face) \[Ovl([0-9]{1,2})\]$/;
-const TRANSFORM_NODE = /^NPC( [A-Za-z0-9 _.\-\[\]]{1,44})?$/;
+const TRANSFORM_NODE = /^NPC( [A-Za-z0-9 _.\-\[\]]{1,44})?$/i;
 const SAFE_KEY = /^[A-Za-z0-9 _.:\-]{1,48}$/;
 const MORPH_NAME = /^[A-Za-z0-9 _.\-]{1,48}$/;
 const OVERLAY_TEXTURE = /^(textures\\)?actors\\character\\overlays\\[a-z0-9_ \-\\.()&'+]+\.dds$/;
@@ -80,7 +80,7 @@ export const isOverlayNode = (node: string): boolean => {
   return !!m && Number(m[2]) < MAX_OVERLAYS_PER_AREA;
 };
 export const isTransformNode = (node: string): boolean => typeof node === "string" && TRANSFORM_NODE.test(node);
-export const isTransformKey = (key: string): boolean => typeof key === "string" && SAFE_KEY.test(key) && key !== "internal";
+export const isTransformKey = (key: string): boolean => typeof key === "string" && SAFE_KEY.test(key) && key.toLowerCase() !== "internal";
 export const isMorphName = (name: string): boolean => typeof name === "string" && MORPH_NAME.test(name);
 export const isMorphKey = (key: string): boolean => typeof key === "string" && SAFE_KEY.test(key);
 
@@ -302,8 +302,14 @@ export class JobRunner {
     this.order = this.order.filter((id) => id !== refId);
   }
 
+  // `resolve` is asked once per reference per run (each frame), so a reference refused mid-job stops before its next step
   run(call: NativeCall, resolve: (refId: number) => unknown, now: number, budget: number,
     onError: (job: Job, e: unknown) => void): number {
+    const resolved = new Map<number, unknown>();
+    const target = (id: number): unknown => {
+      if (!resolved.has(id)) resolved.set(id, resolve(id));
+      return resolved.get(id);
+    };
     let used = 0;
     const counted: NativeCall = (fn, ...args) => { used++; return call(fn, ...args); };
     let idle = 0;
@@ -312,7 +318,7 @@ export class JobRunner {
       const job = this.jobs.get(refId);
       if (!job) { continue; }
       if (job.notBefore > now) { this.order.push(refId); idle++; continue; }
-      const ref = resolve(refId);
+      const ref = target(refId);
       if (!ref) { this.jobs.delete(refId); continue; }
       idle = 0;
       const step = job.steps.shift();
