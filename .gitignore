@@ -114,3 +114,7 @@ role-names.json
 # The gear swap restore plan (tools/loot/gearswap_restore_plan.js): names characters, live data only
 gearswap-restore.json
 gearswap-restore-metals.json
+
+# Staff gifts (gifts.js, tools/gift.js): the queue and the ledger name characters, live data only
+gifts-inbox/
+gift-ledger.json

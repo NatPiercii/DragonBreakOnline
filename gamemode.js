@@ -5999,6 +5999,13 @@ try {
   require(ROBBERY_JS)({ mp, log, personal, audit, who, onlineActors, recordOf, adminItemName, openWidget, closeWidget, onUi, sendPacket, every, cfg });
 } catch (e) { log('robbery.js failed to load:', e.stack || e.message); globalThis.__dboRobEntries = null; globalThis.__dboRobAction = null; }
 
+// ---- staff gifts at the next login (server\gifts.js; queue one with tools/gift.js) ---------------------------------
+try {
+  const GIFTS_JS = path.resolve('gifts.js');
+  delete require.cache[GIFTS_JS];
+  require(GIFTS_JS)({ mp, log, personal, audit, who, onlineActors, profileOf, giveItem, every });
+} catch (e) { log('gifts.js failed to load:', e.stack || e.message); }
+
 // ---- staff names for offices and ranks (server\rolenames.js, role-names.json): before guilds.js and court.js ---------
 try {
   const ROLENAMES_JS = path.resolve('rolenames.js');
