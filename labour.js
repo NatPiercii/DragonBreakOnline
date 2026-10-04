@@ -17,7 +17,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills, sendPacket, onlineActors, distanceMeters } = api;
+  const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills, sendPacket, onlineActors, distanceMeters, hasUiCap } = api;
   // The shared rules for client-judged mini-games, beside this file (reloaded with it)
   const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
   delete require.cache[MINIGAMES_JS];
@@ -96,6 +96,12 @@ module.exports = (api) => {
     blockRestMinutes: 10,
     failRestMinutes: 2,
   }, cfg.labour || {});
+  // "Read the stone" (Nate, 4 Oct): a UI that names MG.PICK_CAP gets a round with no timing (minigames.js). Each blow shows
+  // spotsByTier spots, one with the clearest cue; slipsByTier wasted blows are allowed, one more ends the round; seconds
+  // bounds the whole round so an idle one ends. Strikes, rests and yields are the timing round's. enabled false: every
+  // client gets the timing round.
+  const PICK = MG.pickCfg(CFG, { slipsByTier: [2, 3, 3, 4, 4] });
+  const pickFor = (a) => PICK.enabled !== false && typeof hasUiCap === 'function' && hasUiCap(a, MG.PICK_CAP);
 
   // Raw ore and firewood by name; every id is "<local form id>:<plugin>" like the rest of our data
   const ITEMS = Object.assign({
@@ -290,12 +296,29 @@ module.exports = (api) => {
       missMs: Math.max(0, Math.round(Number(CFG.missStaggerMs) || 600)),
       startedAt: 0,
     };
+    if (pickFor(a)) {
+      // The same seed, then the blows: a seed out of the log rebuilds the pick round as well
+      const slips = Math.max(0, Math.round(MG.byTier(PICK.slipsByTier, tier, 3)));
+      const p = MG.pickSteps(rand, strikes + slips, MG.byTier(PICK.spotsByTier, tier, 4), MG.byTier(PICK.cueByTier, tier, 0.7), MG.byTier(PICK.decoyByTier, tier, 0.35), 'face');
+      Object.assign(round, { mode: 'pick', slips, steps: p.steps, right: p.right, totalMs: Math.max(10000, Math.round((Number(PICK.seconds) || 90) * 1000)), minPickMs: Math.max(0, Number(PICK.minPickMs) || 0) });
+      round.minMs = MG.pickMinMs(strikes, round.minPickMs);
+      return round;
+    }
     round.minMs = minMsOf(round);
     return round;
   };
 
   // Everything the widget needs to draw the server's round, and nothing it could use to judge it
   const packetFor = (round, result, resultKind) => {
+    if (round.mode === 'pick') {
+      const p = {
+        type: 'labour', id: WIDGET_ID, nonce: round.nonce, kind: round.kind, title: round.title, mode: 'pick',
+        strikes: round.strikes, slips: round.slips, steps: round.steps, totalMs: round.totalMs, minPickMs: round.minPickMs,
+        judge: clientJudged() ? 'client' : 'server',
+      };
+      if (result) { p.result = result; p.resultKind = resultKind; }
+      return p;
+    }
     const w = {
       type: 'labour', id: WIDGET_ID, nonce: round.nonce, kind: round.kind, title: round.title,
       strikes: round.strikes, band: round.half, bands: round.bands,
@@ -311,7 +334,7 @@ module.exports = (api) => {
     sessions.set(a, round);
     round.startedAt = nowMs();
     // Every round issued is logged, so a round that never comes back (cancelled, hidden, lost) can be counted
-    log(`labour issue ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} strikes=${round.strikes} min=${round.minMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
+    log(`labour issue ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} strikes=${round.strikes}${round.mode === 'pick' ? ` pick slips=${round.slips} spots=${round.steps[0].length}` : ''} min=${round.minMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
     if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
     return true;
   };
@@ -499,6 +522,20 @@ module.exports = (api) => {
     return r;
   };
 
+  // A pick round's report: '[[index, ms], ...]', replayed against the blows the server rolled (minigames.js judgePicks).
+  // The same fields as judge() so the verdict below reads both; misses past the allowance end the round as a loss.
+  const judgePick = (round, raw, at, elapsed) => {
+    const p = MG.judgePicks(raw, { need: round.strikes, allowed: round.slips, steps: round.steps, right: round.right, totalMs: round.totalMs, minPickMs: round.minPickMs });
+    const r = { hits: p.hits, misses: p.misses, count: p.count, last: p.last, at, lag: Math.round(elapsed - at), err: 0, bad: p.bad, sus: p.sus };
+    if (r.bad) return r;
+    if (r.last > at) { r.bad = 'submit'; return r; }
+    if (clientJudged()) { r.sus.push(...MG.lagFlags(r.lag, CFG.clockSlackMs, CFG.slowFlagMs)); return r; }
+    // Rollback: the server's clock binds the widget's as for the timing round
+    if (r.lag < -CFG.clockSlackMs) r.bad = 'future';
+    else if (r.lag > CFG.lagGraceMs) r.bad = 'late';
+    return r;
+  };
+
   // The new widget's own verdict, args[3]: '{"v":1,"win":true,"hits":6}' (MG.verdictOf: at most 256 characters, with v).
   // A 0.3.71 widget sends none and is judged from its strike times as before, with the server-clock limits relaxed to
   // the round timeout. Anything unreadable is an old widget, never a refusal.
@@ -530,10 +567,10 @@ module.exports = (api) => {
       return finish(a, round, false, 'Your interface is out of date. Rejoin the server to pick up the new one.', 'lose', false);
     }
     const at = Math.max(0, Math.floor(Number(args[2]) || 0));
-    const v = judge(round, args[1], at, elapsed);
+    const v = round.mode === 'pick' ? judgePick(round, args[1], at, elapsed) : judge(round, args[1], at, elapsed);
     const cj = clientJudged();
     const claim = cj ? claimOf(args[3]) : null;
-    const replayWin = !v.bad && v.hits >= round.strikes;
+    const replayWin = !v.bad && v.hits >= round.strikes && !(round.mode === 'pick' && v.misses > round.slips);
     // Only a cleanup bound, minutes past the round: a report this late belongs to a round already given up on
     if (!v.bad && cj && elapsed > limitMs(round)) v.bad = 'expired';
     // Still at the node: the server's last streamed position, against a radius twice the activation reach, plus what the
@@ -564,7 +601,7 @@ module.exports = (api) => {
     // then who judged (client: the widget's verdict; legacy: a 0.3.71 widget judged from its times; server: rollback),
     // the widget's claim, the fastest the round could be won, the distance to the node and any review flags.
     // lag= is logged on every line and never decides anything when the widget judges.
-    log(`labour ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} ${v.hits}/${round.strikes} of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`
+    log(`labour ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${round.kind}${round.ore ? '/' + round.ore : ''} t${round.tier + 1} ${v.hits}/${round.strikes} of ${v.count}${round.mode === 'pick' ? ` pick slips=${v.misses}/${round.slips}` : ''} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${round.seed.toString(16)}`
       + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: round.minMs, near: cj ? (near === undefined ? NaN : near) : undefined, claim: cj ? (claim ? `${claim.win ? 'win' : 'lose'}/${claim.hits}` : null) : undefined, sus: v.sus.concat(closed ? ['after-close'] : []) }));
 
     if (!win) {

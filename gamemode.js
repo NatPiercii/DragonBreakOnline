@@ -3924,6 +3924,11 @@ const SKIN = Object.assign({
   // 'refuse' refuses it (DESIGN.md section 12, item 1)
   replayCheck: 'log',
 }, cfg.skinning || {});
+// "Read the hide" (Nate, 4 Oct): a UI that names MG.PICK_CAP gets an attempt with no timing (minigames.js). Each cut
+// shows spotsByTier points along the hide, one on the seam line, the decoys off it by seamGapByTier and more; a pick off
+// the seam is a slip. Cuts, slips allowed, the tier cap and the pelts are the timing attempt's; seconds bounds the whole
+// attempt so an idle one ends. enabled false: every client gets the timing attempt.
+const SKIN_PICK = MG.pickCfg(SKIN, { seamGapByTier: [8, 10, 12, 15, 18] });
 // Rounds and judged nonces outlive a reload, or every save would strand an attempt in flight
 const skinSessions = globalThis.__dboSkinRounds || (globalThis.__dboSkinRounds = new Map()); // actorId -> round
 const skinSpent = globalThis.__dboSkinSpent || (globalThis.__dboSkinSpent = new Map()); // nonce -> when judged
@@ -3991,11 +3996,23 @@ const skinRound = (casterId, tier, corpse, name) => {
     corpse, tier, seed, name, cuts, allowed, width, seams, sweepMs,
     totalMs: Math.max(1000, Math.round((Number(SKIN.seconds) || 15) * 1000)), startedAt: performance.now(),
   };
+  if (SKIN_PICK.enabled !== false && hasUiCap(casterId, MG.PICK_CAP)) {
+    const p = MG.pickSteps(rand, cuts + allowed, MG.byTier(SKIN_PICK.spotsByTier, tier, 4), MG.byTier(SKIN_PICK.cueByTier, tier, 0.7), MG.byTier(SKIN_PICK.decoyByTier, tier, 0.35), 'seam', MG.byTier(SKIN_PICK.seamGapByTier, tier, 10));
+    Object.assign(round, { mode: 'pick', steps: p.steps, right: p.right, totalMs: Math.max(10000, Math.round((Number(SKIN_PICK.seconds) || 90) * 1000)), minPickMs: Math.max(0, Number(SKIN_PICK.minPickMs) || 0) });
+    round.minMs = MG.pickMinMs(cuts, round.minPickMs);
+    return round;
+  }
   round.minMs = skinMinMs(round);
   return round;
 };
 // Everything the widget needs to draw the round, and nothing it could use to judge it
 const skinPacket = (round, result, resultKind) => {
+  if (round.mode === 'pick') {
+    const p = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, mode: 'pick', cuts: round.cuts, misses: round.allowed, steps: round.steps, totalMs: round.totalMs, minPickMs: round.minPickMs };
+    if (MG.clientJudged(SKIN)) p.judge = 'client';
+    if (result) { p.result = result; p.resultKind = resultKind; }
+    return p;
+  }
   const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, totalMs: round.totalMs };
   // The widget shows its own verdict at once when it is the judge; an older one ignores the field
   if (MG.clientJudged(SKIN)) w.judge = 'client';
@@ -4143,7 +4160,7 @@ globalThis.__dboSkin = (targetId, casterId) => {
     }
     const old = skinSessions.get(casterId);
     if (old) { skinKeepClosing(casterId, old, 'superseded'); log(`skinning superseded ${display(casterId)} ${old.name} after ${Math.round(performance.now() - old.startedAt)} ms by a new attempt`); }
-    log(`skinning issue ${display(casterId)} ${round.name} t${tier + 1} cuts=${round.cuts} min=${round.minMs} judge=client seed=${round.seed.toString(16)}`);
+    log(`skinning issue ${display(casterId)} ${round.name} t${tier + 1} cuts=${round.cuts}${round.mode === 'pick' ? ` pick spots=${round.steps[0].length}` : ''} min=${round.minMs} judge=client seed=${round.seed.toString(16)}`);
   }
   skinSessions.set(casterId, round);
   openWidget(casterId, skinPacket(round), true);
@@ -4183,6 +4200,17 @@ const judgeSkin = (round, raw, at, elapsed) => {
   }
   if (r.lag < -SKIN.clockSlackMs) r.bad = 'future';      // more time on its clock than the server watched pass
   else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';      // drawn out in real time, or a report from minutes ago
+  return r;
+};
+// A pick attempt's report: '[[index, ms], ...]' replayed against the points the server rolled, in judgeSkin's fields
+const judgeSkinPick = (round, raw, at, elapsed) => {
+  const p = MG.judgePicks(raw, { need: round.cuts, allowed: round.allowed, steps: round.steps, right: round.right, totalMs: round.totalMs, minPickMs: round.minPickMs });
+  const r = { cuts: p.hits, slips: p.misses, count: p.count, last: p.last, at, lag: Math.round(elapsed - at), err: 0, bad: p.bad, sus: p.sus };
+  if (r.bad) return r;
+  if (r.last > at) { r.bad = 'submit'; return r; }
+  if (MG.clientJudged(SKIN)) { r.sus.push(...MG.lagFlags(r.lag, SKIN.clockSlackMs, SKIN.slowFlagMs)); return r; }
+  if (r.lag < -SKIN.clockSlackMs) r.bad = 'future';
+  else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';
   return r;
 };
 // Where the skinner is against the body when the report lands: { near, d, moved } in units. Rollback: under 400 units
@@ -4243,7 +4271,7 @@ const skinReport = (a, args) => {
   }
   const cj = MG.clientJudged(SKIN);
   const at = Math.max(0, Math.floor(Number(args[2]) || 0));
-  const v = judgeSkin(ses, args[1], at, elapsed);
+  const v = ses.mode === 'pick' ? judgeSkinPick(ses, args[1], at, elapsed) : judgeSkin(ses, args[1], at, elapsed);
   const claim = cj ? skinClaimOf(args[3]) : null;
   let pelts = []; try { pelts = mp.get(ses.corpse, 'private.dboPelts') || []; } catch (e) { /* corpse gone */ }
   let skinned = true; try { skinned = mp.get(ses.corpse, 'private.dboSkinned') === true; } catch (e) { /* corpse gone */ }
@@ -4287,7 +4315,7 @@ const skinReport = (a, args) => {
   // the clean cuts were (0 dead centre, 1 at the seam's edge); then who judged, the fastest the attempt could be won,
   // the widget's claim, review flags, and the distance figures (d: to the body now, moved: since the attempt began).
   const n0 = (x) => (Number.isFinite(x) ? Math.round(x) : '-');
-  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`
+  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count}${ses.mode === 'pick' ? ' pick' : ''} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`
     + (cj ? MG.tail({ judge: claim ? 'client' : 'legacy', min: ses.minMs, claim: claim ? `${claim.win ? 'win' : 'lose'}/${claim.hits}/${claim.slips}` : null, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
       + ` d=${n0(where.d)} moved=${n0(where.moved)}${claim ? ` fr=${n0(claim.frames)} maxFrame=${n0(claim.maxFrameMs)}` : ''}` : ''));
   // A verdict for an attempt whose window is gone (stopped, hidden or replaced) is told in chat
@@ -5724,7 +5752,7 @@ try {
 try {
   const LABOUR_JS = path.resolve('labour.js');
   delete require.cache[LABOUR_JS];
-  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, distanceMeters, sendPacket, onlineActors });
+  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, distanceMeters, sendPacket, onlineActors, hasUiCap });
 } catch (e) {
   log('labour.js failed to load:', e.stack || e.message);
   // Fail closed: with labour.js down, a seam's vanilla ore script and its pickaxe markers paid out with no round, no

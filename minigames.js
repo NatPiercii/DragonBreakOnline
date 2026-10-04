@@ -97,3 +97,68 @@ MG.limiter = (windowMs) => {
     return true;
   };
 };
+
+// ---- "Read the work": pick rounds with no timing at all (Nate, 4 Oct: players have input lag at times) ---------------
+// Each blow (or cut) shows a few marked spots; one carries the clearest cue (a crack line, a glint, the split, the lifted
+// hide on the seam) and picking it lands the blow. The server rolls every blow's spots and which is right from the round's
+// seed; the widget draws them and reports the index it picked and when, and the server replays that list. Times bound
+// only the round's whole length (an idle round ends) and the fastest a hand can pick. Only a UI that names PICK_CAP in
+// dbo:uiCaps gets one; every other client keeps the timing round exactly as before.
+MG.PICK_CAP = 'pickRound';
+MG.pickCfg = (block, defaults) => Object.assign({ enabled: true, seconds: 90, spotsByTier: [4, 4, 4, 3, 3], cueByTier: [0.6, 0.7, 0.8, 0.9, 1], decoyByTier: [0.42, 0.36, 0.3, 0.22, 0.14], minPickMs: 150 }, defaults || {}, (block && block.pick) || {});
+MG.byTier = (list, tier, fallback) => {
+  const arr = Array.isArray(list) ? list : [];
+  const v = Number(arr[Math.min(Math.max(Number(tier) || 0, 0), arr.length - 1)]);
+  return Number.isFinite(v) ? v : fallback;
+};
+const r2 = (x) => Math.round(x * 100) / 100;
+// One blow's spots as [x, y, cue] in percent of the face (cue 0..1), and the index of the right one. Spread across the
+// face one per slot so no two touch; layout 'seam' puts the right spot on the seam line (y 50) and the decoys off it by
+// at least seamGap, 'face' scatters them all. The right cue is always strictly the clearest.
+MG.pickStep = (rand, n, cue, decoy, layout, seamGap) => {
+  const count = Math.max(2, Math.min(6, Math.floor(n) || 4));
+  const right = Math.min(count - 1, Math.floor(rand() * count));
+  const slot = 84 / count;
+  const spots = [];
+  for (let j = 0; j < count; j++) {
+    const x = r2(8 + slot * (j + 0.5) + (rand() - 0.5) * slot * 0.5);
+    const off = (Number(seamGap) || 10) + rand() * 8;
+    const y = layout === 'seam' ? (j === right ? 50 : r2(50 + (rand() < 0.5 ? -off : off))) : r2(26 + rand() * 48);
+    const c = j === right ? r2(Math.max(0.05, Math.min(1, cue))) : r2(Math.max(0, Math.min(Number(decoy) || 0, cue - 0.1)) * (0.4 + 0.6 * rand()));
+    spots.push([x, y, c]);
+  }
+  return { spots, right };
+};
+// Every blow a round can take (need + allowed misses), so blow k always draws steps[k] whatever came before
+MG.pickSteps = (rand, blows, n, cue, decoy, layout, seamGap) => {
+  const steps = [], right = [];
+  for (let k = 0; k < blows; k++) { const s = MG.pickStep(rand, n, cue, decoy, layout, seamGap); steps.push(s.spots); right.push(s.right); }
+  return { steps, right };
+};
+// The right spot as the widget finds it: the clearest cue
+MG.rightOf = (spots) => spots.reduce((best, s, i) => (s[2] > spots[best][2] ? i : best), 0);
+// The fastest a round can be won by hand: the first pick no sooner than minPickMs, each next at least minPickMs later
+MG.pickMinMs = (need, minPickMs) => Math.max(1, Math.floor(need)) * Math.max(0, Number(minPickMs) || 0);
+// Replay a pick report: raw is '[[index, ms], ...]' in the order picked. Returns the hits, the misses and any reason to
+// refuse; the widget submits on the last needed hit or the miss past the allowance, so nothing may follow either.
+MG.judgePicks = (raw, round) => {
+  const r = { hits: 0, misses: 0, count: 0, last: 0, first: -1, minGap: Infinity, bad: '', sus: [] };
+  let list = null;
+  if (Array.isArray(raw)) list = raw;
+  else if (typeof raw === 'string' && raw.length <= 2048) { try { list = JSON.parse(raw); } catch (e) { list = null; } }
+  if (!Array.isArray(list)) { r.bad = 'malformed'; return r; }
+  if (list.length > round.need + round.allowed) { r.bad = 'flood'; return r; }
+  r.count = list.length;
+  for (let k = 0; k < list.length; k++) {
+    const e = list[k];
+    const i = Array.isArray(e) ? Number(e[0]) : NaN, t = Array.isArray(e) ? Number(e[1]) : NaN;
+    if (!Number.isInteger(i) || !Number.isInteger(t) || t < 0 || t > round.totalMs || i < 0 || i >= (round.steps[k] || []).length) { r.bad = 'range'; break; }
+    if (t < r.last) { r.bad = 'order'; break; }
+    if (r.hits >= round.need || r.misses > round.allowed) { r.bad = 'extra'; break; }
+    if (i === round.right[k]) r.hits++; else r.misses++;
+    if (r.first < 0) r.first = t; else r.minGap = Math.min(r.minGap, t - r.last);
+    r.last = t;
+  }
+  if (!r.bad && r.count && (r.first < round.minPickMs || r.minGap < round.minPickMs)) r.bad = 'fast';
+  return r;
+};

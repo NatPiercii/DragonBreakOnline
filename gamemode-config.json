@@ -395,6 +395,8 @@
   "replayCheck": "log",
   "roundTimeoutMs": 180000,
   "nearMeters": 15,
+  "_pick": "Read the stone (Nate, 4 Oct: no timing, players have input lag at times). A UI that says dbo:uiCaps pickRound (front 0.3.77+) gets a pick round: every blow shows spotsByTier spots, one with the clearest cue (a crack line or a glint of ore, the split in the wood), and picking it lands the blow; slipsByTier wasted blows are allowed, one more ends the round as a loss; seconds bounds the whole round so an idle one ends; minPickMs is the fastest a hand picks (faster is refused). cueByTier and decoyByTier set how clear the right cue and the decoys are. Strikes, rests and yields are the timing round's. Every other UI keeps the timing round exactly. ROLLBACK: pick.enabled false. Hot reload.",
+  "pick": { "enabled": true, "seconds": 90, "spotsByTier": [4, 4, 4, 3, 3], "slipsByTier": [2, 3, 3, 4, 4], "cueByTier": [0.6, 0.7, 0.8, 0.9, 1], "decoyByTier": [0.42, 0.36, 0.3, 0.22, 0.14], "minPickMs": 150 },
   "saltGlow": { "_comment": "Sea Salt Deposits glow while they hold salt for you and go dark while the seam rests (GroundedPasta, 30 Sep: very small, very hard to see). audience: miners (Miner taken up) or everyone. The list is salt-deposits.json (tools/labour/salt_deposits.py). Hot reload.", "enabled": true, "audience": "miners", "seconds": 30 }
  },
  "skinning": {
@@ -402,6 +404,8 @@
   "_clientJudged": "Jake, 2026-09-30: the widget judges the attempt on the player's machine and the server accepts its verdict, keeping only checks latency cannot fail (nonce, one report, the cut list's shape and replay, no first cut under firstCutMs or two cuts closer than cutGapMs, the body not yet skinned, the tier cap, pelts and mastery). Distance at the report: within nearUnits of the body, or moved under movedUnits since the attempt began with the body within issueUnits then (the server's corpse position can be stale: 9 earned wins were lost to the plain 400-unit check); both grow by 700 units for every second of the report's own lag, up to 120 m more, and a skinner in reach when their Stop arrived counts as in reach. roundTimeoutMs cleans up an attempt nobody reports. replayCheck: 'log' lets a claimed win its own cuts do not bear out stand with a SKINNING-MISMATCH audit line, 'refuse' refuses it. ROLLBACK: commit clientJudged false to this file on origin/server and ship it (a release, or dev-server.sh deploy-gameplay --hotfix); today's judging (lagGraceMs refuses late reports, the plain 400-unit distance) comes back for every client. Not as a live-only edit: every release and hotfix copies this file over the live one and keeps only admins, so a live edit lasts only until the next deploy.",
   "clientJudged": true,
   "replayCheck": "log",
+  "_pick": "Read the hide (Nate, 4 Oct). A UI that says dbo:uiCaps pickRound gets a pick attempt: every cut shows spotsByTier points along the hide, one on the seam line and the decoys off it by seamGapByTier percent or more; a pick off the seam is a slip, and cuts and misses are the timing attempt's. seconds bounds the whole attempt. Tier cap, pelts and the bonus pelt are unchanged. Every other UI keeps the timing attempt. ROLLBACK: pick.enabled false. Hot reload.",
+  "pick": { "enabled": true, "seconds": 90, "spotsByTier": [4, 4, 4, 3, 3], "seamGapByTier": [8, 10, 12, 15, 18], "cueByTier": [0.6, 0.7, 0.8, 0.9, 1], "decoyByTier": [0.42, 0.36, 0.3, 0.22, 0.14], "minPickMs": 150 },
   "roundTimeoutMs": 120000,
   "nearUnits": 400,
   "movedUnits": 200,

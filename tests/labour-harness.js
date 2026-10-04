@@ -15,6 +15,7 @@ const LABOUR = path.join(SERVER, 'labour.js');
 
 let virtual = 0;
 let nearM = 2;
+let pickUi = false;
 globalThis.performance = { now: () => virtual };
 
 const ACTOR = 0x14;
@@ -61,6 +62,8 @@ const api = {
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
   giveItem: (a, id, n) => { out.items.push([id, n]); return true; },
   skills: require(path.join(SERVER, 'skills.json')),
+  // A UI that names 'pickRound' in dbo:uiCaps; off until the pick cases at the end
+  hasUiCap: (a, cap) => pickUi && cap === 'pickRound',
 };
 
 // gamemode.js rebuilds its ui registry on every reload, so the handlers go with it
@@ -680,6 +683,90 @@ load();
 w = fresh(); p = play(w, { aim: 0.5 });
 res = reportC(w, p.strikes, p.at, 4000, T, claimOf(true, p.hits));
 check('rollback (clientJudged false): the same 4 s lag is refused(late) again', verdictOf(res.log) === 'refused(late)' && judgeOf(res.log) === 'server', res.log);
+
+// ---- "Read the stone": a UI that names 'pickRound' gets a pick round, every other UI today's timing round --------------
+console.log('');
+console.log('pick rounds:');
+api.cfg = { labour: { clientJudged: true } };
+load();
+{
+  const TIMING_KEYS = 'type,id,nonce,kind,title,strikes,band,bands,sweepMs,totalMs,hitMs,missMs,judge';
+  const MG = require(path.join(SERVER, 'minigames.js'));
+  pickUi = false;
+  w = fresh('mining', 2);
+  check('a UI without the capability gets exactly the timing round', Object.keys(w).join(',') === TIMING_KEYS, Object.keys(w).join(','));
+  p = play(w, { aim: 0.5 });
+  res = reportC(w, p.strikes, p.at, 200, T, claimOf(true, p.hits));
+  const timingItems = JSON.stringify(res.items);
+  check('...which still wins as before', verdictOf(res.log) === 'win' && !/ pick /.test(res.log), res.log);
+  pickUi = true;
+  const claimP = (win, hits, slips) => JSON.stringify({ v: 2, mode: 'pick', win, hits, slips });
+  // wrong[k] wasted blows before the k-th landed one, 500 ms apart
+  const picks = (pw, wrong) => { const o = []; let t = 0, k = 0; for (const n of wrong) { for (let i = 0; i < n; i++) { t += 500; o.push([(MG.rightOf(pw.steps[k]) + 1) % pw.steps[k].length, t]); k++; } t += 500; o.push([MG.rightOf(pw.steps[k]), t]); k++; } return o; };
+  w = fresh('mining', 2);
+  check('a UI with it gets a pick round: a set of spots for every blow it can take, no sweep, no bands', w.mode === 'pick' && w.steps.length === w.strikes + w.slips && w.bands === undefined && w.sweepMs === undefined && w.totalMs === 90000, Object.keys(w).join(','));
+  check('four spots at Novice to Adept, three at Expert; more wasted blows allowed with rank', w.steps.every((st) => st.length === 4) && fresh('mining', 3).steps.every((st) => st.length === 3) && fresh('mining', 0).slips === 2 && fresh('mining', 4).slips === 4);
+  check('the issue line names the pick round', /labour issue .* pick slips=\d+ spots=\d+ min=\d+/.test(out.logs.join(' | ')), out.logs.slice(-1)[0]);
+  w = fresh('mining', 2);
+  let l = picks(w, [0, 0, 0, 0, 0, 0]);
+  res = reportC(w, l, l[l.length - 1][1], 200, T, claimP(true, 6, 0));
+  check('six right picks win and pay exactly what the timing round pays', verdictOf(res.log) === 'win' && JSON.stringify(res.items) === timingItems && / pick slips=0\//.test(res.log), `${res.log} ${JSON.stringify(res.items)} vs ${timingItems}`);
+  w = fresh('mining', 2);
+  l = picks(w, [1, 0, 1, 0, 1, 0]);
+  res = reportC(w, l, l[l.length - 1][1], 200, T, claimP(true, 6, 3));
+  check('wasted blows within the allowance still win (3 of 3 at Adept)', verdictOf(res.log) === 'win' && res.items.length === 1, res.log);
+  w = fresh('mining', 2);
+  l = picks(w, [2, 2]).slice(0, 5);
+  res = reportC(w, l, l[l.length - 1][1], 200, T, claimP(false, 1, 4));
+  const fail = Number((props.get(ACTOR + '|private.minedVeins') || {})[VEIN.toString(16)]) || 0;
+  check('one wasted blow past the allowance loses, with the fail rest', verdictOf(res.log) === 'lose' && res.items.length === 0 && Math.abs(fail - (Date.now() + 2 * 60000)) < 5000, res.log);
+  w = fresh('mining', 2);
+  res = reportC(w, [[MG.rightOf(w.steps[0]), 3000]], 90000, 200, T, claimP(false, 1, 0));
+  check('an idle round ends at its 90 s limit as a loss', verdictOf(res.log) === 'lose' && res.items.length === 0, res.log);
+  w = fresh('mining', 2);
+  l = picks(w, [0, 0, 0, 0, 0, 0]).concat([[0, 9000]]);
+  res = reportC(w, l, 9000, 200, T, claimP(true, 6, 0));
+  check('a pick after the last blow is refused(extra)', verdictOf(res.log) === 'refused(extra)' && res.items.length === 0, res.log);
+  w = fresh('mining', 2);
+  l = w.steps.slice(0, 6).map((st, k) => [MG.rightOf(st), 20 + k * 20]);
+  res = reportC(w, l, 140, 200, T, claimP(true, 6, 0));
+  check('picks faster than a hand are refused(fast)', verdictOf(res.log) === 'refused(fast)' && res.items.length === 0, res.log);
+  w = fresh('mining', 2);
+  res = reportC(w, [[9, 500]], 500, 200, T, claimP(false, 0, 1));
+  check('a spot that was never drawn is refused(range)', verdictOf(res.log) === 'refused(range)', res.log);
+  w = fresh('mining', 2);
+  res = reportC(w, JSON.stringify([500, 900]), 900, 200, T, claimP(false, 0, 0));
+  check('timing strikes sent for a pick round are refused, not judged as picks', /refused\(range\)/.test(res.log) && res.items.length === 0, res.log);
+  w = fresh('mining', 2);
+  l = w.steps.slice(0, 3).map((st, k) => [(MG.rightOf(st) + 1) % st.length, 500 + k * 500]);
+  res = reportC(w, l, 3000, 200, T, claimP(true, 6, 0));
+  check("a claimed win its picks do not bear out is audited (replayCheck 'log')", out.audits.some((t) => /^LABOUR-MISMATCH /.test(t)) && /mismatch/.test(susOf(res.log)), res.log);
+  w = fresh('chopping', 1);
+  l = picks(w, new Array(w.strikes).fill(0));
+  res = reportC(w, l, l[l.length - 1][1], 200, T, claimP(true, w.strikes, 0));
+  check('chopping: a pick round splits the log and gives the same firewood (4 at tier 2)', verdictOf(res.log) === 'win' && res.items.length === 1 && res.items[0][1] === 4, `${res.log} ${JSON.stringify(res.items)}`);
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    const rw = fresh(i % 2 ? 'chopping' : 'mining', i % 5);
+    const list = []; let hits = 0, slips = 0, t = 0;
+    for (let k = 0; hits < rw.strikes && slips <= rw.slips; k++) {
+      t += 200 + Math.floor(Math.random() * 900);
+      const pick = Math.random() < 0.75 ? MG.rightOf(rw.steps[k]) : Math.floor(Math.random() * rw.steps[k].length);
+      list.push([pick, t]);
+      if (pick === MG.rightOf(rw.steps[k])) hits++; else slips++;
+    }
+    const rr = reportC(rw, list, t, 150, T, claimP(hits >= rw.strikes, hits, slips));
+    if (verdictOf(rr.log) === (hits >= rw.strikes ? 'win' : 'lose') && !/mismatch/.test(susOf(rr.log))) agree++;
+  }
+  check('the widget and the server agree on 200 random pick rounds', agree === 200, `${agree}/200`);
+  api.cfg = { labour: { clientJudged: true, pick: { enabled: false } } };
+  load();
+  w = fresh('mining', 2);
+  check('labour.pick.enabled false gives every UI the timing round again', Object.keys(w).join(',') === TIMING_KEYS, Object.keys(w).join(','));
+  api.cfg = { labour: { clientJudged: true } };
+  load();
+  pickUi = false;
+}
 
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
