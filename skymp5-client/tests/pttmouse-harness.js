@@ -72,7 +72,7 @@ const V = 47, LEFT_ALT = 56, G = 34;
     const controller = {
       emitter: { on: () => {} },
       on: (ev, fn) => { handlers[ev] = fn; }, once: () => {},
-      lookupListener: () => ({ getMyRemoteRefrId: () => 0 }),
+      lookupListener: () => ({ getMyRemoteRefrId: () => 0xff000001 }),
     };
     const vs = new VoiceService(sp, controller);
     const ev = (device, code, state) => handlers.buttonEvent(Object.assign({ device, code, isDown: false, isUp: false, isHeld: false }, { [state]: true }));
@@ -114,8 +114,17 @@ const V = 47, LEFT_ALT = 56, G = 34;
   t = make(259);
   t.setFocused(true);
   t.ev(MOUSE, 3, 'isDown');
-  check('not while a window has the browser focus (the page decides there)', t.talking() === null);
+  check('with a window holding the browser focus a Mouse 4 the game reports still talks (a mouse button types nothing)', t.talking() === true);
+  t.vs.onUpdate();
+  check('...and the frame update does not cut it off as it does a typed key', t.talking() === true);
+  t.ev(MOUSE, 3, 'isUp');
+  check('...its release (or the platform hiding the button) ends it', t.talking() === false);
+  t = make(V);
+  t.setFocused(true);
+  t.ev(KEYBOARD, V, 'isDown');
+  check('a typed V with the browser focus still does not talk', t.talking() === null);
   t.setFocused(false);
+  t = make(259);
   globalThis.__consoleOpen = true;
   t.ev(MOUSE, 3, 'isDown');
   check('...nor with the console open', t.talking() === null);
@@ -132,6 +141,16 @@ const V = 47, LEFT_ALT = 56, G = 34;
   t.ev(KEYBOARD, LEFT_ALT, 'isDown');
   t.ev(KEYBOARD, LEFT_ALT, 'isUp');
   check('a plain Alt tap still cycles it', globalThis.__notes.some((n) => /^Voice: /.test(n)), globalThis.__notes);
+
+  t = make(V, { voiceModeKeyCode: 260 });
+  globalThis.__notes = [];
+  t.ev(MOUSE, 4, 'isDown');
+  check('Voice range on Mouse 5 cycles the range', globalThis.__notes.some((n) => /^Voice: /.test(n)), globalThis.__notes);
+  globalThis.__notes = [];
+  t.ev(MOUSE, 3, 'isDown');
+  t.ev(KEYBOARD, LEFT_ALT, 'isDown');
+  t.ev(KEYBOARD, LEFT_ALT, 'isUp');
+  check('...and then Left Alt and Mouse 4 do not', globalThis.__notes.length === 0, globalThis.__notes);
 
   // The keyboard key as before
   t = make(undefined);
