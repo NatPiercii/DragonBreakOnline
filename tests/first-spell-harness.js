@@ -6,6 +6,9 @@
 // panel of its own; the school starts at 25, so the pick follows the choice in the same panel. Known spells are not
 // offered. A mage given update-1003's fixed starter has made that pick. tests/magic-flow-2-harness.js has Restoration,
 // the change of school and the Magic tab; tests/schools-harness.js keeps the rest of the schools at firstSchoolAt 0.
+// A first spell chosen before the character has been in the world starterSettleSeconds is given once it has (the client
+// sets its spells back to the login list for its first seconds), and every first spell is sent to the client once more
+// starterResendSeconds after it was given; update-1003's starters given at login are sent again once.
 // No server and no game: run it from this folder's parent with
 //
 //   node tests/first-spell-harness.js
@@ -180,6 +183,8 @@ const advance = (ms) => { wallClock += ms; };
 for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
 const FIRST_LINE = "You've dedicated yourself to the study of magic and are now finally able to learn your first spell and choose your school.";
 const widgetsOf = (a, id) => out.widgets.filter((w) => w.a === a && w.w.id === id);
+// Everyone online is first seen here, and has been in the world long enough for a first spell by the first pick below
+tick('schools.first'); advance(91000);
 
 check('the boot line names the school at 25 and every first spell', out.logs.some((l) => /school at Arcane Arts 25; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing\)/.test(l)), out.logs.filter((l) => /schools on/.test(l)));
 check('the tracked config leaves firstSchoolAt to the code (25)', CONFIG.schools.firstSchoolAt === undefined);
@@ -261,7 +266,11 @@ ui('schoolChoose', ADEPT, [w.nonce, 'Conjuration', 'primary']);
 w = lastWidget(ADEPT, 'studyMagic');
 check('...chosen there: Conjuration, and its pick follows (Bound Sword, Conjure Familiar)', rec(ADEPT).primary === 'Conjuration' && w.title === 'Your First Spell' && w.choices.map((c) => c.name).join() === 'Bound Sword,Conjure Familiar', [rec(ADEPT).primary, w]);
 ui('firstSpellPick', ADEPT, [w.nonce, 'Conjure Familiar']);
-check('...Conjure Familiar chosen (unblocked 3 Oct), and the panel closes', studied(ADEPT).includes(T.familiar[1]) && out.closed.some(([x, id]) => x === ADEPT && id === 73), [studied(ADEPT), out.closed.filter(([x]) => x === ADEPT)]);
+check('...Conjure Familiar chosen (unblocked 3 Oct) just after login, and the panel closes; the spell waits for the client\'s first seconds', !studied(ADEPT).length && rec(ADEPT).picks.Conjuration.given === false && /Conjure Familiar is your first spell of Conjuration; it comes to you in a moment\./.test(said(ADEPT)) && out.closed.some(([x, id]) => x === ADEPT && id === 73), [studied(ADEPT), said(ADEPT), out.closed.filter(([x]) => x === ADEPT)]);
+advance(60000); tick('schools.first');
+check('...nor given a minute in', !studied(ADEPT).length);
+advance(31000); tick('schools.first');
+check('...then given, with the line', studied(ADEPT).includes(T.familiar[1]) && known(ADEPT).has(idOf(T.familiar[1])) && /^You learn Conjure Familiar, your first spell of Conjuration\./.test(said(ADEPT)) && rec(ADEPT).picks.Conjuration.given === undefined && rec(ADEPT).picks.Conjuration.how === 'chose', [studied(ADEPT), said(ADEPT), rec(ADEPT).picks]);
 check('Illusion and Alteration are untouched for them', !rec(ADEPT).levels.Illusion && !rec(ADEPT).levels.Alteration);
 
 // ---- on K at 40 ----
@@ -291,7 +300,8 @@ globalThis.__dboSchoolsLogin(ILLUSIONIST);
 w = lastWidget(ILLUSIONIST, 'studyMagic');
 check('...the next login: a short line and the pick again', said(ILLUSIONIST) === 'Your first spell of Illusion waits to be chosen.' && w.title === 'Your First Spell', said(ILLUSIONIST));
 ui('firstSpellPick', ILLUSIONIST, [w.nonce, 'Fury']);
-check('...Fury chosen; their school is kept though Arcane Arts is below 25', studied(ILLUSIONIST).includes(T.fury[1]) && rec(ILLUSIONIST).primary === 'Illusion' && level(ILLUSIONIST, 'Illusion') === 25);
+advance(91000); tick('schools.first');
+check('...Fury chosen (given once the login had settled); their school is kept though Arcane Arts is below 25', studied(ILLUSIONIST).includes(T.fury[1]) && rec(ILLUSIONIST).primary === 'Illusion' && level(ILLUSIONIST, 'Illusion') === 25);
 
 // ---- a mage who already knows a spell of their school ----
 arcane(OLDMAGE, 30);
@@ -326,6 +336,55 @@ check('...a known spell sent anyway is refused, and the pick stays open', studie
   const n1 = out.said.filter((x) => x[0] === ALLKNOWN).length;
   tick('schools.first'); globalThis.__dboSchoolsLogin(ALLKNOWN);
   check('...and never again', out.said.filter((x) => x[0] === ALLKNOWN).length === n1);
+}
+
+// ---- the late resend: once per first spell, for a client that sat in a menu ----
+{
+  const calls = [];
+  const call = mp.callPapyrusFunction;
+  mp.callPapyrusFunction = (k, c, fn, self, args) => { if (fn === 'RemoveSpell' || fn === 'AddSpell') calls.push([idOf(self.desc), fn, args[0].desc]); return call(k, c, fn, self, args); };
+  const of = (a) => calls.filter(([x]) => x === a).map(([, fn, d]) => `${fn} ${d}`);
+  // ALTMAGE's Oakflesh was given at once (settled); its resend is due 120 s after
+  const n0 = out.said.filter((x) => x[0] === ALTMAGE).length;
+  advance(120000); tick('schools.first');
+  check('a first spell given long ago is sent once more: taken back on one check', of(ALTMAGE).join() === `RemoveSpell ${T.oakflesh[1]}` && !known(ALTMAGE).has(idOf(T.oakflesh[1])) && studied(ALTMAGE).includes(T.oakflesh[1]), of(ALTMAGE));
+  tick('schools.first');
+  check('...given again on the next, quietly', of(ALTMAGE).join() === `RemoveSpell ${T.oakflesh[1]},AddSpell ${T.oakflesh[1]}` && known(ALTMAGE).has(idOf(T.oakflesh[1])) && out.said.filter((x) => x[0] === ALTMAGE).length === n0, of(ALTMAGE));
+  check('...an audit line for it', out.audits.some((l) => new RegExp(`SCHOOLS P${ALTMAGE.toString(16)} was sent ${T.oakflesh[1].replace('.', '\\.')} Oakflesh again`).test(l)));
+  advance(300000); tick('schools.first'); globalThis.__dboSchoolsLogin(ALTMAGE); advance(300000); tick('schools.first'); tick('schools.first');
+  check('...only once per grant, a relog later too', of(ALTMAGE).length === 2, of(ALTMAGE));
+  // update-1003's starter given at login: sent again at once, with a line; one put away is only marked
+  const LATE = 0x24, PUTAWAY = 0x25; NAMES[LATE] = 'Late'; NAMES[PUTAWAY] = 'Putaway';
+  for (const [a, prep] of [[LATE, [T.boundSword[1]]], [PUTAWAY, []]]) {
+    put(a, 'profileId', a); at(a, SYNOD, [0, 0, 0]); online.push(a); ui('uiCaps', a, ['bank', 'spellbook', 'schools']); arcane(a, 2);
+    put(a, 'private.dboStudied', { arcane: [T.boundSword[1]] }); put(a, 'private.dboPrepared', prep);
+    if (prep.length) known(a).add(idOf(T.boundSword[1]));
+    put(a, 'private.dboSchools', { v: 1, primary: 'Conjuration', secondary: null, grandfathered: [], levels: { Conjuration: { level: 31, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, starter: T.boundSword[1] });
+    globalThis.__dboSchoolsLogin(a);
+  }
+  tick('schools.first');
+  check('update-1003\'s starter is left alone in the client\'s first seconds', !of(LATE).length && rec(LATE).picks.Conjuration.how === 'starter', of(LATE));
+  advance(91000); tick('schools.first'); tick('schools.first');
+  check('...then taken back and given again, and the player told', of(LATE).join() === `RemoveSpell ${T.boundSword[1]},AddSpell ${T.boundSword[1]}` && known(LATE).has(idOf(T.boundSword[1])) && said(LATE) === 'Your first spell is back. Bound Sword is ready among your spells.' && rec(LATE).starterSent === 'before', [of(LATE), said(LATE)]);
+  check('...one put away is only marked', !of(PUTAWAY).length && rec(PUTAWAY).starterSent === 'before' && !Object.keys(rec(PUTAWAY).resend).length && !out.said.some((x) => x[0] === PUTAWAY), of(PUTAWAY));
+  // A logout and a new character ready between two checks restart the clock
+  const RECON = 0x26; NAMES[RECON] = 'Recon'; put(RECON, 'profileId', RECON); at(RECON, SYNOD, [0, 0, 0]); online.push(RECON); ui('uiCaps', RECON, ['bank', 'spellbook', 'schools']); arcane(RECON, 3);
+  put(RECON, 'private.dboSchools', { v: 1, primary: 'Illusion', secondary: null, grandfathered: [], levels: { Illusion: { level: 30, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, picks: {}, pickTold: { Illusion: 1 } });
+  globalThis.__dboSchoolsArrived(RECON); advance(200000);
+  globalThis.__dboSchoolsLeave(RECON); globalThis.__dboSchoolsArrived(RECON);
+  globalThis.__dboSchoolsLogin(RECON);
+  w = lastWidget(RECON, 'studyMagic');
+  ui('firstSpellPick', RECON, [w.nonce, 'Courage']);
+  check('a reconnect inside one check: a pick made at once waits again', !studied(RECON).length && rec(RECON).picks.Illusion.given === false, [studied(RECON), rec(RECON).picks]);
+  advance(91000); tick('schools.first');
+  check('...and is given once the new arrival has settled', studied(RECON).includes(T.courage[1]), studied(RECON));
+  const NOCAPS = 0x27; put(NOCAPS, 'profileId', NOCAPS); at(NOCAPS, SYNOD, [0, 0, 0]);
+  globalThis.__dboSchoolsArrived(NOCAPS); advance(200000); globalThis.__dboSchoolsLogin(NOCAPS);
+  check('the login check restarts the clock with no capabilities yet', globalThis.__dboSchoolsSeenAt.get(NOCAPS) === Date.now());
+  globalThis.__dboSchoolsLeave(NOCAPS);
+  check('...and a logout forgets it', !globalThis.__dboSchoolsSeenAt.has(NOCAPS));
+  mp.callPapyrusFunction = call;
+  online = online.filter((x) => x !== LATE && x !== PUTAWAY && x !== RECON);
 }
 
 // ---- an old client ----

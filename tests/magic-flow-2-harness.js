@@ -181,6 +181,9 @@ const menuRaw = (a, id) => { const w = contextOf(a); const nonce = w.actions[0].
 const menuChoose = (a, id) => { const w = contextOf(a); const row = w.actions.find((x) => x.id.endsWith('|' + id)); ui('schoolMenu', a, [row ? row.id : 'x|' + id]); };
 const priestBook = (a) => ((props.get(a + '|private.dboStudied') || {}).priest || []);
 const view = (a) => globalThis.__dboMagicView(a);
+// Everyone online is first seen here and has been in the world long enough for a first spell (schools.js
+// starterSettleSeconds; tests/first-spell-harness.js has the wait itself)
+tick('schools.first'); advance(91000);
 
 // ---- Restoration: Healing at Priest 25 ----
 priestOf(PRIESTLY, 24);
@@ -309,6 +312,7 @@ check('a spell held outside the book is listed apart', v.book.outside.map((x) =>
 // The tab's actions (journal.js dbo:journalMagic -> __dboMagicAction)
 {
   const FRESH = 0x31; put(FRESH, 'profileId', FRESH); at(FRESH, BRUMA, [0, 0, 0]); online.push(FRESH); ui('uiCaps', FRESH, ['bank', 'spellbook', 'schools']); arcane(FRESH, 25);
+  globalThis.__dboSchoolsArrived(FRESH); advance(91000); // in the world long enough for a first spell
   p = progress(FRESH); ui('schoolChoose', FRESH, [p.nonce, 'Illusion', 'primary']);
   ui('firstSpellClose', FRESH, []);
   v = view(FRESH);
@@ -342,6 +346,7 @@ check('/schools shows resting schools, the picks and the last change', /Illusion
   w = lastWidget(STARTER, 'studyMagic');
   check('...changing Destruction 60 for Illusion (30): the new school gets its own pick (Courage, Fury)', rec(STARTER).primary === 'Illusion' && level(STARTER, 'Illusion') === 30 && !rec(STARTER).picks.Illusion && w && w.title === 'Your First Spell' && w.school === 'Illusion' && w.choices.map((c) => c.name).join() === 'Courage,Fury', [rec(STARTER).picks, w && w.school]);
   ui('firstSpellPick', STARTER, [w.nonce, 'Courage']);
+  advance(91000); tick('schools.first');
   check('...chosen; the starter stays Destruction\'s', rec(STARTER).picks.Illusion.spell === '4dee8:Skyrim.esm' && rec(STARTER).picks.Destruction.spell === '2b96b:Skyrim.esm');
 }
 

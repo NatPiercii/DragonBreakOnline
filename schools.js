@@ -83,6 +83,13 @@ module.exports = (api) => {
     firstStudyWeight: 3,
     // The first spell of each school at `firstSpellAt` in it (Restoration: at Priest firstSpellAt), Nate's lists, 3 Oct
     firstSpellAt: 25,
+    // The client sets its spells back to the list it was sent at character load for its first seconds in the world
+    // (skymp5-client remoteServer.ts SPELL_ENFORCE_PASSES, 1 to 20 s, paused by loading screens), so a spell the server
+    // adds then is taken off the player's screen while the server keeps it (3-4 Oct: every starter given at login). A
+    // first spell chosen before the character has been seen in the world this long is given once it has...
+    starterSettleSeconds: 90,
+    // ...and every first spell is sent to the client once more this long after it was given (see runResends)
+    starterResendSeconds: 120,
     firstSpells: {
       Destruction: ['12fcd:Skyrim.esm', '2dd2a:Skyrim.esm', '2b96b:Skyrim.esm'], // Flames, Sparks, Frostbite
       Restoration: ['12fcc:Skyrim.esm'],                                        // Healing
@@ -364,6 +371,72 @@ module.exports = (api) => {
     }, true);
     return true;
   };
+  // When each online character arrived (the character ready, the login check, or the first check that saw them); a
+  // logout forgets it, so a reconnect inside one check starts again. Kept over a reload.
+  const SETTLE_MS = Math.max(0, Number(C.starterSettleSeconds) || 0) * 1000;
+  const RESEND_MS = Math.max(0, Number(C.starterResendSeconds) || 0) * 1000;
+  const seenAt = globalThis.__dboSchoolsSeenAt instanceof Map ? globalThis.__dboSchoolsSeenAt : (globalThis.__dboSchoolsSeenAt = new Map());
+  const seen = (a, arrived) => { if (arrived || !seenAt.has(a >>> 0)) seenAt.set(a >>> 0, Date.now()); };
+  const settled = (a) => seenAt.has(a >>> 0) && Date.now() - seenAt.get(a >>> 0) >= SETTLE_MS;
+  globalThis.__dboSchoolsArrived = (a) => seen(a, true);
+  globalThis.__dboSchoolsLeave = (a) => { seenAt.delete(a >>> 0); };
+
+  // A spell given to the client once more, once per grant: the client's resets count only time outside menus, so a
+  // player sitting in a menu can outlast starterSettleSeconds. Two checks, so the client cannot run the add before the
+  // remove: taken back, then given again (a relog, or putting it away and preparing it, does the same by hand). Only a
+  // spell still prepared is sent; s.resend { desc: { due, taken, say } } holds the ones waiting.
+  const papyrusSpell = (a, fn, id, extra) => { try { return mp.callPapyrusFunction('method', 'Actor', fn, { type: 'form', desc: descOf(a) }, [{ type: 'espm', desc: descOf(id) }].concat(extra || [])) === true; } catch (e) { log(`schools: ${fn} ${descOf(id)} failed`, e.message); return false; } };
+  const queueResend = (s, desc, afterMs, say) => { s.resend = Object.assign({}, s.resend || {}, { [descOf(idOf(desc)) || desc]: { due: Date.now() + afterMs, taken: false, say: say || '' } }); };
+  // The line to tell, or ''; saves the record when it changed anything
+  const runResends = (a, s) => {
+    if (!s.resend || !Object.keys(s.resend).length || !settled(a)) return '';
+    const prepared = (get(a, 'private.dboPrepared', []) || []).map((d) => norm(d));
+    let said = '', changed = false;
+    for (const [desc, r] of Object.entries(s.resend)) {
+      if (!r.taken && Date.now() < Number(r.due)) continue;
+      const id = idOf(desc);
+      const sp = classify(id);
+      changed = true;
+      if (!sp || !prepared.includes(norm(desc))) { delete s.resend[desc]; continue; }
+      if (!r.taken) { papyrusSpell(a, 'RemoveSpell', id); r.taken = true; continue; }
+      papyrusSpell(a, 'AddSpell', id, [false]);
+      delete s.resend[desc];
+      audit(`SCHOOLS ${who(a)} was sent ${desc} ${sp.name} again`);
+      if (r.say) said = r.say.replace('%s', sp.name);
+    }
+    if (changed) save(a, s);
+    return said;
+  };
+  // update-1003's starter given at login (before starterSettleSeconds) was taken off the screen again: queued to be sent
+  // again at once, and the player told
+  const queueOldStarter = (a, s) => {
+    if (!s.starter || s.starter === 'had' || s.starterSent) return;
+    s.starterSent = 'before';
+    queueResend(s, s.starter, 0, 'Your first spell is back. %s is ready among your spells.');
+    save(a, s);
+  };
+  // Into the book: { ok, name, line } as __dboSpellsGrant, or null
+  const grantFirst = (a, school, id) => {
+    if (typeof globalThis.__dboSpellsGrant !== 'function') return null;
+    try { return globalThis.__dboSpellsGrant(a, id, school === RESTORATION ? PS.skill : C.arcaneSkill); } catch (e) { log('schools: first spell grant failed', e.message); return null; }
+  };
+  // A first spell chosen in the client's first seconds (s.picks[school].given false) is given once they are over; the
+  // lines to tell
+  const givePending = (a, s) => {
+    if (!settled(a)) return [];
+    const lines = [];
+    for (const [school, pk] of Object.entries(s.picks || {})) {
+      if (!pk || pk.given !== false) continue;
+      const r = grantFirst(a, school, idOf(pk.spell));
+      if (!r) { delete s.picks[school]; save(a, s); log(`schools: ${who(a)}'s first spell ${pk.spell} of ${school} could not be given; the pick opens again`); continue; }
+      s.picks[school] = { spell: pk.spell, how: pk.how, at: pk.at };
+      queueResend(s, pk.spell, RESEND_MS, '');
+      save(a, s);
+      audit(`SCHOOLS ${who(a)} was given ${pk.spell} ${r.name}, the first spell of ${school} they chose`);
+      if (r.ok) lines.push(`You learn ${r.name}, your first spell of ${school}. ${r.line}`);
+    }
+    return lines;
+  };
   // { ok, text } of choosing `desc` (or a spell name) as the first spell of `school`
   const pickSpell = (a, school, which) => {
     const s = stateOf(a);
@@ -372,10 +445,16 @@ module.exports = (api) => {
     const o = pickOptions(a, school).find((x) => x.key === norm(which) || x.name.toLowerCase() === w);
     if (!o) return { ok: false, text: `That is not one of ${school}'s first spells you can choose.` };
     if (typeof globalThis.__dboSpellsGrant !== 'function') return { ok: false, text: 'Your spellbook cannot be written just now. Try again in a moment.' };
-    let r = null;
-    try { r = globalThis.__dboSpellsGrant(a, o.id, school === RESTORATION ? PS.skill : C.arcaneSkill); } catch (e) { log('schools: first spell grant failed', e.message); }
+    if (!settled(a)) {
+      s.picks[school] = { spell: o.desc, how: 'chose', at: Date.now(), given: false };
+      save(a, s);
+      audit(`SCHOOLS ${who(a)} chose ${o.desc} ${o.name} as their first spell of ${school} (given once the client has settled)`);
+      return { ok: true, text: `${o.name} is your first spell of ${school}; it comes to you in a moment.` };
+    }
+    const r = grantFirst(a, school, o.id);
     if (!r || !r.ok) return { ok: false, text: r && r.line ? r.line : `${o.name} would not settle. Try again in a moment.` };
     s.picks[school] = { spell: o.desc, how: 'chose', at: Date.now() };
+    queueResend(s, o.desc, RESEND_MS, '');
     save(a, s);
     audit(`SCHOOLS ${who(a)} chose ${o.desc} ${o.name} as their first spell of ${school}`);
     return { ok: true, text: `You learn ${r.name}, your first spell of ${school}. ${r.line}` };
@@ -385,8 +464,13 @@ module.exports = (api) => {
   // unchosen is told once; at a shelf or ledger the pick opens there, at login it opens on its own, in the field a line
   // says where. `ref` is the shelf or ledger; true when a panel was opened.
   const firstCheck = (a, why, ref) => {
+    seen(a, why === 'login');
     if (!ready(a) || !isPlayer(a)) return false;
     const s = stateOf(a);
+    for (const line of givePending(a, s)) personal(a, line);
+    queueOldStarter(a, s);
+    const again = runResends(a, s);
+    if (again) personal(a, again);
     if (!s.primary && FIRST_AT && arcaneOf(a).level >= FIRST_AT) {
       const told = !!s.firstOffered;
       if (told && why === 'tick') return false;
@@ -1413,6 +1497,8 @@ module.exports = (api) => {
   });
   // The first spell's moment for everyone online (firstCheck): Arcane Arts reached in the field, or a school with no spell
   every('schools.first', 10000, () => {
+    const on = new Set(onlineActors().map((x) => x >>> 0));
+    for (const a of [...seenAt.keys()]) if (!on.has(a)) seenAt.delete(a);
     for (const a of onlineActors()) { try { firstCheck(a, 'tick'); } catch (e) { log(`schools: first check for ${display(a)} failed: ${e.message}`); } }
   });
   every('schools.classes', 10000, () => {
