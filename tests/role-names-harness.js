@@ -50,7 +50,7 @@ const zones = [
 ];
 const ZONES = { rankTitles: { count: 'Count', steward: 'Steward', captain: 'Guard Captain', courtmage: 'Court Mage', guard: 'Guard', jarl: 'Jarl', commander: 'Hold Commander', guardcaptain: 'Guard Captain' } };
 let officials = {};
-const told = [], audits = [], said = [], props = new Map();
+const told = [], audits = [], said = [], props = new Map(), logs = [];
 const online = () => [...chars.entries()].filter(([, c]) => c.online).map(([id]) => id);
 const byName = (q) => [...chars.entries()].filter(([, c]) => c.name.toLowerCase() === String(q).trim().toLowerCase()).map(([id]) => id);
 const findByName = (q) => { const s = String(q).trim().replace(/^#/, ''); const t = [...chars.entries()].filter(([, c]) => c.tag.toLowerCase() === s.toLowerCase()).map(([id]) => id).concat(byName(q)); return t[0] || 0; };
@@ -77,7 +77,7 @@ const handlers = {};
 const commands = new Map();
 const rankTitle = new Function('ZONES', 'globalThis', `${rt[0]}\nreturn rankTitle;`)(ZONES, globalThis);
 const base = {
-  mp, log: () => {}, personal: (a, t) => said.push(t), system: (a, text) => told.push({ a, text }), audit: (t) => audits.push(t), cfg: {},
+  mp, log: (...x) => logs.push(x.join(' ')), personal: (a, t) => said.push(t), system: (a, text) => told.push({ a, text }), audit: (t) => audits.push(t), cfg: {},
   isAdmin: (a) => a === LEAD || a === GM, isLeadStaff: (a) => a === LEAD, tierOf: (a) => (a === LEAD ? 'developer' : a === GM ? 'gm' : null),
   profileOf, nameOf, tagOf, display, who, findByName, findAnyByName: findByName, onlineActors: online,
   onUi: (ev, fn) => { (handlers[ev] = handlers[ev] || []).push(fn); },
@@ -212,6 +212,9 @@ fp(BOSS);
 p = send('factionRanksEdit', BOSS, FID, rows(BOSS, FID, (l) => { l[1].title = 'Housecarl'; }));
 ok('the leader cannot rename over a staff name', p.resultKind === 'refused' && /staff gave/.test(p.result) && fRanks(LEAD, FID)[1].title === 'Shield-Brother', p && p.result);
 fp(BOSS);
+p = send('factionRanksEdit', BOSS, FID, rows(BOSS, FID, (l) => { l[3].title = 'Shield-Brother'; }));
+ok('nor give another rank the name a staff name shows (no two Shield-Brothers)', p.resultKind === 'refused' && /Two ranks would be shown as Shield-Brother/.test(p.result) && fRanks(LEAD, FID).filter((x) => x.title === 'Shield-Brother').length === 1, p && p.result);
+fp(BOSS);
 p = send('factionRanksEdit', BOSS, FID, rows(BOSS, FID, (l) => { l[3].title = 'Blade 7'; }));
 ok('a leader\'s own rename meets the same lettering rule', p.resultKind === 'refused' && /letters/.test(p.result), p && p.result);
 // A Lead GM moves a rank below a staff-named one: the name follows its rank
@@ -243,6 +246,13 @@ line = chat(LEAD, 'reset whiterun jarl');
 ok('/rolename reset puts the default back', /Jarl again/.test(line) && rankTitle('jarl', 'whiterun') === 'Jarl', line);
 ok('/rolename with a bad rank number says how', /by its number/.test(chat(LEAD, `${HOLD} x Knight`)));
 ok('/rolename with nothing names the usage', /Usage/.test(chat(LEAD, '')));
+// The Blades' defs have two ranks titled Blade: that twin stands, and renaming any rank still works, the second Blade too
+line = chat(LEAD, 'blades 1 Grand Champion');
+ok('a faction with a twin in its defs (the Blades\' two Blades) can still be renamed', /Grandmaster is now called Grand Champion/.test(line), line);
+line = chat(LEAD, 'blades 6 Sworn Blade');
+ok('...the second Blade on its own (keyed blade#1)', /Blade is now called Sworn Blade/.test(line) && stored().ranks.blades['blade#1'] && !stored().ranks.blades.blade, [line, stored().ranks.blades]);
+ok('...but no new twin: another rank cannot become Blade', /two ranks shown as Blade/.test(chat(LEAD, 'blades 2 Blade')));
+chat(LEAD, 'reset blades 1'); chat(LEAD, 'reset blades 6');
 
 // ---- it stays: a hot reload, a fresh load, regenerated data, the live guilds.js first --------------------------------------
 loadAll();
@@ -252,6 +262,16 @@ const members = JSON.parse(fs.readFileSync(path.join(dir, 'guilds.json'), 'utf8'
 delete globalThis.__dboGuildState; delete globalThis.__dboRoleNames; delete globalThis.__dboOfficeTitle;
 loadAll();
 ok('a fresh start reads them back from the file', office(LEAD, 'steward').title === 'Reeve' && court(LEAD).household.ranks[3].title === 'Knight Errant' && rankTitle('steward', 'bruma') === 'Reeve');
+// A stored name no office or rank has any more is logged at load and kept in the file
+{
+  const st = stored(); st.offices.bruma.emperor = { name: 'Old Title', by: 'x', at: 1 }; st.ranks[HOLD]['lord protector'] = { name: 'Protector', canon: 'Lord Protector', by: 'x', at: 1 };
+  fs.writeFileSync(path.join(dir, 'role-names.json'), JSON.stringify(st));
+  const before = fs.readFileSync(path.join(dir, 'role-names.json'), 'utf8');
+  logs.length = 0; loadAll();
+  ok('orphaned names are logged at load (an office the court lacks, a title no rank has)', logs.some((l) => /1 office name\(s\) match no office now, kept: office bruma:emperor \(Old Title\)/.test(l)) && logs.some((l) => /1 rank name\(s\) match no rank now, kept: rank county-bruma:lord protector \(Protector\)/.test(l)), logs.filter((l) => /rolenames/.test(l)));
+  ok('...and the file is not written', fs.readFileSync(path.join(dir, 'role-names.json'), 'utf8') === before);
+  ok('...nor shown anywhere', office(LEAD, 'steward').title === 'Reeve');
+}
 // guild-defs.json regenerated with a rank inserted above the Steward: members move by title, names follow their rank
 const defs = JSON.parse(fs.readFileSync(path.join(dir, 'guild-defs.json'), 'utf8'));
 defs.factions.find((f) => f.id === HOLD).ranks.splice(1, 0, { title: 'Chancellor', role: 'officer', added: '2026-10-05' });
@@ -291,6 +311,7 @@ if (liveSrc && !/__dboGuildRankList/.test(liveSrc)) {
     globalThis.__dboOfficeTitle = keep;
   } else console.log(`ok   the fork's zones.ts was not checked (${zts && fs.existsSync(zts) ? 'it has no zone-aware titleOf: notice boards show zones.json titles' : 'no FORK_SERVER'})`);
 }
+ok('supernatural.js\'s status names a pack rank by what it is shown as', /packs\.map\(\(p\) => `\$\{p\.name\}, \$\{p\.shown \|\| p\.title\}`\)/.test(fs.readFileSync(path.join(ROOT, 'supernatural.js'), 'utf8')));
 // rolenames.js gone: everything falls back to the defaults, and the editor renames ranks as before
 delete globalThis.__dboRoleNames; delete globalThis.__dboOfficeTitle;
 ok('without rolenames.js every title is the default', rankTitle('steward', 'bruma') === 'Steward' && court(LEAD).household.ranks[2].title === 'Steward' && !court(LEAD).canName);

@@ -554,6 +554,16 @@ module.exports = (api) => {
     const old = f.ranks;
     const ranks = next.map((r) => ({ title: r.title, role: r.role }));
     const changes = named.map(([k, title]) => ({ kind: 'rank', fid, index: k, name: title }));
+    // No rename may make two ranks show alike, staff names counted (a leader naming a rank what a staff name already
+    // shows); a twin the faction already had (the Blades' two Blades) stands
+    {
+      const lc = (t) => String(t).toLowerCase();
+      const count = (names) => names.reduce((m, n) => m.set(lc(n), (m.get(lc(n)) || 0) + 1), new Map());
+      const shownNext = next.map((r, k) => { const n = named.find(([i]) => i === k); if (n) return n[1] || r.title; return r.from >= 0 && r.title === f.ranks[r.from].title ? shownAt(f, r.from) : r.title; });
+      const b = count(f.ranks.map((r, i) => shownAt(f, i))), aft = count(shownNext);
+      const twin = shownNext.find((n) => aft.get(lc(n)) > 1 && aft.get(lc(n)) > (b.get(lc(n)) || 0));
+      if (twin) return { error: `Two ranks would be shown as ${twin}.` };
+    }
     if (changes.length) { const d = rn.apply(a, changes, { dry: true, ranks: { [fid]: ranks } }); if (d.error) return { error: d.error }; }
     // Only staff names changed: the faction keeps no override, so guild-defs.json still reaches it
     const structural = JSON.stringify(ranks) !== JSON.stringify(old.map((r) => ({ title: r.title, role: r.role })));
@@ -732,6 +742,9 @@ module.exports = (api) => {
     mirror(a);
   };
 
+  // rolenames.js loads first and cannot see the ranks yet: its rank names that match no rank are told here
+  try { const rn = RN(); const lost = rn && typeof rn.orphans === 'function' ? rn.orphans('ranks') : []; if (lost.length) log(`rolenames: ${lost.length} rank name(s) match no rank now, kept: ${lost.join(', ')}`); }
+  catch (e) { log('guilds: staff name check failed', e.message); }
   const total = [...FACTIONS.values()].length;
   const members = Object.values(ST.members).reduce((n, r) => n + Object.keys(r || {}).length, 0);
   log(`factions on: ${total} factions (${[...FACTIONS.values()].filter((f) => f.kind === 'cult').length} cults, ${[...FACTIONS.values()].filter((f) => f.secret).length} secret), ${members} memberships, menu F3 (widget ${WIDGET_ID})`);

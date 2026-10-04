@@ -197,14 +197,22 @@ module.exports = (api) => {
         if (err) return err;
       } else return { error: 'That rename is not possible.' };
     }
-    // No two offices of a court, nor two ranks of a faction, shown alike once everything above is in (so a swap is fine)
+    // No two offices of a court, nor two ranks of a faction, shown alike once everything above is in (so a swap is fine).
+    // Only a twin this change makes counts: the Blades' defs have two Blades, and renaming another rank must still work.
+    const twinMade = (before, after) => {
+      const count = (names) => names.reduce((m, n) => m.set(lower(n), (m.get(lower(n)) || 0) + 1), new Map());
+      const b = count(before), a = count(after);
+      return after.find((n) => a.get(lower(n)) > 1 && a.get(lower(n)) > (b.get(lower(n)) || 0)) || null;
+    };
     for (const zid of zonesTouched) {
-      const z = zoneById(zid); const seen = new Map();
-      for (const r of z.officials || []) { const k = lower(shownOffice(next, zid, r)); if (seen.has(k)) return { error: `${z.name} would have two offices called ${shownOffice(next, zid, r)}.` }; seen.set(k, r); }
+      const z = zoneById(zid);
+      const twin = twinMade((z.officials || []).map((r) => shownOffice(S, zid, r)), (z.officials || []).map((r) => shownOffice(next, zid, r)));
+      if (twin) return { error: `${z.name} would have two offices called ${twin}.` };
     }
     for (const fid of factionsTouched) {
-      const ranks = listFor(fid); const seen = new Set();
-      for (let i = 0; i < ranks.length; i++) { const k = lower(shownRank(next, fid, ranks, i)); if (seen.has(k)) return { error: `${factionName(fid)} would have two ranks shown as ${shownRank(next, fid, ranks, i)}.` }; seen.add(k); }
+      const ranks = listFor(fid);
+      const twin = twinMade(ranks.map((r, i) => shownRank(S, fid, ranks, i)), ranks.map((r, i) => shownRank(next, fid, ranks, i)));
+      if (twin) return { error: `${factionName(fid)} would have two ranks shown as ${twin}.` };
     }
     if (o.dry) return { text: '', done };
     if (!done.length) return { text: 'Those names are already shown.', done };
@@ -255,7 +263,26 @@ module.exports = (api) => {
     return gone.length;
   };
 
-  const R = { check, apply, prune, canName, officeName, officeTitle, officeDefault, rankName, rankKey, store: () => JSON.parse(JSON.stringify(S)) };
+  // Stored names no office or rank has any more (a court lost the office, or a regenerated guild-defs.json dropped or
+  // renamed the title): said in the log, never removed here, so a rank put back finds its name again
+  const orphans = (what) => {
+    const out = [];
+    if (what !== 'ranks') {
+      for (const [zid, table] of Object.entries(S.offices)) {
+        const z = zoneById(zid);
+        for (const rank of Object.keys(table)) if (!z || !(z.officials || []).includes(rank)) out.push(`office ${zid}:${rank} (${table[rank].name})`);
+      }
+    }
+    if (what !== 'offices') {
+      for (const [fid, table] of Object.entries(S.ranks)) {
+        const ranks = ranksOf(fid);
+        const keys = new Set((ranks || []).map((r, i, l) => rankKey(r.title, nthIn(l.map((x) => x.title), i))));
+        for (const k of Object.keys(table)) if (!keys.has(k)) out.push(`rank ${fid}:${k} (${table[k].name})`);
+      }
+    }
+    return out;
+  };
+  const R = { check, apply, prune, orphans, canName, officeName, officeTitle, officeDefault, rankName, rankKey, store: () => JSON.parse(JSON.stringify(S)) };
   globalThis.__dboRoleNames = R;
   // The fork's systems (zones.ts titleOf: the notice boards' bylines) ask here, and fall back to zones.json without it
   globalThis.__dboOfficeTitle = (zoneId, rank) => officeTitle(zoneId, rank);
@@ -298,6 +325,7 @@ module.exports = (api) => {
     }, { admin: true, help: 'list <court|faction> | <court> <office> <title> | <faction> <rank number> <title> | reset ...: rename an office or rank for everyone holding it (Lead GM; F3 Court does it too)' });
   }
 
+  { const lost = orphans('offices'); if (lost.length) log(`rolenames: ${lost.length} office name(s) match no office now, kept: ${lost.join(', ')}`); }
   log(`rolenames ${C.enabled ? 'on' : 'off'}: ${Object.values(S.offices).reduce((n, t) => n + Object.keys(t).length, 0)} office and ${Object.values(S.ranks).reduce((n, t) => n + Object.keys(t).length, 0)} rank name(s) (${String(C.staff) === 'gm' ? 'any GM' : 'Lead GM and above'})`);
   return R;
 };
