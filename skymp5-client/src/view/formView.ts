@@ -8,6 +8,8 @@ import { isBadMenuShown, applyEquipment } from "../sync/equipment";
 import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
 import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
+import { FLYER_NO_AI, flyerGuardOf, flyerPlan, guardOn } from "./flyerGuard";
+import { forgetFlyer, isDragonCopy, noteFlyer, setSpawnGuard } from "./flyerRuntime";
 import { HOST_TRY_GHOST_AFTER, isSettling } from "./npcLifetime";
 import { hostBackoff, noteActorCall, noteCopyBorn, noteCopyPlaced, safeDelete } from "./npcLifetimeRuntime";
 import { driftConfig } from "../sync/driftConfig";
@@ -248,6 +250,16 @@ export class FormView {
 
         this.state = {};
         delete this.wasHostedByOther;
+        // A dragon's copy gets a line before each call on it (flyerGuard.ts) and the switches a staff test asks for
+        this.flyer = base.getType() === FormType.NPC && isDragonCopy(refr);
+        this.flyerBits = this.flyer ? flyerGuardOf(model) : 0;
+        this.flyerBornAt = Date.now();
+        this.flyerAi = undefined;
+        if (this.flyer && refr) {
+          const p = model.movement?.pos;
+          this.noteFlyer(refr.getFormID(), "place", `at ${p ? p.map(Math.round).join(",") : "?"} guard=${this.flyerBits} hostedByOther=${!!model.isHostedByOther} dead=${!!model.isDead}`);
+          setSpawnGuard(refr.getFormID(), this.flyerBits, this.remoteRefrId ?? 0, this.flyerBornAt);
+        }
         if (base.getType() !== FormType.NPC) {
           refr?.setAngle(
             model.movement?.rot[0] || 0,
@@ -257,8 +269,10 @@ export class FormView {
         } else {
           const actor = Actor.from(refr);
           if (actor) {
+            if (this.flyer) this.noteFlyer(actor.getFormID(), "pre-factions");
             this.applyFactions(actor, model);
             this.applyOutfit(actor, model);
+            if (this.flyer) this.noteFlyer(actor.getFormID(), "pre-hostility", `hostile=${String((model as Record<string, unknown>)["ff_hostile"])}`);
             this.applyHostility(actor, model);
           }
         }
@@ -309,6 +323,7 @@ export class FormView {
     if (refr) {
       const actor = Actor.from(refr);
       if (actor && !this.localImmortal) {
+        if (this.flyer) this.noteFlyer(this.refrId, "ready", "pre-startDeferredKill");
         actor.startDeferredKill();
         actor.setActorValue("health", 1000000);
         actor.setActorValue("magicka", 1000000);
@@ -319,6 +334,7 @@ export class FormView {
         this.applyOutfit(actor, model);
         this.applyHostility(actor, model);
       }
+      if (this.flyer && !this.flyerFirstApply) { this.flyerFirstApply = true; this.noteFlyer(this.refrId, "pre-first-apply"); }
       this.applyAll(refr, model);
 
       const gamemodeUpdateService = SpApiInteractor.getControllerInstance().lookupListener(GamemodeUpdateService);
@@ -327,6 +343,11 @@ export class FormView {
   }
 
   destroy(): void {
+    if (this.flyer) { this.noteFlyer(this.refrId, "destroy"); forgetFlyer(this.refrId); }
+    this.flyer = false;
+    this.flyerBits = 0;
+    this.flyerFirstApply = false;
+    this.flyerAi = undefined;
     this.isOnScreen = false;
     this.aggro = newWindowState();
     this.combatReported = false;
@@ -471,10 +492,20 @@ export class FormView {
     setDefaultAnimsDisabled(this.refrId, alreadyHosted ? false : true);
 
     const ac = Actor.from(refr);
+    // The property can arrive after the copy was placed, as ff_hostile can
+    if (this.flyer) this.flyerBits = flyerGuardOf(model);
+    const flyer = this.flyer ? flyerPlan(this.flyerBits, alreadyHosted) : null;
+    // Only a test that turned the AI switch on touches the AI (and turns it back on when the switch goes off)
+    if (flyer && ac && (guardOn(this.flyerBits, FLYER_NO_AI) || this.flyerAi === false) && this.flyerAi !== flyer.ai) {
+      this.noteFlyer(this.refrId, flyer.ai ? "ai-on" : "ai-off", `hosted=${alreadyHosted}`);
+      this.flyerAi = flyer.ai;
+      ac.enableAI(flyer.ai);
+    }
     if (ac && !model.appearance) this.updateAggroWindow(ac, model, alreadyHosted);
     if (refr.is3DLoaded()) {
       if (!this.movState.havokSeated) {
         this.movState.havokSeated = true;
+        if (flyer) this.noteFlyer(this.refrId, "pre-havok-seat", `hosted=${alreadyHosted}`);
         settleTranslation(refr);
         setRefrCollision(this.refrId, true);
         if (ac && !isOwnCompanion(this.remoteRefrId)) {
@@ -577,7 +608,11 @@ export class FormView {
             const movement: Movement = isNewMovement || !this.movState.everApplied || !ac
               ? model.movement
               : { ...model.movement, runMode: "Standing", isInJumpState: false, pos: [model.movement.pos[0], model.movement.pos[1], refr.getPositionZ()] };
-            applyMovement(refr, movement, !!model.isMyClone, !model.appearance && !model.isMyClone);
+            if (flyer) {
+              const d = Math.round(ObjectReferenceEx.getDistance(ObjectReferenceEx.getPos(refr), movement.pos));
+              this.noteFlyer(this.refrId, "move", `z=${Math.round(movement.pos[2])} d=${d} run=${movement.runMode} jump=${!!movement.isInJumpState} dead=${!!movement.isDead}${flyer.offset ? "" : " no-offset"}`);
+            }
+            applyMovement(refr, movement, !!model.isMyClone, !model.appearance && !model.isMyClone, flyer ? { noOffset: !flyer.offset } : undefined);
             this.movState.offsetApplied = true;
             restoreSitCollisionIfMoving(refr, movement);
           } catch (e) {
@@ -660,7 +695,14 @@ export class FormView {
           if (model.appearance && isVampireLordRace(model.appearance.raceId)) {
             noteVampireLordAnim(refr.getFormID(), this.remoteRefrId, model.animation, this.animState.lastNumChanges);
           }
-          applyAnimation(refr, model.animation, this.animState);
+          if (flyer && model.animation.numChanges !== this.animState.lastNumChanges) {
+            this.noteFlyer(this.refrId, flyer.anims ? "anim" : "anim-skipped", model.animation.animEventName);
+          }
+          if (flyer && !flyer.anims) {
+            this.animState.lastNumChanges = model.animation.numChanges;
+          } else {
+            applyAnimation(refr, model.animation, this.animState);
+          }
         }
       }
       // Use them only once, for spawning actors with correct animations
@@ -1203,6 +1245,16 @@ export class FormView {
   private wasHostedByOther: boolean | undefined = undefined;
   private state = {};
   private localImmortal = false;
+  // A dragon's copy (flyerGuard.ts): the switches the server asked for, when it was placed, what the AI switch last set
+  private flyer = false;
+  private flyerBits = 0;
+  private flyerBornAt = 0;
+  private flyerFirstApply = false;
+  private flyerAi: boolean | undefined = undefined;
+
+  private noteFlyer(refrId: number, kind: string, extra?: string): void {
+    noteFlyer(kind, refrId, this.remoteRefrId ?? 0, this.flyerBornAt, extra);
+  }
   private hostilityApplied = false;
   private hostileFlagSeen: unknown = undefined;
   private factionsSeen = "";
