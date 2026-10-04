@@ -482,6 +482,9 @@ void ProcessKeyboardData(uint8_t* apData)
   }
 }
 
+// Left, right and middle: the buttons ProcessMouseData hands the browser
+constexpr int kBrowserMouseButtons = 3;
+
 void ProcessMouseData(DIMOUSESTATE2* apMouseState)
 {
   if (!g_listener)
@@ -513,6 +516,7 @@ void ProcessMouseData(DIMOUSESTATE2* apMouseState)
     IInputListener::MouseButton::Left, IInputListener::MouseButton::Right,
     IInputListener::MouseButton::Middle
   };
+  static_assert(std::size(mouseBtns) == kBrowserMouseButtons);
   for (int i = 0; i < std::size(mouseBtns); ++i) {
     uint8_t& state = apMouseState->rgbButtons[i];
     const bool pressed = state & 0x80;
@@ -769,7 +773,10 @@ HRESULT _stdcall FakeIDirectInputDevice8A::GetDeviceState(DWORD outDataLen,
   if (DInputHook::ChromeFocus()) {
     // std::memset(outData, 0, outDataLen);
     DIMOUSESTATE2* mouseState = (DIMOUSESTATE2*)outData;
-    for (int i = 0; i < 8; ++i) {
+    // Only the buttons the browser gets (left, right, middle) are hidden from
+    // the game; the side buttons never reach the browser, so the game keeps
+    // them for menu keys bound to a mouse button (client mouseKeys.ts)
+    for (int i = 0; i < kBrowserMouseButtons; ++i) {
       uint8_t& state = mouseState->rgbButtons[i];
       constexpr int pressed = 0x80;
       state &= ~pressed;
