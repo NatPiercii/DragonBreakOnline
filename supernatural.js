@@ -1813,7 +1813,7 @@ module.exports = (api) => {
       if (!c) return personal(a, 'No such character: use their #TAG for someone offline.');
       return personal(a, restoreCharacter(c, `GM ${nameOf(a)}`) ? `${display(c)} is restored and can be played again.` : `${display(c)} is not permanently dead.`);
     }
-    if (!t || !['vampire', 'purevampire', 'werewolf', 'blessedwerewolf', 'infectvampire', 'infectwerewolf', 'cure', 'crown', 'status', 'fever', 'bloody', 'wash'].includes(w)) return personal(a, 'Usage: /curse <player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|bloody|wash|status|restore>');
+    if (!t || !['vampire', 'purevampire', 'werewolf', 'blessedwerewolf', 'infectvampire', 'infectwerewolf', 'cure', 'crown', 'status', 'fever', 'bloody', 'wash', 'riteclear'].includes(w)) return personal(a, 'Usage: /curse <player|me> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|bloody|wash|riteclear|status|restore>');
     if (w === 'status') { const s = stateOf(t); return personal(a, `${display(t)}: ${s.kind || 'mortal'}${s.kind === 'vampire' ? ` stage ${s.stage}${s.pure ? ', pure-blood' : ''}${s.unfed ? `, not yet fed (${(playedOf(s.unfed) * 24).toFixed(1)} of ${C.firstMealHours} game hours played${Number(s.unfed.wither) > 0 ? `, withering ${pct(Number(s.unfed.wither))}%` : ''})` : ''}${s.sated && Number(s.sated.until) > gameDays() ? ', deep-fed' : ''}${s.blood ? ', blood on the face' : ''}` : ''}${s.blessed ? ', blessed' : ''}${s.disease ? `, carrying ${s.disease.kind} disease: ${playedOf(s.disease).toFixed(1)} of ${C.incubationDays} game days played (${(gameDays() - s.disease.since).toFixed(1)} since infection)` : ''}${crownHolder() === t ? ', holds the Blood Crown' : ''}. Crown: ${G.crown ? G.crown.name : 'unclaimed'}.`); }
     if (w === 'vampire' || w === 'purevampire') becomeVampire(t, w === 'purevampire');
     else if (w === 'werewolf' || w === 'blessedwerewolf') becomeWerewolf(t, w === 'blessedwerewolf');
@@ -1828,9 +1828,16 @@ module.exports = (api) => {
       if (!r) return personal(a, `${display(t)} has no blood to wash.`);
       if (r !== 'clean') return personal(a, `${display(t)}: ${r === 'partial' ? 'partly washed; the rest is kept for the next wash' : 'the appearance could not be read; the blood is kept'}.`);
     }
+    // Lifts the 24 h wait after a failed or unmarked rite, for a player the mini-game failed (Nate, 2026-10-04)
+    else if (w === 'riteclear') {
+      mp.set(t, 'private.riteFailedAt', 0); mp.set(t, 'private.riteUnmarkedAt', 0);
+      personal(t, "The shrine's patience is renewed: you may attempt the rite again.");
+      audit(`SUPERNATURAL GM ${who(a)} cleared the rite wait for ${who(t)}`);
+      return personal(a, `Done: ${display(t)} may attempt the rite again.`);
+    }
     audit(`SUPERNATURAL GM ${who(a)} /curse ${display(t)} ${w}`);
     personal(a, `Done: ${display(t)} ${w}.`);
-  }, { admin: true, help: '<player|me|#TAG> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|bloody|wash|status|restore>' });
+  }, { admin: true, help: '<player|me|#TAG> <vampire|purevampire|werewolf|blessedwerewolf|infectvampire|infectwerewolf|fever|cure|crown|bloody|wash|riteclear|status|restore>' });
 
   log(`supernatural on: sanguinare ${SANGUINARE.toString(16)}, ${VAMPIRE_RACES.size} vampire races, crown ${G.crown ? G.crown.name : 'unclaimed'}, cure effects ${CURE_EFFECTS.size}, pale shader ${PALE_SHADER.toString(16)}`);
 };
