@@ -2,7 +2,10 @@
 // /bug 2026-10-01 "disassembleenchantedweapon": the client destroys a disenchanted item and tells the server nothing, so the
 // server kept it and the next inventory sync handed it back. The craft report the client sends from the enchanter (the items
 // that left the pack while seated, closed by the next one to arrive) must take the disenchanted item; enchanting a plain item
-// with a soul gem must take nothing here (craftedExtras records it); a lab mix still goes to brewing.
+// with a soul gem must take nothing here (craftedExtras records it); a lab mix still goes to brewing. 4 Oct (Nate: "when
+// someone disenchants something it should destroy the item as well"): a worn copy, a copy enchanted by extra data in a
+// report holding a soul gem spent on another item, and a second copy with another enchantment are taken too; a report
+// of an enchantment already taught this session (the server's own removal seen by the client) takes nothing.
 // Run it from this folder's parent with
 //
 //   node tests/disenchant-harness.js
@@ -21,7 +24,8 @@ const descOf = (id) => `${(id & 0xffffff).toString(16)}:${NAMES_OF[id >>> 24] ||
 const BLAZE = idOf('be190:Skyrim.esm'), SPARKS = idOf('d30df:BSHeartland.esm'), SWORD = idOf('12eb7:Skyrim.esm'), GEM = idOf('2e4e3:Skyrim.esm');
 const AMULET = idOf('8b5ab:Skyrim.esm'), UNIQUE = idOf('f0001:Skyrim.esm');
 // A steel dagger the gear swap gave the Ayleid dagger's enchantment (EnchWeaponShockDamage02) as extra data
-const STEEL = idOf('300056:BSHeartland.esm'), SHOCK = 0x45d97;
+const STEEL = idOf('300056:BSHeartland.esm'), SHOCK = 0x45d97, FROST = 0x45c37, SHOCK_FX = 0x5cd5b, FROST_FX = 0x5cd5c;
+const u32 = (n) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n >>> 0, true); return b; };
 const ENCHANTER_BASE = idOf('bad0d:Skyrim.esm'), FORGE_BASE = idOf('bad0e:Skyrim.esm'), LAB_BASE = idOf('bad0c:Skyrim.esm');
 const ENCHANTER = 0x080651cb, FORGE = 0x5001, LAB = 0x5002;
 const wbdt = (type) => ({ type: 'WBDT', data: new Uint8Array([type, 0]) });
@@ -34,6 +38,8 @@ const RECORDS = {
   // An enchanted item the game never lets you disenchant (keyword MagicDisallowEnchanting, c27bd:Skyrim.esm)
   [UNIQUE]: { type: 'WEAP', editorId: 'StandInUniqueWeapon', fields: [{ type: 'EITM', data: new Uint8Array(4) }, { type: 'KWDA', data: new Uint8Array([0x24, 0x00, 0x00, 0x00, 0xbd, 0x27, 0x0c, 0x00]) }] },
   [GEM]: { type: 'SLGM', editorId: 'SoulGemGrandFilled', fields: [] },
+  [SHOCK]: { type: 'ENCH', editorId: 'EnchWeaponShockDamage02', fields: [{ type: 'EFID', data: u32(SHOCK_FX) }] },
+  [FROST]: { type: 'ENCH', editorId: 'EnchWeaponFrostDamage02', fields: [{ type: 'EFID', data: u32(FROST_FX) }] },
   [ENCHANTER_BASE]: { type: 'FURN', editorId: 'CraftingEnchantingWorkbench', fields: [wbdt(3)] },
   [FORGE_BASE]: { type: 'FURN', editorId: 'CraftingBlacksmithForge', fields: [wbdt(1)] },
   [LAB_BASE]: { type: 'FURN', editorId: 'CraftingAlchemyWorkbench', fields: [wbdt(5)] },
@@ -53,6 +59,8 @@ const reset = (entries) => {
   props.clear(); logs.length = 0; said.length = 0; audits.length = 0;
   put(PLAYER, 'inventory', { entries: entries.map((e) => Object.assign({}, e)) });
   put(PLAYER, 'worldOrCellDesc', '651c0:BSHeartland.esm'); put(PLAYER, 'pos', [100, 100, 0]);
+  // Each case is a fresh login: what the client learned at the table is forgotten
+  if (globalThis.__dboEnchLearnedLogin) globalThis.__dboEnchLearnedLogin(PLAYER);
   for (const [ref, base] of [[ENCHANTER, ENCHANTER_BASE], [FORGE, FORGE_BASE], [LAB, LAB_BASE]]) {
     put(ref, 'baseDesc', descOf(base)); put(ref, 'worldOrCellDesc', '651c0:BSHeartland.esm'); put(ref, 'pos', [150, 120, 0]);
   }
@@ -97,24 +105,30 @@ reset([{ baseId: BLAZE, count: 2 }, { baseId: AMULET, count: 1 }]);
 report(ENCHANTER, BLAZE, [BLAZE, AMULET]);
 ok(count(PLAYER, BLAZE) === 1 && count(PLAYER, AMULET) === 0, 'one copy per reported one: the second dagger stays, the necklace goes', inv(PLAYER));
 
-// A worn copy is never taken; an unworn one is preferred over it
+// An unworn copy is preferred over a worn one; a worn one is taken when it is the only one (vanilla disenchants worn
+// items too: Julius Draconis's worn Necklace of Peerless Stamina left his pack with the worn list, 1 Oct 23:59:16, and his
+// client's craft report can reach the server before its equipment report)
 reset([{ baseId: BLAZE, count: 1, worn: true }, { baseId: BLAZE, count: 1 }]);
 report(ENCHANTER, BLAZE, [BLAZE]);
 ok(inv(PLAYER).length === 1 && inv(PLAYER)[0].worn === true, 'the unworn copy is taken, the worn one stays', inv(PLAYER));
 reset([{ baseId: BLAZE, count: 1, worn: true }]);
 report(ENCHANTER, BLAZE, [BLAZE]);
-ok(count(PLAYER, BLAZE) === 1 && logs.some((l) => /not taken/.test(l)), 'only a worn copy: it stays, and that is logged', logs);
-ok(audits.some((t) => /^DISENCHANT .* holds only a worn copy; not taken$/.test(t)), '...and audited', audits);
+ok(count(PLAYER, BLAZE) === 0, 'only a worn copy: it is used up (keeping it was the item plus the enchantment)', inv(PLAYER));
+ok(audits.some((t) => /^DISENCHANT .*Elven Dagger of the Blaze \[.*; worn\]/.test(t)), '...and the audit says it was worn', audits);
 
-// Release-1031 review: a report counts one copy per base item, and a repeat within ten minutes takes nothing
+// Release-1031 review: a report counts one copy per base item (one per enchantment it teaches); the same enchantment
+// reported again in the session takes nothing (the server's own removal of the item, seen by the client's report)
 reset([{ baseId: BLAZE, count: 3 }]);
 mp.onCraftUnmatched(PLAYER, ENCHANTER, BLAZE, { entries: [{ baseId: BLAZE, count: 2 }, { baseId: BLAZE, count: 1 }] });
 ok(count(PLAYER, BLAZE) === 2, 'a report naming one dagger three times takes one', inv(PLAYER));
 report(ENCHANTER, BLAZE, [BLAZE]);
-ok(count(PLAYER, BLAZE) === 2 && logs.some((l) => /again within 10 min; ignored/.test(l)), 'the same dagger reported again at once takes nothing (vanilla never offers a known enchantment)', logs);
+ok(count(PLAYER, BLAZE) === 2 && logs.some((l) => /already taught this session; ignored/.test(l)), 'the same dagger reported again at once takes nothing (vanilla never offers a known enchantment)', logs);
 clock += 10 * 60 * 1000;
 report(ENCHANTER, BLAZE, [BLAZE]);
-ok(count(PLAYER, BLAZE) === 1, '...and ten minutes later it counts again', inv(PLAYER));
+ok(count(PLAYER, BLAZE) === 2, '...nor ten minutes later in the same session (a stale report from the same table)', inv(PLAYER));
+globalThis.__dboEnchLearnedLogin(PLAYER);
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(count(PLAYER, BLAZE) === 1, '...but after a relog (the client forgot it, so the table offers it again) it is used up again', inv(PLAYER));
 
 // An item the game never disenchants (MagicDisallowEnchanting) is never taken
 reset([{ baseId: UNIQUE, count: 1 }]);
@@ -162,10 +176,61 @@ report(ENCHANTER, STEEL, [STEEL]);
 ok(count(PLAYER, STEEL) === 1, 'a player-made (dynamic) enchantment is never taken', inv(PLAYER));
 reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000, worn: true }]);
 report(ENCHANTER, STEEL, [STEEL]);
-ok(count(PLAYER, STEEL) === 1, 'a worn copy enchanted by extra data stays', inv(PLAYER));
+ok(count(PLAYER, STEEL) === 0, 'a worn copy enchanted by extra data is used up too', inv(PLAYER));
 reset([{ baseId: BLAZE, count: 1 }, { baseId: BLAZE, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }]);
 report(ENCHANTER, BLAZE, [BLAZE]);
 ok(count(PLAYER, BLAZE) === 1 && !inv(PLAYER).some((e) => e.enchantmentId), 'of a base enchanted by its record too, the copy with the extra enchantment goes first', inv(PLAYER));
+
+// ---- 4 Oct: every way a disenchanted item stayed, and the dupe each one was ---------------------------------------
+const learned = () => mp.get(PLAYER, 'private.dboEnchLearned') || [];
+// The live report shape (Julius Draconis 1 Oct 23:15:44, Kagrethas Mzulft 3 Oct 00:51:14): an item disenchanted, then a
+// plain one enchanted with a soul gem, all in one report. The disenchanted one goes; the gem and the new piece are craftedExtras'
+reset([{ baseId: BLAZE, count: 1 }, { baseId: GEM, count: 1 }, { baseId: SWORD, count: 1 }]);
+report(ENCHANTER, BLAZE, [BLAZE, GEM, SWORD]);
+ok(count(PLAYER, BLAZE) === 0 && count(PLAYER, GEM) === 1 && count(PLAYER, SWORD) === 1, 'disenchant then enchant in one report: the disenchanted dagger goes, the gem and the sword are left to craftedExtras', inv(PLAYER));
+// Dupe: a steel dagger enchanted by extra data disenchanted, and a plain sword enchanted, in one report. The old rule ("a
+// report holding a soul gem is enchanting") kept the dagger: the enchantment learned and the dagger kept to sell
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: STEEL, count: 1 }, { baseId: GEM, count: 1 }, { baseId: SWORD, count: 1 }]);
+report(ENCHANTER, SWORD, [STEEL, GEM, SWORD]);
+ok(!inv(PLAYER).some((e) => e.enchantmentId) && count(PLAYER, STEEL) === 1 && count(PLAYER, SWORD) === 1, 'a gem spent on the sword does not hide the steel dagger disenchanted beside it', inv(PLAYER));
+ok(JSON.stringify(learned()) === JSON.stringify([SHOCK_FX]), "...and the dagger's own enchantment (its extra data's, not the plain record's nothing) is what was learned", learned());
+// Two steel daggers left, one gem: one was enchanted (the plain one), the other disenchanted (the enchanted one)
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: STEEL, count: 1 }, { baseId: GEM, count: 1 }]);
+mp.onCraftUnmatched(PLAYER, ENCHANTER, STEEL, { entries: [{ baseId: STEEL, count: 1 }, { baseId: GEM, count: 1 }, { baseId: STEEL, count: 1 }] });
+ok(!inv(PLAYER).some((e) => e.enchantmentId) && count(PLAYER, STEEL) === 1, 'two steel daggers and one gem: the enchanted one is used up, the plain one (being enchanted) stays', inv(PLAYER));
+// craftedExtras recorded the new enchantment first: the plain dagger now carries its effects, the gem is still that enchant's
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: STEEL, count: 1, enchantmentEffects: [{ effectId: 0x3eb15, magnitude: 20, area: 0, duration: 0, cost: 30 }] }, { baseId: GEM, count: 1 }]);
+report(ENCHANTER, STEEL, [STEEL, GEM]);
+ok(count(PLAYER, STEEL) === 2 && !said.length, 'enchanting a steel dagger the server already recorded as enchanted takes nothing', inv(PLAYER));
+// Two copies of one base enchanted differently by extra data: each teaches its own enchantment, so both go (the old
+// 10-minute rule per base kept the second: the second enchantment learned, the dagger kept)
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: STEEL, count: 1, enchantmentId: FROST, maxCharge: 1000 }]);
+report(ENCHANTER, STEEL, [STEEL]);
+report(ENCHANTER, STEEL, [STEEL]);
+ok(count(PLAYER, STEEL) === 0 && JSON.stringify(learned()) === JSON.stringify([SHOCK_FX, FROST_FX]), 'two steel daggers of different enchantments disenchanted one after the other: both used up, both learned', { inv: inv(PLAYER), learned: learned() });
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: STEEL, count: 1, enchantmentId: FROST, maxCharge: 1000 }]);
+mp.onCraftUnmatched(PLAYER, ENCHANTER, STEEL, { entries: [{ baseId: STEEL, count: 1 }, { baseId: STEEL, count: 1 }] });
+ok(count(PLAYER, STEEL) === 0, '...and both in one report', inv(PLAYER));
+// Two copies with the same enchantment: the table teaches it once, so a report naming two takes one
+reset([{ baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 1000 }, { baseId: STEEL, count: 1, enchantmentId: SHOCK, maxCharge: 400 }]);
+mp.onCraftUnmatched(PLAYER, ENCHANTER, STEEL, { entries: [{ baseId: STEEL, count: 1 }, { baseId: STEEL, count: 1 }] });
+ok(count(PLAYER, STEEL) === 1, 'two copies of one enchantment named in one report: one used up (vanilla offers a known enchantment no more)', inv(PLAYER));
+// The server's own removal, seen by the client's craft report while the player still sits: never a second take
+reset([{ baseId: BLAZE, count: 2 }]);
+report(ENCHANTER, BLAZE, [BLAZE]);
+report(ENCHANTER, SWORD, [BLAZE, SWORD, GEM]);
+ok(count(PLAYER, BLAZE) === 1, "the item the server just took, reported again by the client's next report, is not taken twice", inv(PLAYER));
+// A copy is taken for each enchantment taught: the learned list and the audit name it
+reset([{ baseId: STEEL, count: 1, enchantmentId: FROST, maxCharge: 1000, health: 1.3 }]);
+report(ENCHANTER, STEEL, [STEEL]);
+ok(audits.some((t) => /^DISENCHANT the player used up .*\[EnchWeaponFrostDamage02; tempered\]$/.test(t)), 'the audit names the enchantment taught and the copy (tempered)', audits);
+ok(JSON.stringify(learned()) === JSON.stringify([FROST_FX]), '...and it is recorded as learned', learned());
+// A disenchant that keeps the item is an endless learn: across every case above, a taken disenchant leaves one fewer
+// item, and nothing is ever learned without an item going (one more pass: reports that take nothing learn nothing)
+reset([{ baseId: STEEL, count: 1 }, { baseId: SWORD, count: 1 }, { baseId: GEM, count: 1 }]);
+report(ENCHANTER, STEEL, [STEEL, GEM]);
+report(ENCHANTER, UNIQUE, [UNIQUE]);
+ok(!learned().length && count(PLAYER, STEEL) === 1 && count(PLAYER, SWORD) === 1, 'a report that takes nothing records nothing learned', { learned: learned(), inv: inv(PLAYER) });
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);
