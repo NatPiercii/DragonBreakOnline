@@ -26,7 +26,7 @@ import { applyAppearanceToPlayer } from '../../sync/appearance';
 import { applyEquipment, isBadMenuShown } from '../../sync/equipment';
 import { Inventory, applyInventory, getDiff, getInventory, isBoundItem, removeSimpleItemsAsManyAsPossible } from '../../sync/inventory';
 import { Movement } from '../../sync/movement';
-import { enforceSpells, rememberServerSpells } from '../../sync/spell';
+import { reenforceServerSpells, rememberServerSpells } from '../../sync/spell';
 import { wasSelfActivated } from '../../sync/selfActivation';
 import { harvestNotice, isServerHarvested } from '../../sync/harvest';
 import { setRefrCollision } from '../../sync/animation';
@@ -688,7 +688,7 @@ export class RemoteServer extends ClientListener {
             if (!player) {
               return;
             }
-            const changed = enforceSpells(player, learnedSpells);
+            const changed = reenforceServerSpells(player);
             if (changed > 0) {
               logTrace(this, `spells enforced at`, seconds, `s:`, changed, `change(s)`);
             }

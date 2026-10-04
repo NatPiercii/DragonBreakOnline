@@ -9,6 +9,7 @@ import { showSystemNotification } from "./systemNotification";
 import { remoteIdToLocalId } from '../../view/worldViewMisc';
 import { logError, logTrace } from "../../logging";
 import { WorldView } from "../../view/worldView";
+import { noteServerSpellSnippet } from "../../sync/spell";
 
 export class SpSnippetService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -19,6 +20,15 @@ export class SpSnippetService extends ClientListener {
 
   private onSpSnippetMessage(event: ConnectionMessage<SpSnippetMessage>): void {
     const msg = event.message;
+
+    // In arrival order with CreateActor, which sets the list the login spell passes enforce
+    try {
+      if (noteServerSpellSnippet(msg)) {
+        logTrace(this, 'server spell list follows', msg.function, JSON.stringify(msg.arguments[0]));
+      }
+    } catch (e) {
+      logError(this, 'server spell list update failed ' + e);
+    }
 
     this.controller.once('update', async () => {
       this.run(msg)
