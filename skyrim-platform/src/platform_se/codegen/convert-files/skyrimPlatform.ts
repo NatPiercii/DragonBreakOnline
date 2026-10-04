@@ -1596,6 +1596,13 @@ export declare function getNumCreatedTexts(): number;
 
 export declare function getFileInfo(filename: string): { crc32: number, size: number };
 
+// RaceMenu presets in Data/SKSE/Plugins/CharGen/Presets/DBO/<name>.jslot only; name is [A-Za-z0-9_-]{1,64}, at most 2 MiB
+export declare function readPresetFile(name: string): string | undefined;
+export declare function writePresetFile(name: string, text: string): void;
+export declare function removePresetFile(name: string): boolean;
+// A FaceGen .tri vertex count read through the game's file system (loose or archived); path relative to Meshes, -1 if none
+export declare function getTriVertexCount(triPath: string): number;
+
 export interface Extra {
   health?: number;
   enchantmentId?: number;
