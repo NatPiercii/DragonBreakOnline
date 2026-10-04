@@ -115,6 +115,28 @@ module.exports = (api) => {
     }
     return null;
   };
+  // The claims a reckoning taxes: one per building (Nate, 4 Oct: the building is the property, not its doors or what is inside
+  // it). With the place rules on the housing view answers a member's root, so a member is skipped; before them, one owner's
+  // claims into the same interior are one building, taxed by its assessed claim, else its lowest. The others' overdue entries go.
+  const interiorOf = (r) => { try { const w = String(mp.get(r, 'worldOrCellDesc') || ''); const x = w && mp.lookupEspmRecordById(mp.getIdFromDesc(w) >>> 0); return x && x.record && String(x.record.type) === 'CELL' ? w : ''; } catch (e) { return ''; } };
+  const buildings = (H, d) => {
+    const groups = new Map();
+    for (const ref of claimedRefs().sort((x, y) => x - y)) {
+      try {
+        if (typeof H.primaryOf === 'function' && (Number(H.primaryOf(ref)) >>> 0) !== ref) { delete d.overdue[String(ref)]; continue; }
+        const rec = H.recordOf(ref);
+        if (!rec || !rec.owner) continue;
+        const inside = [ref, Number(rec.partner) >>> 0].filter(Boolean).map(interiorOf).find(Boolean);
+        const key = inside ? `${rec.owner}|${inside}` : `ref|${ref}`;
+        const had = groups.get(key);
+        if (!had) { groups.set(key, { ref, rec }); continue; }
+        const keep = !(String(had.ref) in d.values) && String(ref) in d.values ? { ref, rec } : had;
+        groups.set(key, keep);
+        delete d.overdue[String(keep === had ? ref : had.ref)];
+      } catch (e) { log(`economy: the claim ${Number(ref).toString(16)} could not be read, skipped this week`, e.message); }
+    }
+    return [...groups.values()];
+  };
   const valueOf = (ref) => { const v = Number(data().values[String(ref)]); return Number.isFinite(v) && v >= 0 ? v : C.defaultPropertyValue; };
 
   // ---- the Imperial tithe ------------------------------------------------------------------------------------------------
@@ -203,12 +225,8 @@ module.exports = (api) => {
     // Taxes
     const titheBases = {};
     if (T && H) {
-      for (const ref of claimedRefs()) {
+      for (const { ref, rec } of buildings(H, d)) {
         try {
-          // A building is taxed once, at its root: its doors and chests stand for it (Nate, 4 Oct; recordOf answers the root)
-          if (typeof H.primaryOf === 'function' && (Number(H.primaryOf(ref)) >>> 0) !== (ref >>> 0)) continue;
-          const rec = H.recordOf(ref);
-          if (!rec || !rec.owner) continue;
           const t = territoryOfProperty(ref, rec); if (!t) continue;
           const fid = fn('__dboRealmOwnerOf') ? fn('__dboRealmOwnerOf')(t.id) : null; if (!fid) continue;
           const rate = Math.min(C.maxTaxRate, Math.max(0, Number(d.rates[fid]) || 0)); if (!rate) continue;
