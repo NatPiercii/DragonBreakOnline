@@ -1092,7 +1092,6 @@ export class RemoteServer extends ClientListener {
           });
         } catch (e) {
           if (e instanceof RespawnNeededError) {
-            actor.disableNoWait(false);
             safeDelete(actor);
           } else {
             throw e;

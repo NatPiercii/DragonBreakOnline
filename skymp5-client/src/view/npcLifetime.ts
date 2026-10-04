@@ -32,6 +32,62 @@ export const isRiskyToTouch = (s: CopyState, now: number): boolean => s.dead || 
 // Whether a delete may run at once; a deferred one (the world cleaner's, whose actors may be fighting or casting) never does
 export const deleteNow = (s: CopyState, now: number, defer: boolean): boolean => !defer && !isRiskyToTouch(s, now);
 
+// Delete() is latent, so a deleted ref still reads as not deleted for a while; a Disable queued on one crashed 0.3.75 (4 Oct 00:10Z)
+export const RECENT_DELETE_MS = 10000;
+export const RECENT_DELETE_CAP = 512;
+
+// Local ids handed to Delete(), each for a short time; ids only, never a native object (those expire each frame)
+export class RecentDeletes {
+  private at = new Map<number, number>();
+
+  constructor(private holdMs: number = RECENT_DELETE_MS, private cap: number = RECENT_DELETE_CAP) {}
+
+  note(id: number, now: number): void {
+    this.at.delete(id);
+    this.at.set(id, now);
+    while (this.at.size > this.cap) {
+      const oldest = this.at.keys().next();
+      if (oldest.done) break;
+      this.at.delete(oldest.value);
+    }
+  }
+
+  has(id: number, now: number): boolean {
+    const t = this.at.get(id);
+    if (t === undefined) return false;
+    if (now - t >= this.holdMs) { this.at.delete(id); return false; }
+    return true;
+  }
+
+  // A new copy placed under a reused id is not the deleted one
+  forget(id: number): void {
+    this.at.delete(id);
+  }
+
+  size(): number {
+    return this.at.size;
+  }
+}
+
+export interface DeleteFacts {
+  handedToDelete: boolean; // Delete() already called on it, by the view or the cleaner, within RECENT_DELETE_MS
+  queued: boolean; // already disabled by safeDelete and waiting for its 3D to go
+  deleted: boolean; // isDeleted()
+  is3DLoaded: boolean;
+  state: CopyState | null; // null when the ref is not an actor
+  defer: boolean;
+}
+
+export type DeletePlan = "skip" | "delete" | "defer";
+
+// skip: queue nothing on it; delete: Delete() now; defer: disableNoWait now, Delete() once its 3D is gone. No 3D is deleted outright.
+export const deletePlan = (f: DeleteFacts, now: number): DeletePlan => {
+  if (f.handedToDelete || f.queued || f.deleted) return "skip";
+  if (!f.is3DLoaded) return "delete";
+  if (!f.state) return f.defer ? "defer" : "delete";
+  return deleteNow(f.state, now, f.defer) ? "delete" : "defer";
+};
+
 export type ReseatDecision = "now" | "later" | "skip";
 
 export const reseatDecision = (s: CopyState, bornAt: number, askedAt: number, now: number): ReseatDecision => {

@@ -6,7 +6,7 @@ import { logTrace } from "../../logging";
 import { isOwnCompanion, isAnyCompanion } from "../../sync/ownCompanions";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
 import { WcPluginDeletes } from "./wcPluginDeletes";
-import { safeDelete } from "../../view/npcLifetimeRuntime";
+import { isHandedToDelete, safeDelete } from "../../view/npcLifetimeRuntime";
 
 export class WorldCleanerService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -81,6 +81,11 @@ export class WorldCleanerService extends ClientListener {
     }
 
     if (actorId === 0x14 || actor.isDisabled() || actor.isDeleted()) {
+      return;
+    }
+
+    // Delete() is latent, so a copy the view deleted a moment ago still reads as not deleted: queue nothing on it
+    if (isHandedToDelete(actorId)) {
       return;
     }
 

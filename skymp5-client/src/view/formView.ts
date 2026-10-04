@@ -9,7 +9,7 @@ import { RespawnNeededError } from "../lib/errors";
 import { FormModel } from "./model";
 import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from "../sync/movementApply";
 import { HOST_TRY_GHOST_AFTER, isSettling } from "./npcLifetime";
-import { hostBackoff, noteActorCall, noteCopyBorn, safeDelete } from "./npcLifetimeRuntime";
+import { hostBackoff, noteActorCall, noteCopyBorn, noteCopyPlaced, safeDelete } from "./npcLifetimeRuntime";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -264,6 +264,7 @@ export class FormView {
         }
 
         if (refr !== null) {
+          noteCopyPlaced(refr.getFormID());
           SpApiInteractor.getControllerInstance().lookupListener(WorldCleanerService).modWcProtection(refr.getFormID(), 1);
         }
 

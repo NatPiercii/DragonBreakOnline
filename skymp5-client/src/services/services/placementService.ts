@@ -4,6 +4,7 @@ import { BrowserMessageEvent } from "skyrimPlatform";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { WorldCleanerService } from "./worldCleanerService";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
+import { noteCopyPlaced, safeDelete } from "../../view/npcLifetimeRuntime";
 import { logError, logTrace } from "../../logging";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -171,7 +172,8 @@ export class PlacementService extends ClientListener {
       const id = this.ghostId;
       this.ghostId = 0;
       this.controller.lookupListener(WorldCleanerService).modWcProtection(id, -1);
-      ObjectReference.from(Game.getFormEx(id))?.delete();
+      const ghost = ObjectReference.from(Game.getFormEx(id));
+      if (ghost) safeDelete(ghost);
     }
     if (announce && this.active) Debug.notification("Placement mode off.");
     if (this.hudText !== null) {
@@ -320,6 +322,7 @@ export class PlacementService extends ClientListener {
         return this.stop(true);
       }
       this.ghostId = ghost.getFormID();
+      noteCopyPlaced(this.ghostId);
       this.controller.lookupListener(WorldCleanerService).modWcProtection(this.ghostId, 1);
       const ac = Actor.from(ghost);
       if (ac) {
