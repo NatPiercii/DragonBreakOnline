@@ -114,6 +114,19 @@ const stubPlugin = {
   check('a copy that became a werewolf drops its work', ran.length === 0 && W.sent.length === 0);
   W.actors[C2].race = 0x13746;
 
+  // ---- a destroyed copy drops its work ----
+  W.sent = []; ran = [];
+  Q.queueCopyNiNodeWork(C1, work(ran));
+  Q.dropCopyNiNodeWork(C1);
+  tick(3);
+  check('work dropped by a destroy never runs on whatever holds the id next', ran.length === 0 && W.sent.length === 0, W.sent);
+  W.sent = []; ran = [];
+  Q.queueCopyNiNodeWork(C1, work(ran));
+  Q.queueCopyNiNodeUpdate(C1);
+  Q.dropCopyNiNodeWork(C1);
+  tick(3);
+  check('a plain update asked for the id still goes (it rebuilds whatever is there, as before)', ran.length === 0 && W.sent.length === 1 && W.sent[0].by === 'plain', W.sent);
+
   // ---- the player ----
   W.sent = []; ran = [];
   tick(3);

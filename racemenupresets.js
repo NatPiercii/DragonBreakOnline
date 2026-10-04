@@ -10,7 +10,13 @@ const path = require('path');
 
 const MAX_CUSTOM_MORPHS = 1024;
 const MAX_MORPH_NAME = 128;
-const MAX_MORPH_VALUE = 100;
+// RaceMenu's ranges (skee FaceMorphInterface.cpp): a slider runs -1..1 times fSliderMultiplier (1.0 unless skee64.ini
+// changes it) and is applied once per whole unit past 1; a preset slider is a whole number 0..its preset count
+const MAX_SLIDER = 1;
+const MAX_PRESET_INDEX = 32;
+const morphValueOk = (v) => typeof v === 'number' && Number.isFinite(v) && (Number.isInteger(v) ? v >= -MAX_SLIDER && v <= MAX_PRESET_INDEX : Math.abs(v) <= MAX_SLIDER);
+// A sculpt moves a vertex at most this many units (a head is about 20 across)
+const MAX_SCULPT_UNITS = 30;
 const MAX_SCULPT_HOSTS = 16;
 const MAX_VERTICES = 65535;
 const MAX_SCULPT_OFFSET = 10000000;
@@ -50,11 +56,15 @@ const faceFrom = (raw) => {
   const custom = [];
   for (const m of customIn) {
     if (!isObject(m) || !isCleanString(m.name, MAX_MORPH_NAME)) return null;
-    if (typeof m.value !== 'number' || !Number.isFinite(m.value) || Math.abs(m.value) > MAX_MORPH_VALUE) return null;
+    if (!morphValueOk(m.value)) return null;
     if (m.value !== 0) custom.push({ name: m.name, value: m.value });
   }
   const sculptIn = raw.sculpt === undefined || raw.sculpt === null ? [] : raw.sculpt;
   if (!Array.isArray(sculptIn) || sculptIn.length > MAX_SCULPT_HOSTS) return null;
+  const hasSculpt = sculptIn.some((h) => isObject(h) && Array.isArray(h.data) && h.data.length > 0);
+  if (hasSculpt && !isIntIn(raw.sculptDivisor, 1, MAX_SCULPT_DIVISOR)) return null;
+  const sculptDivisor = hasSculpt ? raw.sculptDivisor : 10000;
+  const maxOffset = Math.min(MAX_SCULPT_OFFSET, MAX_SCULPT_UNITS * sculptDivisor);
   const sculpt = [];
   for (const h of sculptIn) {
     if (!isObject(h) || !isTriPath(h.host) || !isIntIn(h.vertices, 1, MAX_VERTICES)) return null;
@@ -63,17 +73,12 @@ const faceFrom = (raw) => {
     const out = [];
     for (const e of data) {
       if (!Array.isArray(e) || e.length !== 4 || !isIntIn(e[0], 0, h.vertices - 1)) return null;
-      for (let k = 1; k < 4; k++) if (!isIntIn(e[k], -MAX_SCULPT_OFFSET, MAX_SCULPT_OFFSET)) return null;
+      for (let k = 1; k < 4; k++) if (!isIntIn(e[k], -maxOffset, maxOffset)) return null;
       out.push([e[0], e[1], e[2], e[3]]);
     }
     if (out.length && !sculpt.some((o) => o.host.toLowerCase() === h.host.toLowerCase())) sculpt.push({ host: h.host, vertices: h.vertices, data: out });
   }
-  let sculptDivisor = 10000;
-  if (sculpt.length) {
-    if (!isIntIn(raw.sculptDivisor, 1, MAX_SCULPT_DIVISOR)) return null;
-    sculptDivisor = raw.sculptDivisor;
-  }
-  return { version, modNames, custom, sculptDivisor, sculpt };
+  return { version, modNames, custom, sculptDivisor: sculpt.length ? sculptDivisor : 10000, sculpt };
 };
 
 // The client's encodeFace: one face is always one text
@@ -98,7 +103,9 @@ module.exports = (api) => {
     uploadTimeoutMs: 60000,
     uploadsPerHour: 30,         // per character; each one that changes the face is a file write
     getsPerMinute: 120,         // per player; one per copy that spawns, retried every 15 s at most
-    cacheEntries: 64,
+    cacheEntries: 16,
+    cacheChars: 4000000,        // the read cache holds at most this much face text
+    queuePerRecipient: 200,     // packets waiting for one player (a few faces); more waits for the client's retry
   }, (cfg && cfg.racemenuPresets) || {});
   const DIR = path.resolve(C.dir);
   const MAX_CHUNKS = Math.ceil(Number(C.maxChars) / Number(C.chunkChars));
@@ -111,12 +118,15 @@ module.exports = (api) => {
   const fileOf = (k) => path.join(DIR, `${k}.json`);
   const isPlayer = (a) => profileOf(a) >= 0;
   const raceOf = (a) => { try { const ap = mp.get(a, 'appearance'); return ap && Number.isInteger(ap.raceId) ? ap.raceId >>> 0 : 0; } catch (e) { return 0; } };
+  // In a beast form the appearance carries the beast race (beastform.js keeps the real one): no face is taken then
+  const inBeastForm = (a) => { try { return typeof globalThis.__dboBeastOriginalRace === 'function' && globalThis.__dboBeastOriginalRace(a) > 0; } catch (e) { return true; } };
 
   // ---- storage: one file per character, the cache in front of it ----
   const remember = (k, doc) => {
     S.cache.delete(k);
     S.cache.set(k, doc);
-    while (S.cache.size > Number(C.cacheEntries)) S.cache.delete(S.cache.keys().next().value);
+    const chars = () => { let n = 0; for (const d of S.cache.values()) n += d && d.face ? d.face.length : 0; return n; };
+    while (S.cache.size > Number(C.cacheEntries) || (S.cache.size > 1 && chars() > Number(C.cacheChars))) S.cache.delete(S.cache.keys().next().value);
   };
   // doc: { v, actor, profile, race, hash, face } or null for none; a file another character's profile wrote is none
   const readDoc = (a, cb) => {
@@ -166,7 +176,9 @@ module.exports = (api) => {
     // A newer answer about the same character replaces one still waiting
     const about = payloads.length ? payloads[0].actor : 0;
     const kept = q.filter((p) => p.actor !== about);
+    if (kept.length + payloads.length > Number(C.queuePerRecipient)) { S.queues.set(to, kept); return false; }
     S.queues.set(to, kept.concat(payloads));
+    return true;
   };
   const pump = () => {
     if (!S.queues.size) return;
@@ -216,7 +228,9 @@ module.exports = (api) => {
 
   const finishUpload = (me, u) => {
     const k = keyOf(me);
+    if (inBeastForm(me)) { log(`racemenu presets: ${k} upload in a beast form, refused`); return; }
     const race = raceOf(me);
+    if (!race) { log(`racemenu presets: ${k} has no appearance race, upload refused`); return; }
     let doc = null;
     if (u.n > 0) {
       const text = u.parts.join('');

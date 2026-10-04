@@ -120,6 +120,20 @@ const upload = (userId, t, up, size) => {
   packet(2, { customPacketType: 'dboPresetPut', up: 3, i: 0, n: 1, hash, race: 1, data: 'x'.repeat(12001) });
   check('silly chunk counts and oversize chunks are ignored', !M.state.uploads.has(B));
 
+  // ---- beast form and the race ----
+  globalThis.__dboBeastOriginalRace = (a) => (a === A ? 0x13746 : 0);
+  const beastMtime = fs.statSync(fileOf(A)).mtimeMs;
+  upload(1, P.encodeFace({ ...face, custom: [{ name: 'NoseBridge', value: 0.9 }] }), 40);
+  await settle();
+  check('an upload in a beast form is refused (the appearance race is the beast\'s)', fs.statSync(fileOf(A)).mtimeMs === beastMtime && logs.some((l) => /beast form, refused/.test(l)));
+  delete globalThis.__dboBeastOriginalRace;
+  const noRace = props[B].appearance; props[B].appearance = undefined;
+  upload(2, text, 41);
+  await settle();
+  check('an upload from a character with no appearance race is refused', !fs.existsSync(fileOf(B)) && logs.some((l) => /no appearance race/.test(l)));
+  props[B].appearance = noRace;
+  take();
+
   // ---- multi-chunk, out of order ----
   const bigFace = JSON.parse(JSON.stringify(face)); bigFace.sculpt[0].data = new Array(5000).fill(0).map((_, i) => [i, 100, -100, i]);
   const bigText = P.encodeFace(bigFace);
@@ -187,6 +201,21 @@ const upload = (userId, t, up, size) => {
   const kept = JSON.parse(fs.readFileSync(fileOf(A), 'utf8'));
   check('uploads past the hourly limit are dropped', JSON.parse(kept.face).custom[0].value === 0.21, JSON.parse(kept.face).custom);
   take();
+
+  // ---- memory bounds ----
+  M = load({ queuePerRecipient: 3 });
+  take();
+  M.state.queues.clear();
+  packet(1, { customPacketType: 'dboPresetGet', actor: B, have: '' });
+  await settle();
+  check('an answer bigger than the per-recipient queue bound is not queued (the client asks again)', !M.state.queues.has(A) || M.state.queues.get(A).length <= 3, (M.state.queues.get(A) || []).length);
+  M = load({ cacheChars: 10 });
+  M.state.cache.clear();
+  packet(1, { customPacketType: 'dboPresetGet', actor: A, have: '' });
+  packet(1, { customPacketType: 'dboPresetGet', actor: B, have: '' });
+  await settle();
+  check('the read cache keeps under its character bound (one entry at least)', M.state.cache.size === 1, M.state.cache.size);
+  pumpAll(); take();
 
   // ---- hot reload and the off switch ----
   const before = globalThis.__dboPresetState;

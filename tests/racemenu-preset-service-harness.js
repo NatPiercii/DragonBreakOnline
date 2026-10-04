@@ -43,7 +43,7 @@ const W = globalThis.__rmW;
 const actorOf = (id) => { const a = W.actors[id >>> 0]; if (!a) return null;
   return { getFormID: () => id >>> 0, getRace: () => ({ getFormID: () => a.race }), is3DLoaded: () => a.loaded, isInCombat: () => a.combat, getBaseObject: () => ({ base: id }) }; };
 module.exports = {
-  Game: { getPlayer: () => actorOf(0x14), getFormEx: (id) => ({ id: id >>> 0 }), getModName: (i) => ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm'][i] || '', getLightModName: () => '' },
+  Game: { getPlayer: () => actorOf(0x14), getFormEx: (id) => ({ id: id >>> 0 }), getFormFromFile: (local, file) => (file === 'BSAssets.esm' ? { getFormID: () => (0x07000000 | (local & 0xffffff)) >>> 0 } : null), getModName: (i) => ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm'][i] || '', getLightModName: () => '' },
   Actor: { from: (f) => (f ? actorOf(f.id) : null) },
   ActorBase: { from: (b) => (b ? { getNumHeadParts: () => W.playerParts.length, getNthHeadPart: (i) => ({ getFormID: () => W.playerParts[i] }), getWeight: () => 61 } : null) },
   HeadPart: { from: (f) => { const p = f && W.parts[f.id]; return p ? { isExtraPart: () => p.extra } : null; } },
@@ -198,6 +198,14 @@ const stubPlugin = {
   W.works = [];
   check('not without 3D', fresh(0xff00ac02, { loaded: false }) === 0);
   check('not on a werewolf', fresh(0xff00ac03, { race: WEREWOLF }) === 0);
+  {
+    const RH = 0xff000d04, RHINO = 0x07601b07;
+    deliver(S, { customPacketType: 'dboPresetChunk', actor: RH, hash: faceHash, race: RHINO, i: 0, n: 1, data: faceText });
+    W.views = [view(0xff00ac0b, RH)]; W.actors[0xff00ac0b] = { race: RHINO, loaded: true, combat: false }; W.works = [];
+    step(S, 1100);
+    check('not on a non-humanoid race even when the face says that race (shared guard with part 1)', W.works.length === 0);
+  }
+  check('not on a race that cannot be read', fresh(0xff00ac0c, { race: 0 }) === 0);
   check('not on another race than the face was made on', fresh(0xff00ac04, { race: OTHER_RACE }) === 0);
   W.menuOpen = true;
   check('not while this player has RaceMenu open', fresh(0xff00ac05, {}) === 0);
@@ -215,7 +223,23 @@ const stubPlugin = {
   W.actors[0xff00ac06].combat = false;
   step(S, 1100);
   check('it is handed back and queued again later', W.works.length === 1);
+  // ---- the slot re-checks who owns the id ----
+  check('a copy queued for player R1', fresh(0xff00ac07, {}) === 1);
+  W.views = [view(0xff00ac07, 0xff000c03)];
+  W.calls = [];
+  r = runWorks();
+  check('whose id now belongs to another player\'s copy by its turn: not loaded', r[0] === false && loads().length === 0);
+  check('a copy queued again', fresh(0xff00ac08, {}) === 1);
+  W.views = [];
+  r = runWorks();
+  check('whose copy is gone by its turn (an NPC may hold the id): not loaded', r[0] === false && loads().length === 0);
+  check('and once more', fresh(0xff00ac09, {}) === 1);
+  deliver(S, { customPacketType: 'dboPresetRev', actor: R1, hash: 'deadbeef' });
+  r = runWorks();
+  check('whose face changed before its turn: not loaded', r[0] === false && loads().length === 0);
+  deliver(S, { customPacketType: 'dboPresetChunk', actor: R1, hash: faceHash, race: RACE, i: 0, n: 1, data: faceText });
   W.loadResult = false; W.calls = [];
+  fresh(0xff00ac0a, {});
   r = runWorks();
   check('a load skee refuses reports no update queued', r[0] === false && loads().length === 1);
   W.loadResult = true;

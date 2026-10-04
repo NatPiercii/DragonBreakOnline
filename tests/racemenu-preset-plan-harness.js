@@ -23,7 +23,7 @@ const jslot = {
   modNames: ['Skyrim.esm', 'Dawnguard.esm'],
   mods: [{ index: 0, name: 'Skyrim.esm' }],
   morphs: {
-    custom: [{ name: 'NoseBridge', value: 0.4 }, { name: 'Unused', value: 0 }, { name: 'ExpSmile', value: -1.5 }],
+    custom: [{ name: 'NoseBridge', value: 0.4 }, { name: 'Unused', value: 0 }, { name: 'ExpSmile', value: -0.5 }],
     default: { morphs: [0.1, 0.2], presets: [1, 2, 255] },
     sculpt: [{ data: [[0, 120, -30, 5], [17, 0, 0, 10000]], host: HEAD, vertices: 9001 }, { data: [[3, 1, 1, 1]], host: EYES, vertices: 48 }],
     sculptDivisor: 10000,
@@ -38,7 +38,7 @@ const jslot = {
 // ---- the face part ----
 const face = P.facePresetFrom(clone(jslot));
 check('a full .jslot gives a face', !!face, face);
-check('custom sliders kept, zero ones dropped', face.custom.length === 2 && face.custom[0].name === 'NoseBridge' && face.custom[1].value === -1.5, face.custom);
+check('custom sliders kept, zero ones dropped', face.custom.length === 2 && face.custom[0].name === 'NoseBridge' && face.custom[1].value === -0.5, face.custom);
 check('sculpt kept per host with its vertex count', face.sculpt.length === 2 && face.sculpt[0].host === HEAD && face.sculpt[0].vertices === 9001 && face.sculpt[0].data.length === 2, face.sculpt);
 check('version copied', face.version.signature === 1163086675 && face.version.formatVersion === 3);
 check('mod names kept (skee refuses a preset without any)', face.modNames.join() === 'Skyrim.esm,Dawnguard.esm');
@@ -71,12 +71,20 @@ broken('a host that is no .tri', (j) => { j.morphs.sculpt[0].host = 'actors\\hea
 broken('seventeen sculpt hosts', (j) => { j.morphs.sculpt = new Array(17).fill(0).map((_, i) => ({ host: `a${i}.tri`, vertices: 4, data: [[0, 1, 1, 1]] })); });
 broken('no sculpt divisor with sculpt', (j) => { delete j.morphs.sculptDivisor; });
 broken('a zero sculpt divisor', (j) => { j.morphs.sculptDivisor = 0; });
-broken('a slider value of 1e9 (skee repeats a preset morph per unit)', (j) => { j.morphs.custom[0].value = 1e9; });
+broken('a slider value of 1e9 (skee repeats a slider morph per whole unit)', (j) => { j.morphs.custom[0].value = 1e9; });
+broken('a slider past RaceMenu\'s -1..1 (1.5)', (j) => { j.morphs.custom[0].value = 1.5; });
+broken('a whole number below -1', (j) => { j.morphs.custom[0].value = -2; });
+broken('a preset index past 32', (j) => { j.morphs.custom[0].value = 33; });
+broken('a sculpt offset past 30 units', (j) => { j.morphs.sculpt[0].data[1][3] = 300001; });
+broken('a sculpt offset past 30 units with divisor 1', (j) => { j.morphs.sculptDivisor = 1; j.morphs.sculpt[0].data = [[0, 31, 0, 0]]; });
 broken('a NaN slider value', (j) => { j.morphs.custom[0].value = NaN; });
 broken('a slider name with a control character', (j) => { j.morphs.custom[0].name = 'a\u0001b'; });
 broken('an empty slider name', (j) => { j.morphs.custom[0].name = ''; });
 broken('too many sliders', (j) => { j.morphs.custom = new Array(1025).fill({ name: 'x', value: 1 }); });
 check('refused: not an object', P.facePresetFrom('x') === null && P.facePresetFrom(null) === null && P.facePresetFrom([]) === null);
+const ranged = clone(jslot); ranged.morphs.custom = [{ name: 'Lips', value: 1 }, { name: 'Brows', value: -1 }, { name: 'NosePreset', value: 32 }, { name: 'Fine', value: 0.37 }];
+ranged.morphs.sculpt[0].data = [[0, 300000, -300000, 0]];
+check('the edges of RaceMenu\'s ranges are kept (-1, 1, preset 32, 30 units)', !!P.facePresetFrom(ranged) && P.facePresetFrom(ranged).custom.length === 4, ranged.morphs.custom);
 const dupHost = clone(jslot); dupHost.morphs.sculpt[1].host = HEAD.toLowerCase();
 check('a second entry for the same host (any case) is dropped', P.facePresetFrom(dupHost).sculpt.length === 1);
 const noDivNoSculpt = clone(jslot); delete noDivNoSculpt.morphs.sculptDivisor; noDivNoSculpt.morphs.sculpt = [];
@@ -185,6 +193,12 @@ if (S) {
   check('server refuses what the client refuses', S.faceFrom(bad) === null);
   const huge = JSON.parse(enc); huge.custom[0].value = 1e9;
   check('server refuses a huge slider too', S.faceFrom(huge) === null && P.decodeFace(JSON.stringify(huge)) === null);
+  for (const v of [1.5, -2, 33, 0.999, 32, -1]) {
+    const t = JSON.parse(enc); t.custom[0].value = v;
+    check(`server and client agree on slider value ${v}`, (S.faceFrom(t) === null) === (P.decodeFace(JSON.stringify(t)) === null));
+  }
+  const far = JSON.parse(enc); far.sculpt[0].data[0][1] = 300001;
+  check('server refuses a sculpt past 30 units too', S.faceFrom(far) === null && P.decodeFace(JSON.stringify(far)) === null);
 } else check('racemenupresets.js loads from the repo root', false);
 
 console.log(failures ? `${failures} FAILED` : 'all passed');
