@@ -61,6 +61,10 @@ const load = (cfg) => { delete require.cache[MODULE]; return require(MODULE)({ g
   const custom = load({ crashyCreatures: { races: [], bases: ['1e7e2:Skyrim.esm'], message: 'No bandits today.' } });
   check('bases are refused by id and races can be replaced; the message is the config one', !!custom.check(BANDIT) && custom.check(DRAGON) === null && custom.check(BANDIT).message === 'No bandits today.');
   check('a new list starts a new cache', load({}).check(DRAGON) !== null);
+  const cfgFile = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).crashyCreatures || {};
+  check('gamemode-config.json lists the same six races as the code, on, with no test profile', JSON.stringify(cfgFile.races) === JSON.stringify(require(MODULE).DRAGON_RACES) && cfgFile.on === true && (cfgFile.testProfiles || []).length === 0, cfgFile);
+  const t = load({ crashyCreatures: { testProfiles: [2], testGuard: 31 } });
+  check('testing() knows the test profiles; testGuard keeps the four switch bits', t.testing(2) && !t.testing(3) && t.testGuard === 15);
 }
 
 const scratch = (tag) => fs.mkdtempSync(path.join(os.tmpdir(), `claude-nate-crashy-${tag}-`));
@@ -104,6 +108,43 @@ const home = process.cwd();
     const left = [...companions.values()];
     check('unleash releases the bandits and dismisses the dragon', left.length === 2 && left.every((c) => c.baseId === BANDIT && c.released && c.hostile) && /Dismissed 1 \(someone\) instead/.test(r), { r, left });
     check('the dismissal is in the raid audit', audits.some((t) => /UNLEASHED a raid of 2 NPC\(s\); dismissed 1 \(crashyCreatures\)/.test(t)), audits);
+  } finally { process.chdir(home); fs.rmSync(dir, { recursive: true, force: true }); delete globalThis.__dboCompanions; }
+}
+
+// ---- warband.js for a test profile (crashyCreatures.testProfiles): the dragon is raised with its test switches ---------
+{
+  const dir = scratch('warband-test');
+  process.chdir(dir);
+  try {
+    fs.writeFileSync('admin-placeables.json', JSON.stringify({ categories: [{ id: 'npc', label: 'NPCs', kind: 'npc', items: [['fea9b:Skyrim.esm', 'Dragon', 'Skyrim.esm']] }] }));
+    fs.copyFileSync(MODULE, path.join(dir, 'crashycreatures.js'));
+    const GM = 1, OTHER = 2;
+    let next = 0xff000300;
+    const companions = new Map(), sets = [], props = [];
+    globalThis.__dboCompanions = {
+      spawn: (owner, baseId, opts) => { const id = next++; companions.set(id, { id, ownerId: owner, baseId, kind: opts.kind }); return id; },
+      list: (owner) => [...companions.values()].filter((c) => c.ownerId === owner && !c.released),
+      dismiss: (id) => companions.delete(id),
+      release: (id, hostile) => { const c = companions.get(id); c.released = true; c.hostile = hostile; return true; },
+    };
+    delete globalThis.__dboWarband;
+    const said = [], audits = [], commands = {};
+    require(path.join(ROOT, 'warband.js'))({
+      mp: { get: (id, k) => (k === 'pos' ? [0, 0, 0] : k === 'angle' ? [0, 0, 0] : undefined), set: (id, k, v) => sets.push([id, k, v]), getIdFromDesc: idOf, lookupEspmRecordById,
+        makeProperty: (name, o) => props.push([name, o]) },
+      log: () => {}, personal: (a, t) => said.push(t), audit: (t) => audits.push(t), who: (a) => `#${a}`, isAdmin: () => true, profileOf: (a) => (a === GM ? 7 : 8),
+      registerChatCommand: (n, fn) => { commands[n] = fn; }, findByName: () => 0, cfg: { crashyCreatures: { testProfiles: [7], testGuard: 3 } }, onUi: () => {},
+    });
+    check('the client\'s switch property is registered for neighbours', props.some(([n, o]) => n === 'ff_flyerGuard' && o.isVisibleByNeighbors));
+    const run = (a, args) => { said.length = 0; commands.warband(a, args); return said.join(' | '); };
+    let r = run(GM, 'raise dragon');
+    const d = [...companions.values()][0];
+    check('a test profile raises the dragon, warned, with its switches set', d && d.baseId === DRAGON && /TEST: Dragon .* switches 3/.test(r) && sets.some(([id, k, v]) => id === d.id && k === 'ff_flyerGuard' && v === 3), { r, sets });
+    check('the test raise is audited as one', audits.some((t) => /raised 1 x Dragon .*crashyCreatures TEST \(ff_flyerGuard 3\)/.test(t)), audits);
+    r = run(OTHER, 'raise dragon');
+    check('another staff profile is still refused', /cannot be raised/.test(r) && companions.size === 1, r);
+    run(GM, 'unleash');
+    check('the test profile can unleash it as a raid', d.released && d.hostile && companions.size === 1);
   } finally { process.chdir(home); fs.rmSync(dir, { recursive: true, force: true }); delete globalThis.__dboCompanions; }
 }
 

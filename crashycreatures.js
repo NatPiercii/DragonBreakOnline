@@ -11,6 +11,10 @@
 //   races    race descs, judged after templates (default: every race that runs Actors\Dragon\DragonProject.hkx)
 //   bases    NPC_ or LVLN descs refused whatever their race
 //   message  what a GM is told when a raise or a placement is refused
+//   testProfiles  staff profiles whose /warband raise still brings one, for the client fix's test (it crashes the
+//                 games of players near it: test away from everyone)
+//   testGuard     the ff_flyerGuard switches such a test dragon carries (client 0.3.77+ view/flyerGuard.ts): 1 no
+//                 relayed animations, 2 AI off, 4 no KeepOffsetFromActor, 8 no Resurrect at spawn; 0 none
 'use strict';
 
 // Every race in the load order whose behaviour graph is Actors\Dragon\DragonProject.hkx (tools/races scan, 4 Oct)
@@ -26,6 +30,8 @@ const DEFAULTS = {
   on: true,
   races: DRAGON_RACES,
   bases: [],
+  testProfiles: [],
+  testGuard: 0,
   message: 'Dragons are switched off for now: a dragon near players crashes their games (4 Oct). They come back with the client fix.',
 };
 // ACBS template flag: the NPC_ takes its race (traits) from its TPLT
@@ -41,6 +47,11 @@ module.exports = (mp, cfg, log) => {
   const key = JSON.stringify([[...raceIds].sort(), [...baseIds].sort()]);
   const G = globalThis.__dboCrashyCache && globalThis.__dboCrashyCache.key === key
     ? globalThis.__dboCrashyCache : (globalThis.__dboCrashyCache = { key, verdicts: new Map() });
+
+  // The client reads a dragon's test switches from this neighbour-visible property (registered once; a reload keeps it)
+  try { mp.makeProperty('ff_flyerGuard', { isVisibleByOwner: true, isVisibleByNeighbors: true, updateOwner: '', updateNeighbor: '' }); } catch (e) { /* already registered */ }
+  const testProfiles = new Set((Array.isArray(C.testProfiles) ? C.testProfiles : []).map(Number).filter(Number.isFinite));
+  const testGuard = (Number(C.testGuard) >>> 0) & 15;
 
   const recordOf = (id) => { try { const r = id ? mp.lookupEspmRecordById(id >>> 0) : null; return r && r.record ? r : null; } catch (e) { return null; } };
   const fieldsOf = (res, type) => (res.record.fields || []).filter((f) => f && f.type === type && f.data instanceof Uint8Array);
@@ -85,6 +96,7 @@ module.exports = (mp, cfg, log) => {
   // Options [[level, desc], ...] without the refused ones
   const filterOptions = (options) => (Array.isArray(options) ? options.filter((o) => !(Array.isArray(o) && check(o[1]))) : options);
 
-  return { on: C.on !== false, check, filterOptions, message: String(C.message || DEFAULTS.message), races: [...raceIds] };
+  const testing = (profile) => testProfiles.has(Number(profile));
+  return { on: C.on !== false, check, filterOptions, testing, testGuard, message: String(C.message || DEFAULTS.message), races: [...raceIds] };
 };
 module.exports.DRAGON_RACES = DRAGON_RACES;

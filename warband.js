@@ -125,12 +125,14 @@ module.exports = (api) => {
     let me, angle;
     try { me = mp.get(a, 'pos'); angle = Number((mp.get(a, 'angle') || [])[2]) || 0; } catch (e) { return personal(a, 'Your position is not known yet.'); }
     const baseId = mp.getIdFromDesc(found.n.desc) >>> 0;
+    const profile = profileOf(a);
     const bad = crashy(baseId);
-    if (bad) {
+    // A test profile (crashyCreatures.testProfiles) still raises one, for the client fix's test
+    const test = !!bad && !!CRASHY && CRASHY.testing(profile);
+    if (bad && !test) {
       audit(`WARBAND ${who(a)} REFUSED ${found.n.name} (${found.n.desc}): crashyCreatures`);
       return personal(a, `${found.n.name} cannot be raised. ${bad.message}`);
     }
-    const profile = profileOf(a);
     let made = 0;
     for (let i = 0; i < n; i++) {
       // In a ring around the GM, starting in front, so a group does not spawn inside itself
@@ -141,13 +143,15 @@ module.exports = (api) => {
       if (!id) continue;
       id >>>= 0;
       S.names.set(id, found.n.name);
+      if (test && CRASHY.testGuard) { try { mp.set(id, 'ff_flyerGuard', CRASHY.testGuard); } catch (e) { log('warband: ff_flyerGuard failed', e.message); } }
       S.owners.set(id, { gm: a >>> 0, profile, by: who(a), released: false, hostile: false });
       // No side: one of the player faction on every screen, so no other band takes it for an enemy
       if (!sideOf(profile)) { try { mp.set(id, 'ff_factions', FRIENDLY_FACTIONS); } catch (e) { log('warband: ff_factions failed', e.message); } }
       made++;
     }
     if (!made) return personal(a, `${found.n.name} could not be raised; see the server log.`);
-    audit(`WARBAND ${who(a)} raised ${made} x ${found.n.name} (${found.n.desc})${sideOf(profile) ? ` for ${sideOf(profile)}` : ''}`);
+    audit(`WARBAND ${who(a)} raised ${made} x ${found.n.name} (${found.n.desc})${sideOf(profile) ? ` for ${sideOf(profile)}` : ''}${test ? `, a crashyCreatures TEST (ff_flyerGuard ${CRASHY.testGuard})` : ''}`);
+    if (test) personal(a, `TEST: ${found.n.name} is one of the creatures that crash nearby players' games (crashyCreatures); switches ${CRASHY.testGuard}. Keep everyone away, and /warband dismiss when done.`);
     personal(a, `${made} ${found.n.name} follow you${made < want ? ` (the warband holds ${C.maxBand})` : ''}. Your warband: ${band(a).length}.`);
   };
 
@@ -188,7 +192,7 @@ module.exports = (api) => {
     const gone = [];
     for (const c of mine) {
       // One raised before the guard loaded goes away instead of into the world
-      if (crashy(c.baseId)) { try { comp().dismiss(c.id); } catch (e) { /* gone */ } S.owners.delete(c.id >>> 0); gone.push(nameOfNpc(c.id)); continue; }
+      if (crashy(c.baseId) && !(CRASHY && CRASHY.testing(profile))) { try { comp().dismiss(c.id); } catch (e) { /* gone */ } S.owners.delete(c.id >>> 0); gone.push(nameOfNpc(c.id)); continue; }
       // An aggression that cannot be read (AI data from a leveled-list template, or no readable record) is not trusted
       const ag = hostile ? 0 : aggressionOf(c.baseId);
       if (!hostile && ag === null) { unread.push(nameOfNpc(c.id)); continue; }
