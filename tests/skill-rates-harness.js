@@ -14,12 +14,19 @@ const MODULE = path.join(SERVER, 'skillrates.js');
 let fails = 0, checks = 0;
 const ok = (label, cond, got) => { checks++; if (!cond) { fails++; console.log(`  FAIL ${label}${got !== undefined ? `: got ${JSON.stringify(got)}` : ''}`); } else console.log(`  ok   ${label}`); };
 
-// ---- what ships: everything at x1, the loop guard off ---------------------------------------------------------------
+// ---- what ships: Nate's rates (4 Oct), the loop guard on --------------------------------------------------------------
 const R = CONFIG.skillRates || {};
+const NOTES = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
 ok('config: skillRates is on', R.enabled === true, R.enabled);
-ok('config: miner and skinner at x1', R.rates.miner === 1 && R.rates.skinner === 1, R.rates);
-ok('config: blacksmith x1 at every tier', R.rates.blacksmith.default === 1 && JSON.stringify(R.rates.blacksmith.craftByTier) === '[1,1,1,1,1]', R.rates.blacksmith);
-ok('config: the salvage loop guard ships off', R.salvageLoop && R.salvageLoop.enabled === false, R.salvageLoop);
+ok('config: miner x2, skinner x1.5', R.rates.miner === 2 && R.rates.skinner === 1.5, R.rates);
+ok('config: blacksmith x2.5 at tier 1 (iron), x1 above', R.rates.blacksmith.default === 1 && JSON.stringify(R.rates.blacksmith.craftByTier) === '[2.5,1,1,1,1]', R.rates.blacksmith);
+ok('config: the salvage loop guard is on, x0 for 60 min', R.salvageLoop && R.salvageLoop.enabled === true && R.salvageLoop.rate === 0 && R.salvageLoop.windowMinutes === 60, R.salvageLoop);
+const NOTE = NOTES.find((n) => n.title === 'Faster Mining, Smithing and Skinning');
+const NOTE_TEXT = JSON.stringify(NOTE || {});
+ok('patch note in patch-notes.json, dated SHIP_DATE or a date', !!NOTE && (NOTE.date === 'SHIP_DATE' || /^\d{4}-\d{2}-\d{2}$/.test(NOTE.date)), NOTE && NOTE.date);
+ok('...naming the rates as shipped', /twice as much toward your Miner/.test(NOTE_TEXT) && /two and a half times as much toward Blacksmith/.test(NOTE_TEXT) && /half as much again toward Skinner/.test(NOTE_TEXT), NOTE_TEXT);
+ok('...and the loop guard', /broke down in the last hour no longer counts/.test(NOTE_TEXT), NOTE_TEXT);
+ok('...no longer parked in patch-notes-pending', !fs.existsSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'skill-rates.json')));
 ok('config: material tiers are 2..5 (tier 1 is everything unlisted)', Object.values(R.materialTiers).every((t) => t >= 2 && t <= 5), R.materialTiers);
 ok('gamemode loads skillrates.js with recordOf and fieldsOf', /require\(SKILLRATES_JS\)\(\{[^}]*recordOf, fieldsOf[^}]*\}\)/.test(GAMEMODE));
 ok('gamemode clears the hooks when it fails to load', /skillrates\.js failed to load[^\n]*__dboSkillRate = null/.test(GAMEMODE));
@@ -56,20 +63,28 @@ const load = (skillRates) => {
 const A = 0xff001ed0, B = 0xff0004cb;
 const craft = (r, recipeId, extra) => r.rateFor(A, 'blacksmith', 'craft', Object.assign({ recipeId, held: 1, value: 10, parts: 2 }, extra || {}));
 
-// ---- the shipped config changes nothing -----------------------------------------------------------------------------
+// ---- the shipped config, and an all-x1 config that changes nothing -----------------------------------------------------
 let r = load(R);
-ok('shipped: a mined vein x1', r.rateFor(A, 'miner', 'mine', { refrId: 1, value: 0 }) === 1);
-ok('shipped: an iron dagger x1', craft(r, DAGGER) === 1);
-ok('shipped: a skinned wolf x1', r.rateFor(A, 'skinner', 'skin', { refrId: 2, value: 10 }) === 1);
+ok('shipped: a mined vein x2', r.rateFor(A, 'miner', 'mine', { refrId: 1, value: 0 }) === 2);
+ok('shipped: an iron dagger x2.5', craft(r, DAGGER) === 2.5);
+ok('shipped: a steel sword x1', craft(r, SWORD) === 1);
+ok('shipped: a skinned wolf x1.5', r.rateFor(A, 'skinner', 'skin', { refrId: 2, value: 10 }) === 1.5);
 ok('shipped: a skill with no entry x1', r.rateFor(A, 'blade', 'hit', { targetId: 3 }) === 1);
 ok('shipped: the hook is published', globalThis.__dboSkillRate === r.rateFor && globalThis.__dboSkillRateBrokeDown === r.noteBreakdown);
-ok('shipped: one load line says x1 and the loop off', /skillRates on: miner x1, skinner x1, blacksmith .*; 20 material tiers; salvage loop off/.test(logs[logs.length - 1]), logs[logs.length - 1]);
+ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner x1.5, blacksmith .*; 20 material tiers; salvage loop x0 for 60 min/.test(logs[logs.length - 1]), logs[logs.length - 1]);
 r.noteBreakdown(A, ITEM.IronDagger);
-ok('shipped: a breakdown then the same craft is still x1 (guard off)', craft(r, DAGGER) === 1);
+ok('shipped: a breakdown then the same craft is worth nothing', craft(r, DAGGER) === 0);
+globalThis.__dboSkillRates = undefined;
+const FLAT = Object.assign({}, R, { rates: { miner: 1, skinner: 1, blacksmith: { default: 1, craftByTier: [1, 1, 1, 1, 1] } }, salvageLoop: { enabled: false, windowMinutes: 60, rate: 0 } });
+r = load(FLAT);
+ok('all x1: a vein, a dagger, a pelt x1', r.rateFor(A, 'miner', 'mine', {}) === 1 && craft(r, DAGGER) === 1 && r.rateFor(A, 'skinner', 'skin', {}) === 1);
+r.noteBreakdown(A, ITEM.IronDagger);
+ok('all x1, guard off: a breakdown then the same craft is still x1', craft(r, DAGGER) === 1);
 
-// ---- the proposal -------------------------------------------------------------------------------------------------------
+// ---- rates by skill, kind and tier (guard off) -------------------------------------------------------------------------------------------------------
 const PROPOSAL = Object.assign({}, R, {
   rates: { miner: 2, skinner: 1.5, blacksmith: { default: 1, craftByTier: [2.5, 1, 1, 1, 1] }, cook: { default: 1, craft: 1.2 }, harvesting: { default: 0.5, activate: -1, eat: 'x2' } },
+  salvageLoop: { enabled: false, windowMinutes: 60, rate: 0 },
 });
 r = load(PROPOSAL);
 ok('miner x2 on a vein', r.rateFor(A, 'miner', 'mine', { refrId: 1 }) === 2);
