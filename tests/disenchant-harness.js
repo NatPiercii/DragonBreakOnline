@@ -125,6 +125,10 @@ ok(inv(PLAYER).length === 3 && inv(PLAYER).every((e) => e.name || e.health || e.
 reset([{ baseId: BLAZE, count: 1, name: 'Mine' }, { baseId: BLAZE, count: 1, health: 1.2 }]);
 report(ENCHANTER, BLAZE, [BLAZE]);
 ok(inv(PLAYER).length === 1 && inv(PLAYER)[0].name === 'Mine', '...and a tempered one before a named one', inv(PLAYER));
+// A player-made enchantment is stored as its effects (enchantmentEffects): such a copy is kept like a named one
+reset([{ baseId: BLAZE, count: 1, enchantmentEffects: [{ effectId: 0x3eb15, magnitude: 20, area: 0, duration: 0, cost: 30 }] }, { baseId: BLAZE, count: 1, health: 1.2 }]);
+report(ENCHANTER, BLAZE, [BLAZE]);
+ok(inv(PLAYER).length === 1 && inv(PLAYER)[0].enchantmentEffects, 'a copy carrying enchantment effects is taken after a tempered one', inv(PLAYER));
 
 // Not at the enchanter, or not an enchanter: nothing taken
 reset([{ baseId: BLAZE, count: 1 }]);

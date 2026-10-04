@@ -170,7 +170,9 @@ module.exports = (api) => {
   const EXTRA = ['enchantmentId', 'name', 'poisonId', 'soul', 'chargePercent', 'maxCharge', 'removeEnchantmentOnUnequip'];
   const plain = (e) => !!e && !e.worn && !e.wornLeft && Number(e.count) > 0
     && EXTRA.every((k) => e[k] === undefined || e[k] === null || e[k] === 0 || e[k] === '' || e[k] === false)
-    && !(Number(e.poisonCount) > 0) && (e.health === undefined || e.health === null || Number(e.health) === 1);
+    && !(Number(e.poisonCount) > 0) && (e.health === undefined || e.health === null || Number(e.health) === 1)
+    // A player-made enchantment travels as its effects; on armour it carries no charge or id at all
+    && !(Array.isArray(e.enchantmentEffects) && e.enchantmentEffects.length > 0);
 
   // The stacks the player carries that this station can take apart: [{ baseId, count, gives }]
   const breakable = (a, station, rank) => {

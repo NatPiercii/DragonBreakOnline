@@ -256,7 +256,8 @@ module.exports = (api) => {
   const RETAKE_MS = 10 * 60 * 1000;
   const TAKEN = globalThis.__dboDisenchantTaken || (globalThis.__dboDisenchantTaken = new Map()); // `${actor}|${base}` -> when
   // Plain copies first: player-named or player-enchanted, then tempered or poisoned ones, are the last taken
-  const keepScore = (e) => (e.name || e.enchantmentId ? 2 : 0) + ((Number(e.health) || 1) > 1 || e.poisonId ? 1 : 0);
+  // (a player-made enchantment is stored as its effects, enchantmentEffects, so those count as enchanted too)
+  const keepScore = (e) => (e.name || e.enchantmentId || (Array.isArray(e.enchantmentEffects) && e.enchantmentEffects.length) ? 2 : 0) + ((Number(e.health) || 1) > 1 || e.poisonId ? 1 : 0);
   const disenchant = (a, workbenchId, inputs) => {
     const reported = inputs && Array.isArray(inputs.entries) ? inputs.entries : [];
     // One copy per base item per report, whatever the count says
