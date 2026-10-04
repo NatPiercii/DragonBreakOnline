@@ -53,7 +53,10 @@ HRESULT HookD3D11CreateDeviceAndSwapChain(
     SDKVersion, pSwapChainDesc, ppSwapChain, ppDevice, pFeatureLevel,
     ppImmediateContext);
 
-  if (RealDXGISwapChainPresent == nullptr && ppSwapChain)
+  // A failed create leaves *ppSwapChain null; hooking it read address 0
+  // (karta.gina, 4 Oct: DXGI_ERROR_UNSUPPORTED at startup)
+  if (RealDXGISwapChainPresent == nullptr && SUCCEEDED(result) &&
+      ppSwapChain && *ppSwapChain)
     RealDXGISwapChainPresent =
       HookVTable(*ppSwapChain, 8, &HookDXGISwapChainPresent);
 
