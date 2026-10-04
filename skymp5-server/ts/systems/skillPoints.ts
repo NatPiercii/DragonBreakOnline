@@ -143,6 +143,10 @@ export const repetitionFactor = (ring: NoveltyEntry[], hash: number, now: number
   return { factor: 1 / (1 + k / 8), ring: next.slice(-size) };
 };
 
+/** A skill rate as applyGain takes it: 0..5, anything not a number counts as 1. */
+export const clampRate = (rate: unknown): number =>
+  typeof rate === "number" && Number.isFinite(rate) ? Math.min(5, Math.max(0, rate)) : 1;
+
 // ── the token bucket ───────────────────────────────────────────────────────────────────────────────
 
 export type Bucket = { tokens: number; at: number };
@@ -247,9 +251,10 @@ const dayKey = (now: number): string => new Date(now).toISOString().slice(0, 10)
  * Apply `rawUnits` of validated work to one skill. Meters it through the token bucket, the per-skill and
  * per-character daily caps and the structural caps, then takes any pool overflow from a donor.
  * `boost` (1..3) scales what the metered work is worth after the caps, so a boost moves the skill further, never faster through the bucket.
+ * `rate` (0..5, clampRate) is the gameplay's skill rate and scales the same way.
  * Mutates nothing: returns the outcome, with the record updated in place on the caller's copy.
  */
-export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: PointConfig, now: number, boost = 1): GainOutcome => {
+export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: PointConfig, now: number, boost = 1, rate = 1): GainOutcome => {
   const s = rec.skills[id] || (rec.skills[id] = { level: 0, xp: 0, lock: "raise" });
   // A Waning skill does not rise (SKILLS_DESIGN.md 3.6): refused before the bucket and the day's caps, so nothing is charged
   if (s.lock === "lower") return { gained: 0, units: 0, tookFrom: [], refused: "lock" };
@@ -280,7 +285,7 @@ export const applyGain = (rec: PointRecord, id: string, rawUnits: number, cfg: P
 
   // 4. the pool: a gain past it has to come from somewhere
   const before = s.level;
-  const worth = units * (Number.isFinite(boost) ? Math.min(3, Math.max(1, boost)) : 1);
+  const worth = units * (Number.isFinite(boost) ? Math.min(3, Math.max(1, boost)) : 1) * clampRate(rate);
   const grown = addUnits(s.level, s.xp, worth, cap);
   const used = poolUsed(Object.entries(rec.skills).map(([k, v]) => ({ id: k, level: k === id ? grown.level : v.level, xp: v.xp, lock: v.lock })));
   const tookFrom: Array<{ id: string; units: number; levels: number }> = [];
