@@ -1,8 +1,8 @@
 // A new claim finds its dungeon stocked (G64E, 4 Oct: back to back Adept claims of Telepe, "no loot from locked chests"
 // and every coin purse "emptied not long ago"). Two parts:
 //   1. The real dungeons.js, loot.json and expeditions.json: Telepe and Niryastare claimed many times at every
-//      difficulty (Novice locks none) with every big chest locked (dungeons.lockedShare 1). A locked chest never opens on nothing: it rolls
-//      again, coin last (before the fix an Adept claim's locked chests were empty 28-38% of the time).
+//      difficulty (Novice locks none) with every big chest locked (dungeons.lockedShare 1). A locked chest never opens
+//      on nothing: one that rolled empty holds coin (before the fix 28-38% of them were empty).
 //   2. __dboLeaseStartedAt: the claim's start for an actor inside a claimed dungeon, else 0; gamemode.js's coin purse
 //      counts a rest set before that start as over.
 //   node tests/lease-refill-harness.js   (from server/)

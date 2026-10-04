@@ -645,7 +645,6 @@ module.exports = (api) => {
   // A ruin can name its boss chest when the plugin's base is an ordinary one (expeditions.json bossChest: a ref or a list;
   // Nate, 2026-09-28: the chest right behind Silorn's lich is its boss chest)
   const bossChestRefs = (d) => new Set([].concat((d && d.bossChest) || []).map((r) => normDesc(String(r))));
-  const LOCKED_REROLLS = 3;
   // An anchor the server never loads fails every spawn on it ("Form with id 0x80863d2 doesn't exist", 4 Oct: 159 refs in
   // Underpall, Red Ruby Cave, Fort Cutpurse, Anga, Niryastare, Plundered Mine, Silorn). The server skips initially
   // disabled and dead ACHRs (WorldState::AttachEspmRecord), and DragonBreak Online Edits disables 145 of them, so
@@ -678,11 +677,9 @@ module.exports = (api) => {
         const row = lock !== undefined ? TIERS.rowFor(diff.id, 'lock', lock) : null;
         let entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k, row)) : smallLoot(diff, ch.edid, ok, k);
         // A lock that gives way on nothing (an Adept claim's locked chests rolled empty about a third of the time; G64E,
-        // 4 Oct: "no loot from locked chests"): it rolls again, and coin is the last resort
-        if (ch.big && !boss && lock !== undefined && !entries.length) {
-          for (let i = 0; i < LOCKED_REROLLS && !entries.length; i++) entries = chestLoot(diff, false, ok, ayleid, false, k, row);
-          if (!entries.length) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1])));
-        }
+        // 4 Oct: "no loot from locked chests") holds coin by the difficulty's range instead; a roll again would raise every
+        // other share (Ayleid pieces, potions) the tables are tuned to
+        if (ch.big && !boss && lock !== undefined && !entries.length) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1])));
         mp.set(id, 'inventory', { entries }); filled++;
         if (lease && entries.length) lease.stocked.add(id);
         if (lease) { const g = entries.reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD_BASE ? Number(e.count) || 0 : 0), 0); if (g > 0) lease.rolledGold.set(id >>> 0, g); }
