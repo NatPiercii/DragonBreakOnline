@@ -18,6 +18,7 @@ const https = require('https');
 module.exports = (api) => {
   const { mp, log, personal, audit, who, display, onlineActors, registerChatCommand, discordOf, profileOf, isAdmin, zoneOfActor,
     token, guildId, cfg } = api;
+  const zoneById = typeof api.zoneById === 'function' ? api.zoneById : () => null;
   const C = Object.assign({
     enabled: true, cooldownMinutes: 5, nearbyMeters: 40, minText: 10, maxText: 1000,
     staffRoleIds: ['1494126527489507369', '1494491999305338981', '1494126618065506425'], pingRoleId: '1494126618065506425',
@@ -72,8 +73,9 @@ module.exports = (api) => {
     let where = '?', near = [];
     try {
       const pos = mp.get(a, 'pos'); const w = String(mp.get(a, 'worldOrCellDesc') || '');
-      const zone = zoneOfActor(a);
-      where = `${zone ? zone.name + ', ' : ''}${w} at ${pos.map((n) => Math.round(n)).join(', ')}`;
+      // gamemode's zoneOfActor answers a zone id ("bruma"): its name comes from zoneById
+      const z = zoneOfActor(a); const zone = typeof z === 'string' ? zoneById(z) || { name: z } : z;
+      where = `${zone && zone.name ? zone.name + ', ' : ''}${w} at ${pos.map((n) => Math.round(n)).join(', ')}`;
       for (const o of onlineActors()) {
         if (o === a) continue;
         try {
@@ -128,6 +130,15 @@ module.exports = (api) => {
     audit(`TICKET opened ${kind.label} #${number} in game by ${who(a)} in #${channel.name}`);
     await nearbyToStaff(a, kind, number, channel, near);
     return { number, channel };
+  };
+
+  // gmcall.js (config gmCalls.openTicket): a GM call can open a Moderation Help ticket as well. Same rules as /ticket,
+  // the cooldown aside (the call has its own)
+  globalThis.__dboGameTicketOpen = (a, kindId, text) => {
+    const kind = KINDS.find((k) => k.id === kindId);
+    if (!kind || !C.enabled || !token || !guildId) return Promise.reject(new Error('tickets are off'));
+    if (!/^\d{15,22}$/.test(discordOf(a))) return Promise.reject(new Error('no Discord account linked'));
+    return open(a, kind, String(text || '').slice(0, C.maxText));
   };
 
   registerChatCommand('ticket', (a, args) => {

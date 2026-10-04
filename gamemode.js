@@ -400,6 +400,9 @@ const staffLog = (whoName, tier, what, detail, tally = true) => {
     if (staffState.queue.length > 500) staffState.queue.splice(0, staffState.queue.length - 500);
   }
 };
+// A module's own staff line (charters.js, gmcall.js): #staff-commands names whoever acted, the founder of a charter or the
+// GM; counted in the week's summary only when that is staff
+const staffNote = (a, what, detail) => staffLog(display(a), tierOf(a), what, `${staffWho(a)}: ${detail}`, isAdmin(a));
 const flushStaff = async () => {
   if (staffState.dirty) { staffState.dirty = false; try { fs.writeFileSync(STAFF_FILE + '.tmp', JSON.stringify(staffList())); fs.renameSync(STAFF_FILE + '.tmp', STAFF_FILE); } catch (e) { log('staff-actions.json write failed', e.message); } }
   if (staffState.busy || !staffState.queue.length || Date.now() < staffState.pauseUntil || !discordTarget || discordTarget.kind !== 'bot') return;
@@ -571,7 +574,7 @@ const HELP_GROUPS = [
   { key: 'groups', title: 'Groups and dungeons', names: ['party'],
     hints: ['Your factions: press F3.', 'A dungeon: its door, then /dungeon.',
       'An expedition: the board in the Synod Conclave or the Fighters Guild.'] },
-  { key: 'trouble', title: 'Trouble and help', names: ['unstuck', 'struggle', 'bug', 'ticket', 'help'] },
+  { key: 'trouble', title: 'Trouble and help', names: ['gm', 'unstuck', 'struggle', 'bug', 'ticket', 'help'] },
 ];
 // A topic with a `role` is only shown to players it applies to: officials hold a rank somewhere, beasts carry
 // the curse. Everyone else never sees commands they cannot use.
@@ -610,6 +613,11 @@ const helpLine = (n) => { const c = commands.get(n); return `/${n}${c && c.help 
 const STAFF_HELP = [
   { key: 'players', title: 'Players', items: ['kick', 'tp', 'fixloc', 'chargen', 'rename', 'sethunger', 'wipechars',
     ['tokens', '<player|#TAG>: someone\'s Patreon tier and identity rerolls left'], 'stats'] },
+  { key: 'calls', title: 'GM calls from players', items: [['gm list', '[all]: the open calls (all: and the last ten closed)'],
+    ['gm take', '<n>: the call is yours; the player is told you are on the way, other staff who took it'],
+    ['gm goto', '<n>: go to the caller (to where they called from, if they are offline); takes the call if nobody has'],
+    ['gm release', '<n>: hand a call back, so staff are told again'], ['gm close', '<n> [note]: done; the note is for staff only'],
+    ['gm quiet', '[on|off]: no banners for you (the lines still come to this tab)'], ['gm call', '<message>: open a call yourself, to try it']] },
   { key: 'announce', title: 'Announcements and restarts', items: [['admin', '<text>: talk in this admin tab'], 'announce', 'schedule', 'update'] },
   { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
     ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint',
@@ -720,10 +728,16 @@ registerChatCommand('rename', (a, args) => {
     audit(`GM ${who(a)} renamed "${old}" -> "${newName}" (#${tagOf(t)}, profile ${profileOf(t)})`);
   } catch (e) { personal(a, 'Rename failed: ' + e.message); }
 }, { admin: true, help: '<player|#TAG> <new name>' });
+// The staff teleport: /tp, and /gm goto (gmcall.js). '' when it went, else why not
+const staffTeleport = (a, place) => {
+  try { mp.set(a, 'locationalData', { cellOrWorldDesc: place.cellOrWorldDesc, pos: place.pos, rot: place.rot || [0, 0, 0] }); return ''; }
+  catch (e) { return e.message || 'failed'; }
+};
 registerChatCommand('tp', (a, args) => {
   const t = findByName(args.trim()); if (!t) return personal(a, 'No such player.');
-  try { mp.set(a, 'locationalData', { cellOrWorldDesc: mp.get(t, 'worldOrCellDesc'), pos: mp.get(t, 'pos'), rot: mp.get(t, 'angle') || [0, 0, 0] }); personal(a, `Teleported to ${nameOf(t)}.`); audit(`GM ${who(a)} teleported to ${who(t)} via /tp`); }
-  catch (e) { personal(a, 'Teleport failed: ' + e.message); }
+  let err; try { err = staffTeleport(a, { cellOrWorldDesc: mp.get(t, 'worldOrCellDesc'), pos: mp.get(t, 'pos'), rot: mp.get(t, 'angle') || [0, 0, 0] }); } catch (e) { err = e.message; }
+  if (err) return personal(a, 'Teleport failed: ' + err);
+  personal(a, `Teleported to ${nameOf(t)}.`); audit(`GM ${who(a)} teleported to ${who(t)} via /tp`);
 }, { admin: true, help: '<player>' });
 
 // ---- pigeons (player mail, works for offline recipients) --------------------------------------
@@ -2423,17 +2437,20 @@ const PANEL_TITLES = { people: 'People', character: 'Character', faith: 'Faith',
   rule: 'Rule & property', groups: 'Groups', trouble: 'Help & trouble', other: 'Other' };
 // A command the panel asks for words first. Each field is a box; they are joined with a space behind the command.
 const PANEL_ASK = {
+  gm: [{ label: 'What you need', placeholder: 'staff in the game are told at once, with where you stand', lines: 3 }],
   bug: [{ label: 'What went wrong', placeholder: 'what you were doing, and what happened', lines: 3 }],
   ticket: [{ label: 'What you need', placeholder: 'a staff member reads this', lines: 3 }],
   pm: [{ label: 'To', placeholder: 'name or #TAG' }, { label: 'Message', placeholder: '', lines: 2 }],
 };
+// A button named in words rather than as its command (the box still sends /<command> <words>)
+const PANEL_LABEL = { gm: 'Contact a GM' };
 // Chat reaches these another way (they are not registered commands), so the panel adds them to their topic
 const PANEL_EXTRA = { people: [{ name: 'pm', desc: 'say something to one person, privately' }] };
 const panelTabsFor = (a) => {
   const tabs = [];
   for (const g of helpGroupsFor(a)) {
     const entries = g.names.filter((n) => n !== 'help')
-      .map((n) => ({ name: n, label: '/' + n, desc: (commands.get(n) || {}).help || '', ask: PANEL_ASK[n] || null }));
+      .map((n) => ({ name: n, label: PANEL_LABEL[n] || '/' + n, desc: (commands.get(n) || {}).help || '', ask: PANEL_ASK[n] || null }));
     for (const e of PANEL_EXTRA[g.key] || []) entries.push({ name: e.name, label: '/' + e.name, desc: e.desc, ask: PANEL_ASK[e.name] || null });
     const hints = (g.hints || []).slice();
     if (!entries.length && !hints.length) continue;
@@ -5719,9 +5736,19 @@ try {
   const GAMETICKET_JS = path.resolve('gameticket.js');
   delete require.cache[GAMETICKET_JS];
   const auth = serverSettings.discordAuth || {};
-  require(GAMETICKET_JS)({ mp, log, personal, audit, who, display, onlineActors, registerChatCommand, discordOf, profileOf, isAdmin, zoneOfActor, cfg,
+  require(GAMETICKET_JS)({ mp, log, personal, audit, who, display, onlineActors, registerChatCommand, discordOf, profileOf, isAdmin, zoneOfActor, zoneById, cfg,
     token: (cfg.discord || {}).botToken || auth.botToken, guildId: ((auth.guilds || [])[0] || {}).guildId });
-} catch (e) { log('gameticket.js failed to load:', e.stack || e.message); }
+} catch (e) { log('gameticket.js failed to load:', e.stack || e.message); globalThis.__dboGameTicketOpen = null; }
+
+// ---- /gm: a player calls a GM, and staff in the game are told at once (server\gmcall.js, config "gmCalls") -----------
+try {
+  const GMCALL_JS = path.resolve('gmcall.js');
+  delete require.cache[GMCALL_JS];
+  const auth = serverSettings.discordAuth || {};
+  require(GMCALL_JS)({ mp, log, personal, staffSay, audit, staffNote, who, display, profileOf, discordOf, rolesOf, onlineActors, registerChatCommand,
+    isAdmin, every, saveSoon, sendPacket, zoneOfActor, zoneById, recordOf, teleportTo: staffTeleport, creationPending, sendJson, cfg,
+    token: (cfg.discord || {}).botToken || auth.botToken });
+} catch (e) { log('gmcall.js failed to load:', e.stack || e.message); globalThis.__dboGmCallsOpen = null; }
 
 // ---- update controls: version log, /update, /schedule restart|shutdown|update (server\updates.js, config "updates") -----
 try {
@@ -6045,8 +6072,6 @@ try {
 try {
   const CHARTERS_JS = path.resolve('charters.js');
   delete require.cache[CHARTERS_JS];
-  // #staff-commands names whoever acted: the founder for a submission or a withdrawal, the GM for a decision
-  const staffNote = (a, what, detail) => staffLog(display(a), tierOf(a), what, `${staffWho(a)}: ${detail}`, isAdmin(a));
   require(CHARTERS_JS)({ mp, log, personal, audit, who, display, nameOf, cfg, registerChatCommand, onlineActors, isAdmin, isLeadStaff,
     findByName, profileOf, takeGold, giveItem, every, staffNote, approvalForum });
 } catch (e) { log('charters.js failed to load:', e.stack || e.message); }

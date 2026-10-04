@@ -120,6 +120,26 @@ const run = async (a, args) => {
   check('a refused staff post is logged and the ticket still opens', /Ticket #G0005 is open/.test(r) && logs.some((l) => /^tickets: nearby for #G0005 not posted \(POST \/channels\/777777777777777777\/messages: HTTP 500/.test(l)), r);
   https.request = realReq2;
 
+  // gamemode's zoneOfActor answers a zone id, not a zone: the ticket named the place "undefined, ..." before zoneById
+  require(MODULE)(Object.assign({}, {
+    mp: { get: (a, k) => (k === 'pos' ? P[a].pos : k === 'worldOrCellDesc' ? P[a].w : undefined) },
+    log: (...x) => logs.push(x.join(' ')), personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => P[a].name, display: (a) => `${P[a].name} #${P[a].tag}`,
+    onlineActors: () => [ME, NEAR, FAR, NOLINK, ADMIN], registerChatCommand: (n, fn) => { commands[n] = fn; },
+    discordOf: (a) => P[a].discord, profileOf: (a) => a * 10, isAdmin: (a) => a === ADMIN, zoneOfActor: () => 'bruma',
+    zoneById: (id) => (id === 'bruma' ? { id: 'bruma', name: 'Bruma' } : null), cfg: {}, token: 'T', guildId: 'G',
+  }));
+  delete globalThis.__dboGameTickets.last; globalThis.__dboGameTickets.last = new Map();
+  const m0 = messages.length;
+  r = await run(ME, 'mod the gate guard in Bruma will not let me out');
+  const zm = messages.slice(m0).find((x) => x.embeds);
+  const zw = zm ? zm.embeds[0].fields.find((x) => x.name === 'Where').value : '';
+  check('a zone id from zoneOfActor is named through zoneById, never "undefined"', zw === 'Bruma, tamriel at 0, 0, 0', zw);
+  // gmcall.js opens a ticket through this, with the same rules
+  let t = null; try { t = await globalThis.__dboGameTicketOpen(ME, 'mod', 'GM call #1: help at the gate please'); } catch (e) { t = e; }
+  check('__dboGameTicketOpen opens a Moderation Help ticket for a GM call', t && t.number && /^mod-/.test(t.channel.name), String(t && (t.message || t.number)));
+  let refused = null; try { await globalThis.__dboGameTicketOpen(NOLINK, 'mod', 'GM call #2: help'); } catch (e) { refused = e.message; }
+  check('...and refuses a character with no Discord link', refused === 'no Discord account linked', refused);
+
   https.request = realRequest;
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });

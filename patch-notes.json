@@ -1,5 +1,21 @@
 [
   {
+    "title": "Call a GM from the game",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Contact a GM",
+        "items": [
+          "Need staff? Type /gm and what you need, or press U and choose Contact a GM under Help & trouble. Every staff member in the game is told at once, with where you are standing.",
+          "When a GM takes your call you are told who is on the way. /gm on its own shows your call, /gm with more words adds to it, and /gm cancel withdraws it.",
+          "If no staff are online, your call waits for the first one who logs in. For anything that needs a record, such as a player report, /ticket still opens a private ticket on Discord."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your journal holds it all (F3)",
     "date": "2026-10-04",
     "version": "Server + Client 0.3.76",
