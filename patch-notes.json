@@ -12,6 +12,7 @@
           "Chests inside open only for you (and the hold's property officials) unless you share one with your household or give it to someone from the property menu's Rooms and chests. Doors inside stay open unless you lock them or give them to someone.",
           "Aim at a door or chest inside and press the housing key: Lock locks just that one. Naming, keys, handing over and giving up act on the whole house from anywhere inside it. Locking a door in from the street locks every way in, not the doors inside.",
           "Each player holds one property, and only a building counts: a chest or a room door granted on its own is not a property. Nobody loses anything they hold today.",
+          "A faction's hall owned by the faction's leader is shared with its members, as Frostcrag Spire is with the College of Whispers and the Fighters Guild hall with the Fighters Guild: members sleep in its beds and open, lock and use its chests and doors as the owner does. Members cannot hand it over, give it up, rename it or cut its keys.",
           "Every bed in any of a house's rooms is its owner's own bed."
         ]
       }
