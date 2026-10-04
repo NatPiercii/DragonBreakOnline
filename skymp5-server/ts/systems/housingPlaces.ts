@@ -33,7 +33,8 @@ export interface PlacePlan {
   places: PlannedPlace[];
   // Staff owners' claims, left exactly as they are: no place, no lock change, no cap (Nate, 3 Oct: storage lent to players)
   staffKept: Array<{ owner: number; ownerName: string; claims: number[] }>;
-  // Owners left with more than one place: Nate decides; nothing is taken (they keep them, and claim nothing new)
+  // Owners left with more than one house: Nate decides; nothing is taken (they keep them, and claim nothing new). Only houses
+  // count: a chest or a room door is never a property of its own (Nate, 4 Oct)
   overCap: Array<{ owner: number; ownerName: string; places: number[] }>;
 }
 
@@ -81,7 +82,7 @@ export const planPlaces = (claims: PlaceClaim[], isWorld: (cell: string) => bool
   places.sort((a, b) => a.owner - b.owner || a.root - b.root);
   const overCap: PlacePlan["overCap"] = [];
   for (const [owner] of byOwner) {
-    const mine = places.filter((p) => p.owner === owner);
+    const mine = places.filter((p) => p.owner === owner && p.kind === "house");
     // A record's ownerName can be stale (a renamed character), so every name the owner's places carry is given
     if (mine.length > cap) overCap.push({ owner, ownerName: [...new Set(mine.map((p) => p.ownerName).filter(Boolean))].join(" / "), places: mine.map((p) => p.root) });
   }
