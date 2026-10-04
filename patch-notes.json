@@ -1,5 +1,20 @@
 [
   {
+    "title": "Dragons are away for now",
+    "date": "2026-10-04",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Game crashes near dragons",
+        "items": [
+          "On 4 October, dragons flying near Bruma closed many players' games. Staff can no longer bring dragons into the world until the game client is fixed, so this cannot happen again in the meantime.",
+          "No dragon appears in dungeons or in the wild, so nothing else changes for you. Dragons come back once the fix is in the game client."
+        ]
+      }
+    ]
+  },
+  {
     "title": "High-end gear keeps being swapped",
     "date": "2026-10-04",
     "version": "Server update",

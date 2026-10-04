@@ -214,6 +214,7 @@ module.exports = (api) => {
   // Enemy families from ck-mcp\dungeon_pools.py, built from the leveled lists: a generic placement may become any
   // archetype of its own faction in its own province (bosses only boss archetypes). Quest, named and
   // dungeon-specific placements are not listed and stay as Bethesda placed them.
+  const CRASHY = (() => { try { const p = path.resolve('crashycreatures.js'); delete require.cache[p]; return require(p)(mp, cfg, log); } catch (e) { log('dungeons: crashycreatures.js failed to load', e.message); return null; } })();
   const POOLS = readJson('dungeon-pools.json', { families: {}, placements: {} });
   const POOLS_KEEP = new Set(POOLS.keep || []);   // curation, Starts Dead, quest alias and set-piece refs, never swapped
   // DragonBreak's own placements stay as placed even if dungeons.json gained them after the pools were built
@@ -329,6 +330,12 @@ module.exports = (api) => {
           kind = arch.kind;
         }
 
+        // Creatures that crash nearby players' games never join a lease (crashycreatures.js); none is in the data (4 Oct)
+        if (CRASHY && CRASHY.on) {
+          const safe = CRASHY.filterOptions(opts);
+          if (safe.length !== opts.length) log(`dungeon ${d.id}: ${opts.length - safe.length} option(s) of ${edid} left out (crashyCreatures)`);
+          opts = safe;
+        }
         // A boss: marked in the data (expeditions.json boss: true) or a boss placement in the pools
         const boss = npc.boss === true || !!(entry && entry.boss);
         const id = pickScaled(opts, scale.lvl, diff, boss, raid);

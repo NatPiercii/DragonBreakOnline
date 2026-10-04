@@ -867,5 +867,14 @@
  "hud": {
   "_comment": "The HUD panel (dboHud, gamemode.js pushHud): gold hides the gold row (Nate, 4 Oct: \"I want it gone, it makes it look convoluted\"); vitals and watermark as before. Hot reload.",
   "gold": false
+ },
+ "crashyCreatures": {
+  "_comment": "crashycreatures.js: NPCs of these races (after templates) are refused by /warband raise and the Place tool, an earlier warband follower is dismissed at unleash or settle, and dungeons.js and wildlife.js never spawn one. 4 Oct: a dragon near players crashed their games (43 crashes, 0xC0000409). races: every race on Actors\\Dragon\\DragonProject.hkx. Set on to false once the client fix is live. testProfiles: staff profiles whose /warband raise still brings one, for the fix's test (keep everyone away); testGuard: the client switches (ff_flyerGuard, client 0.3.77+) such a dragon carries: 1 no relayed animations, 2 AI off, 4 no KeepOffsetFromActor, 8 no Resurrect at spawn. Hot reload.",
+  "on": true,
+  "races": ["12e82:Skyrim.esm", "e7713:Skyrim.esm", "1052a3:Skyrim.esm", "117de:Dawnguard.esm", "2c88b:Dragonborn.esm", "2c88c:Dragonborn.esm"],
+  "bases": [],
+  "testProfiles": [],
+  "testGuard": 0,
+  "message": "Dragons are switched off for now: a dragon near players crashes their games (4 Oct). They come back with the client fix."
  }
 }

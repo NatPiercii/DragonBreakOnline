@@ -55,6 +55,17 @@ module.exports = (api) => {
     return sorted[Math.floor(sorted.length / 2)][1];
   };
 
+  // Creatures that crash nearby players' games never get a wild:* zone (crashycreatures.js); none is in the data (4 Oct)
+  const CRASHY = (() => { try { const p = path.resolve('crashycreatures.js'); delete require.cache[p]; return require(p)(mp, cfg, log); } catch (e) { log('wildlife: crashycreatures.js failed to load', e.message); return null; } })();
+  // Only the pick is looked up (a record lookup per option of 3,000 placements would hold the event loop for seconds); a
+  // refused pick is made again from the options the guard keeps. null when nothing is left.
+  const safePick = (options, pick) => {
+    const id = pickOption(options, pick);
+    if (!id || !CRASHY || !CRASHY.on || !CRASHY.check(id)) return { id, left: false };
+    const again = pickOption(CRASHY.filterOptions(options), pick);
+    return { id: again, left: !again };
+  };
+
   // ---- zones --------------------------------------------------------------------------------
   const buildZones = () => {
     const out = [];
@@ -65,14 +76,15 @@ module.exports = (api) => {
       // No navmesh in the placement's cell (BSHeartland covers 524 of 2381 Cyrodiil cells): the creature cannot path
       // and sinks or slides. Skipped, but still counted, so every later wild:* zone keeps its name.
       if (pl.noNavmesh) { n++; continue; }
-      const id = pickOption(pl.options, pickFor(pl));
-      if (!id) continue;
+      const { id, left } = safePick(pl.options, pickFor(pl));
+      // Left out by the guard: still counted, so every later wild:* zone keeps its name (as a no-navmesh one is)
+      if (!id) { if (left) n++; continue; }
       out.push({ Name: `${PREFIX}${pl.kind}:${n++}`, ID: pl.world, POS: pl.pos, Size: C.radius, Anchor: pl.ref, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
     }
     for (const sp of OWNED.spawns || []) {
       if (out.length >= C.maxZones) break;
       if (!sp || !sp.src || !sp.kind || !sp.ref || !sp.world || !Array.isArray(sp.pos)) continue;
-      const id = pickOption(sp.options, pickFor(sp));
+      const { id } = safePick(sp.options, pickFor(sp));
       if (!id) continue;
       out.push({ Name: ownedZoneName(sp), ID: sp.world, POS: sp.pos, Size: C.radius, Anchor: sp.ref, Heading: Number(sp.heading) || 0, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
     }

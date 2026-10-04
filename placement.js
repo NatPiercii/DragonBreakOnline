@@ -145,6 +145,10 @@ module.exports = (api) => {
   const newKey = () => `n${Date.now().toString(36)}${Math.floor(Math.random() * 46656).toString(36).padStart(3, '0')}`;
 
   const S = globalThis.__dboPlacement || (globalThis.__dboPlacement = { catalog: null, kinds: null, registry: null });
+  // Creatures that crash nearby players' games (crashycreatures.js, config crashyCreatures): never placed, and a placement
+  // saved before the guard stays in the list but gets no spawn zone
+  const CRASHY = (() => { try { const p = path.resolve('crashycreatures.js'); delete require.cache[p]; return require(p)(mp, api.cfg || {}, log); } catch (e) { log('placement: crashycreatures.js failed to load', e.message); return null; } })();
+  const crashy = (desc) => { try { return CRASHY ? CRASHY.check(desc) : null; } catch (e) { return null; } };
 
   const loadCatalog = () => {
     if (S.catalog) return S.catalog;
@@ -188,7 +192,7 @@ module.exports = (api) => {
       else if (parsed && typeof parsed === 'object') { root = parsed; key = Object.keys(parsed).find((k) => k.toLowerCase() === 'zones') || 'zones'; list = Array.isArray(parsed[key]) ? parsed[key] : []; }
     } catch (e) { /* no file yet */ }
     const isMine = (z) => String((z && (z.Name || z.name)) || '').startsWith(ZONE_PREFIX);
-    const mine = registry().filter((e) => e.zone).map(zoneOf);
+    const mine = registry().filter((e) => e.zone && !crashy(e.base)).map(zoneOf);
     if (JSON.stringify(list.filter(isMine)) === JSON.stringify(mine)) return;
     const zones = list.filter((z) => !isMine(z)).concat(mine);
     const payload = root ? Object.assign({}, root, { [key]: zones }) : { _comment: 'NPC spawn zones. dungeon:* entries belong to dungeons.js, wild:* to wildlife.js, placed:* to placement.js; all are rewritten by the server. Other entries are kept.', zones };
@@ -253,6 +257,11 @@ module.exports = (api) => {
     const me = mp.get(a, 'pos');
     if (!where || !Array.isArray(me)) return { ok: false, text: 'Your position is not known yet.' };
     if (!opts.anyReach && Math.hypot(pos[0] - me[0], pos[1] - me[1], pos[2] - me[2]) > MAX_REACH) return { ok: false, text: 'Too far away to place.' };
+    const bad = kind === 'npc' ? crashy(desc) : null;
+    if (bad) {
+      audit(`PLACE ${who(a)} REFUSED ${known.name} (${desc}): crashyCreatures`);
+      return { ok: false, text: `${known.name} cannot be placed. ${bad.message}` };
+    }
 
     if (kind === 'npc' && AS_ZONES) {
       const entry = { id: newKey(), zone: true, base: desc, name: known.name, kind, where, pos: pos.map((n) => Math.round(n * 10) / 10), rot: poseRot(kind, rotIn), hostile: !!hostile, by: profile(a), at: new Date().toISOString() };
