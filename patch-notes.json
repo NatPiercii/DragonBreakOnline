@@ -210,6 +210,20 @@
     ]
   },
   {
+    "title": "Gentler dungeons on the easier difficulties",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Enemies in dungeons and expeditions hit softer on the easier difficulties: Novice half damage, Adept about two thirds, Expert four fifths, Master unchanged. This counts for their weapons, claws and spells alike."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Aleswell's farm and Fort Caractacus' smithy",
     "date": "SHIP_DATE",
     "version": "Server update",

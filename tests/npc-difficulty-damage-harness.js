@@ -81,7 +81,15 @@ const hook = GM.slice(GM.indexOf(END), GM.indexOf('hitDamageAttemptHook.__dbo = 
 ok(/mult \*= npcKindDamageMult\(agg, tgt, dmg\);\s*\n\s*\/\/[^\n]*\n\s*mult \*= npcDifficultyDamageMult\(agg, tgt, dmg, flags\);/.test(hook), 'the hit hook multiplies it in after byKind, before the lethal guard');
 ok(hook.indexOf('npcDifficultyDamageMult') < hook.indexOf('npcLethalGuard(agg'), '...so a scaled-down weapon hit that would have been lethal is guarded like the others');
 const conf = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).npcDamage || {};
-ok(conf.byDifficulty && Object.keys(conf.byDifficulty).length === 0 && !conf.spellMult && conf.log === false, 'gamemode-config ships it off: byDifficulty empty, no spellMult, log false', conf);
+ok(JSON.stringify(conf.byDifficulty) === JSON.stringify({ story: 0.5, normal: 0.65, hard: 0.8, nightmare: 1 }) && conf.spellMult === undefined && conf.log === false,
+  "gamemode-config ships Nate's byDifficulty (Novice 0.5, Adept 0.65, Expert 0.8, Master 1), no spellMult, log false", conf);
+const notes = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
+const note = notes.find((n) => n.title === 'Gentler dungeons on the easier difficulties');
+const text = note ? note.sections.map((s) => s.items.join(' ')).join(' ') : '';
+ok(!!note && note.date === 'SHIP_DATE' && /Novice half/.test(text) && /Adept about two thirds/.test(text) && /Expert four fifths/.test(text) && /Master unchanged/.test(text) && !/spell[^s]*softer|spellMult/.test(text),
+  'the patch note names the difficulties as players see them and matches the shipped values', note);
+const live = load({ npcPowerHits: { mult: 0.5 }, npcDamage: conf });
+ok(Math.abs(live.npcDifficultyDamageMult(ENCHANTER, PLAYER, 25, S) - 0.65) < 1e-12, 'as shipped, an Adept caster\'s spell takes the Adept factor only (no spellMult)');
 
 // ---- Telepe on Adept, 4 Oct: the hits as measured, then with the proposal ------------------------------------------------
 // From the mastery lines: the Bandit Thug's power attacks 63.1 raw (x2 power, x2 NPC on player in the formula) -> 31.5 after
