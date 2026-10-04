@@ -140,7 +140,7 @@ module.exports = (api) => {
     }
     return best < Infinity ? best : null;
   };
-  const studyPointNames = (school) =>[...new Set(STUDY_POINTS.filter((p) => p.schools.includes(school)).map((p) => (p.places ? `Study Magic in ${p.name.replace(/^The /, 'the ')}` : p.name)))].join(', ');
+  const studyPointNames = (school) => [...new Set(STUDY_POINTS.filter((p) => p.schools.includes(school)).map((p) => (p.places ? `Study Magic in ${p.name.replace(/^The /, 'the ')}` : p.name)))].join(', ');
 
   // ---- spells and tomes ------------------------------------------------------------------------------
   const lookup = (id) => { try { const r = id ? mp.lookupEspmRecordById(id >>> 0) : null; return r && r.record ? r : null; } catch (e) { return null; } };
