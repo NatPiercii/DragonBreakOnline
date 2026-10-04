@@ -26,12 +26,28 @@ const RECS = { 0x669a2: ['ALCH', 'FoodVenison'], 0x6bc0a: ['INGR', 'AntlersLarge
 // Creature bases (NPC_) the bodies are made from, by stub id
 const CREATURES = {};
 const creature = (edid) => { const id = 0x0a000000 + Object.keys(CREATURES).length + 1; CREATURES[id] = edid; RECS[id] = ['NPC_', edid]; return id; };
-const build = (cfg) => new Function('globalThis', 'mp', 'cfg', 'baseIdOf', 'profileOf', 'giveItem', 'recordOf', 'edidWords', 'personal', 'log', 'display',
+const build = (cfg, G = {}) => new Function('globalThis', 'mp', 'cfg', 'baseIdOf', 'profileOf', 'giveItem', 'recordOf', 'edidWords', 'personal', 'log', 'display',
   `${src.slice(i, j + 3)}\nreturn globalThis.__dboAnimalBody;`)(
-  {}, mp, cfg, (id) => Number(props.get(`${id}|baseId`)) || 0, (a) => (a === 0xff000014 ? 30 : -1), (a, id, n) => { given.push([id, n]); return true; },
+  G, mp, cfg, (id) => Number(props.get(`${id}|baseId`)) || 0, (a) => (a === 0xff000014 ? 30 : -1), (a, id, n) => { given.push([id, n]); return true; },
   (id) => (RECS[id] ? { record: { type: RECS[id][0], editorId: RECS[id][1] } } : null),
   (edid, fb) => String(edid || '').replace(/([a-z])([A-Z])/g, '$1 $2').trim() || fb, (a, t) => said.push(t), (t) => logged.push(t), String);
 const logged = [];
+// gearswap.js's loot cap, the real module against real ids (Skyrim.esm plugin 0, BSAssets 7, BSHeartland 8)
+Object.assign(RECS, { 0x5ad99: ['MISC', 'IngotOrichalcum'], 0x5ad9f: ['MISC', 'IngotIMoonstone'], 0x5ace5: ['MISC', 'IngotSteel'], 0x13995: ['WEAP', 'DwarvenBow'], 0x13985: ['WEAP', 'HuntingBow'],
+  0x139bd: ['AMMO', 'ElvenArrow'], 0x1397d: ['AMMO', 'IronArrow'] });
+const capOf = (lootTiers) => {
+  const PLUG = { 0: 'Skyrim.esm', 7: 'BSAssets.esm', 8: 'BSHeartland.esm' };
+  const descOf = (id) => `${((id >>> 0) & 0xffffff).toString(16)}:${PLUG[(id >>> 0) >>> 24] || 'X.esp'}`;
+  const idOf = (d) => { const m = /^([0-9a-f]+):(.+)$/i.exec(String(d)); if (!m) return 0; const top = Object.keys(PLUG).find((k) => PLUG[k].toLowerCase() === m[2].toLowerCase()); return top === undefined ? 0 : ((Number(top) << 24) | parseInt(m[1], 16)) >>> 0; };
+  const saved = globalThis.__dboGearSwapLoot;
+  require(path.resolve(__dirname, '..', 'gearswap.js'))({ mp: { get: () => undefined, set: () => {}, getDescFromId: descOf, getIdFromDesc: idOf }, log: () => {}, audit: () => {}, who: String, personal: () => {},
+    onlineActors: () => [], every: () => {}, cfg: { dungeons: { lootTiers } }, registerChatCommand: () => {}, recordOf: (id) => (RECS[id >>> 0] ? { record: { type: RECS[id >>> 0][0], editorId: RECS[id >>> 0][1], fields: [] } } : null) });
+  const f = globalThis.__dboGearSwapLoot;
+  globalThis.__dboGearSwapLoot = saved;
+  return { __dboGearSwapLoot: f };
+};
+const CAPG = capOf(undefined), CAPGNONE = capOf({ cap: 'none' });
+for (const k of ['__dboGearSwapTake', '__dboGearSwapContainer', '__dboGearSwapLogin', '__dboGearSwapLoot']) delete globalThis[k];
 const fn = build({});
 const P = 0xff000014, DEER = 0xff000500;
 props.set(`${DEER}|private.npcSpawner`, 'wild:deer:2878'); props.set(`${DEER}|isDead`, true);
@@ -94,7 +110,10 @@ given.length = 0;
 ok(fn(GIANT, P) === false && given.length === 1 && given[0][0] === 0x3ad52, 'by default a giant gives only its mammoth tusk', given);
 put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, count: 1 }, { baseId: 0x63b45, count: 2 }]);
 given.length = 0;
-ok(build({ animalBody: { keepAllKinds: ['giant'] } })(GIANT, P) === false && given.length === 3, 'a kind in keepAllKinds keeps its whole body', given);
+ok(build({ animalBody: { keepAllKinds: ['giant'] } }, CAPG)(GIANT, P) === false && given.length === 3, 'a kind in keepAllKinds keeps its whole body (through the loot cap)', given);
+put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, count: 1 }, { baseId: 0x63b45, count: 2 }]);
+given.length = 0;
+ok(build({ animalBody: { keepAllKinds: ['giant'] } })(GIANT, P) === false && given.length === 1 && given[0][0] === 0x3ad52, 'without gearswap.js\'s loot cap a keep-everything body hands over only its animal parts (fails closed)', given);
 put(RINGDEER, 'wild:deer:2878', [{ baseId: 0x669a2, count: 1 }]);
 given.length = 0;
 ok(build({ animalBody: { denyEditorIds: ['Venison'] } })(RINGDEER, P) === false && given.length === 0, 'the deny list in config wins over the allow rules', given);
@@ -106,7 +125,28 @@ ok(build({ animalBody: conf })(RINGDEER, P) === false && given.length === 1 && g
 // Nate, 30 Sep: "Giants keep their gear" (animalBody.keepAllKinds ["giant"] in the shipped config)
 put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, count: 1 }, { baseId: 0x63b45, count: 2 }]);
 given.length = 0;
-ok(Array.isArray(conf.keepAllKinds) && conf.keepAllKinds.includes('giant') && build({ animalBody: conf })(GIANT, P) === false && given.length === 3, 'with the shipped config a giant keeps its whole body (tusk, helmet, gems)', given);
+ok(Array.isArray(conf.keepAllKinds) && conf.keepAllKinds.includes('giant') && build({ animalBody: conf }, CAPG)(GIANT, P) === false && given.length === 3, 'with the shipped config a giant keeps its whole body (tusk, helmet, gems)', given);
+// The loot cap on a keep-everything body (Nate, 4 Oct; live: goblin bodies handed over an Orichalcum ingot and a Dwarven
+// bow). Metals above steel never come from a body; gear above the cap becomes its steel target; arrows follow the cap
+{
+  const GOB = 0xff000604;
+  put(GOB, 'wild:goblin:4', [{ baseId: 0x5ad99, count: 1 }, { baseId: 0x13995, count: 1 }, { baseId: 0x139bd, count: 6 }, { baseId: 0x3ad52, count: 1 }, { baseId: 0x5ace5, count: 2 }]);
+  given.length = 0; said.length = 0; logged.length = 0;
+  ok(conf.keepAllKinds.includes('goblin') && build({ animalBody: conf }, CAPG)(GOB, P) === false, 'a goblin (keepAllKinds in the shipped config) is searched with E');
+  const ids = given.map(([id]) => id);
+  ok(!ids.includes(0x5ad99) && !ids.includes(0x13995) && !ids.includes(0x139bd), 'neither the Orichalcum ingot, the Dwarven bow nor the Elven arrows are handed over as they are', given);
+  ok(given.some(([id, n]) => id === 0x13985 && n === 1) && given.some(([id, n]) => id === 0x1397d && n === 6), '...the bow becomes its steel target (a hunting bow), the arrows iron arrows', given);
+  ok(given.some(([id, n]) => id === 0x5ace5 && n === 2) && !given.some(([id]) => id === 0x5ace5 && given.filter(([x]) => x === 0x5ace5).length > 1), '...steel ingots under the cap pass, and the orichalcum is not turned into steel (metals never come from loot)', given);
+  ok(/not animal parts, left with the body: [^\n]*1x IngotOrichalcum/.test(logged.join('\n')) && logged.some((l) => /DwarvenBow from wild:goblin:4 handed over as HuntingBow \(loot cap\)/.test(l)), 'the kept-back ingot and the swapped bow are logged', logged);
+  put(GOB, 'wild:goblin:4', [{ baseId: 0x139bd, count: 6 }, { baseId: 0x13995, count: 1 }]);
+  given.length = 0;
+  build({ animalBody: conf }, CAPGNONE)(GOB, P);
+  ok(given.some(([id, n]) => id === 0x139bd && n === 6) && given.some(([id]) => id === 0x13995), 'at cap "none" the Elven arrows and the Dwarven bow come as they are (gear and arrows follow the cap)', given);
+  put(GOB, 'wild:goblin:4', [{ baseId: 0x5ad99, count: 1 }, { baseId: 0x5ad9f, count: 2 }]);
+  given.length = 0;
+  build({ animalBody: conf }, CAPGNONE)(GOB, P);
+  ok(given.length === 0, '...but never a metal above steel, at any cap', given);
+}
 // Food on every animal (Nate, 30 Sep: "add food to all animals"). Every wild creature whose death item holds no meat, by
 // its own editor id (the census of wildlife.json's spawnable creatures, 30 Sep), gets its food with the other parts;
 // monsters and folk get nothing added.

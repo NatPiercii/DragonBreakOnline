@@ -131,9 +131,13 @@ module.exports = (api) => {
     materials: besideJson('loot-materials.json', { items: {} }, 'no weapon or armour is loot'),
     factionGear: besideJson('faction-gear.json', { items: {} }, 'only the uniform families are kept out, not the named faction pieces'),
     overrides: besideJson('loot-overrides.json', { never: {} }, 'no hand overrides (an item kept out by hand may drop)'),
+    // The ingots, ores and arrows above the ceiling: the gear swap's own lists (Nate, 4 Oct: loot keeps the swap's cap)
+    swap: besideJson('gear-swap.json', null, 'no ingot, ore or arrow is loot under the ceiling'),
     cfg: C.lootTiers,
   });
   const GEAR_POOLS = new Set(['weapons', 'armor', 'ench_weapons', 'ench_armor']);
+  // The pools whose items are metals or ammunition, for the ceiling's check when gear-swap.json is missing (loottiers.js)
+  const CAP_KIND = { materials: 'metal', arrows: 'ammo' };
   const descOfId = (id) => { try { return String(mp.getDescFromId(id >>> 0) || ''); } catch (e) { return ''; } };
   const byId = new Map();            // dungeon id -> dungeon
   const outsideDoors = new Map();    // outside door refId -> { d, entrance }
@@ -404,6 +408,9 @@ module.exports = (api) => {
   globalThis.__dboLootable = TIERS.lootable;
   // The gear ceiling's name ('steel', 'iron' or 'none'), for manuals.js's boss manuals
   globalThis.__dboLootCap = TIERS.cap;
+  // ...and its ingots, ores and arrows (gear-swap.json metals, at any cap; ammo, under it), for the camp chests:
+  // (desc, 'metal' | 'ammo') -> null when the item may drop
+  globalThis.__dboLootAboveCap = TIERS.aboveCap;
   // ...and the province rule (gear by province; Steel plate, Scaled and Elven gilded everywhere): a province, or nothing
   globalThis.__dboLootInProvince = (it, prov) => !!prov && (hasProv(it, prov) || TIERS.anyProvince(it.id));
   // Nate, 2026-09-29: artifacts are never loot; staff proclaim champions and hand them out (artifacts.json)
@@ -445,8 +452,13 @@ module.exports = (api) => {
   const lootIngredients = (ok) => pool('ingredients', 0, ok).filter((it) => !EDIBLE.test(it.name));
   // Artifacts and Ebony/Daedric are refused here, for every draw: chestLoot, smallLoot and corpseLoot default to ALL_OK,
   // which skipped lootOk's BANNED_LOOT check, so a draw without a lease could still hand out Ebony or Daedric (2026-09-29)
-  // Weapons and armour also pass the material tiers' check: never, a faction uniform, or not in the map is not loot
-  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!GEAR_POOLS.has(name) || TIERS.lootable(it.id)) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
+  // Weapons and armour also pass the material tiers' check: never, a faction uniform, or not in the map is not loot.
+  // Every pool passes the ceiling's ingots, ores and arrows (gear-swap.json metals and ammo; Nate, 4 Oct; the metals at
+  // any cap, 'none' too, the arrows under it: loottiers.js aboveCap): they leave the
+  // pool rather than turn into steel or iron, so a roll draws among what is left and its chance stays as it was (as
+  // steel, the materials roll's Dwarven, Quicksilver, Moonstone, Malachite and Adamantium would make steel ingots a third
+  // of all Cyrodiil material finds)
+  const pool = (name, maxValue, ok) => (LOOT[name] || []).filter((it) => !ARTIFACT.test(String(it.name || '')) && !DRAGON_LOOT.test(String(it.name || '')) && !BANNED_LOOT.test(String(it.name || '')) && (!GEAR_POOLS.has(name) || TIERS.lootable(it.id)) && !TIERS.aboveCap(it.id, CAP_KIND[name]) && (!maxValue || Number(it.value) <= maxValue) && (!ok || ok(it)));
   // Vanilla names potions by numeric strength, not by word: RestoreHealth01 is Minor, 03 Plentiful, 05
   // Extreme, 06 Ultimate; Resist* uses 25/50/75/100. The old word-matching tiers returned an empty array at
   // all four tiers against the live pool, so no potion dropped at any difficulty.
@@ -534,7 +546,18 @@ module.exports = (api) => {
   // A humanoid body hands over a plain piece of what it carried; expeditions keep their trim, so less there
   const BODY_GEAR = chanceOr(C.bodyGearChance, 0.25);
   const EXPEDITION_BODY_GEAR = chanceOr(C.expeditionBodyGearChance, 0.12);
-  const trimFor = (d, diff) => Object.assign({}, trimOf(d, diff), d && d.expedition ? { torch: EXPEDITION_TORCH, bodyGear: EXPEDITION_BODY_GEAR } : { torch: ORDINARY_TORCH, bodyGear: BODY_GEAR });
+  // Linen wraps (Nate, 4 Oct: "linen wraps spawn in dungeons, in a reasonable amount"): vanilla's Linen Wrap
+  // (RuinsLinenPile01, 34cd6:Skyrim.esm, value 2, weight 3), which 92 recipes take 1 to 4 of: the robes, hoods, coifs,
+  // boots and gloves of the armour compilation and three Immersive Weapons pieces at the forge, the linen capes and
+  // bandanas at the tanning rack. Before this only a Nordic misc vendor list and salvage gave it. A common find, the same
+  // at every difficulty (it is a crafting cloth, not a material of a tier); an expedition's trim thins it like every
+  // roll. Burial linen is commonest where the dead are wrapped: a Nordic ruin or draugr crypt rolls `nordic` times as
+  // often. About 3.4 wraps per solo clear of a Bruma dungeon (tests/expedition-loot-budget-harness.js). Config dungeons.linen.
+  const LINEN = Object.assign({ item: '34cd6:Skyrim.esm', chest: 0.12, boss: 0.25, container: 0.02, stack: [1, 3], containerStack: [1, 1], nordic: 2 }, C.linen || {});
+  const LINEN_STACK = stackOr(LINEN.stack, [1, 3]), LINEN_SMALL = stackOr(LINEN.containerStack, [1, 1]);
+  const isNordicRuin = (d) => !!d && (d.type === 'nordic' || (d.keywords || []).some((kw) => /NordicRuin|DraugrCrypt/i.test(kw)));
+  const trimFor = (d, diff) => Object.assign({}, trimOf(d, diff), d && d.expedition ? { torch: EXPEDITION_TORCH, bodyGear: EXPEDITION_BODY_GEAR } : { torch: ORDINARY_TORCH, bodyGear: BODY_GEAR },
+    { linen: isNordicRuin(d) ? Math.max(0, Number(LINEN.nordic) || 1) : 1 });
   const trimOf = (d, diff) => {
     if (!d || (!d.expedition && EXPL.ordinary === false)) return NO_TRIM;
     const x = Math.max(0, Number((EXPL.scale || {})[diff.id]) || 0);
@@ -558,6 +581,7 @@ module.exports = (api) => {
     if (diff.id !== 'story' && p(boss ? 0.6 : 0.15)) addEntry(entries, pickFrom(pool('gems', diff.gear, ok)), 1);
     if (p(0.3 * ARROW_CHANCE)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.arrows[0], k.arrows[1]));
     if (p(0.2)) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, k.single ? 2 : 3));
+    if (LINEN.item && p(chanceOr(boss ? LINEN.boss : LINEN.chest, 0) * (Number.isFinite(k.linen) ? k.linen : 1))) addEntry(entries, { id: String(LINEN.item) }, rnd(LINEN_STACK[0], LINEN_STACK[1]));
     // Torches: common in the dark Ayleid ruins (Nate, 2026-09-28), rarer elsewhere, where they crowded out the rest
     // (groundedpasta, 2026-09-29: "4 torches in one cave"). Config dungeons.torchChance / expeditionTorchChance
     if (p(Number.isFinite(k.torch) ? k.torch : ORDINARY_TORCH)) addEntry(entries, pickFrom(pool('lights', 0, ok)), rnd(1, 2));
@@ -602,6 +626,7 @@ module.exports = (api) => {
     if (p(0.3)) addEntry(entries, pickFrom(lootIngredients(ok)), k.single ? 1 : rnd(1, 2));
     if (p(Number(POT.container))) addEntry(entries, potionPick(Math.max(0, diff.potionTier - 1), ok), 1);
     if (p(0.12 * ARROW_CHANCE)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.containerArrows[0], k.containerArrows[1]));
+    if (LINEN.item && p(chanceOr(LINEN.container, 0) * (Number.isFinite(k.linen) ? k.linen : 1))) addEntry(entries, { id: String(LINEN.item) }, k.single ? 1 : rnd(LINEN_SMALL[0], LINEN_SMALL[1]));
     // An urn that rolled nothing used to be topped up with coin, which is a third guaranteed source.
     // Most of the time it should simply be empty; looting a bare sack is honest.
     if (!entries.length && p(GOLD_CHANCE)) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(1, 3)));
@@ -974,7 +999,8 @@ module.exports = (api) => {
   };
   const arrowFor = (bowName, lease) => {
     const ok = lootOk(lease);
-    const arrows = (LOOT.arrows || []).filter((a) => /Arrow/.test(a.name) && ok(a) && !/Trap|Dummy|Bound|Fire|Ice|Shock|dun|MQ|DLC|Nightingale|Projectile/.test(a.name));
+    // Nothing above the ceiling (an Elven bow's archer carries iron arrows), so the quiver its body keeps is under it too
+    const arrows = (LOOT.arrows || []).filter((a) => /Arrow/.test(a.name) && ok(a) && !TIERS.aboveCap(a.id, 'ammo') && !/Trap|Dummy|Bound|Fire|Ice|Shock|dun|MQ|DLC|Nightingale|Projectile/.test(a.name));
     const mat = String(bowName || '').replace(/^(?:CYR|BSK)/, '').match(/^(Draugr|Falmer|Forsworn|Orcish|Dwarven|Elven|Glass|Ebony|Ayleid|AncientImperial)/);
     return (mat && arrows.find((a) => a.name.replace(/^(?:CYR|BSK)/, '').startsWith(mat[1]))) || arrows.find((a) => a.name === 'IronArrow') || arrows[0] || null;
   };
@@ -1689,7 +1715,10 @@ module.exports = (api) => {
       if (baseId === GOLD_BASE) { const n = Math.round(Math.min(count, diff.gold[1]) * Math.max(0, Number(C.corpseGoldMult))); if (n > 0) kept.push({ baseId, count: n }); continue; }
       if (rec && (BANNED_LOOT.test(String(rec.editorId || '')) || ARTIFACT.test(String(rec.editorId || '')))) continue;
       if (rec && AYLEID_NAMES.has(String(rec.editorId || ''))) continue;   // only the Ayleid table hands these out, by difficulty
-      // Arrows are rare (1 Oct): an archer's quiver stays arrowChance of the time, a few of them
+      // Arrows are rare (1 Oct): an archer's quiver stays arrowChance of the time, a few of them. What a lease creature's
+      // body keeps is never handed over today (the client blocks activation of actors, and only wild:* bodies are
+      // searched with E), so arrows, ingots and ores above the ceiling are left as they are; gearswap.js's dormant body
+      // take would swap them if bodies ever opened
       if (type === 'AMMO') { const st = stackOr(C.corpseArrows, [1, 3]); if (Math.random() < ARROW_CHANCE) kept.push({ baseId, count: Math.min(count, rnd(st[0], st[1])) }); continue; }
       // A creature's own potions stay only now and then, one at most (food and poisons are not ranked, so they stay)
       if (type === 'ALCH' && rankOf(String((rec && rec.editorId) || ''))) { if (Math.random() < Number(POT.corpseKeep)) kept.push({ baseId, count: 1 }); continue; }
