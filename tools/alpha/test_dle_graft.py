@@ -304,7 +304,9 @@ try:
     NEWCELL = crec(b'CELL', own | 0x800, sub(b'EDID', b'NewMine\0') + sub(b'DATA', b'\1\0'))
     NAVM = crec(b'NAVM', own | 0x803, sub(b'NVNM', nvnm(own | 0x800, own | 0x801)))
     new_int = NEWCELL + grp(own | 0x800, 6, grp(own | 0x800, 8, mref(own | 0x801, 0.0, 0xF01, sub(b'XTEL', struct.pack('<I', own | 0x802) + b'\0' * 28))),
-                            grp(own | 0x800, 9, NAVM, mref(own | 0x804, 1.0, 0xF00, sub(b'VMAD', vmad(own | 0x801)))))
+                            grp(own | 0x800, 9, NAVM, mref(own | 0x804, 1.0, 0xF00, sub(b'VMAD', vmad(own | 0x801))),
+                                rec(b'ACHR', own | 0x806, sub(b'NAME', struct.pack('<I', 0xF10)) + sub(b'DATA', b'\0' * 24)),
+                                rec(b'ACHR', own | 0x807, sub(b'NAME', struct.pack('<I', 0xF10)) + sub(b'XESP', struct.pack('<II', 0x900, 0)) + sub(b'DATA', b'\0' * 24))))
     src_cellA = ext_cell(0x100, sub(b'DATA', b'\2\0'), {9: [mref(own | 0x600, 5.0, 0xF00), mref(own | 0x802, 9.0, 0xF01, sub(b'XTEL', struct.pack('<I', own | 0x801) + b'\0' * 28))]})
     LAND_S = crec(b'LAND', 0x210, sub(b'DATA', b'\1\0\0\0') + sub(b'BTXT', struct.pack('<IBBh', 0, 0, 0, 0)))
     src_cellB = ext_cell(0x200, sub(b'DATA', b'\2\0') + sub(b'XCLR', struct.pack('<II', 0x501, 0x500)),     # the re-save swapped the regions
@@ -312,8 +314,9 @@ try:
                               rec(b'ACHR', 0x902, sub(b'NAME', struct.pack('<I', 0xF10)), D.DELETED), rec(b'REFR', 0x903, sub(b'NAME', struct.pack('<I', 0xF00)), D.DELETED),
                               mref(own | 0x805, 4.0, 0xF00)]})
     N3 = nvmi(own | 0x803, own | 0x800)
-    head_plugin(s6, ('Skyrim.esm',), 0x000806, [interior(base_int, new_int), ext_world([src_cellA, src_cellB]), grp(0x4956414E, 0, navi(N2, N3, N1))])
+    head_plugin(s6, ('Skyrim.esm',), 0x000808, [interior(base_int, new_int), ext_world([src_cellA, src_cellB]), grp(0x4956414E, 0, navi(N2, N3, N1))])
     man = {'copy': ['01000800', '01000801', '01000802', '01000803', '01000804', '01000805', '00000210'], 'master': ['00000200'],
+           'copy_flags': {'01000806': 2048},
            'master_with': {'00000901': ['DATA']}, 'disable': ['00000903'], 'disable_drop_parent': ['00000902'],
            'patch': {'01000600': {'data': [7.0, 0, 0, 0, 0, 0], 'flags_or': 2048}}, 'navi_add': ['01000803']}
     mp = os.path.join(tmp, 'm6.json'); json.dump(man, open(mp, 'w'))
@@ -339,13 +342,16 @@ try:
         a2 = dict((s_, v) for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[0x902]))[1]))
         ok(by[0x902][2] & D.DISABLED and not by[0x902][2] & D.DELETED and b'XESP' not in a2 and by[0x902][1] == 'ACHR', 'an ACHR comes over Initially Disabled with its enable parent dropped')
         ok(by[0x903][2] & D.DISABLED and not by[0x903][2] & D.DELETED, 'a deleted REFR comes over Initially Disabled')
+        sa = S6.bytes_of(sby[own | 0x806]); oa = O6.bytes_of(by[own | 0x806])
+        ok(by[own | 0x806][2] == sby[own | 0x806][2] | D.DISABLED and oa[:8] == sa[:8] and oa[12:] == sa[12:],
+           "copy_flags: the source's enabled ACHR comes over byte for byte but Initially Disabled")
         p6 = dict((s_, v) for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[own | 0x600]))[1]))
         ok(struct.unpack('<f', p6[b'DATA'][:4])[0] == 7.0 and by[own | 0x600][2] & D.DISABLED, 'a patch moves and disables a base record in place')
         nv = [LL.nvmi(v)[0] for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[0x12FB4]))[1]) if s_ == b'NVMI']
         ok(nv == [0x991, own | 0x803, 0x990], 'NAVI: the new NVMI goes after the entry the source has before it, the rest in the base\'s order', ['%08X' % x for x in nv])
         lg = [x for x in O6.records if x[5] and x[5][-1] == (9, 0x200)]
         ok([x[1] for x in lg][:1] == ['LAND'], 'the LAND is first in its cell\'s group')
-        c6 = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), '--manifest', mp, b6, s6, o6, '--data', md, '--live', b6, '--live-expect', '11'], capture_output=True, text=True)
+        c6 = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), '--manifest', mp, b6, s6, o6, '--data', md, '--live', b6, '--live-expect', '12'], capture_output=True, text=True)
         ok(c6.returncode == 0, 'dle_graft_check --manifest proves it', c6.stdout + c6.stderr)
         # the checker catches a tampered NVMI and a planned record left out
         bad = bytearray(open(o6, 'rb').read()); i = bytes(bad).index(N1); bad[i + 8] ^= 1
@@ -357,7 +363,8 @@ try:
         ok(c8.returncode == 1 and 'added' in c8.stdout, 'dle_graft_check fails a record the manifest does not name', c8.stdout)
     for what, change, expect in (("a 'disable' of a master record with an enable parent", {'disable': ['00000903', '00000902'], 'disable_drop_parent': []}, 'enable parent'),
                                  ('a copy of a record the base has', {'copy': man['copy'] + ['01000600']}, 'already has it'),
-                                 ('a NVMI the source lacks', {'navi_add': ['01000999']}, 'no NVMI')):
+                                 ('a NVMI the source lacks', {'navi_add': ['01000999']}, 'no NVMI'),
+                                 ('a copy_flags disable of a record with an enable parent', {'copy_flags': {'01000806': 2048, '01000807': 2048}}, 'enable parent')):
         m3 = dict(man); m3.update(change); mp3 = os.path.join(tmp, 'm8.json'); json.dump(m3, open(mp3, 'w'))
         r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft.py'), '--manifest', mp3, b6, s6, os.path.join(tmp, 'x6.esp'), '--data', md], capture_output=True, text=True)
         if expect:

@@ -67,12 +67,42 @@ def unlink_border_cell(e, fh):
     raise SystemExit('no uncompressed border cell to break')
 
 
+def border_before_checks():
+    """border_before on small plugins: the winning record before the new file decides, and a new file's own cell never
+    justifies itself"""
+    sub = lambda sig, d: sig + struct.pack('<H', len(d)) + d
+    rec = lambda sig, fid, body: sig + struct.pack('<IIIII', len(body), 0, fid, 0, 44) + body
+    grp = lambda label, *kids: b'GRUP' + struct.pack('<IIiII', 24 + len(b''.join(kids)), label, 0, 0, 0) + b''.join(kids)
+    def plugin(path, masters, recs):
+        h = sub(b'HEDR', struct.pack('<fiI', 1.7, len(recs) + 1, 0x800)) + b''.join(sub(b'MAST', m.encode() + b'\0') + sub(b'DATA', b'\0' * 8) for m in masters)
+        open(path, 'wb').write(rec(b'TES4', 0, h) + grp(0x4C4C4543, *recs))
+    cell = lambda fid, regions: rec(b'CELL', fid, sub(b'DATA', b'\2\0') + (sub(b'XCLR', struct.pack('<%dI' % len(regions), *regions)) if regions else b''))
+    d = tempfile.mkdtemp(prefix='claude-nate-gate-border-')
+    try:
+        B = 0x000CBCDD                              # the border REGN in BSHeartland's own numbering (no masters)
+        plugin(os.path.join(d, 'BSHeartland.esm'), [], [cell(0x300, [B]), cell(0x301, [B]), cell(0x302, [0x000AB5D8])])
+        plugin(os.path.join(d, 'Mid.esp'), ['BSHeartland.esm'], [cell(0x301, [0x000AB5D8]), cell(0x302, [0x000AB5D8, B])])
+        plugin(os.path.join(d, 'New.esp'), ['BSHeartland.esm'], [cell(0x01000400, [B])])
+        open(os.path.join(d, 'loadorder.txt'), 'w').write('BSHeartland.esm\nMid.esp\nNew.esp\nAfter.esp\n')
+        plugin(os.path.join(d, 'After.esp'), ['BSHeartland.esm'], [cell(0x300, [0x000AB5D8])])
+        G._LOADED.clear()
+        bb = lambda loc, owner='bsheartland.esm': G.border_before((owner, loc), 'new.esp', d, 'New.esp')
+        ok(bb(0x300), 'border_before: a cell its owner puts on the border, untouched before the new file, counts')
+        ok(not bb(0x301), 'border_before: a plugin before the new file that takes the cell off the border wins over the owner')
+        ok(bb(0x302), 'border_before: one that puts it on the border wins too')
+        ok(not bb(0x400, 'new.esp'), "border_before: the new file's own cell never justifies itself")
+        ok(not G.border_before(('bsheartland.esm', 0x300), 'new.esp', d, 'Missing.esp'), 'border_before: no answer without the file in the load order')
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--v8', default='/tmp/claude-nate-v8flag/DragonBreak Online Edits.esp')
     a = ap.parse_args()
     rc, f = gate(LIVE)
     ok(rc == 0, 'the live DLE passes against itself', f)
+    border_before_checks()
     if not os.path.exists(a.v8):
         print(f'skip: no v8 at {a.v8}')
         return 1 if fails else 0

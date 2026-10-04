@@ -8,6 +8,8 @@ it comes over; nothing else of the source is read. The base's bytes are kept eve
 
     "copy":    [ids]  the source's record, byte for byte, in the source's group path: new records of the file's own
                       (REFR, ACHR, CELL, NAVM, LAND) and overrides the base lacks. Compressed records stay compressed.
+    "copy_flags": {id: flags}  the same, with those record flags added in the header (an enabled actor of the source
+                      that must come over Initially Disabled, 0x800); refused with an enable parent, never deletes
     "master":  [ids]  the winning record among the base's masters, its form ids mapped to the base's numbering (an
                       exterior CELL override that only hosts new groups, so the source's re-saved XCLR/XCLC never come)
     "master_with": {id: [signatures]}  the same, with those subrecords' values taken from the source (a moved tree:
@@ -161,6 +163,18 @@ def plan_manifest(base, src, man, mapper):
         if r[2] & DELETED:
             refuse(f'{fid:08X}: flagged Deleted in the source')
         add[fid] = (src.bytes_of(r), r[5], 'copy', r[1])
+    for fid, fl in man.get('copy_flags', {}).items():
+        r = src_rec(fid)
+        if fid in add:
+            refuse(f'{fid:08X}: named in both copy and copy_flags')
+        fl = int(fl)
+        if r[2] & DELETED or fl & (DELETED | COMPRESSED):
+            refuse(f'{fid:08X}: copy_flags never deletes and never changes compression')
+        raw = src.bytes_of(r)
+        if fl & DISABLED and any(sg == b'XESP' for sg, _, _ in L.subs(L.unpack(raw)[1])):
+            refuse(f'{fid:08X}: has an enable parent, whose state would win over Initially Disabled')
+        # only the header's flags change; a compressed body stays as it is
+        add[fid] = (raw[:8] + struct.pack('<I', r[2] | fl) + raw[12:], r[5], 'copy_flags', r[1])
     for fid in man.get('master', []):
         r = src_rec(fid); add[fid] = (mapper.record(fid)[0], r[5], 'master', r[1])
     for fid, sigs in man.get('master_with', {}).items():

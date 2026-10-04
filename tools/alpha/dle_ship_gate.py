@@ -119,18 +119,43 @@ class Esp:
         return out
 
 
-def border_in_owner(k, data):
-    """whether the plugin that owns cell k names the border region in that cell's own XCLR"""
+_LOADED = {}
+
+
+def _masters_of(path):
+    with open(path, 'rb') as fh:
+        head = fh.read(24)
+        body = fh.read(struct.unpack_from('<I', head, 4)[0])
+    return [v.rstrip(b'\0').decode('cp1252', 'replace').lower() for s, v in esplib.subrecords(body) if s == b'MAST']
+
+
+def border_before(k, new_key, data, role):
+    """whether cell k is already on the border in its winning record among the plugins that load before the new file
+    (it takes the place of `role` in data/loadorder.txt). A cell of the new file's own never counts: it would justify itself"""
+    if k[0] == new_key:
+        return False
     try:
         files = {n.lower(): os.path.join(data, n) for n in os.listdir(data)}
-        if k[0] not in files:
+        order = [l.strip().lstrip('*') for l in open(os.path.join(data, 'loadorder.txt'), encoding='utf-8', errors='replace')]
+        order = [l.lower() for l in order if l and not l.startswith('#')]
+        if role.lower() not in order:
             return False
-        o = Esp(files[k[0]])
-        if (k[0], k[1]) not in o.rec:
+        win = None
+        for name in order[:order.index(role.lower())]:
+            if name not in files:
+                continue
+            if name != k[0] and k[0] not in _masters_of(files[name]):
+                continue
+            if name not in _LOADED:
+                _LOADED[name] = Esp(files[name])
+            e = _LOADED[name]
+            if k in e.rec and e.rec[k][0] == 'CELL':
+                win = e
+        if not win:
             return False
-        for s, v in o.subs((k[0], k[1])):
+        for s, v in win.subs(k):
             if s == b'XCLR':
-                return any(o.p.modindex_source(x)[0] and o.p.modindex_source(x)[0].lower() == BORDER[0] and (x & 0xFFFFFF) == BORDER[1]
+                return any(win.p.modindex_source(x)[0] and win.p.modindex_source(x)[0].lower() == BORDER[0] and (x & 0xFFFFFF) == BORDER[1]
                            for x in struct.unpack_from('<%dI' % (len(v) // 4), v))
     except Exception:
         return False
@@ -142,7 +167,8 @@ def main():
     ap.add_argument('esp')
     ap.add_argument('--live', default='/opt/skyrim-data/DragonBreak Online Edits.esp')
     ap.add_argument('--spawns', default=os.path.join(SERVER, 'owned-spawns.json'))
-    ap.add_argument('--data', default='/opt/skyrim-data', help='the masters, to read a newly overridden cell\'s own regions')
+    ap.add_argument('--data', default='/opt/skyrim-data', help='the plugins and loadorder.txt, to read a newly overridden cell\'s regions before this file')
+    ap.add_argument('--role', default='DragonBreak Online Edits.esp', help='the load order entry the checked file stands for')
     a = ap.parse_args()
     fails, oks = [], []
     try:
@@ -165,16 +191,17 @@ def main():
             fails.append('border: REGN 0B0CBCDD is not the live border (points, or another field, differ)')
     bn, bl = new.border_cells(), live.border_cells()
     fmt = lambda ks: ', '.join('%06X %s' % (k[1], new.edid(k) or live.edid(k)) for k in sorted(ks)[:12]) + (' ...' if len(ks) > 12 else '')
-    # A cell newly overridden here (to host new references) keeps its own plugin's regions: if that plugin's CELL already
-    # names the border region, the cell was a border cell before, and the override changes nothing about the border
-    kept = {k for k in bn - bl if k not in live.rec and border_in_owner(k, a.data)}
+    # A cell newly overridden here (to host new references) keeps the regions it already has: if its winning record among
+    # the plugins before this one already names the border region, the cell was a border cell before, and the override
+    # changes nothing about the border. Never for a cell of this file's own
+    kept = {k for k in bn - bl if k not in live.rec and border_before(k, new.me, a.data, a.role)}
     if bn - bl - kept:
         fails.append(f'border: {len(bn - bl - kept)} border cell(s) not in live: {fmt(bn - bl - kept)}')
     if bl - bn:
         fails.append(f'border: {len(bl - bn)} live border cell(s) missing: {fmt(bl - bn)}')
     if not fails:
         oks.append(f'border: REGN 0B0CBCDD {BORDER_SIZE} bytes as live, {len(bn)} border cells: live\'s {len(bl)}'
-                   + (f' + {len(kept)} newly overridden that their own plugin already puts on the border ({fmt(kept)})' if kept else ''))
+                   + (f' + {len(kept)} newly overridden that the plugins before it already put on the border ({fmt(kept)})' if kept else ''))
 
     # ---- spawns ------------------------------------------------------------------------------------------------------
     n0 = len(fails)

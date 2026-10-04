@@ -7,6 +7,7 @@ ck-mcp's esplib, its own group walker and Worker G's NVMI layout, and shares no 
 
 Against the base the graft was made on, every manifest entry is checked for what it says:
   copy        byte-identical to the source's record (compressed stays compressed), in the source's group path
+  copy_flags  the same but for the header's flags, which are the source's plus the named ones
   master      the winning record among the base's masters: same subrecords in the same order and the same bytes,
               except 4-byte words that are form ids naming the same record through each file's masters
   master_with the same, with the named subrecords as the source has them
@@ -162,6 +163,8 @@ def main(argv):
             planned[fid] = k
     for fid in man.get('master_with', {}):
         planned[fid] = 'master_with'
+    for fid in man.get('copy_flags', {}):
+        planned[fid] = 'copy_flags'
     added = [x for x in O.order if x not in B.rec]
     removed = [x for x in B.order if x not in O.rec]
     changed = [x for x in B.order if x in O.rec and O.rec[x][2] != B.rec[x][2]]
@@ -192,6 +195,11 @@ def main(argv):
         if k == 'copy':
             if rawo != S.rec[fid][2]:
                 bad.append((fid, 'not byte-identical to the source'))
+            continue
+        if k == 'copy_flags':
+            sraw, want = S.rec[fid][2], S.rec[fid][1] | int(man['copy_flags'][fid])
+            if fl != want or rawo[:8] != sraw[:8] or rawo[12:] != sraw[12:]:
+                bad.append((fid, f'not the source\'s record with flags {want:X}'))
             continue
         hit = winner(fid)
         if not hit:
