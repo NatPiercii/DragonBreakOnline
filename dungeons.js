@@ -359,12 +359,9 @@ module.exports = (api) => {
         const zone = { Name: `${ZONE_PREFIX}${d.id}:${n++}`, ID: z.cell, POS: npc.pos, Size: ambush ? AMBUSH_REACH : 100000, NPC: [{ id, count }], Despawn: 0, Respawn: 0, Kind: kind, Prespawn: !ambush, Ambush: ambush };
         // Anchor ref is optional — if it resolves, the spawn appears exactly on that ref; if not, it falls
         // back to the baked POS which is still Bethesda's placement coordinate.
-        if (npc.ref) {
-          try {
-            const anchorId = mp.getIdFromDesc(npc.ref.includes(':') ? npc.ref : undefined);
-            if (anchorId && anchorId > 0) zone.Anchor = npc.ref;
-          } catch (e) { /* ref not loaded in this server's ESM set; spawn at POS instead */ }
-        }
+        // Placed: Bethesda's placement, for its template's factions (factionCheck) whether or not the server loads it
+        if (npc.ref) zone.Placed = npc.ref;
+        if (npc.ref && anchorExists(npc.ref)) zone.Anchor = npc.ref;
         if (boss) out.bosses.push(zone.Name);
         out.push(zone);
       }
@@ -649,6 +646,20 @@ module.exports = (api) => {
   // Nate, 2026-09-28: the chest right behind Silorn's lich is its boss chest)
   const bossChestRefs = (d) => new Set([].concat((d && d.bossChest) || []).map((r) => normDesc(String(r))));
   const LOCKED_REROLLS = 3;
+  // An anchor the server never loads fails every spawn on it ("Form with id 0x80863d2 doesn't exist", 4 Oct: 159 refs in
+  // Underpall, Red Ruby Cave, Fort Cutpurse, Anga, Niryastare, Plundered Mine, Silorn). The server skips initially
+  // disabled and dead ACHRs (WorldState::AttachEspmRecord), and DragonBreak Online Edits disables 145 of them, so
+  // whether a ref resolves is asked of the server once per ref and process (a lookup loads it if it can be loaded)
+  const ANCHOR_OK = globalThis.__dboAnchorOk instanceof Map ? globalThis.__dboAnchorOk : (globalThis.__dboAnchorOk = new Map());
+  const anchorExists = (ref) => {
+    if (!String(ref).includes(':')) return false;
+    if (ANCHOR_OK.has(ref)) return ANCHOR_OK.get(ref);
+    let yes = false;
+    try { const id = mp.getIdFromDesc(ref) >>> 0; if (id > 0) { mp.get(id, 'baseDesc'); yes = true; } } catch (e) { yes = false; }
+    ANCHOR_OK.set(ref, yes);
+    if (!yes) log(`dungeon anchor ${ref} is not in the server's world; its enemy spawns at the spot instead`);
+    return yes;
+  };
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     if (lease) lease.stocked = new Set();
@@ -1262,7 +1273,7 @@ module.exports = (api) => {
       const tag = spawnerTag(id);
       let baseDesc = ''; try { baseDesc = String(mp.get(id, 'baseDesc') || ''); } catch (e) { continue; }
       const zone = (lease.zones || []).find((z) => z.Name === tag);
-      const pBase = zone && zone.Anchor ? placedBase(zone.Anchor) : 0;
+      const pBase = zone && (zone.Placed || zone.Anchor) ? placedBase(zone.Placed || zone.Anchor) : 0;
       const sBase = idOf(baseDesc);
       if (!pBase) continue;
       const pair = `${pBase}>${sBase}`;
