@@ -8,6 +8,8 @@ import type { FactionData, FactionView } from './index';
 // with Promote, Demote, Make leader and Remove, Add member, and the rank list. A Lead GM (data.admin) changes things; a
 // plain GM sees the same view read-only. A faction's own leader gets the rank editor too, for renaming titles only.
 // Every action is a dbo:faction* event with the faction nonce, through the act the faction panel gives.
+// A Lead GM's new title for a rank is a staff name (server rolenames.js): the rank keeps its own title, shown as the
+// default beside it, and Default sets it back.
 
 type Act = (key: string, ...args: unknown[]) => void;
 interface RankRow { title: string; role: string; from: number }
@@ -69,6 +71,10 @@ export const RankEditor = ({ f, roles, titleMax, ranksMax, nonce, busy, act }: {
                 onClick={() => setRows(rows.filter((x, k) => k !== i))}>Remove</button>
             </>
           ) : null}
+          {full && r.from >= 0 && f.ranks[r.from] && f.ranks[r.from].canon ? (
+            <button type="button" className="faction__button faction__button--small" disabled={busy || r.title === f.ranks[r.from].canon}
+              title={`Staff named this rank. Its own title is ${f.ranks[r.from].canon}.`} onClick={() => set(i, { title: f.ranks[r.from].canon || r.title })}>Default</button>
+          ) : null}
           <span className="faction-staff__held">{held(r.from) || ''}</span>
         </div>
       ))}
@@ -82,7 +88,7 @@ export const RankEditor = ({ f, roles, titleMax, ranksMax, nonce, busy, act }: {
         </div>
       ) : null}
       <div className="faction-staff__rank-actions">
-        <span className="faction__hint">{full ? 'Members keep their rank through a move. A rank somebody holds cannot be removed.' : 'As leader you may rename the ranks; a Lead GM adds, moves or removes them.'}</span>
+        <span className="faction__hint">{full ? 'Members keep their rank through a move. A rank somebody holds cannot be removed. A new title is a staff name: it shows for everyone at once and the rank keeps its own.' : 'As leader you may rename the ranks; a Lead GM adds, moves or removes them.'}</span>
         <button type="button" className="faction__button" disabled={busy || !dirty} onClick={() => setRows(fresh())}>Undo</button>
         <button type="button" className="faction__button faction__button--primary" disabled={busy || !dirty || !valid}
           onClick={() => act('dbo:factionRanksEdit', f.id, rows.map((r) => ({ title: r.title.trim(), role: r.role, from: r.from })))}>Save ranks</button>

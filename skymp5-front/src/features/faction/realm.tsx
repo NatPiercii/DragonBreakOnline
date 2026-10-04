@@ -41,7 +41,7 @@ export interface RealmRaids {
 export interface EconomyData {
   maxTaxRate: number;
   nextReckoning: number;
-  factions: { id: string; name: string; rate: number; wages: Record<string, number>; ranks: string[];
+  factions: { id: string; name: string; rate: number; wages: Record<string, number>; ranks: string[]; labels?: Record<string, string>;
     report: null | { at: number; income: number; taxed: number; overdue: { owner: string; weeks: number; gold: number; where: string }[]; wagesPaid: number; owed: number; balance: number;
       tithe?: number; titheOwed?: number; titheTo?: string; tithesIn?: number } }[];
 }
@@ -464,7 +464,7 @@ export const TreasuryTab = ({ economy, act, busy }: { economy: EconomyData | nul
           <div className="war__line">Weekly wages by rank, paid from the treasury into each member's bank account:</div>
           <div className="treasury__wages">
             {f.ranks.map((r) => (
-              <div key={r} className="treasury__wage"><span className="realm__name">{r}</span>
+              <div key={r} className="treasury__wage"><span className="realm__name">{(f.labels && f.labels[r]) || r}</span>
                 <Figure value={Number(f.wages[r]) || 0} max={100000} suffix="gold" busy={busy} onSet={(n) => act('dbo:econWage', f.id, r, n)} />
               </div>
             ))}

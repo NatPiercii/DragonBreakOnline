@@ -31,7 +31,8 @@ export interface FactionView {
   canInvite: boolean;
   canKick: boolean;
   canSetRank: boolean;
-  ranks: { title: string; role: string }[];
+  // title is what the rank is shown as; canon, on a rank staff renamed, is its own title (the default)
+  ranks: { title: string; role: string; canon?: string }[];
   members: FactionMember[];
   // guilds.js for the journal (F3 design 3.5): holds and strongholds are on the Court tab; the edit rights; charters
   court?: boolean;

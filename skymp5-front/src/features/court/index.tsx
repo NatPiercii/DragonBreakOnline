@@ -9,20 +9,22 @@ import './styles.scss';
 // courts they serve or are offered a post in, staff see every zone. Each court shows its offices (officials.json) and
 // its household (the zone's hold faction). A ruler's appointment is an offer the target accepts here; staff appoint
 // outright. Every action is dbo:court* with the journal nonce first; the answer lands in the journal's footer.
+// A Lead GM (court.canName) renames an office or a household rank for everyone holding it (server rolenames.js): the id
+// stays, the name shows at once, Default sets it back. Renaming an office renames the household rank it sets with it.
 
 export interface CourtHolder { pid: number; name: string; tag: string; online: boolean }
-export interface CourtOffice { rank: string; title: string; seats: number | null; holders: CourtHolder[]; canAppoint: boolean }
+export interface CourtOffice { rank: string; title: string; seats: number | null; holders: CourtHolder[]; canAppoint: boolean; named?: boolean; default?: string }
 export interface CourtOfferOut { id: string; name: string; rank: string; title: string; from: string; at: number; expiresAt: number }
 export interface CourtOfferIn { id: string; zone: string; zoneName: string; rank: string; title: string; from: string; at: number; expiresAt: number }
 export interface HouseholdMember { actorId: number; name: string; tag: string; rank: number; title: string; role: string; online: boolean }
 export interface Household {
   id: string; name: string; myRank: number; canInvite: boolean; canKick: boolean; canSetRank: boolean;
-  ranks: Array<{ title: string; role: string }>; members: HouseholdMember[];
+  ranks: Array<{ title: string; role: string; canon?: string }>; members: HouseholdMember[];
   pending?: Array<{ actorId: number; name: string; from: string; at: number }>;
 }
 export interface CourtView {
   id: string; name: string; kind: 'hold' | 'stronghold' | 'region'; mine: boolean; offices: CourtOffice[]; outgoing: CourtOfferOut[];
-  household: Household | null; treasury: number | null; appointable: Array<{ rank: string; title: string }>;
+  household: Household | null; treasury: number | null; appointable: Array<{ rank: string; title: string }>; canName?: boolean;
 }
 export interface CourtSection { staff: boolean; outright: boolean; courts: CourtView[]; selected: string; offers: CourtOfferIn[] }
 
@@ -45,6 +47,33 @@ const OfferCards = ({ offers, busy, act }: { offers: CourtOfferIn[]; busy: boole
   ) : null
 );
 
+// A Lead GM's rename of one office or rank: Rename opens a box, Save sends it, Default puts the default back
+const RenameControl = ({ court, kind, id, title, fallback, busy, act }: {
+  court: CourtView; kind: 'office' | 'rank'; id: string | number; title: string; fallback?: string; busy: boolean; act: JournalTabProps['act'];
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(title);
+  useEffect(() => { setEditing(false); setText(title); }, [title, court.id]);
+  if (!court.canName) return null;
+  const send = (name: string): void => { act('dbo:courtRename', court.id, kind, id, name); setEditing(false); };
+  if (!editing) {
+    return (
+      <span className="court__rename">
+        <button type="button" className="journal__button journal__button--small" disabled={busy} onClick={() => { setText(title); setEditing(true); }}>Rename</button>
+        {fallback ? <button type="button" className="journal__button journal__button--small" disabled={busy} title={`Back to ${fallback}`} onClick={() => send('')}>Default</button> : null}
+      </span>
+    );
+  }
+  return (
+    <span className="court__rename court__rename--open">
+      <input className="court__input" value={text} maxLength={40} placeholder={fallback || title} onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' && text.trim()) send(text.trim()); if (e.key === 'Escape') setEditing(false); }} />
+      <button type="button" className="journal__button journal__button--small journal__button--primary" disabled={busy || !text.trim() || text.trim() === title} onClick={() => send(text.trim())}>Save</button>
+      <button type="button" className="journal__button journal__button--small" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+    </span>
+  );
+};
+
 const OfficeRow = ({ court, office, outright, busy, act }: { court: CourtView; office: CourtOffice; outright: boolean; busy: boolean; act: JournalTabProps['act'] }) => {
   const [name, setName] = useState('');
   useEffect(() => { setName(''); }, [office.holders.length]);
@@ -53,9 +82,10 @@ const OfficeRow = ({ court, office, outright, busy, act }: { court: CourtView; o
   return (
     <div className="court__office">
       <div className="court__office-head">
-        <span className="court__office-title">{office.title}</span>
+        <span className="court__office-title">{office.title}{office.named && office.default ? <span className="court__muted"> ({office.default})</span> : null}</span>
         <span className="court__muted">{office.seats !== null ? `${office.holders.length} / ${office.seats}` : office.holders.length || ''}</span>
       </div>
+      <RenameControl court={court} kind="office" id={office.rank} title={office.title} fallback={office.named ? office.default : undefined} busy={busy} act={act} />
       {office.holders.length ? office.holders.map((h) => (
         <div key={h.pid} className="court__holder">
           <span className={'court__dot' + (h.online ? ' court__dot--online' : '')} />
@@ -115,6 +145,17 @@ const HouseholdPane = ({ court, household, busy, act }: { court: CourtView; hous
         <p className="court__muted">Invited: {household.pending.map((p) => p.name).join(', ')}</p>
       ) : null}
       <p className="court__note">An office sets its holder's rank here; giving up the office returns them to the lowest rank.</p>
+      {court.canName ? (
+        <div className="court__names">
+          <h3 className="court__heading">Rank names</h3>
+          {household.ranks.map((r, i) => (
+            <div key={i} className="court__name-row">
+              <span className="court__member-name">{r.title}{r.canon ? <span className="court__muted"> ({r.canon})</span> : null}</span>
+              <RenameControl court={court} kind="rank" id={i} title={r.title} fallback={r.canon} busy={busy} act={act} />
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 };
