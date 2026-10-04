@@ -855,6 +855,24 @@
   "_shares": "Offices whose holders share a building as its owner does, '<zone>:<office>', keyed by a door of it in lower case (guilds.js __dboHallOffice, read live; staff add or take one away with /faction hallmark|hallunmark zone:office). They cannot rename, hand over or give it up.",
   "shares": { "6c473:bsheartland.esm": ["bruma:steward"] }
  },
+ "skillRates": {
+  "_comment": "What a skill's metered work is worth, per skill and per activity (skillrates.js; QoL feedback 4 Oct: mining, iron smithing and skinning too slow). The skill system meters each act through the repeat ring, the hourly bucket and the day's caps as before, then multiplies what it kept by the rate (0..5), as the playtesters' boost does: a rate moves a skill further for the same work, never lets more work through the bucket. rates.<skill> is a number, or { default, <kind>: n, craftByTier: [tier 1..5] } (kinds: craft, mine, chop, skin, kill, hit, hurt, cast, read, lock, prayer, eat, activate, award). A craft's tier is the recipe's DBO_Skill tier gate when it has one, else the highest materialTiers entry among its ingredients (editor ids); anything unlisted is tier 1 (iron, copper, leather, hide; iron, copper, corundum and tin ore). salvageLoop: a craft of a product the same character broke down at a station in the last windowMinutes is worth rate. Rates set by Nate 4 Oct (miner x2, skinner x1.5, iron-tier smithing x2.5, the loop guard on). Needs the fork's __dboSkillRate hook (masterySystem, fork mastery-skill-rates); hot reload.",
+  "enabled": true,
+  "rates": {
+   "miner": 2,
+   "skinner": 1.5,
+   "blacksmith": { "default": 1, "craftByTier": [2.5, 1, 1, 1, 1] }
+  },
+  "materialTiers": {
+   "IngotSteel": 2, "IngotSilver": 2, "IngotDwarven": 2, "IngotIMoonstone": 2, "IngotQuicksilver": 2, "IngotCorundum": 2, "IngotGold": 2,
+   "IngotOrichalcum": 3, "DLC2ChitinPlate": 3, "ChaurusChitin": 3, "IAMIBoiledChitinPlate": 3, "IAMIIngotGlacialCrystal": 3, "ccBGSSSE025_IngotAmber": 3,
+   "IngotEbony": 4, "IngotMalachite": 4, "DLC2OreStalhrim": 4, "ccBGSSSE025_IngotMadness": 4,
+   "DragonBone": 5, "DragonScales": 5, "DaedraHeart": 5,
+   "_ores": "Ores by the Miner's tier order (skills.json miner.oreByTier, tier = index + 1), so only an iron-tier ore smelt is tier 1 (Nate, 4 Oct); copper, iron, corundum and tin are unlisted. Editor ids read from Skyrim.esm and BSAssets.esm.",
+   "OreSilver": 2, "OreQuicksilver": 2, "OreOrichalcum": 3, "OreMoonstone": 3, "OreGold": 3, "BSKOreMeteoricIron": 3, "OreMalachite": 4, "OreEbony": 5
+  },
+  "salvageLoop": { "enabled": true, "windowMinutes": 60, "rate": 0 }
+ },
  "hud": {
   "_comment": "The HUD panel (dboHud, gamemode.js pushHud): gold hides the gold row (Nate, 4 Oct: \"I want it gone, it makes it look convoluted\"); vitals and watermark as before. Hot reload.",
   "gold": false

@@ -5728,6 +5728,12 @@ try {
     ranksOf, distanceMeters, isAdmin });
 } catch (e) { log('business.js failed to load:', e.stack || e.message); globalThis.__dboBusinessActivate = businessFailClosed; globalThis.__dboBusinessLogin = null; globalThis.__dboBusinessRent = null; globalThis.__dboHoldTax = null; globalThis.__dboBusinessLog = null; }
 
+// ---- what a skill's metered work is worth, per skill and per activity (server\skillrates.js, config "skillRates"): masterySystem asks it ----
+try {
+  const SKILLRATES_JS = path.resolve('skillrates.js');
+  delete require.cache[SKILLRATES_JS];
+  require(SKILLRATES_JS)({ log, cfg, recordOf, fieldsOf });
+} catch (e) { log('skillrates.js failed to load:', e.stack || e.message); globalThis.__dboSkillRate = null; globalThis.__dboSkillRateBrokeDown = null; }
 // ---- breaking gear and books down into materials at the trade's station (server\salvage.js, salvage.json, config "salvage") ----
 try {
   const SALVAGE_JS = path.resolve('salvage.js');
