@@ -24,10 +24,18 @@ ok('config: the salvage loop guard is on, x0 for 60 min', R.salvageLoop && R.sal
 const NOTE = NOTES.find((n) => n.title === 'Faster Mining, Smithing and Skinning');
 const NOTE_TEXT = JSON.stringify(NOTE || {});
 ok('patch note in patch-notes.json, dated SHIP_DATE or a date', !!NOTE && (NOTE.date === 'SHIP_DATE' || /^\d{4}-\d{2}-\d{2}$/.test(NOTE.date)), NOTE && NOTE.date);
-ok('...naming the rates as shipped', /twice as much toward your Miner/.test(NOTE_TEXT) && /two and a half times as much toward Blacksmith/.test(NOTE_TEXT) && /half as much again toward Skinner/.test(NOTE_TEXT), NOTE_TEXT);
+ok('...naming the rates as shipped', /twice as much toward your Miner/.test(NOTE_TEXT) && /Iron-tier smithing and smelting [^"]*smelting iron, copper, corundum and tin ore\) now counts two and a half times as much toward Blacksmith/.test(NOTE_TEXT) && /higher ores counts as before/.test(NOTE_TEXT) && /half as much again toward Skinner/.test(NOTE_TEXT), NOTE_TEXT);
 ok('...and the loop guard', /broke down in the last hour no longer counts/.test(NOTE_TEXT), NOTE_TEXT);
 ok('...no longer parked in patch-notes-pending', !fs.existsSync(path.join(SERVER, 'docs', 'patch-notes-pending', 'skill-rates.json')));
-ok('config: material tiers are 2..5 (tier 1 is everything unlisted)', Object.values(R.materialTiers).every((t) => t >= 2 && t <= 5), R.materialTiers);
+ok('config: material tiers are 2..5 (tier 1 is everything unlisted)', Object.entries(R.materialTiers).filter(([k]) => !k.startsWith('_')).every(([, t]) => t >= 2 && t <= 5), R.materialTiers);
+// Ores follow the Miner's ladder (skills.json miner.oreByTier): tier = index + 1, the first band unlisted
+const SKILLS = JSON.parse(fs.readFileSync(path.join(SERVER, 'skills.json'), 'utf8'));
+const ORE_BY_TIER = SKILLS.skills.find((k) => k.id === 'miner').oreByTier;
+const ORE_EDID = { copper: 'BSKOreCopper', iron: 'OreIron', corundum: 'OreCorundum', silver: 'OreSilver', quicksilver: 'OreQuicksilver', orichalcum: 'OreOrichalcum', moonstone: 'OreMoonstone', gold: 'OreGold', meteoriciron: 'BSKOreMeteoricIron', malachite: 'OreMalachite', ebony: 'OreEbony' };
+ORE_BY_TIER.forEach((ores, i) => ores.forEach((ore) => {
+  const edid = ORE_EDID[ore.toLowerCase()];
+  ok(`config: ${ore} ore is tier ${i + 1}, as the Miner ladder has it`, !!edid && (i === 0 ? R.materialTiers[edid] === undefined : R.materialTiers[edid] === i + 1), [edid, R.materialTiers[edid]]);
+}));
 ok('gamemode loads skillrates.js with recordOf and fieldsOf', /require\(SKILLRATES_JS\)\(\{[^}]*recordOf, fieldsOf[^}]*\}\)/.test(GAMEMODE));
 ok('gamemode clears the hooks when it fails to load', /skillrates\.js failed to load[^\n]*__dboSkillRate = null/.test(GAMEMODE));
 ok('salvage.js tells it about each breakdown', /broke down \$\{name\}[^\n]*\n\s*try \{ if \(typeof globalThis\.__dboSkillRateBrokeDown === 'function'\) globalThis\.__dboSkillRateBrokeDown\(a, baseId\)/.test(SALVAGE));
@@ -35,7 +43,7 @@ ok('salvage.js tells it about each breakdown', /broke down \$\{name\}[^\n]*\n\s*
 // ---- stub records: ingredients by editor id, recipes with CNTO/CNAM -------------------------------------------------
 const world = new Map();
 const u8 = (n, fill) => { const b = new Uint8Array(n); fill(new DataView(b.buffer)); return b; };
-const ITEM = { IngotIron: 0x5ace4, LeatherStrips: 0x800e4, IngotSteel: 0x5ace5, OreIron: 0x71cf3, IngotEbony: 0x5ad9d, DaedraHeart: 0x3ad5b, IronDagger: 0x1397e, SteelSword: 0x13989, Horseshoe: 0x0cc2a1 };
+const ITEM = { OreEbony: 0x5acdc, OreOrichalcum: 0x5acdd, OreCorundum: 0x5acdb, BSKOreCopper: 0x7601c50, IngotOrichalcum: 0x5ad99, IngotCorundum: 0x5ad93, BSKIngotCopper: 0x7601c5a, IngotIron: 0x5ace4, LeatherStrips: 0x800e4, IngotSteel: 0x5ace5, OreIron: 0x71cf3, IngotEbony: 0x5ad9d, DaedraHeart: 0x3ad5b, IronDagger: 0x1397e, SteelSword: 0x13989, Horseshoe: 0x0cc2a1 };
 const WEAPONS = new Set(['IronDagger', 'SteelSword', 'IronTanto']);
 ITEM.IronTanto = 0x2701f2;
 for (const [edid, id] of Object.entries(ITEM)) world.set(id, { record: { type: WEAPONS.has(edid) ? 'WEAP' : 'MISC', editorId: edid, fields: [] } });
@@ -46,11 +54,17 @@ const recipe = (id, product, parts) => world.set(id, {
   toGlobalRecordId: (local) => local,
 });
 const DAGGER = 0x100, SWORD = 0x101, SMELT = 0x102, DAEDRIC = 0x103, SHOE = 0x104, TANTO = 0x105, TANTO_APART = 0x106;
+const SMELT_EBONY = 0x107, SMELT_ORICHALCUM = 0x108, SMELT_CORUNDUM = 0x109, SMELT_COPPER = 0x10a, SMELT_STEEL = 0x10b;
 recipe(DAGGER, 'IronDagger', ['IngotIron', 'LeatherStrips']);
 recipe(SWORD, 'SteelSword', ['IngotSteel', 'IngotIron', 'LeatherStrips']);
 recipe(SMELT, 'IngotIron', ['OreIron']);
 recipe(DAEDRIC, 'IronDagger', ['IngotEbony', 'DaedraHeart']);
 recipe(SHOE, 'Horseshoe', ['IngotIron']);
+recipe(SMELT_EBONY, 'IngotEbony', ['OreEbony']);
+recipe(SMELT_ORICHALCUM, 'IngotOrichalcum', ['OreOrichalcum']);
+recipe(SMELT_CORUNDUM, 'IngotCorundum', ['OreCorundum']);
+recipe(SMELT_COPPER, 'BSKIngotCopper', ['BSKOreCopper']);
+recipe(SMELT_STEEL, 'IngotSteel', ['OreIron', 'OreCorundum']);
 recipe(TANTO, 'IronTanto', ['IngotIron', 'LeatherStrips']);          // IWRecipeIronTanto at the forge
 recipe(TANTO_APART, 'IngotIron', ['IronTanto']);                    // IWBreakdownIronTanto at the smelter
 const recordOf = (id) => world.get(id >>> 0) || null;
@@ -72,10 +86,14 @@ let r = load(R);
 ok('shipped: a mined vein x2', r.rateFor(A, 'miner', 'mine', { refrId: 1, value: 0 }) === 2);
 ok('shipped: an iron dagger x2.5', craft(r, DAGGER) === 2.5);
 ok('shipped: a steel sword x1', craft(r, SWORD) === 1);
+ok('shipped: smelting iron ore x2.5', craft(r, SMELT) === 2.5);
+ok('shipped: smelting copper or corundum ore x2.5, and steel from iron and corundum ore', craft(r, SMELT_COPPER) === 2.5 && craft(r, SMELT_CORUNDUM) === 2.5 && craft(r, SMELT_STEEL) === 2.5);
+ok('shipped: smelting ebony ore x1 (Miner tier 5)', craft(r, SMELT_EBONY) === 1 && r.recipeOf(SMELT_EBONY).tier === 5);
+ok('shipped: smelting orichalcum ore x1 (Miner tier 3)', craft(r, SMELT_ORICHALCUM) === 1 && r.recipeOf(SMELT_ORICHALCUM).tier === 3);
 ok('shipped: a skinned wolf x1.5', r.rateFor(A, 'skinner', 'skin', { refrId: 2, value: 10 }) === 1.5);
 ok('shipped: a skill with no entry x1', r.rateFor(A, 'blade', 'hit', { targetId: 3 }) === 1);
 ok('shipped: the hook is published', globalThis.__dboSkillRate === r.rateFor && globalThis.__dboSkillRateBrokeDown === r.noteBreakdown);
-ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner x1.5, blacksmith .*; 20 material tiers; salvage loop x0 for 60 min/.test(logs[logs.length - 1]), logs[logs.length - 1]);
+ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner x1.5, blacksmith .*; 28 material tiers; salvage loop x0 for 60 min/.test(logs[logs.length - 1]), logs[logs.length - 1]);
 r.noteBreakdown(A, ITEM.IronDagger);
 ok('shipped: a breakdown then the same craft is worth nothing', craft(r, DAGGER) === 0);
 globalThis.__dboSkillRates = undefined;
