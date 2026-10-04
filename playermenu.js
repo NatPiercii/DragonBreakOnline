@@ -105,7 +105,11 @@ module.exports = (api) => {
     try { const rec = mp.lookupEspmRecordById(Number(raceId) >>> 0); const edid = rec && rec.record && rec.record.editorId; if (edid) return String(edid).replace(/Race(Vampire)?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'); } catch (e) { /* unknown */ }
     return 'unknown folk';
   };
-  const rankTitle = (r) => { try { return String(((api.zones || {}).rankTitles || {})[r.rank] || r.rank); } catch (e) { return String(r.rank); } };
+  // What staff named the office at that court (rolenames.js), else zones.json's title
+  const rankTitle = (r) => {
+    try { const f = globalThis.__dboOfficeTitle; const n = typeof f === 'function' && r.zone ? f(r.zone.id, r.rank) : ''; if (n) return String(n); } catch (e) { /* the default */ }
+    try { return String(((api.zones || {}).rankTitles || {})[r.rank] || r.rank); } catch (e) { return String(r.rank); }
+  };
   const wornNames = (t) => {
     const eq = get(t, 'equipment', null);
     const entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : [];

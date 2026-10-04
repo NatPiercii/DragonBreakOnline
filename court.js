@@ -22,6 +22,7 @@
 //   courtRank    [nonce, zoneId, actorId, rank]     the household's ranks (guilds.js rules)
 //   courtKick    [nonce, zoneId, actorId]
 //   courtInvite  [nonce, zoneId, nameOrTag]
+//   courtRename  [nonce, zoneId, 'office'|'rank', officeId|rankIndex, name]   a Lead GM's name for it ('' = the default)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -64,6 +65,18 @@ module.exports = (api) => {
   };
   const onlineOf = (pid) => onlineActors().find((x) => profileOf(x) === Number(pid)) || 0;
 
+  const RN = () => { const r = globalThis.__dboRoleNames; return r && typeof r.apply === 'function' ? r : null; };
+  // rolenames.js: the household rank an office sets ({ fid, index }), so renaming the office can rename it too
+  globalThis.__dboCourtLinkedRank = (zoneId, office) => {
+    const fid = typeof globalThis.__dboCourtFaction === 'function' ? globalThis.__dboCourtFaction(zoneId) : null;
+    const ranks = fid && typeof globalThis.__dboGuildRankList === 'function' ? globalThis.__dboGuildRankList(fid) : null;
+    if (!ranks) return null;
+    for (const t of C.factionRanks[office] || []) {
+      const i = t === '@leader' ? ranks.findIndex((r) => r.role === 'leader') : ranks.findIndex((r) => r.title.toLowerCase() === String(t).toLowerCase());
+      if (i >= 0) return { fid, index: i };
+    }
+    return null;
+  };
   // guilds.js: the household rank titles an office sets keep their title and cannot be removed
   globalThis.__dboCourtTiedTitles = () => Array.from(new Set([].concat(...Object.values(C.factionRanks || {})).filter((t) => t && t !== '@leader').map((t) => String(t).toLowerCase())));
   // ---- the office keeps the household in step (gamemode.js seatOfficial / unseatOfficial) ---------------------------
@@ -88,9 +101,9 @@ module.exports = (api) => {
     S.offers = others.concat([offer]);
     saveOffers();
     redrawCourt(tg.online);
-    if (tg.online) system(tg.online, `${display(a)} offers you the post of ${rankTitle(rank)} of ${z.name}. Open your journal (F3), Court, to accept or decline, or type /court accept.`);
-    audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} offered ${tg.who} the post of ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
-    return { text: `You offered ${tg.label} the post of ${rankTitle(rank)} of ${z.name}. They accept it in their journal.` };
+    if (tg.online) system(tg.online, `${display(a)} offers you the post of ${rankTitle(rank, z.id)} of ${z.name}. Open your journal (F3), Court, to accept or decline, or type /court accept.`);
+    audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} offered ${tg.who} the post of ${rankTitle(rank, z.id)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
+    return { text: `You offered ${tg.label} the post of ${rankTitle(rank, z.id)} of ${z.name}. They accept it in their journal.` };
   };
   // gamemode.js /appoint (appointFrom): a ruler's appointment becomes an offer
   globalThis.__dboCourtOffer = (a, z, rank, tg, chk) => (C.enabled ? offerTo(a >>> 0, z, rank, tg, chk) : seatOfficial(z, rank, tg, { who: who(a), staff: isAdmin(a), overridden: chk && chk.overridden }));
@@ -103,8 +116,8 @@ module.exports = (api) => {
     S.offers = live().filter((x) => x.id !== o.id);
     if (!yes || !z) {
       saveOffers();
-      if (isOnline(o.by)) system(o.by, `${display(a)} declined the post of ${rankTitle(o.rank)}${z ? ` of ${z.name}` : ''}.`);
-      audit(`OFFICIAL ${who(a)} declined the post of ${rankTitle(o.rank)} of ${z ? z.name : o.zone} offered by ${o.byWho}`);
+      if (isOnline(o.by)) system(o.by, `${display(a)} declined the post of ${rankTitle(o.rank, o.zone)}${z ? ` of ${z.name}` : ''}.`);
+      audit(`OFFICIAL ${who(a)} declined the post of ${rankTitle(o.rank, o.zone)} of ${z ? z.name : o.zone} offered by ${o.byWho}`);
       return { text: 'You declined the post.' };
     }
     // The offer is checked again as if it were made now: the one who offered may have lost their seat since, the seats
@@ -114,8 +127,8 @@ module.exports = (api) => {
     if (chk.error) { saveOffers(); return { error: `The offer no longer stands. ${chk.error}` }; }
     const r = seatOfficial(z, o.rank, tg, { who: o.byWho, staff: o.staff, overridden: chk.overridden, via: ', offered and accepted' });
     saveOffers();
-    if (!r.error && isOnline(o.by) && o.by !== (a >>> 0)) system(o.by, `${display(a)} accepted the post of ${rankTitle(o.rank)} of ${z.name}.`);
-    return r.error ? r : { text: `You are now ${rankTitle(o.rank)} of ${z.name}.` };
+    if (!r.error && isOnline(o.by) && o.by !== (a >>> 0)) system(o.by, `${display(a)} accepted the post of ${rankTitle(o.rank, z.id)} of ${z.name}.`);
+    return r.error ? r : { text: `You are now ${rankTitle(o.rank, z.id)} of ${z.name}.` };
   };
   const withdraw = (a, id) => {
     const o = live().find((x) => x.id === String(id));
@@ -123,7 +136,7 @@ module.exports = (api) => {
     if (!isAdmin(a) && o.byPid !== profileOf(a)) return { error: 'Only the one who made an offer may withdraw it.' };
     S.offers = live().filter((x) => x.id !== o.id);
     saveOffers();
-    audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} withdrew the offer of ${rankTitle(o.rank)} of ${o.zone} to ${o.name}`);
+    audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} withdrew the offer of ${rankTitle(o.rank, o.zone)} of ${o.zone} to ${o.name}`);
     return { text: `The offer to ${o.name} is withdrawn.` };
   };
 
@@ -154,19 +167,23 @@ module.exports = (api) => {
   const zoneView = (a, z, mine) => {
     const zo = readOfficials()[z.id] || {};
     const staff = isAdmin(a);
+    // Staff who rename offices and the household's ranks here (rolenames.js; a Lead GM and above)
+    const canName = !!(RN() && RN().canName(a));
     const offices = (z.officials || []).map((rank) => {
       const cap = appointCap(a, z, rank);
-      return { rank, title: rankTitle(rank), seats: seatsOf(z, rank), holders: (zo[rank] || []).map(holderView), canAppoint: cap > 0 };
+      // default, only on an office staff renamed (rolenames.js): what zones.json calls it
+      const named = RN() && RN().officeName(z.id, rank) ? { named: true, default: RN().officeDefault(rank) } : {};
+      return Object.assign({ rank, title: rankTitle(rank, z.id), seats: seatsOf(z, rank), holders: (zo[rank] || []).map(holderView), canAppoint: cap > 0 }, named);
     });
     const pid = profileOf(a);
     const outgoing = live().filter((o) => o.zone === z.id && (staff || o.byPid === pid))
-      .map((o) => ({ id: o.id, name: o.name, rank: o.rank, title: rankTitle(o.rank), from: o.byName, at: o.at, expiresAt: Number(o.at) + OFFER_MS }));
+      .map((o) => ({ id: o.id, name: o.name, rank: o.rank, title: rankTitle(o.rank, z.id), from: o.byName, at: o.at, expiresAt: Number(o.at) + OFFER_MS }));
     const household = typeof globalThis.__dboCourtHousehold === 'function' ? globalThis.__dboCourtHousehold(a, z.id) : null;
     const holdsOffice = offices.some((o) => o.holders.some((h) => h.pid === pid));
     let treasury = null;
     try { if (z.treasury && (staff || holdsOffice) && globalThis.__dboTreasuryZone) treasury = Number(globalThis.__dboTreasuryZone.balance(z.id)) || 0; } catch (e) { treasury = null; }
     return { id: z.id, name: z.name, kind: z.center ? 'stronghold' : z.capital ? 'hold' : 'region', mine: !!mine, offices, outgoing, household, treasury,
-      appointable: offices.filter((o) => o.canAppoint).map((o) => ({ rank: o.rank, title: o.title })) };
+      appointable: offices.filter((o) => o.canAppoint).map((o) => ({ rank: o.rank, title: o.title })), canName };
   };
   const visible = (a) => {
     if (!C.enabled) return false;
@@ -182,7 +199,7 @@ module.exports = (api) => {
       staff, outright: staff,
       courts: zones.map((z) => zoneView(a, z, mine.has(z.id))),
       selected: (zones.find((z) => z.id === S.lastZone.get(a >>> 0)) || zones.find((z) => mine.has(z.id)) || zones[0] || {}).id || '',
-      offers: offersFor(a).map((o) => { const z = zoneById(o.zone); return { id: o.id, zone: o.zone, zoneName: z ? z.name : o.zone, rank: o.rank, title: rankTitle(o.rank), from: o.byName, at: o.at, expiresAt: Number(o.at) + OFFER_MS }; }),
+      offers: offersFor(a).map((o) => { const z = zoneById(o.zone); return { id: o.id, zone: o.zone, zoneName: z ? z.name : o.zone, rank: o.rank, title: rankTitle(o.rank, o.zone), from: o.byName, at: o.at, expiresAt: Number(o.at) + OFFER_MS }; }),
     };
   };
   const sections = globalThis.__dboJournalSections || (globalThis.__dboJournalSections = {});
@@ -241,11 +258,11 @@ module.exports = (api) => {
       const zo = readOfficials()[z.id] || {};
       const had = Object.keys(zo).find((r) => (zo[r] || []).map(Number).includes(tg.pid));
       if (!had) return { error: `${tg.label} holds no office in ${z.name}. Offer them a post instead.` };
-      if (had === rank) return { error: `${tg.label} is already ${rankTitle(rank)}.` };
-      if (!appointCap(a, z, had)) return { error: `You cannot move a ${rankTitle(had)} of ${z.name}.` };
+      if (had === rank) return { error: `${tg.label} is already ${rankTitle(rank, z.id)}.` };
+      if (!appointCap(a, z, had)) return { error: `You cannot move a ${rankTitle(had, z.id)} of ${z.name}.` };
       const chk = appointCheck(a, z, rank, tg, false); if (chk.error) return chk;
       // Already in the court's service, so a move needs no acceptance; seatOfficial drops the old office's household rank
-      return seatOfficial(z, rank, tg, { who: who(a), staff: isAdmin(a), overridden: chk.overridden, via: `, moved from ${rankTitle(had)}` });
+      return seatOfficial(z, rank, tg, { who: who(a), staff: isAdmin(a), overridden: chk.overridden, via: `, moved from ${rankTitle(had, z.id)}` });
     });
   });
   onUi('courtAnswer', (a, args) => { if (fresh(a, args)) answer(a, () => answerOffer(a, args[1], String(args[2]) === 'accept')); });
@@ -273,13 +290,31 @@ module.exports = (api) => {
     });
   });
 
+  // A Lead GM renames an office of the court, or a rank of its household, for everyone holding it (rolenames.js), or sets
+  // it back with an empty name: [nonce, zoneId, 'office', officeId, name] / [nonce, zoneId, 'rank', rankIndex, name]
+  onUi('courtRename', (a, args) => {
+    if (!fresh(a, args)) return;
+    answer(a, () => {
+      const rn = RN(); if (!rn) return { error: 'Offices cannot be renamed just now.' };
+      if (!rn.canName(a)) return { error: 'Only a Lead GM or above renames offices and ranks.' };
+      const z = zoneFor(a, args[1]); if (!z) return NO_COURT;
+      const kind = String(args[2] || ''), name = String(args[4] === undefined || args[4] === null ? '' : args[4]).slice(0, 200);
+      if (kind === 'office') return rn.apply(a, [{ kind: 'office', zone: z.id, rank: String(args[3] || ''), name }]);
+      if (kind === 'rank') {
+        const h = householdOf(a, z.id); if (h.error) return h;
+        return rn.apply(a, [{ kind: 'rank', fid: h.fid, index: Math.floor(Number(args[3])), name }]);
+      }
+      return { error: 'That rename is not possible.' };
+    });
+  });
+
   // ---- chat, for a client on today's journal (no Court tab): the panel stays the main way ----------------------------
   if (typeof api.registerChatCommand === 'function') {
     api.registerChatCommand('court', (a, args) => {
       const [sub, ...rest] = String(args || '').trim().split(/\s+/);
       const s = String(sub || '').toLowerCase();
       const mine = offersFor(a);
-      const label = (o, i) => { const z = zoneById(o.zone); return `${i + 1}. ${rankTitle(o.rank)} of ${z ? z.name : o.zone}, offered by ${o.byName}`; };
+      const label = (o, i) => { const z = zoneById(o.zone); return `${i + 1}. ${rankTitle(o.rank, o.zone)} of ${z ? z.name : o.zone}, offered by ${o.byName}`; };
       if (!s || s === 'offers') {
         if (!s && globalThis.__dboCourtOpen(a)) return;
         return personal(a, mine.length ? `Posts offered to you: ${mine.map(label).join(' | ')}. Answer with /court accept <number> or /court decline <number>.` : 'No post is offered to you.');

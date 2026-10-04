@@ -1548,7 +1548,7 @@ module.exports = (api) => {
     const rows = [{
       label: 'Pack',
       // A werewolf in no pack is a Lone Wolf (Nate 2026-09-30; greathunt.js /hunt and /status say the same)
-      value: packs.length ? packs.map((p) => `${p.name}, ${p.title}`).join('; ') : 'Lone Wolf',
+      value: packs.length ? packs.map((p) => `${p.name}, ${p.shown || p.title}`).join('; ') : 'Lone Wolf',
       hint: alpha ? 'You lead your pack. You run with the pale coat, and the beast answers to you.'
         : packs.length ? 'A packmate who brings the Pack Leader down, both in beast form, takes the pack.' : 'You belong to no pack and hunt alone. A pack takes you in only by invitation.',
     }];

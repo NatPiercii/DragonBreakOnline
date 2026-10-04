@@ -99,6 +99,23 @@ check('staff: a search over the courts, and Appoint beside Offer', /Search court
 html = render(hub('court', { court: court({ courts: [], offers: [] }) }));
 check('a court list with nothing in it says so', /You serve no court yet/.test(text(html)));
 
+// ---- Court: a Lead GM renames offices and household ranks (rolenames.js, gm-rename-roles) ------------------------------
+if (/court__rename/.test(SRC)) {
+  const named = court({ staff: true, outright: true, offers: [] });
+  const c0 = named.courts[0];
+  c0.canName = true;
+  c0.offices[1] = Object.assign({}, c0.offices[1], { title: 'Reeve', named: true, default: 'Steward' });
+  c0.household.ranks[1] = { title: 'Captain of the Watch', role: 'officer', canon: 'Guard Captain' };
+  html = render(hub('court', { court: named }));
+  t = text(html);
+  check('names: every office and every household rank has Rename', (t.match(/Rename/g) || []).length === c0.offices.length + c0.household.ranks.length, (t.match(/Rename/g) || []).length);
+  check('...a renamed office shows its default beside it, with Default', /Reeve \(Steward\)/.test(t) && /title="Back to Steward"/.test(html), t.slice(0, 500));
+  check('...the household\'s Rank names list, a renamed rank with its own title', /Rank names/.test(t) && /Captain of the Watch \(Guard Captain\)/.test(t) && /title="Back to Guard Captain"/.test(html));
+  check('...only the renamed ones have Default', (html.match(/title="Back to /g) || []).length === 2);
+  html = render(hub('court', { court: court({ staff: true, outright: true, offers: [] }) }));
+  check('without canName (a plain GM, a ruler) there is no Rename and no Rank names', !/Rename|Rank names/.test(text(html)));
+} else check('this front has no office rename (gm-rename-roles front): not checked', true);
+
 // ---- Faction: the staff view --------------------------------------------------------------------------------------
 const member = (actorId, name, rank, title, role) => ({ actorId, name, tag: 'T' + actorId, rank, title, role, online: true });
 const fview = (extra) => Object.assign({ id: 'fighters-guild', name: 'Fighters Guild', kind: 'guild', secret: false, prince: '', myRank: -1, myTitle: '', canInvite: true, canKick: true, canSetRank: true,
@@ -118,6 +135,10 @@ check('...a held rank cannot be removed (its Remove is disabled)', /disabled="" 
 html = render(hub('faction', { faction: factionData({ admin: false, factions: [fview({ canRename: false, canEditRanks: false, canAdd: false })] }) }));
 t = text(html);
 check('a plain GM: the same view, read-only', /Search factions/.test(html) && /A GM observes/.test(t) && !/Make leader|Demote|Add member|Save ranks/.test(t), t.slice(0, 500));
+if (/Staff named this rank/.test(SRC)) {
+  html = render(hub('faction', { faction: factionData({ factions: [fview({ ranks: [{ title: 'Guildmaster', role: 'leader' }, { title: 'Shield-Brother', role: 'officer', canon: 'Champion' }, { title: 'Associate', role: 'member' }] })] }) }));
+  check('the rank editor: a staff-named rank has Default, naming its own title', (html.match(/Staff named this rank\. Its own title is Champion\./g) || []).length === 1 && />Default</.test(html));
+}
 // ---- Faction: a player's view
 const player = (f) => factionData({ admin: false, staff: false, factions: f });
 html = render(hub('faction', { faction: player([fview({ myRank: 0, myTitle: 'Guildmaster', canRename: true, canEditRanks: false, canAdd: false }), fview({ id: 'county-bruma', name: 'County of Bruma', kind: 'hold', court: true, myRank: 2, canRename: false, canEditRanks: false })]) }));

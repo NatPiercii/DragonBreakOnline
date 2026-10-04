@@ -167,7 +167,7 @@ module.exports = (api) => {
   const standingOf = (a) => {
     let packs = [];
     try { packs = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a).filter((g) => g.kind === 'pack') : []; } catch (e) { /* guilds.js not loaded */ }
-    return packs.length ? { lone: false, text: packs.map((p) => `${p.title} of ${p.name}`).join(', '), packs } : { lone: true, text: 'Lone Wolf', packs };
+    return packs.length ? { lone: false, text: packs.map((p) => `${p.shown || p.title} of ${p.name}`).join(', '), packs } : { lone: true, text: 'Lone Wolf', packs };
   };
   const addStatus = (key, order, fn) => { try { if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus(key, order, fn); } catch (e) { /* gamemode older than /status */ } };
   addStatus('hunt', 80, (a) => {
@@ -183,7 +183,7 @@ module.exports = (api) => {
     if (r + 1 < C.ranks.length) personal(a, `${C.ranks[r + 1]} at ${C.thresholds[r + 1]} renown: feed in beast form (an animal ${C.points.animal}, a person you bring down outside the walls ${C.points.player}), hunt and change.`);
     else personal(a, 'There is no higher rank of the Hunt.');
     const st = standingOf(a);
-    personal(a, st.lone ? 'You are a Lone Wolf: you run with no pack. A pack takes you in only by invitation.' : `You run with ${st.packs.map((p) => `${p.name} as ${p.title}`).join(', and with ')}.`);
+    personal(a, st.lone ? 'You are a Lone Wolf: you run with no pack. A pack takes you in only by invitation.' : `You run with ${st.packs.map((p) => `${p.name} as ${p.shown || p.title}`).join(', and with ')}.`);
   }, { help: 'your rank in the Great Hunt and your pack, for werewolves' });
 
   log(`greathunt on: ${C.ranks.map((n, i) => `${n} ${C.thresholds[i]}`).join(', ')}`);

@@ -612,7 +612,8 @@ const STAFF_HELP = [
     ['tokens', '<player|#TAG>: someone\'s Patreon tier and identity rerolls left'], 'stats'] },
   { key: 'announce', title: 'Announcements and restarts', items: [['admin', '<text>: talk in this admin tab'], 'announce', 'schedule', 'update'] },
   { key: 'factions', title: 'Factions', items: [['faction leader', '<player|#TAG> <faction id>: name the first leader of a faction'],
-    ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint'] },
+    ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint',
+    ['rolename', 'list <court|faction> | <court> <office> <new title> | <faction> <rank number> <new title> | reset <court> <office> | reset <faction> <rank number>: rename an office or rank for everyone who holds it, at once (Lead GM; F3 Court and the Faction tab\'s rank editor do it too)']] },
   { key: 'appoint', title: 'Appointments and property', items: [
     ['appoint', '<player|#TAG|profile id> <zone> <rank> [override]: make someone an official, online or offline. A Jarl must be a Nord or an Imperial; only the Owners may add override. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
     ['dismiss', '<player|#TAG|profile id> <zone>: remove an official, online or offline (told if online). Officials may dismiss the ranks they may appoint'],
@@ -2773,7 +2774,13 @@ const writeOfficials = (o) => {
   officialsText = text; officialsCheckedAt = Date.now();
   try { officialsMtime = fs.statSync(OFFICIALS_PATH).mtimeMs; } catch (e) { officialsMtime = -1; }
 };
-const rankTitle = (r) => String((ZONES.rankTitles || {})[r] || r);
+// An office's title: what staff renamed it to at that court (rolenames.js, role-names.json), or zones.json's rankTitles.
+// The office id (r) stays the key everywhere; zoneId left out gives the default.
+const rankTitle = (r, zoneId) => {
+  const RN = globalThis.__dboRoleNames;
+  if (zoneId && typeof zoneId === 'string' && RN && typeof RN.officeName === 'function') { try { const n = RN.officeName(zoneId, r); if (n) return n; } catch (e) { /* the default */ } }
+  return String((ZONES.rankTitles || {})[r] || r);
+};
 const ranksOf = (profileId) => {
   const o = readOfficials(); const out = [];
   for (const z of zoneList()) for (const r of (z.officials || [])) if (((o[z.id] || {})[r] || []).map(Number).includes(profileId)) out.push({ zone: z, rank: r });
@@ -2837,10 +2844,10 @@ const raceEdidOf = (actor) => {
 const raceLabel = (edid) => { const n = String(edid).replace(/Race(Vampire)?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'); return n ? `${/^[AEIOU]/.test(n) ? 'an' : 'a'} ${n}` : 'of no known race'; };
 // The rules of /appoint, shared with the Court tab (court.js): { error } or { cap, overridden }. tg is officialTarget's.
 const appointCheck = (a, z, rank, tg, override) => {
-  if (!(z.officials || []).includes(rank)) return { error: `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.` };
+  if (!(z.officials || []).includes(rank)) return { error: `${z.name} has the ranks: ${(z.officials || []).map((r) => rankTitle(r, z.id)).join(', ')}.` };
   if (!tg.actor) return { error: `Profile ${tg.pid} has no characters.` };
   const cap = appointCap(a, z, rank);
-  if (!cap) return { error: `Only an admin, or a seat that may name a ${rankTitle(rank)}, can appoint one in ${z.name}.` };
+  if (!cap) return { error: `Only an admin, or a seat that may name a ${rankTitle(rank, z.id)}, can appoint one in ${z.name}.` };
   if (override && tierOf(a) !== 'senior') return { error: 'Only the Owners can override the Jarl rule.' };
   let overridden = '';
   if (rank === 'jarl') {
@@ -2853,8 +2860,8 @@ const appointCheck = (a, z, rank, tg, override) => {
   if (!isAdmin(a)) {
     const zo = readOfficials()[z.id] || {};
     const held = Object.keys(zo).find((r) => (zo[r] || []).map(Number).includes(tg.pid));
-    if (held && !appointCap(a, z, held)) return { error: `${tg.label} already holds ${rankTitle(held)} of ${z.name}; you cannot replace that.` };
-    if (((zo[rank] || []).map(Number).filter((x) => x !== tg.pid)).length >= cap) return { error: `${z.name} already has ${cap} ${rankTitle(rank)}s. Dismiss one first.` };
+    if (held && !appointCap(a, z, held)) return { error: `${tg.label} already holds ${rankTitle(held, z.id)} of ${z.name}; you cannot replace that.` };
+    if (((zo[rank] || []).map(Number).filter((x) => x !== tg.pid)).length >= cap) return { error: `${z.name} already has ${cap} ${rankTitle(rank, z.id)}s. Dismiss one first.` };
   }
   return { cap, overridden };
 };
@@ -2868,23 +2875,23 @@ const seatOfficial = (z, rank, tg, by) => {
   for (const r of Object.keys(o[z.id])) o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== tg.pid);
   o[z.id][rank] = (o[z.id][rank] || []).concat([tg.pid]);
   try { writeOfficials(o); } catch (e) { return { error: 'Could not write officials.json: ' + e.message }; }
-  if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank)} of ${z.name}.`);
-  audit(`${by.staff ? 'GM' : 'OFFICIAL'} ${by.who} appointed ${tg.who} ${rankTitle(rank)} of ${z.name}${tg.online ? '' : ' (offline)'}${by.via || ''}${by.overridden ? ` (Jarl rule overridden by an Owner: ${by.overridden})` : ''}`);
+  if (tg.online) system(tg.online, `You have been appointed ${rankTitle(rank, z.id)} of ${z.name}.`);
+  audit(`${by.staff ? 'GM' : 'OFFICIAL'} ${by.who} appointed ${tg.who} ${rankTitle(rank, z.id)} of ${z.name}${tg.online ? '' : ' (offline)'}${by.via || ''}${by.overridden ? ` (Jarl rule overridden by an Owner: ${by.overridden})` : ''}`);
   if (had) courtOfficeSync(z, tg, had, false);
   courtOfficeSync(z, tg, rank, true);
-  return { text: `${tg.label} is now ${rankTitle(rank)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
+  return { text: `${tg.label} is now ${rankTitle(rank, z.id)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
 };
 // Removes tg's rank in z, if a may dismiss it. { error } or { text, had }
 const unseatOfficial = (a, z, tg) => {
   const o = readOfficials(); let had = null;
   for (const r of Object.keys(o[z.id] || {})) { if ((o[z.id][r] || []).map(Number).includes(tg.pid)) had = r; o[z.id][r] = (o[z.id][r] || []).filter((x) => Number(x) !== tg.pid); }
   if (!had) return { error: `${tg.label} holds no rank in ${z.name}.` };
-  if (!appointCap(a, z, had)) return { error: `You cannot dismiss a ${rankTitle(had)} of ${z.name}.` };
+  if (!appointCap(a, z, had)) return { error: `You cannot dismiss a ${rankTitle(had, z.id)} of ${z.name}.` };
   try { writeOfficials(o); } catch (e) { return { error: 'Could not write officials.json: ' + e.message }; }
-  if (tg.online) system(tg.online, `You are no longer ${rankTitle(had)} of ${z.name}.`);
-  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${tg.who} as ${rankTitle(had)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
+  if (tg.online) system(tg.online, `You are no longer ${rankTitle(had, z.id)} of ${z.name}.`);
+  audit(`${isAdmin(a) ? 'GM' : 'OFFICIAL'} ${who(a)} dismissed ${tg.who} as ${rankTitle(had, z.id)} of ${z.name}${tg.online ? '' : ' (offline)'}`);
   courtOfficeSync(z, tg, had, false);
-  return { had, text: `${tg.label} is no longer ${rankTitle(had)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
+  return { had, text: `${tg.label} is no longer ${rankTitle(had, z.id)} of ${z.name}.${tg.online ? '' : ' They are offline and were not told.'}` };
 };
 // A ruler's appointment is an offer the target accepts on the Court tab (Nate, 3 Oct, Q4); staff seat outright
 const appointFrom = (a, z, rank, tg, override) => {
@@ -2899,7 +2906,7 @@ registerChatCommand('appoint', (a, args) => {
   // The name may have spaces: the zone and rank are the last two words
   const m = (ov ? ov[1] : args).trim().match(/^(.+?)\s+(\S+)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /appoint <player|#TAG|profile id> <zone> <rank>   zones: ' + zoneList().map((z) => z.id).join(' '));
   const z = zoneById(m[2]); if (!z) return personal(a, 'No such zone. Zones: ' + zoneList().map((x) => x.id).join(' '));
-  const rank = m[3].toLowerCase(); if (!(z.officials || []).includes(rank)) return personal(a, `${z.name} has the ranks: ${(z.officials || []).map(rankTitle).join(', ')}.`);
+  const rank = m[3].toLowerCase(); if (!(z.officials || []).includes(rank)) return personal(a, `${z.name} has the ranks: ${(z.officials || []).map((r) => rankTitle(r, z.id)).join(', ')}.`);
   const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
   const r = appointFrom(a, z, rank, tg, override);
   personal(a, r.error || r.text);
@@ -2918,7 +2925,7 @@ const officialsLines = (a, zoneArg) => {
   for (const z of zoneList()) {
     if (want && z.id !== want.id) continue;
     const parts = [];
-    for (const r of (z.officials || [])) { const ids = (o[z.id] || {})[r] || []; if (ids.length) parts.push(`${rankTitle(r)}: ${ids.map(officialName).join(', ')}`); }
+    for (const r of (z.officials || [])) { const ids = (o[z.id] || {})[r] || []; if (ids.length) parts.push(`${rankTitle(r, z.id)}: ${ids.map(officialName).join(', ')}`); }
     if (parts.length || want) lines.push(`${z.name}: ${parts.join('; ') || 'no officials'}`);
   }
   return lines;
@@ -2928,7 +2935,7 @@ registerChatCommand('officials', (a, args) => {
   if (!args.trim() && typeof globalThis.__dboCourtOpen === 'function' && globalThis.__dboCourtOpen(a)) return;
   const lines = officialsLines(a, args.trim());
   personal(a, lines.length ? lines.join('  |  ') : 'No officials appointed yet. Admins: /appoint <player> <zone> <rank>.');
-  const mine = ranksOf(profileOf(a)); if (mine.length) personal(a, 'You hold: ' + mine.map((m) => `${rankTitle(m.rank)} of ${m.zone.name}`).join(', '));
+  const mine = ranksOf(profileOf(a)); if (mine.length) personal(a, 'You hold: ' + mine.map((m) => `${rankTitle(m.rank, m.zone.id)} of ${m.zone.name}`).join(', '));
 }, { help: '[zone] who rules where' });
 
 // ---- Scholar: books are nodes, reading is a mini-game -----------------------------------------
@@ -5803,6 +5810,14 @@ try {
   delete require.cache[ROBBERY_JS];
   require(ROBBERY_JS)({ mp, log, personal, audit, who, onlineActors, recordOf, adminItemName, openWidget, closeWidget, onUi, sendPacket, every, cfg });
 } catch (e) { log('robbery.js failed to load:', e.stack || e.message); globalThis.__dboRobEntries = null; globalThis.__dboRobAction = null; }
+
+// ---- staff names for offices and ranks (server\rolenames.js, role-names.json): before guilds.js and court.js ---------
+try {
+  const ROLENAMES_JS = path.resolve('rolenames.js');
+  delete require.cache[ROLENAMES_JS];
+  require(ROLENAMES_JS)({ log, personal, system, audit, who, registerChatCommand, isAdmin, isLeadStaff, onlineActors, profileOf, readOfficials,
+    zoneList, zoneById, defaultTitles: ZONES.rankTitles || {}, cfg });
+} catch (e) { log('rolenames.js failed to load:', e.stack || e.message); globalThis.__dboRoleNames = null; globalThis.__dboOfficeTitle = null; }
 
 // ---- player factions: guilds, holds, clans, cults (server\guilds.js, guild-defs.json) -------------
 try {
