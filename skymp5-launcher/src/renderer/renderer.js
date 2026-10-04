@@ -76,6 +76,9 @@ const KEY_TABLE = {
 }
 const DIK_LABELS = {}
 for (const [dik, label] of Object.values(KEY_TABLE)) DIK_LABELS[dik] = label
+// Mouse buttons (hotkeyMouse.js): their labels join the key labels
+const HOTKEY_MOUSE = window.dboHotkeyMouse
+for (const [dik, label] of Object.values(HOTKEY_MOUSE.MOUSE_TABLE)) DIK_LABELS[dik] = label
 
 const RESOLUTIONS = ['1280x720', '1366x768', '1600x900', '1920x1080', '2560x1080', '2560x1440', '3440x1440', '3840x2160']
 
@@ -101,18 +104,42 @@ let activeCapture = null
 
 function endCapture(restorePrev) {
   if (!activeCapture) return
-  const { btn, prevCode, onKey, timer } = activeCapture
+  const { btn, prevCode, onKey, onMouse, timer } = activeCapture
   activeCapture = null
   if (timer) clearTimeout(timer)
   window.removeEventListener('keydown', onKey, { capture: true })
+  if (onMouse) {
+    window.removeEventListener('mousedown', onMouse, { capture: true })
+    window.removeEventListener('auxclick', swallow, { capture: true })
+    window.removeEventListener('contextmenu', swallow, { capture: true })
+  }
   btn.classList.remove('hotkey-btn--capturing')
   if (restorePrev) setKey(btn.id, prevCode)
   btn.blur()
 }
 
+// While capturing, a side or middle click must not also go back or open a menu
+function swallow(e) { e.preventDefault(); e.stopPropagation() }
+
 function startCapture(btn, canUnbind) {
   endCapture(true)
-  const prompt = canUnbind ? 'Press a key… (Esc cancels, Backspace unbinds)' : 'Press a key… (Esc cancels)'
+  const mouseOk = HOTKEY_MOUSE.acceptsMouse(btn.id)
+  const what = mouseOk ? 'Press a key or mouse button…' : 'Press a key…'
+  const prompt = canUnbind ? `${what} (Esc cancels, Backspace unbinds)` : `${what} (Esc cancels)`
+  const flash = (text) => {
+    if (activeCapture.timer) clearTimeout(activeCapture.timer)
+    btn.textContent = text
+    activeCapture.timer = setTimeout(() => { if (activeCapture) btn.textContent = prompt }, 1500)
+  }
+  const onMouse = (e) => {
+    const r = HOTKEY_MOUSE.onCaptureMouse(e.button)
+    // A left click elsewhere (Save, Close, another hotkey) cancels the capture and goes through, as before
+    if (r.action === 'cancel') { endCapture(true); return }
+    swallow(e)
+    if (r.action === 'refuse') { flash(r.message); return }
+    endCapture(false)
+    setKey(btn.id, r.code)
+  }
   const onKey = (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -131,7 +158,13 @@ function startCapture(btn, canUnbind) {
   btn.classList.add('hotkey-btn--capturing')
   btn.textContent = prompt
   window.addEventListener('keydown', onKey, { capture: true })
-  activeCapture = { btn, prevCode: getKey(btn.id), onKey, timer: null }
+  if (mouseOk) {
+    // Added after the click that opened the capture has ended, so that click is never taken as the binding
+    window.addEventListener('mousedown', onMouse, { capture: true })
+    window.addEventListener('auxclick', swallow, { capture: true })
+    window.addEventListener('contextmenu', swallow, { capture: true })
+  }
+  activeCapture = { btn, prevCode: getKey(btn.id), onKey, onMouse: mouseOk ? onMouse : null, timer: null }
 }
 
 ;[...SERVER_HOTKEY_IDS, ...GAME_HOTKEY_IDS].forEach(id => {
