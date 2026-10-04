@@ -1,0 +1,7 @@
+{
+  "_what": "Tomb of Ulnac Hie: the automatic door 0F8E77 (CYRTombOfUlnacHie02) puts the player exactly on its partner, the automatic door 0F67EF in CYRTombOfUlnacHie01. Its XTEL arrival is [-2776, -1544, -656], the partner's own position, so the walk-in can fire straight back. This is a Beyond Skyrim data bug in BSHeartland.esm. No outside door leads into the tomb's three cells, so a player only reaches it by a staff teleport. Not urgent.",
+  "_fix": "On Nate's PC, in xEdit, override BSHeartland.esm:0F8E77 into DragonBreak Online Edits.esp and change only its XTEL. Keep the destination door 0F67EF and the flags. Set the position to about [-2540.0, -1544.0, -652.0] and the rotation to [0, 0, 1.5708] (facing +X, away from the door). The cell's navmesh runs east of the door (vertices (-2571,-1481,-664) and (-2524,-1614,-652)) and stops about 90 units west of it, so +X is the open side. Check the spot in the CK before saving. Then graft only this record from that PC build with this manifest.",
+  "_ids": "Raw ids in DragonBreak Online Edits.esp's own numbering: BSHeartland.esm is master index 06 (52 masters), so 0F8E77 is 060F8E77.",
+  "_run": "python3 tools/alpha/dle_graft.py --manifest docs/alpha/dle-manifest-ulnac-hie-arrival.json <live DLE> <PC DLE with the override> <out esp> --data /opt/skyrim-data",
+  "master_with": { "060F8E77": ["XTEL"] }
+}

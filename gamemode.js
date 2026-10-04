@@ -1287,6 +1287,43 @@ mp.onActivate = (targetId, casterId) => {
     return allowed;
   };
 }
+// NPCs open doors but never close them (2026-10-04). Each server activation of a plain door flips it (SetOpen(!IsOpen())).
+// The client blocks the engine's own door opening and waits for the server, so an NPC's AI keeps activating a closed door
+// until the server's "open" reaches its hoster. Every activation after the first closed the door again. In Fort Cutpurse
+// Tower two NPCs flipped door cf4e8 209 times in 21 s (1 Oct 15:13:46-15:14:07). Up to 41 a second tripped the activate
+// guard, and the same pattern hit Northfringe Sanctum, Underpall and the Cutpurse jail (24 bursts, 331 flips, 27 Sep-4 Oct).
+// So an NPC's activation of a plain door the server already holds open is refused, and nothing else changes. A player still
+// opens and closes doors as before. Load doors (XTEL) always go through, because their activation is the NPC's teleport and
+// their isOpen stays true after the first use. A door's kind is read from its own record once per process, and an
+// unreadable or runtime ref is never refused.
+{
+  const activateBeforeNpcDoors = mp.onActivate;
+  const npcDoorKind = globalThis.__dboNpcDoorKind instanceof Map ? globalThis.__dboNpcDoorKind : (globalThis.__dboNpcDoorKind = new Map());
+  const plainDoor = (ref) => {
+    if (npcDoorKind.has(ref)) return npcDoorKind.get(ref);
+    let plain = false;
+    try {
+      const baseDesc = String(mp.get(ref, 'baseDesc') || '');
+      const base = baseDesc && mp.lookupEspmRecordById(mp.getIdFromDesc(baseDesc));
+      const own = ref < 0xff000000 ? mp.lookupEspmRecordById(ref) : null;
+      if (base && base.record && String(base.record.type) === 'DOOR' && own && own.record && String(own.record.type) === 'REFR') {
+        plain = !(own.record.fields || []).some((f) => f && f.type === 'XTEL');
+      }
+    } catch (e) { plain = false; }
+    npcDoorKind.set(ref, plain);
+    return plain;
+  };
+  mp.onActivate = (targetId, casterId) => {
+    const t = targetId >>> 0, c = casterId >>> 0;
+    let refuse = false;
+    try { refuse = userOf(c) < 0 && plainDoor(t) && mp.get(t, 'isOpen') === true; } catch (e) { refuse = false; }
+    if (refuse) {
+      logCapped(`npcdoor:${t}`, 2, `npc door: actor ${c.toString(16)} would close ${mp.getDescFromId(t)} again; refused (NPCs only open doors)`);
+      return false;
+    }
+    return activateBeforeNpcDoors(targetId, casterId);
+  };
+}
 // TEMPORARY door trace (2026-09-16, Applewatch house doors would not open): every door activation and its answer
 {
   const activateCore = mp.onActivate;
