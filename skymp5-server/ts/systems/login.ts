@@ -4,6 +4,7 @@ import * as fetchRetry from "fetch-retry";
 import { loginsCounter, loginErrorsCounter } from "./metricsSystem";
 import { hasDiscordBanRole } from "./discordBanSystem";
 import { kickWithReason } from "./kickUtil";
+import { bindRolesToProfile } from "./patronTiers";
 
 const loginFailedNotInTheDiscordServer = JSON.stringify({ customPacketType: "loginFailedNotInTheDiscordServer" });
 const loginFailedBanned = JSON.stringify({ customPacketType: "loginFailedBanned" });
@@ -329,7 +330,8 @@ export class Login implements System {
           }
         }
 
-        const rolesToAssign = isMemberOfAny ? [...new Set(fetchedRoles)] : roles;
+        // Always a fresh array: it is the key bindRolesToProfile ties to this profile, so it must never be shared
+        const rolesToAssign = isMemberOfAny ? [...new Set(fetchedRoles)] : [...roles];
 
         // Mirror master-api faction access into private.skympAccess; account-level, the same payload applies to every character on this profile
         const skympAccess = {
@@ -337,6 +339,8 @@ export class Login implements System {
           gameFactions: (profile as any).gameFactions || [],
           factions: (profile as any).factions || [],
         };
+        // spawn.ts counts this account's earned character slots through this array (patronTiers.ts earnedSlotsFor)
+        bindRolesToProfile(rolesToAssign, profile.id);
         this.emit(ctx, "spawnAllowed", userId, profile.id, rolesToAssign, profile.discordId, skympAccess);
         loginsCounter.inc();
         this.log("Logged as " + profile.id);
@@ -354,7 +358,9 @@ export class Login implements System {
         this.log(`Refusing admin profileId ${profileId} from non-loopback IP ${ip} in offline mode`);
         profileId = 1000 + userId;
       }
-      this.emit(ctx, "spawnAllowed", userId, profileId, [], undefined);
+      const offlineRoles: string[] = [];
+      bindRolesToProfile(offlineRoles, profileId);
+      this.emit(ctx, "spawnAllowed", userId, profileId, offlineRoles, undefined);
       loginsCounter.inc();
       this.log(userId + " logged as " + profileId);
     } else {
