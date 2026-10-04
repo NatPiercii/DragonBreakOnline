@@ -1,5 +1,20 @@
 [
   {
+    "title": "High-end gear keeps being swapped",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Weapons, armour and metals",
+        "items": [
+          "Glass, Elven and other gear above the loot rules is now swapped for its steel or iron equivalent every time you log in, and in a container every time it is opened, not only the first time.",
+          "Enchantments still carry over to the replacement, and staff-granted artifacts are still left alone."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your journal holds it all (F3)",
     "date": "2026-10-04",
     "version": "Server + Client 0.3.76",
