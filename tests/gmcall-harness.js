@@ -247,6 +247,26 @@ const flush = () => new Promise((r) => setImmediate(r));
   check('a failed Discord post never stops the close', globalThis.__dboGmCalls.open.length === 0);
   discordFail = false;
 
+  // ---- G6 (4 Oct): markdown in the mirror is shown as typed; a GM who logs off hands the call back --------------------
+  reset(); minutes(5); discord.length = 0; gm(OTHER, '# **free gold** [here](http://x) <@1> @everyone ||x||'); await flush();
+  const c5 = globalThis.__dboGmCalls.open.find((c) => c.profile === 12);
+  const post5 = discord.find((d) => d.method === 'POST');
+  check('a player\'s markdown reaches the mirror escaped: no header, bold, masked link, mention or spoiler', post5 && post5.body.content.includes('\n> \\# \\*\\*free gold\\*\\* \\[here\\](http://x) \\<\\@1> \\@everyone \\|\\|x\\|\\|\n'), post5 && post5.body.content);
+  check('...while names and places read as before', post5 && /from Flo Riahn #FLOR at /.test(post5.body.content), post5 && post5.body.content);
+  reset(); gm(ADMIN, `take ${c5.n}`);
+  online = [CALLER, OTHER, ROLESTAFF];
+  reset(); tick(); minutes(2); tick();
+  check('a GM offline for 2 minutes still has the call (a crash and relog keeps it)', c5.takenBy && c5.takenBy.profile === 21);
+  online = [CALLER, OTHER, ADMIN, ROLESTAFF]; tick(); online = [CALLER, OTHER, ROLESTAFF];
+  minutes(2); reset(); tick();
+  check('...and back in the game in time, the clock starts again', c5.takenBy && c5.takenBy.profile === 21);
+  minutes(2); tick(); minutes(1.5); reset(); tick();
+  check('a GM gone releaseOfflineMinutes (3) hands the call back: waiting again', !!c5 && c5.takenBy === null && globalThis.__dboGmCalls.open.includes(c5));
+  check('...staff are told, the player too, and it is audited', sayOf(ROLESTAFF).some((t) => new RegExp(`GM call #${c5.n} from Flo Riahn #FLOR is waiting again \\(Iced Sky #ICED logged off\\)`).test(t))
+    && sayOf(OTHER).some((t) => /Iced Sky #ICED had to leave; your GM call #\d+ is waiting for the next GM/.test(t)) && audits.some((t) => new RegExp(`^GMCALL #${c5.n} released: Iced Sky #ICED logged off`).test(t)), [sayOf(ROLESTAFF), sayOf(OTHER)]);
+  online = [CALLER, OTHER, ADMIN, ROLESTAFF];
+  reset(); gm(ADMIN, `close ${c5.n} done`); await flush();
+
   // ---- gamemode.js wiring ----------------------------------------------------------------------------------------
   const src = fs.readFileSync(path.join(ROOT, 'gamemode.js'), 'utf8');
   check('gamemode.js loads gmcall.js, after gameticket.js', src.indexOf("path.resolve('gmcall.js')") > src.indexOf("path.resolve('gameticket.js')") && src.indexOf("path.resolve('gameticket.js')") > 0);

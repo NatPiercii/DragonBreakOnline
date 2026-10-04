@@ -17,7 +17,8 @@
 // gamemode-config.json "gmCalls" (all optional):
 //   enabled, cooldownSeconds (between two sends by one player; staff are not held), minText, maxText, maxLines (the
 //   call's message and what is added to it), remindMinutes (0: never again), expireHours (an untouched open call
-//   closes itself), filter (refuse blocked words, journal-prose-filter.json via journal.js), staffRoleIds (Discord
+//   closes itself), releaseOfflineMinutes (3: a taken call whose GM has been out of the game this long waits again; 0:
+//   never), filter (refuse blocked words, journal-prose-filter.json via journal.js), staffRoleIds (Discord
 //   roles told of calls besides staff tiers; they may list, take, release and close, but goto is for staff tiers),
 //   openTicket (also open a Moderation Help ticket on Discord through gameticket.js: the player reads that ticket, so
 //   it carries their own words and place only), discord (mirror each call to a staff-only channel: discordChannelId,
@@ -45,7 +46,7 @@ module.exports = (api) => {
   const C = Object.assign({
     enabled: true, cooldownSeconds: 120, minText: 5, maxText: 300, maxLines: 5, remindMinutes: 5, expireHours: 24,
     filter: true, staffRoleIds: [], openTicket: false, discord: false, discordChannelId: '', discordPingRoleId: '',
-    keepClosed: 30,
+    keepClosed: 30, releaseOfflineMinutes: 3,
   }, (cfg && cfg.gmCalls) || {});
   const FILE = path.resolve('gm-calls.json');
   const UNITS_PER_METER = 70;
@@ -130,14 +131,17 @@ module.exports = (api) => {
   // ---- the Discord mirror: one message per call in a staff-only channel, edited as the call moves --------------------
   const mirrorChannel = () => String(C.discordChannelId || ((cfg && cfg.tickets) || {}).staffChannelId || '');
   const mirrorOn = () => !!C.discord && !!api.token && !!sendJson && /^\d{15,22}$/.test(mirrorChannel());
+  // Player and staff words in the mirror are shown as typed: a backslash before each mark Discord reads as markdown (bold,
+  // italics, strike, code, spoilers, masked links, mentions; a header, quote or list only at the start); Discord drops it
+  const md = (t) => String(t == null ? '' : t).replace(/[\\*_~`|[\]<@]/g, (ch) => `\\${ch}`).replace(/^\s*([#>+-])/, (m, ch) => m.slice(0, -1) + `\\${ch}`);
   const mirrorBody = (c) => {
     const status = c.closedAt
-      ? `Closed (${c.closedHow}${c.closedBy ? ' by ' + c.closedBy : ''})${c.note ? ': ' + c.note : ''}`
-      : c.takenBy ? `Taken by ${c.takenBy.name}` : 'Waiting for a GM';
+      ? `Closed (${c.closedHow}${c.closedBy ? ' by ' + md(c.closedBy) : ''})${c.note ? ': ' + md(c.note) : ''}`
+      : c.takenBy ? `Taken by ${md(c.takenBy.name)}` : 'Waiting for a GM';
     const ping = C.discordPingRoleId && !c.discordMsg ? `<@&${C.discordPingRoleId}> ` : '';
-    const lines = c.lines.map((l) => `> ${l.text}`).join('\n');
+    const lines = c.lines.map((l) => `> ${md(l.text)}`).join('\n');
     return {
-      content: `${ping}**GM call #${c.n}** from ${c.name}${c.discord ? ` <@${c.discord}>` : ''} at ${placeText(c.place)}${c.place.pos ? ` (${c.place.desc} ${c.place.pos.join(', ')})` : ''}\n${lines}\n${status}`.slice(0, 1900),
+      content: `${ping}**GM call #${c.n}** from ${md(c.name)}${c.discord ? ` <@${c.discord}>` : ''} at ${md(placeText(c.place))}${c.place.pos ? ` (${md(c.place.desc)} ${c.place.pos.join(', ')})` : ''}\n${lines}\n${status}`.slice(0, 1900),
       allowed_mentions: { parse: [], roles: ping ? [String(C.discordPingRoleId)] : [] },
     };
   };
@@ -343,6 +347,20 @@ module.exports = (api) => {
     }
     for (const k of R.seen.keys()) if (!live.has(k)) R.seen.delete(k);
     let changed = false;
+    // A call whose GM logged off goes back to waiting after releaseOfflineMinutes (a crash and relog keeps it)
+    if (!(R.gmGone instanceof Map)) R.gmGone = new Map();
+    const onProfiles = new Set(onlineActors().map((x) => Number(profileOf(x))));
+    for (const c of S.open) {
+      if (!c.takenBy || onProfiles.has(c.takenBy.profile)) { R.gmGone.delete(c.n); continue; }
+      if (!R.gmGone.has(c.n)) R.gmGone.set(c.n, now);
+      if (!(C.releaseOfflineMinutes > 0) || now - R.gmGone.get(c.n) < C.releaseOfflineMinutes * 60000) continue;
+      const was = c.takenBy.name;
+      c.takenBy = null; c.lastAlert = now; R.gmGone.delete(c.n); changed = true;
+      audit(`GMCALL #${c.n} released: ${was} logged off`);
+      tellStaff(`GM call #${c.n} from ${c.name} is waiting again (${was} logged off). /gm take ${c.n}`, `GM call #${c.n} is waiting again`);
+      const p = callerOnline(c); if (p) personal(p, `${was} had to leave; your GM call #${c.n} is waiting for the next GM.`);
+      mirror(c);
+    }
     for (const c of S.open.slice()) {
       const last = Math.max(c.at, ...c.lines.map((l) => l.at), c.takenBy ? c.takenBy.at : 0);
       if (C.expireHours > 0 && now - last > C.expireHours * 3600000) {
