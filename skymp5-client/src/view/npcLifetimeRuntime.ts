@@ -1,7 +1,7 @@
 // The game side of npcLifetime.ts: deferred deletes, spread HostStart re-seats, and the trail of actor-changing calls
 import { Actor, Game, ObjectReference, on } from "skyrimPlatform";
 import * as sp from "skyrimPlatform";
-import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, deleteDecision, deleteNow, dropRelayedRagdoll, reseatDecision, trailLine } from "./npcLifetime";
+import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, RecentDeletes, deleteDecision, deletePlan, dropRelayedRagdoll, reseatDecision, trailLine } from "./npcLifetime";
 
 // The file the launcher collects (report.js DIAG_LOG_REL); writeLogs ends every line with a flush, so a line written before a crash is kept
 const LOG_NAME = "dbo-diag";
@@ -10,6 +10,7 @@ const budget = new LineBudget(100, 20000);
 const ragdolledAt = new Map<number, number>();
 const bornAt = new Map<number, number>();
 const pendingDeletes = new Map<number, number>(); // local id -> frames since it was disabled
+const recentDeletes = new RecentDeletes(); // local ids already handed to Delete()
 const reseats: Array<{ id: number; askedAt: number }> = [];
 
 export const hostBackoff = new HostAttemptBackoff();
@@ -54,21 +55,38 @@ export const allowRelayedRagdoll = (ac: Actor): boolean => {
 };
 
 // A copy that is dead, downed, in a kill move or ragdolling is disabled now and deleted once its 3D is gone; any other at once.
-// defer: always the slow way (the world cleaner's actors may be fighting or casting when it reaches them)
+// defer: always the slow way (the world cleaner's actors may be fighting or casting when it reaches them).
+// A ref already deleted, already handed to Delete() or already waiting is left alone; one with no 3D is deleted outright
 export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): void => {
   const id = refr.getFormID();
+  const now = Date.now();
   const ac = Actor.from(refr);
-  if (!ac ? !(opts && opts.defer) : deleteNow(stateOf(ac, id), Date.now(), !!(opts && opts.defer))) {
+  const plan = deletePlan({
+    handedToDelete: recentDeletes.has(id, now),
+    queued: pendingDeletes.has(id),
+    deleted: read(() => refr.isDeleted()),
+    is3DLoaded: read(() => refr.is3DLoaded()),
+    state: ac ? stateOf(ac, id) : null,
+    defer: !!(opts && opts.defer),
+  }, now);
+  if (plan === "skip") { noteActorCall("delete-skipped", id); return; }
+  if (plan === "delete") {
     noteActorCall("delete", id);
-    refr.delete();
+    recentDeletes.note(id, now);
+    try { refr.delete(); } catch (e) { /* already gone */ }
     forget(id);
     return;
   }
-  if (pendingDeletes.has(id)) return;
   try { refr.disableNoWait(false); } catch (e) { /* already gone */ }
   pendingDeletes.set(id, 0);
   noteActorCall("delete-deferred", id);
 };
+
+// True while Delete() was called on this local id a moment ago, or safeDelete is waiting to call it: touch nothing on it
+export const isHandedToDelete = (id: number): boolean => pendingDeletes.has(id) || recentDeletes.has(id, Date.now());
+
+// A new copy placed under an id the engine has reused is not the one that was deleted
+export const noteCopyPlaced = (id: number): void => { recentDeletes.forget(id); };
 
 export const queueReseat = (id: number): void => {
   if (!reseats.some((r) => r.id === id)) reseats.push({ id, askedAt: Date.now() });
@@ -78,10 +96,11 @@ const onUpdate = (): void => {
   const now = Date.now();
   for (const [id, frames] of Array.from(pendingDeletes)) {
     const refr = ObjectReference.from(Game.getFormEx(id));
-    if (!refr) { pendingDeletes.delete(id); forget(id); continue; }
+    if (!refr || read(() => refr.isDeleted())) { pendingDeletes.delete(id); forget(id); continue; }
     if (deleteDecision(frames + 1, read(() => refr.is3DLoaded())) === "wait") { pendingDeletes.set(id, frames + 1); continue; }
     pendingDeletes.delete(id);
     noteActorCall("delete", id, `after ${frames + 1} frames`);
+    recentDeletes.note(id, now);
     try { refr.delete(); } catch (e) { /* already gone */ }
     forget(id);
   }
