@@ -65,7 +65,20 @@ module.exports = (api) => {
     // Salt 4 (was 2): a cook needs a lot of it, and Bruma's deposits are few (groundedpasta, 2026-09-29; Nate: more yield).
     // Iron 5 (was 3) and corundum 3 (was 2): more iron (Nate, 4 Oct). The config's labour block is merged shallowly, so a
     // config oreYieldByOre would replace this whole map: the defaults are changed here.
-    oreYieldByOre: { copper: 3, tin: 3, iron: 5, corundum: 3, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 4 },
+    // Meteoric iron 2, as orichalcum and moonstone (Nate, 4 Oct: three Bleak-Frost Mine veins; see oreByRef)
+    oreYieldByOre: { copper: 3, tin: 3, iron: 5, corundum: 3, silver: 2, quicksilver: 2, orichalcum: 2, moonstone: 2, gold: 1, ebony: 1, malachite: 1, stalhrim: 1, salt: 4, meteoriciron: 2 },
+    // A placed vein that gives another ore than its base says, keyed by the reference's desc (never the base: the same
+    // MineOreIron04 is placed all over Cyrodiil). No vein activator for meteoric iron exists in the load order, so three
+    // iron veins of the Bleak-Frost Mine (CYRBleakFrostMine01, DLE v13), the three furthest from its door by the cell's
+    // navmesh, give Meteoric Iron Ore instead (Nate, 4 Oct). They still look like iron veins; a new look is a plugin edit.
+    oreByRef: {
+      '178031:DragonBreak Online Edits.esp': 'meteoriciron',   // MineOreIron04, the lowest gallery, 7,398 units walked
+      '17808d:DragonBreak Online Edits.esp': 'meteoriciron',   // MineOreIron04, the far end of the lowest gallery, 7,391
+      '178026:DragonBreak Online Edits.esp': 'meteoriciron',   // MineOreIron04, beside the first, 7,295
+    },
+    // How long a won seam rests for everyone, by ore, where it differs from veinRestMinutes: meteoric iron is the rarest
+    // seam in Bruma, three veins in the province
+    veinRestByOre: { meteoriciron: 60 },
     // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
     // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems
     extraOreTier: { salt: 0, geode: 1, amethyst: 1, topaz: 1, ruby: 2, sapphire: 2, emerald: 3, diamond: 4 },
@@ -97,6 +110,7 @@ module.exports = (api) => {
     quicksilver: '5ace2:Skyrim.esm',
     stalhrim: '2b06b:Dragonborn.esm',
     copper: '601c50:BSAssets.esm',
+    meteoriciron: '601c92:BSAssets.esm',   // BSKOreMeteoricIron; smelted 2:1 into BSKIngotMeteoricIron at any smelter
     tin: '601c4f:BSAssets.esm',
     salt: '34cdf:Skyrim.esm',
     firewood: '6f993:Skyrim.esm',
@@ -151,6 +165,19 @@ module.exports = (api) => {
     return true;
   };
   const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  // The name a player reads for an ore key: "meteoriciron" is "Meteoric Iron", the rest are one word
+  const ORE_NAMES = { meteoriciron: 'Meteoric Iron' };
+  const oreName = (ore) => ORE_NAMES[ore] || titleCase(ore);
+  // oreByRef resolved to the server's form ids (the load order decides the plugin's index), once per load
+  const REF_ORE = (() => {
+    const m = new Map();
+    for (const [desc, ore] of Object.entries(CFG.oreByRef || {})) {
+      const id = idOf(desc);
+      if (id && typeof ore === 'string' && ore) m.set(id, ore.toLowerCase());
+      else log(`labour: oreByRef ${desc} did not resolve, left as its base`);
+    }
+    return m;
+  })();
 
   // "MineOreQuicksilver02_LTundraRocks" and "CYRMineOreCopper01_Rocks01" both give "quicksilver" / "copper"
   const oreOf = (edid) => {
@@ -308,8 +335,9 @@ module.exports = (api) => {
   };
 
   const mine = (targetId, casterId, rec) => {
-    const ore = oreOf(String(rec.record.editorId || '')) || nodeOf(targetId, String(rec.record.editorId || ''));
-    if (!ore) return false;
+    const own = oreOf(String(rec.record.editorId || '')) || nodeOf(targetId, String(rec.record.editorId || ''));
+    if (!own) return false;
+    const ore = REF_ORE.get(targetId >>> 0) || own;
     const tier = tierOf(casterId, 'miner');
     // Not a miner yet: fall through rather than deny, so masterySystem's activation gate can grant
     // first touch (SKILLS_DESIGN 5.3). deny() returns true, which makes gamemode.js:638 stop the
@@ -317,12 +345,12 @@ module.exports = (api) => {
     if (tier < 0) return false;
     { const live = liveRound(casterId); if (live) return reshow(casterId, live); }
     if (ore !== 'geode' && !ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
-    if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${titleCase(ore)} is beyond your skill. Work the seams you know first.`);
+    if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${oreName(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
     const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
     if (workedByOther(targetId, casterId)) return deny(casterId, 'Someone is working this seam. Wait for them to finish.');
-    const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${titleCase(ore)} Seam`, targetId);
+    const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${oreName(ore)} Seam`, targetId);
     round.ore = ore;
     const started = startRound(casterId, round);
     reserve(targetId, casterId, round);
@@ -367,10 +395,16 @@ module.exports = (api) => {
     rests[round.refId.toString(16)] = Date.now() + restMinutes * 60000;
     saveRests(a, prop, rests);
   };
+  // A won seam's rest: its ore's own (veinRestByOre) or every seam's
+  const winRestOf = (round) => {
+    if (round.kind !== 'mining') return CFG.blockRestMinutes;
+    const own = Number((CFG.veinRestByOre || {})[round.ore]);
+    return own > 0 ? own : CFG.veinRestMinutes;
+  };
   const finish = (a, round, win, text, kind, rest) => {
-    if (rest !== false) writeRest(a, round, win ? (round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes) : CFG.failRestMinutes);
+    if (rest !== false) writeRest(a, round, win ? winRestOf(round) : CFG.failRestMinutes);
     if (win && rest !== false) {
-      const minutes = round.kind === 'mining' ? CFG.veinRestMinutes : CFG.blockRestMinutes;
+      const minutes = winRestOf(round);
       try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); }
     }
     // A round walked away from before its report landed (see closing below) has no widget left to show the verdict in
@@ -568,7 +602,7 @@ module.exports = (api) => {
         : round.ore === 'geode' ? `The geode cracks open: ${itemName(gem)}.`
         : round.ore === 'salt' ? `You scrape out ${count} Salt Pile${count === 1 ? '' : 's'}${bonus ? ` and some ${itemName(bonus)}` : ''}.`
         : (CFG.gemOre || {})[round.ore] ? `The geode cracks open: ${count} ${titleCase(round.ore)}${count === 1 ? '' : 's'}.`
-        : `The seam gives way: ${count} ${titleCase(round.ore)} Ore.`;
+        : `The seam gives way: ${count} ${oreName(round.ore)} Ore.`;
       if (ok) audit(`MINE ${who(a)} worked a ${round.ore} seam (tier ${round.tier + 1}) -> ${count} ${gem ? itemName(gem) : 'ore'}${bonus ? ` + ${itemName(bonus)}` : ''}`);
     } else {
       const count = Math.max(1, Math.round(tierValue(CFG.firewoodByTier, round.tier, 3)));
@@ -634,5 +668,5 @@ module.exports = (api) => {
     for (const a of online) { try { globalThis.__dboSaltGlow(a, shared); } catch (e) { log('salt glow failed', e.message); } }
   }, Math.max(5, Number(saltCfg().seconds) || 30) * 1000);
 
-  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min; rounds issued server-side, ${clientJudged() ? `judged by the widget (replay ${MG.replayRefuses(CFG) ? 'refuses' : 'logs'} a mismatch, ${Math.round(Math.max(60000, Number(CFG.roundTimeoutMs) || 180000) / 1000)} s cleanup, ${CFG.nearMeters} m reach)` : 'judged server-side from strike times'} (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms${clientJudged() ? ', logged only' : ''}); salt glow ${saltCfg().enabled !== false ? `for ${saltCfg().audience}, ${SALT_REFS.length} deposits` : 'off'}`);
+  log(`labour ${CFG.enabled ? 'on' : 'off'}: mining ${CFG.oreStrikes} strikes, chopping ${(WOODCUTTER.chopStrikesByTier || []).join('/')} by tier, ${CFG.seconds}s per round, vein rest ${CFG.veinRestMinutes} min${Object.keys(CFG.veinRestByOre || {}).length ? ` (${Object.entries(CFG.veinRestByOre).map(([o, m]) => `${o} ${m}`).join(', ')})` : ''}, ${REF_ORE.size} veins by reference; rounds issued server-side, ${clientJudged() ? `judged by the widget (replay ${MG.replayRefuses(CFG) ? 'refuses' : 'logs'} a mismatch, ${Math.round(Math.max(60000, Number(CFG.roundTimeoutMs) || 180000) / 1000)} s cleanup, ${CFG.nearMeters} m reach)` : 'judged server-side from strike times'} (stagger ${CFG.hitCooldownMs}/${CFG.missStaggerMs} ms, lag grace ${CFG.lagGraceMs} ms${clientJudged() ? ', logged only' : ''}); salt glow ${saltCfg().enabled !== false ? `for ${saltCfg().audience}, ${SALT_REFS.length} deposits` : 'off'}`);
 };
