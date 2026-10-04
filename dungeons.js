@@ -408,8 +408,8 @@ module.exports = (api) => {
   globalThis.__dboLootable = TIERS.lootable;
   // The gear ceiling's name ('steel', 'iron' or 'none'), for manuals.js's boss manuals
   globalThis.__dboLootCap = TIERS.cap;
-  // ...and its ingots, ores and arrows (gear-swap.json metals and ammo), for the camp chests: (desc, 'metal' | 'ammo') ->
-  // null when the item may drop
+  // ...and its ingots, ores and arrows (gear-swap.json metals, at any cap; ammo, under it), for the camp chests:
+  // (desc, 'metal' | 'ammo') -> null when the item may drop
   globalThis.__dboLootAboveCap = TIERS.aboveCap;
   // ...and the province rule (gear by province; Steel plate, Scaled and Elven gilded everywhere): a province, or nothing
   globalThis.__dboLootInProvince = (it, prov) => !!prov && (hasProv(it, prov) || TIERS.anyProvince(it.id));
@@ -453,7 +453,8 @@ module.exports = (api) => {
   // Artifacts and Ebony/Daedric are refused here, for every draw: chestLoot, smallLoot and corpseLoot default to ALL_OK,
   // which skipped lootOk's BANNED_LOOT check, so a draw without a lease could still hand out Ebony or Daedric (2026-09-29)
   // Weapons and armour also pass the material tiers' check: never, a faction uniform, or not in the map is not loot.
-  // Every pool passes the ceiling's ingots, ores and arrows (gear-swap.json metals and ammo; Nate, 4 Oct): they leave the
+  // Every pool passes the ceiling's ingots, ores and arrows (gear-swap.json metals and ammo; Nate, 4 Oct; the metals at
+  // any cap, 'none' too, the arrows under it: loottiers.js aboveCap): they leave the
   // pool rather than turn into steel or iron, so a roll draws among what is left and its chance stays as it was (as
   // steel, the materials roll's Dwarven, Quicksilver, Moonstone, Malachite and Adamantium would make steel ingots a third
   // of all Cyrodiil material finds)

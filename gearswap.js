@@ -191,6 +191,9 @@ module.exports = (api) => {
   const SWAP = readJson('gear-swap.json', { items: {}, metals: {} });
   const normD = require(LOOT_TIERS_JS).normDesc;
   const SWAP_KEYS = new Set([].concat(...['metals', 'ammo'].map((k) => Object.keys(SWAP[k] || {}))).map(normD));
+  // Dragon bone and scales are on the metals list, but a slain dragon's body is their one source (dragon-materials.json,
+  // Nate 2026-09-30): a take of them from a body is never swapped
+  const DRAGON_PARTS = new Set(((readJson('dragon-materials.json', { materials: [] }).materials) || []).map(normD).concat(['3ada4:skyrim.esm', '3ada3:skyrim.esm']));
   const ARTIFACT = (() => {
     const list = (readJson('artifacts.json', { patterns: [] }).patterns || []).filter((p) => typeof p === 'string' && p);
     try { return list.length ? new RegExp(list.map((p) => `(?:${p})`).join('|'), 'i') : /$^/; } catch (e) { log('gearswap: artifacts.json has a bad pattern', e.message); return null; }
@@ -318,6 +321,7 @@ module.exports = (api) => {
     if (type !== 'MpActor' || sp > 0 || !(ap > 0) || exempt.has(ap) || isStaff(actor)) return false;
     // Most takes are of nothing above the cap: told apart before the plan, which builds its maps on every call
     const d = normD(descOf(baseId));
+    if (DRAGON_PARTS.has(d)) return false;
     if (d && !SWAP_KEYS.has(d)) { const c = TIERS.classOf(d); if (c.kind !== 'capped' && c.kind !== 'never') return false; }
     const one = plan(Object.assign({ entries: [{ baseId, count }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, edidOf,
       isArtifact: (e) => !!ARTIFACT && ARTIFACT.test(e) }, extra));

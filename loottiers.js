@@ -12,10 +12,17 @@
 // A ceiling over all of it (Jake and Nate, 1 Oct, a stopgap until rarity is designed): `cap` names the families that may
 // drop as weapons and armour at all, whatever a row rolls. Gear of any other family is 'capped' and never loot, at every
 // path that asks this module (chests, bosses, enemy arms, bodies, camps, the Ayleid table, enchanted gear).
-// The same ceiling over ingots, ores and ammunition (Nate, 4 Oct): under any cap, an item gear-swap.json's `metals` or
-// `ammo` map names (the list gearswap.js swaps away from what players own) is above it, and aboveCap says so, with the
-// swap's own entry. One list for both, so what the swap takes away no loot path hands back. Without the file (`swap`
-// not given or unreadable) every ingot, ore and arrow counts as above the cap, as an unknown weapon is not loot.
+// Ingots, ores and ammunition (Nate, 4 Oct), from the lists gearswap.js swaps away from what players own, so what the
+// swap takes away no loot path hands back; aboveCap says so, with the swap's own entry:
+//   - gear-swap.json `metals` (the ingots and ores above steel) are NEVER loot, at any cap, 'none' too: "people should
+//     have to craft higher tiers and grind for it" (Nate, 4 Oct): mine and craft, never loot. Lifting the cap brings
+//     back the higher gear and arrows, never these.
+//   - LOOT_ONLY_METALS: above-steel metals that are never loot either but are NOT swapped, because players mine them
+//     (Meteoric Iron, the Bleak-Frost Mine veins; Nate, 4 Oct). They stay off gear-swap.json, or the login and container
+//     sweeps would turn mined ore into steel. More via config lootTiers.lootOnlyMetals (descs).
+//   - `ammo` follows the cap, as gear does: above it under 'steel' or 'iron', loot again under 'none'.
+// Without the file (`swap` not given or unreadable) every ingot and ore counts as above, and every arrow under a cap,
+// as an unknown weapon is not loot.
 'use strict';
 
 const TIER_OF = {
@@ -28,6 +35,9 @@ const TIER_OF = {
 const NEVER = new Set(['DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
 const UNIFORM = new Set(['stormcloak', 'guard', 'penitus', 'thievesguild', 'dawnguard', 'blades']);
 const TRINKET = new Set(['clothing', 'staff']);
+// Kept out of loot, never swapped: Beyond Skyrim's Meteoric Iron, ingot and ore (BSKIngotMeteoricIron 601c91,
+// BSKOreMeteoricIron 601c92, BSAssets.esm; 2 ore smelt to 1 ingot; it tempers the Ayleid gear)
+const LOOT_ONLY_METALS = { '601c91:bsassets.esm': 'BSKIngotMeteoricIron', '601c92:bsassets.esm': 'BSKOreMeteoricIron' };
 // Nate, 1 Oct ("you can allow it"): vanilla Steel plate, Scaled and Elven gilded drop in Cyrodiil too, filling its tier 3
 const ANY_PROVINCE = new Set(['steelplate', 'scaled', 'elven_gilded']);
 // Cyrodiil has no tier 3 weapon: the high Elven weapons stand in (Nate's (c))
@@ -84,15 +94,19 @@ module.exports = ({ materials, factionGear, overrides, cfg, swap }) => {
   // Ingots, ores and arrows above the ceiling: gear-swap.json's metals and ammo, by the same normalised desc
   const swapMap = (name) => new Map(Object.entries((swap && swap[name]) || {}).filter(([k]) => k[0] !== '_').map(([k, v]) => [normDesc(k), v]));
   const METALS = swapMap('metals'), AMMO = swapMap('ammo');
+  const LOOT_ONLY = new Map(Object.entries(Object.assign({}, LOOT_ONLY_METALS, Object.fromEntries((Array.isArray(C.lootOnlyMetals) ? C.lootOnlyMetals : []).map((x) => [String(x), String(x)]))))
+    .map(([k, v]) => [normDesc(k), v]));
   const swapKnown = !!(swap && swap.metals && swap.ammo);
-  // -> null (under the cap, or no cap), else { kind: 'metal' | 'ammo' | 'unknown', to, edid, toEdid }
+  // -> null (may drop), else { kind: 'metal' | 'ammo' | 'unknown', to, edid, toEdid }. Metals at any cap; ammo under one
   const aboveCap = (desc, type) => {
-    if (!capSet) return null;
     const d = normDesc(desc);
     const m = METALS.get(d); if (m) return Object.assign({ kind: 'metal' }, m);
-    const a = AMMO.get(d); if (a) return Object.assign({ kind: 'ammo' }, a);
+    if (LOOT_ONLY.has(d)) return { kind: 'metal', edid: LOOT_ONLY.get(d), lootOnly: true };
     // Without the lists nothing of these kinds can be told apart, so none of it is loot (fail closed)
-    return !swapKnown && (type === 'metal' || type === 'ammo') ? { kind: 'unknown' } : null;
+    if (!swapKnown && type === 'metal') return { kind: 'unknown' };
+    if (!capSet) return null;
+    const a = AMMO.get(d); if (a) return Object.assign({ kind: 'ammo' }, a);
+    return !swapKnown && type === 'ammo' ? { kind: 'unknown' } : null;
   };
   // The row a roll uses: a chest, a boss, a raid boss, or a locked chest by its lock (Novice/Apprentice the chest row,
   // Adept halfway to the boss row, Expert and Master the boss row)
@@ -134,6 +148,6 @@ module.exports = ({ materials, factionGear, overrides, cfg, swap }) => {
     }
     return null;
   };
-  return { cap: capSet ? capName : 'none', classOf, lootable, aboveCap, swapKnown, rowFor, rollTier, enchRank, enchOk, enemyTiers, pickTier, anyProvince: (desc) => ANY_PROVINCE.has(classOf(desc).family), T3_WEAPON_STANDIN, ROWS: rows };
+  return { cap: capSet ? capName : 'none', classOf, lootable, aboveCap, swapKnown, LOOT_ONLY_METALS, rowFor, rollTier, enchRank, enchOk, enemyTiers, pickTier, anyProvince: (desc) => ANY_PROVINCE.has(classOf(desc).family), T3_WEAPON_STANDIN, ROWS: rows };
 };
 module.exports.normDesc = normDesc;

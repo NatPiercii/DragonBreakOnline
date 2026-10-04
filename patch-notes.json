@@ -284,7 +284,7 @@
       {
         "heading": "Ingots and arrows",
         "items": [
-          "Dungeon chests, urns and camp chests no longer hold Dwarven metal, quicksilver, refined moonstone, refined malachite or adamantium ingots, or Elven, Ayleid or Ancient Imperial arrows. They still hold the other materials, and iron and steel arrows, as often as before.",
+          "Dungeon chests, urns and camp chests no longer hold Dwarven metal, quicksilver, refined moonstone, refined malachite, adamantium or meteoric iron ingots, or Elven, Ayleid or Ancient Imperial arrows. They still hold the other materials, and iron and steel arrows, as often as before.",
           "Gear, ingots, ores and arrows above the steel cap that you take from an NPC's or creature's body, in a dungeon or anywhere else, become their steel or iron equivalent as you take them, the same swap your own gear had. Enchanted pieces keep their enchantment."
         ]
       },

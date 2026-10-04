@@ -108,7 +108,8 @@ module.exports = (api) => {
   // module may load first
   // Weapons are also of the camp's province (Nate: gear is region-locked; dungeons.js's own rule through
   // globalThis.__dboLootInProvince, the province from where the chest is opened); no province known, no weapon.
-  // Ingots and ores above the gear ceiling (gear-swap.json metals, the list the swap takes from players; Nate, 4 Oct:
+  // Ingots and ores above steel (gear-swap.json metals, the list the swap takes from players; never loot, the cap lifted
+  // too; Nate, 4 Oct:
   // Eldacar had two Adamantium ingots from a camp chest at 02:05Z) leave the materials pool, through dungeons.js's own
   // check (globalThis.__dboLootAboveCap); without it, no material
   const pool = (name, province = '') => {

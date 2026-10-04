@@ -15,6 +15,8 @@
 //   4. The same ceiling over ingots, ores and arrows (Nate, 4 Oct): under it no path hands out anything gear-swap.json's
 //      metals or ammo names (chests, urns, bosses, bodies, masters, the enemies' quivers); a creature's corpse keeps what
 //      it carried and the take swaps it (tests/gearswap-body-take-harness.js). Linen wraps drop (the same 4 Oct ask).
+//      The metals stay out at cap 'none' too ("people should have to craft higher tiers and grind for it"): checked on
+//      part 2's uncapped sweep, where the arrows come back.
 //   node tests/loot-tiers-harness.js   (from server/; CLAIMS=n for more claims per dungeon and difficulty)
 'use strict';
 const fs = require('fs');
@@ -236,11 +238,16 @@ ok(!seen.some((s) => s.name === 'CYRIronFalchion'), 'CYRIronFalchion never comes
 ok(seen.some((s) => s.path === 'chest' && s.diff === 'hard' && ['ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorElvenGildedCuirass'].some((n) => s.name.startsWith(n.slice(0, -7)))), 'Steel plate, Scaled and Elven gilded drop in Bruma (Nate\'s option 1)');
 ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) => s.path === 'creature corpse').every((s) => s.kind === 'gear' || s.kind === 'trinket'), 'bodies hand over gear within their tiers, and a creature\'s corpse keeps none of what it may not');
 {
-  // Without the ceiling the materials and arrows pools are as they were: what the ceiling takes out is the ceiling's doing
-  const T0 = tiersWith({ cap: 'none' });
-  const swappedFound = [...new Set(anySeen.filter((x) => SWAPPED.has(x.desc) && x.path !== 'creature corpse').map((x) => x.name))];
-  ok(T0.aboveCap(Object.keys(SWAP.metals)[0], 'metal') === null && swappedFound.some((n) => /Ingot/.test(n)) && swappedFound.some((n) => /Arrow/.test(n)),
-    `cap "none": the old ingots and arrows still drop (${swappedFound.slice(0, 6).join(', ')})`, swappedFound);
+  // Cap 'none' (Nate, 4 Oct): the arrows above steel come back with the gear, the ingots and ores above steel never do
+  const T0 = require(path.join(ROOT, 'loottiers.js'))({ materials: MATERIALS, factionGear: FACTION, overrides: OVERRIDES, swap: SWAP, cfg: { cap: 'none' } });
+  const METAL_KEYS = new Set(Object.keys(SWAP.metals).concat(Object.keys(T0.LOOT_ONLY_METALS)).map(normD)), AMMO_KEYS = new Set(Object.keys(SWAP.ammo).map(normD));
+  const out = anySeen.filter((x) => x.path !== 'creature corpse');
+  const metalsFound = [...new Set(out.filter((x) => METAL_KEYS.has(x.desc)).map((x) => `${x.path} ${x.diff}: ${x.name}`))];
+  const arrowsFound = [...new Set(out.filter((x) => AMMO_KEYS.has(x.desc)).map((x) => x.name))];
+  ok(T0.aboveCap('601c91:BSAssets.esm', 'metal') && T0.aboveCap('5ad9f:Skyrim.esm', 'metal') && T0.aboveCap('139bd:Skyrim.esm', 'ammo') === null,
+    'cap "none": loottiers still holds Meteoric Iron and refined moonstone above steel, and lets Elven arrows go');
+  ok(out.length > 1000 && !metalsFound.length, `cap "none": no chest, urn, boss, body, master or quiver hands out an ingot or ore above steel (${out.length} stacks)`, metalsFound.slice(0, 10));
+  ok(arrowsFound.length > 0, `cap "none": the arrows above steel come back with the gear (${arrowsFound.slice(0, 5).join(', ')})`, arrowsFound);
 }
 
 // ---- 3. the steel ceiling ------------------------------------------------------------------------------------------
@@ -280,9 +287,11 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   ok(S1.aboveCap('5ad9f:Skyrim.esm', 'metal') && S1.aboveCap('5ad9f:Skyrim.esm').toEdid === 'IngotSteel' && S1.aboveCap('139bd:Skyrim.esm').kind === 'ammo'
     && S1.aboveCap('5ace5:Skyrim.esm', 'metal') === null && S1.aboveCap('1397d:Skyrim.esm', 'ammo') === null && S1.aboveCap('5ad93:Skyrim.esm', 'metal') === null,
     'loottiers aboveCap: refined moonstone and Elven arrows are above the steel ceiling (the swap\'s own entries); steel and corundum ingots and iron arrows are not');
+  ok(S1.aboveCap('601c91:BSAssets.esm', 'metal').lootOnly && S1.aboveCap('601c92:BSAssets.esm', 'metal').lootOnly && !SWAPPED.has(normD('601c91:BSAssets.esm')) && !SWAPPED.has(normD('601c92:BSAssets.esm')),
+    'Meteoric Iron, ingot and ore, is kept out of loot but is not on the swap\'s lists (it is mined: Nate, 4 Oct)');
   ok(S0.aboveCap('5ace5:Skyrim.esm', 'metal') && S0.aboveCap('1397d:Skyrim.esm', 'ammo') && S0.aboveCap('5ace5:Skyrim.esm', '') === null,
     'without gear-swap.json every ingot and arrow counts as above the ceiling (fail closed); other items do not');
-  const leaked = any.filter((x) => SWAPPED.has(x.desc) && x.path !== 'creature corpse');
+  const leaked = any.filter((x) => (SWAPPED.has(x.desc) || S1.LOOT_ONLY_METALS[x.desc]) && x.path !== 'creature corpse');
   const byP = [...new Set(any.map((x) => x.path))].sort();
   ok(any.length > 1000 && ['chest', 'boss chest', 'container', 'enemy arms', 'humanoid body', 'master'].every((p) => byP.includes(p)), `the sweep saw ${any.length} stacks of every kind on the paths ${byP.join(', ')}`, byP);
   ok(!leaked.length, 'no chest, urn, boss chest, locked chest, body, master or enemy quiver holds an ingot, ore or arrow the gear swap would take away (Dwarven, Quicksilver, Moonstone, Malachite, Adamantium; Elven, Ayleid, Ancient Imperial arrows)',
@@ -291,7 +300,7 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   ok(kept.length > 0 && kept.every((n) => [...Object.values(SWAP.metals), ...Object.values(SWAP.ammo)].some((m) => m.edid === n && m.to)),
     `a creature's corpse keeps what it carried (${kept.join(', ')}), each with a swap target for the take (the player's game shows its own copy of a body)`, kept);
   const names = new Set(any.map((x) => x.name));
-  ok(['IngotSteel', 'IngotIron', 'Leather01', 'IronArrow', 'SteelArrow'].every((n) => names.has(n)), 'materials and arrows still drop under the ceiling: steel and iron ingots, leather, iron and steel arrows');
+  ok(['IngotSteel', 'IngotIron', 'Leather01', 'IronArrow', 'SteelArrow'].every((n) => names.has(n)) && !names.has('BSKIngotMeteoricIron'), 'materials and arrows still drop under the ceiling: steel and iron ingots, leather, iron and steel arrows; no Meteoric Iron');
   const steelShare = (() => { const m = any.filter((x) => ['chest', 'boss chest'].includes(x.path) && LOOT.materials.some((it) => normD(it.id) === x.desc)); return m.filter((x) => x.name === 'IngotSteel').length / Math.max(1, m.length); })();
   ok(steelShare < 0.15, `steel ingots stay an ordinary share of the materials found (${Math.round(100 * steelShare)}%; dropping the above-cap ingots, not turning them into steel)`, steelShare);
   const linen = any.filter((x) => x.desc === LINEN);
