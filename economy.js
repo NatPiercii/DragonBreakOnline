@@ -205,6 +205,8 @@ module.exports = (api) => {
     if (T && H) {
       for (const ref of claimedRefs()) {
         try {
+          // A building is taxed once, at its root: its doors and chests stand for it (Nate, 4 Oct; recordOf answers the root)
+          if (typeof H.primaryOf === 'function' && (Number(H.primaryOf(ref)) >>> 0) !== (ref >>> 0)) continue;
           const rec = H.recordOf(ref);
           if (!rec || !rec.owner) continue;
           const t = territoryOfProperty(ref, rec); if (!t) continue;
