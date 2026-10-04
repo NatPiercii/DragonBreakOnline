@@ -1,4 +1,4 @@
-import { Actor, ContainerChangedEvent } from "skyrimPlatform";
+import { Actor, ContainerChangedEvent, ObjectReference } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 
 import { MsgType } from "../../messages";
@@ -9,6 +9,15 @@ import { notifyNextUpdate } from "./customPacketUtil";
 import { PROPERTY_KEY_BASE_ID, getDiff, getInventory, hasItemExtras } from "../../sync/inventory";
 import { getPcInventory } from "./remoteServer";
 import { dropCandidates, inDropWindow } from "./dropReport";
+
+// The charge an enchanted weapon reference holds, undefined for anything without one
+const chargeOf = (ref: ObjectReference | null | undefined): number | undefined => {
+    if (!ref || !(ref.getItemMaxCharge() > 0)) {
+        return undefined;
+    }
+    const charge = ref.getItemCharge();
+    return Number.isFinite(charge) && charge >= 0 ? charge : undefined;
+};
 
 export class DropItemService extends ClientListener {
     constructor(private sp: Sp, private controller: CombinedController) {
@@ -60,6 +69,8 @@ export class DropItemService extends ClientListener {
             }
 
             let numFound = 0;
+            // Read before the engine's ref is deleted: the server's copy may predate the last charge report
+            const droppedCharge = chargeOf(e.reference);
 
             const worldCleanerService = this.controller.lookupListener(WorldCleanerService);
 
@@ -92,7 +103,7 @@ export class DropItemService extends ClientListener {
             const count = e.numItems;
             this.controller.emitter.emit("sendMessage", {
                 message: {
-                    ...this.droppedExtras(baseId), t, baseId, count,
+                    ...this.droppedExtras(baseId), ...(droppedCharge !== undefined ? { chargePercent: droppedCharge } : {}), t, baseId, count,
                 },
                 reliability: "reliable"
             });
