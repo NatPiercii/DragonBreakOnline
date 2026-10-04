@@ -1,4 +1,6 @@
 #include "TestUtils.hpp"
+#include <chrono>
+#include <thread>
 #include "script_storages/DirectoryScriptStorage.h"
 #include <fmt/format.h>
 
@@ -498,6 +500,46 @@ TEST_CASE("An occupant moved to another cell can still put, not take",
 
   REQUIRE_THROWS_WITH(ref.TakeItem(actor, { 0x12eb7, 1 }),
                       ContainsSubstring("WorldSpace doesn't match"));
+
+  DoDisconnect(partOne, 0);
+  partOne.DestroyActor(0xff000000);
+}
+
+TEST_CASE("A cross-cell put long after the teleport is refused and closes "
+          "the container",
+          "[PartOne][espm]")
+{
+  auto& partOne = GetPartOne();
+  auto refrId = 0x20570;
+  auto& ref = partOne.worldState.GetFormAt<MpObjectReference>(refrId);
+
+  DoConnect(partOne, 0);
+  partOne.CreateActor(0xff000000, { 21272.0000, -7816.0000, -3608.0000 }, 0,
+                      0x1a26f);
+  partOne.SetUserActor(0, 0xff000000);
+
+  auto& actor = partOne.worldState.GetFormAt<MpActor>(0xff000000);
+  actor.RemoveAllItems();
+  ref.Activate(actor);
+  REQUIRE(ref.IsOpen());
+
+  actor.SetCellOrWorld(FormDesc::FromString("133c6:Skyrim.esm"));
+  std::this_thread::sleep_for(std::chrono::milliseconds(10200));
+
+  actor.AddItem(0x12eb7, 2);
+  REQUIRE_THROWS_WITH(ref.PutItem(actor, { 0x12eb7, 2 }),
+                      ContainsSubstring("WorldSpace doesn't match"));
+  REQUIRE(actor.GetInventory().GetItemCount(0x12eb7) == 2);
+  REQUIRE(!ref.IsOpen());
+  REQUIRE_THROWS_WITH(
+    ref.PutItem(actor, { 0x12eb7, 2 }),
+    ContainsSubstring("WorldSpace doesn't match"));
+
+  // Back in the container's cell the released occupancy still refuses
+  actor.SetCellOrWorld(FormDesc::FromString("1a26f:Skyrim.esm"));
+  REQUIRE_THROWS_WITH(
+    ref.PutItem(actor, { 0x12eb7, 2 }),
+    ContainsSubstring("Actor 0xff000000 doesn't occupy ref 0x20570"));
 
   DoDisconnect(partOne, 0);
   partOne.DestroyActor(0xff000000);

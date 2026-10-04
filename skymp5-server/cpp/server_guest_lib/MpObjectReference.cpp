@@ -191,6 +191,7 @@ public:
   bool teleportFlag = false;
   bool setPropertyCalled = false;
   std::optional<Inventory::ExtraData> pickupExtras;
+  std::optional<std::chrono::steady_clock::time_point> lastCellChange;
 };
 
 namespace {
@@ -664,10 +665,18 @@ void MpObjectReference::PutItem(MpActor& ac, const Inventory::Entry& e)
     throw std::runtime_error(err.str());
   }
 
-  // The occupant passed this check when it opened the container; a server teleport since must not refuse a put
+  // The occupant passed this check when it opened the container; only a server teleport in the last 10 s excuses a put
   try {
     CheckInteractionAbility(ac);
   } catch (std::exception& err) {
+    constexpr auto kTeleportGrace = std::chrono::seconds(10);
+    const MpObjectReference& occupantRef = ac;
+    const auto& moved = occupantRef.pImpl->lastCellChange;
+    if (!moved || std::chrono::steady_clock::now() - *moved > kTeleportGrace) {
+      SetOccupant(nullptr);
+      SetOpen(false);
+      throw;
+    }
     spdlog::warn("MpObjectReference::PutItem {:x} - occupant {:x} allowed "
                  "across cells: {}",
                  GetFormId(), ac.GetFormId(), err.what());
@@ -1338,6 +1347,7 @@ void MpObjectReference::SetCellOrWorldObsolete(const FormDesc& newWorldOrCell)
   EditChangeForm([&](MpChangeFormREFR& changeForm) {
     changeForm.worldOrCellDesc = newWorldOrCell;
   });
+  pImpl->lastCellChange = std::chrono::steady_clock::now();
 }
 
 void MpObjectReference::VisitNeighbours(const Visitor& visitor)
