@@ -505,6 +505,36 @@ TEST_CASE("An occupant moved to another cell can still put, not take",
   partOne.DestroyActor(0xff000000);
 }
 
+TEST_CASE("A put after a second door into an unrelated cell is refused",
+          "[PartOne][espm]")
+{
+  auto& partOne = GetPartOne();
+  auto refrId = 0x20570;
+  auto& ref = partOne.worldState.GetFormAt<MpObjectReference>(refrId);
+
+  DoConnect(partOne, 0);
+  partOne.CreateActor(0xff000000, { 21272.0000, -7816.0000, -3608.0000 }, 0,
+                      0x1a26f);
+  partOne.SetUserActor(0, 0xff000000);
+
+  auto& actor = partOne.worldState.GetFormAt<MpActor>(0xff000000);
+  actor.RemoveAllItems();
+  ref.Activate(actor);
+
+  // Two doors in a row: the cell left last is not the container's
+  actor.SetCellOrWorld(FormDesc::FromString("133c6:Skyrim.esm"));
+  actor.SetCellOrWorld(FormDesc::FromString("3c:Skyrim.esm"));
+
+  actor.AddItem(0x12eb7, 2);
+  REQUIRE_THROWS_WITH(ref.PutItem(actor, { 0x12eb7, 2 }),
+                      ContainsSubstring("WorldSpace doesn't match"));
+  REQUIRE(actor.GetInventory().GetItemCount(0x12eb7) == 2);
+  REQUIRE(!ref.IsOpen());
+
+  DoDisconnect(partOne, 0);
+  partOne.DestroyActor(0xff000000);
+}
+
 TEST_CASE("A cross-cell put long after the teleport is refused and closes "
           "the container",
           "[PartOne][espm]")

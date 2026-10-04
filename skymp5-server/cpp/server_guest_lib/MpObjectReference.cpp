@@ -192,6 +192,7 @@ public:
   bool setPropertyCalled = false;
   std::optional<Inventory::ExtraData> pickupExtras;
   std::optional<std::chrono::steady_clock::time_point> lastCellChange;
+  std::optional<FormDesc> lastCellLeft;
 };
 
 namespace {
@@ -665,14 +666,16 @@ void MpObjectReference::PutItem(MpActor& ac, const Inventory::Entry& e)
     throw std::runtime_error(err.str());
   }
 
-  // The occupant passed this check when it opened the container; only a server teleport in the last 10 s excuses a put
+  // The occupant passed this check when it opened the container; only a teleport out of its cell in the last 10 s excuses a put
   try {
     CheckInteractionAbility(ac);
   } catch (std::exception& err) {
     constexpr auto kTeleportGrace = std::chrono::seconds(10);
     const MpObjectReference& occupantRef = ac;
     const auto& moved = occupantRef.pImpl->lastCellChange;
-    if (!moved || std::chrono::steady_clock::now() - *moved > kTeleportGrace) {
+    const auto& left = occupantRef.pImpl->lastCellLeft;
+    if (!moved || std::chrono::steady_clock::now() - *moved > kTeleportGrace ||
+        !left || *left != GetCellOrWorld()) {
       SetOccupant(nullptr);
       SetOpen(false);
       throw;
@@ -1337,6 +1340,7 @@ void MpObjectReference::SetCellOrWorldObsolete(const FormDesc& newWorldOrCell)
 
   auto worldOrCell =
     ChangeForm().worldOrCellDesc.ToFormId(worldState->espmFiles);
+  pImpl->lastCellLeft = ChangeForm().worldOrCellDesc;
 
   everSubscribedOrListened = false;
   auto gridIterator = worldState->grids.find(worldOrCell);
