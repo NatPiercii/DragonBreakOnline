@@ -571,8 +571,9 @@ const HELP_GROUPS = [
       'Introducing yourself, trading or inspecting someone: look at them and press X.', 'Emotes: press B.', 'Hiding your face: press H.',
       'Letters by pigeon, and yours to read: a notice board. A bird flies only to someone you have met.',
       'Everyone you have met: the ledger at a notice board or in your home (/ledger).'] },
-  { key: 'character', title: 'Your character', names: ['status', 'boost'],
+  { key: 'character', title: 'Your character', names: ['status', 'boost', 'appearance'],
     hints: ['Your journal: press F3. Profile, stats, skills, magic, your god, and settings such as your keys.',
+      'A new look: /appearance reopens the appearance editor (gold, once a day; race, sex and name stay).',
       'Your skills: press K (the Skills tab of your journal).', 'Spending a level: /status tells you when you have a point.',
       'Magic begins with Arcane Arts: study at a Study Magic shelf, such as the Synod Conclave\'s bookcases.',
       'At Arcane Arts 25 you choose a school; at 25 in a school, its first spell, no tome needed. Restoration\'s comes at Priest 25.',
@@ -1856,6 +1857,17 @@ if (!globalThis.__dboAppearanceHookPrev) {
 }
 const appearanceHook = (actorId, appearance, isAllowed) => {
   let result = true;
+  // A player's own /appearance edit (appearance.js): settled there (charge, locks), and none of creation's steps below run
+  if (isAllowed) {
+    let edit = false;
+    try { edit = !!(globalThis.__dboAppearanceEdit && globalThis.__dboAppearanceEdit.pending(actorId >>> 0)); } catch (e) { log('appearance edit check failed', e.message); }
+    if (edit) {
+      try { globalThis.__dboAppearanceEdit.finish(actorId >>> 0, appearance); } catch (e) { log('appearance edit finish failed', e.message); }
+      const prevEdit = globalThis.__dboAppearanceHookPrev;
+      if (prevEdit) { try { result = prevEdit.call(mp, actorId, appearance, isAllowed) !== false; } catch (e) { log('appearance hook chain failed', e.message); } }
+      return result;
+    }
+  }
   // The race menu's name, held to the creation rules before spawn.ts finishes creation (naming.js); never refused here
   if (isAllowed) {
     try {
@@ -2451,6 +2463,12 @@ const onUi = (event, fn) => {
   globalThis.__dboUiEvents.set(event, list);
 };
 // ---- a name of its own before the world (server\naming.js), loaded here because it registers with onUi -------------
+// ---- /appearance: a player reopens the appearance editor for gold (server\appearance.js, config "appearance") ----
+try {
+  const APPEARANCE_JS = path.resolve('appearance.js');
+  delete require.cache[APPEARANCE_JS];
+  require(APPEARANCE_JS)({ mp, log, personal, system, audit, who, registerChatCommand, cfg });
+} catch (e) { log('appearance.js failed to load:', e.stack || e.message); globalThis.__dboAppearanceEdit = null; }
 try {
   const NAMING_JS = path.resolve('naming.js');
   delete require.cache[NAMING_JS];

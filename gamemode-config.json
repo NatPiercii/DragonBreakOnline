@@ -860,5 +860,13 @@
   "testProfiles": [],
   "testGuard": 0,
   "message": "Dragons are switched off for now: a dragon near players crashes their games (4 Oct). They come back with the client fix."
+ },
+ "appearance": {
+  "_comment": "/appearance (appearance.js, #suggestions #1, Jake 2026-10-04): a player reopens the appearance editor for gold. cost in gold, taken only for a changed look; cooldownHours between uses; allowRace/allowSex false keep race and sex (a change puts the previous look back). Names always go through staff (/rename).",
+  "enabled": true,
+  "cost": 500,
+  "cooldownHours": 24,
+  "allowRace": false,
+  "allowSex": false
  }
 }
