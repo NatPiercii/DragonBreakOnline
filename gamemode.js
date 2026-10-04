@@ -3535,7 +3535,11 @@ globalThis.__dboCoinPurse = (targetId, casterId) => {
   if (!PURSE.enabled || !isCoinPurse(targetId)) return false;
   const say = (t) => { if (Date.now() - (purseDeny.get(casterId) || 0) > 1500) { purseDeny.set(casterId, Date.now()); personal(casterId, t); } return true; };
   const until = restUntil(purseRest, targetId);
-  if (until > Date.now()) return say(`This purse was emptied not long ago. It fills again in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
+  // In a claimed dungeon a purse emptied before the claim began is full again for the new party (dungeons.js); back to
+  // back claims found every purse resting from the last one (G64E, 4 Oct)
+  let leaseAt = 0; try { leaseAt = typeof globalThis.__dboLeaseStartedAt === 'function' ? Number(globalThis.__dboLeaseStartedAt(casterId)) || 0 : 0; } catch (e) { leaseAt = 0; }
+  const emptiedBeforeClaim = leaseAt > 0 && until - PURSE.restMinutes * 60000 < leaseAt;
+  if (until > Date.now() && !emptiedBeforeClaim) return say(`This purse was emptied not long ago. It fills again in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
   const tier = harvestingTier(casterId);
   const chance = tier >= 0 ? (Number((HARVESTING.yieldChanceByTier || [])[Math.min(tier, 4)]) || 1) : PURSE.unskilledChance;
   const mult = tier >= 0 ? (Number((HARVESTING.yieldMultiplierByTier || [])[Math.min(tier, 4)]) || 1) : PURSE.unskilledMult;

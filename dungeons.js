@@ -648,6 +648,7 @@ module.exports = (api) => {
   // A ruin can name its boss chest when the plugin's base is an ordinary one (expeditions.json bossChest: a ref or a list;
   // Nate, 2026-09-28: the chest right behind Silorn's lich is its boss chest)
   const bossChestRefs = (d) => new Set([].concat((d && d.bossChest) || []).map((r) => normDesc(String(r))));
+  const LOCKED_REROLLS = 3;
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     if (lease) lease.stocked = new Set();
@@ -664,7 +665,13 @@ module.exports = (api) => {
         // A locked chest rolls by its lock: Adept halfway to the boss row, Expert and Master the boss row
         const lock = lease && lease.locked ? lease.locked.get(id) : undefined;
         const row = lock !== undefined ? TIERS.rowFor(diff.id, 'lock', lock) : null;
-        const entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k, row)) : smallLoot(diff, ch.edid, ok, k);
+        let entries = ch.big ? (boss ? bossLoot(diff, ok, ayleid, isRaidRuin(d), k, lease && lease.province) : chestLoot(diff, false, ok, ayleid, false, k, row)) : smallLoot(diff, ch.edid, ok, k);
+        // A lock that gives way on nothing (an Adept claim's locked chests rolled empty about a third of the time; G64E,
+        // 4 Oct: "no loot from locked chests"): it rolls again, and coin is the last resort
+        if (ch.big && !boss && lock !== undefined && !entries.length) {
+          for (let i = 0; i < LOCKED_REROLLS && !entries.length; i++) entries = chestLoot(diff, false, ok, ayleid, false, k, row);
+          if (!entries.length) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1])));
+        }
         mp.set(id, 'inventory', { entries }); filled++;
         if (lease && entries.length) lease.stocked.add(id);
         if (lease) { const g = entries.reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD_BASE ? Number(e.count) || 0 : 0), 0); if (g > 0) lease.rolledGold.set(id >>> 0, g); }
@@ -1364,6 +1371,9 @@ module.exports = (api) => {
     const e = entrance && Array.isArray(entrance.pos) ? entrance : (d.entrances || []).find((x) => Array.isArray(x.pos));
     return e || null;
   };
+  // When the claim on the dungeon around this actor began, else 0: a coin purse inside fills again for each claim
+  // (gamemode.js __dboCoinPurse), as its chests do, instead of resting from the last party's visit (G64E, 4 Oct)
+  globalThis.__dboLeaseStartedAt = (a) => { const d = dungeonAround(a); const l = d ? ST.leases.get(d.id) : null; return l ? Number(l.startedAt) || 0 : 0; };
   globalThis.__dboDungeonLeave = (a) => {
     ST.pending.delete(a);
     if (!C.enabled) return false;

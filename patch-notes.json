@@ -8,7 +8,8 @@
       {
         "heading": "Fixes",
         "items": [
-          "Enchantments you learn by disenchanting are kept when you log out: the next time you log in your character still knows them at the arcane enchanter."
+          "Enchantments you learn by disenchanting are kept when you log out: the next time you log in your character still knows them at the arcane enchanter.",
+          "A locked chest in a dungeon or expedition always holds something once you pick it: before, about a third of them opened on nothing. Coin purses inside fill again for each new claim, so a party that claims straight after another no longer finds every purse emptied."
         ]
       }
     ]
