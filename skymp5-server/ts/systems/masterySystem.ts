@@ -584,6 +584,8 @@ export class MasterySystem implements System {
     const cfg = this.points; if (!cfg) return 0;
     const rep = P.repetitionFactor(prog.ring || [], novelty, now);
     prog.ring = rep.ring;
+    // Worth nothing: the act still counts as a repeat, but costs no bucket or day's room
+    if (rate === 0) return 0;
     const units = weight * rep.factor;
     const before = prog.level;
     const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost, rate);
