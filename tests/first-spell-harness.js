@@ -3,6 +3,8 @@
 // refused, Study Magic takes Arcane Arts up and pays it through the Wheel's award. At 25: the line once; at a shelf the
 // choice opens there, in the field K has it, at login a panel of its own. A mage who chose a school before this and has
 // no spell gets the starter once. tests/schools-harness.js keeps the rest of the schools at firstSchoolAt 0.
+// A starter waits until the character has been in the world starterSettleSeconds (the client sets its spells back to the
+// login list for its first seconds), and one given before that rule is sent to the client again once.
 // No server and no game: run it from this folder's parent with
 //
 //   node tests/first-spell-harness.js
@@ -176,6 +178,8 @@ const advance = (ms) => { wallClock += ms; };
 for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
 const FIRST_LINE = "You've dedicated yourself to the study of magic and are now finally able to learn your first spell and choose your school.";
 const widgetsOf = (a, id) => out.widgets.filter((w) => w.a === a && w.w.id === id);
+// Everyone online is first seen here, and has been in the world long enough for a starter by the first choice below
+tick('schools.first'); advance(91000);
 
 check('the boot line names the first spell at 25 and the four starters', out.logs.some((l) => /first spell at Arcane Arts 25 \(Destruction Frostbite, Illusion Courage, Conjuration Bound Sword, Alteration Candlelight\)/.test(l)), out.logs.filter((l) => /schools on/.test(l)));
 check('the tracked config leaves firstSchoolAt to the code (25)', CONFIG.schools.firstSchoolAt === undefined);
@@ -244,7 +248,9 @@ globalThis.__dboSchoolsLogin(ADEPT);
 w = lastWidget(ADEPT, 'studyMagic');
 check('at the next login: a short line and the choice opens on its own', said(ADEPT) === 'Your first spell and your school of magic wait to be chosen.' && w && w.mode === 'choose' && lastSent(ADEPT, 'studyMagic').focus === true, [said(ADEPT), w && w.mode]);
 ui('schoolChoose', ADEPT, [w.nonce, 'Conjuration', 'primary']);
-check('...chosen there: Conjuration with Bound Sword, and the panel closes', rec(ADEPT).primary === 'Conjuration' && studied(ADEPT).includes(T.boundSword[1]) && out.closed.some(([x, id]) => x === ADEPT && id === 73), [rec(ADEPT), studied(ADEPT)]);
+check('...chosen there: Conjuration, and the panel closes; Bound Sword waits for the client\'s first seconds', rec(ADEPT).primary === 'Conjuration' && !studied(ADEPT).length && out.closed.some(([x, id]) => x === ADEPT && id === 73), [rec(ADEPT), studied(ADEPT)]);
+advance(91000); tick('schools.first');
+check('...then Bound Sword is given', studied(ADEPT).includes(T.boundSword[1]) && known(ADEPT).has(idOf(T.boundSword[1])) && /You learn Bound Sword/.test(said(ADEPT)), [said(ADEPT), studied(ADEPT)]);
 check('Illusion and Alteration are untouched for them', !rec(ADEPT).levels.Illusion && !rec(ADEPT).levels.Alteration);
 
 // ---- on K at 25 ----
@@ -257,7 +263,11 @@ check('chosen on K at Arcane Arts 40: Alteration at 40 with Candlelight', rec(AL
 arcane(ILLUSIONIST, 3);
 put(ILLUSIONIST, 'private.dboSchools', { v: 1, primary: 'Illusion', secondary: null, grandfathered: [], levels: { Illusion: { level: 25, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
 globalThis.__dboSchoolsLogin(ILLUSIONIST);
-check('an old Illusion mage with no spell gets Courage once, at login, with a short line', studied(ILLUSIONIST).includes(T.courage[1]) && /^Your study of Illusion brings you your first spell\. You learn Courage\./.test(said(ILLUSIONIST)) && rec(ILLUSIONIST).starter === '4dee8:Skyrim.esm', [said(ILLUSIONIST), studied(ILLUSIONIST)]);
+check('an old Illusion mage logging in gets nothing in the client\'s first seconds', !studied(ILLUSIONIST).length && !rec(ILLUSIONIST).starter && !known(ILLUSIONIST).has(idOf(T.courage[1])), [studied(ILLUSIONIST), rec(ILLUSIONIST).starter]);
+advance(60000); tick('schools.first');
+check('...nor a minute in', !studied(ILLUSIONIST).length && !rec(ILLUSIONIST).starter);
+advance(31000); tick('schools.first');
+check('...then Courage, once, with a short line', studied(ILLUSIONIST).includes(T.courage[1]) && /^Your study of Illusion brings you your first spell\. You learn Courage\./.test(said(ILLUSIONIST)) && rec(ILLUSIONIST).starter === '4dee8:Skyrim.esm', [said(ILLUSIONIST), studied(ILLUSIONIST)]);
 const il = out.said.filter((x) => x[0] === ILLUSIONIST).length;
 globalThis.__dboSchoolsLogin(ILLUSIONIST); tick('schools.first');
 check('...and only once', out.said.filter((x) => x[0] === ILLUSIONIST).length === il && studied(ILLUSIONIST).filter((d) => d === T.courage[1]).length === 1);
@@ -270,6 +280,52 @@ put(OLDMAGE, 'private.dboSchools', { v: 1, primary: 'Destruction', secondary: nu
 const om = out.said.filter((x) => x[0] === OLDMAGE).length;
 globalThis.__dboSchoolsLogin(OLDMAGE);
 check('a mage with a spell of their school gets nothing, and is marked so the check stops looking', out.said.filter((x) => x[0] === OLDMAGE).length === om && studied(OLDMAGE).length === 1 && rec(OLDMAGE).starter === 'had', [studied(OLDMAGE), rec(OLDMAGE).starter]);
+
+// ---- choosing in the client's first seconds ----
+{
+  const QUICK = 0x1d; NAMES[QUICK] = 'Quick'; put(QUICK, 'profileId', QUICK); at(QUICK, SYNOD, [0, 0, 0]); online.push(QUICK); ui('uiCaps', QUICK, ['bank', 'spellbook', 'schools']); arcane(QUICK, 30);
+  globalThis.__dboSchoolsLogin(QUICK);
+  const kp = progress(QUICK);
+  ui('schoolChoose', QUICK, [kp.nonce, 'Destruction', 'primary']);
+  check('chosen at once after login: the school is set, Frostbite waits and the player is told it comes', rec(QUICK).primary === 'Destruction' && !studied(QUICK).length && !known(QUICK).has(idOf(T.frostbite[1])) && /Frostbite comes to you in a moment\./.test(said(QUICK)), [said(QUICK), studied(QUICK)]);
+  advance(91000); tick('schools.first');
+  check('...and is given once the client has settled', studied(QUICK).includes(T.frostbite[1]) && known(QUICK).has(idOf(T.frostbite[1])) && /^Your study of Destruction brings you your first spell\. You learn Frostbite\. It is prepared\./.test(said(QUICK)) && typeof rec(QUICK).starterSent === 'number', [said(QUICK), rec(QUICK)]);
+  const removes = [];
+  const call = mp.callPapyrusFunction;
+  mp.callPapyrusFunction = (k, c, fn, self, args) => { if (fn === 'RemoveSpell' || fn === 'AddSpell') removes.push([idOf(self.desc), fn]); return call(k, c, fn, self, args); };
+  tick('schools.first'); tick('schools.first');
+  check('...a starter given after the client settled is not sent again', !removes.some(([x]) => x === QUICK), removes);
+  mp.callPapyrusFunction = call;
+}
+
+// ---- a starter given at login before this rule: sent to the client again, once ----
+{
+  const LATE = 0x1e, PUTAWAY = 0x1f; NAMES[LATE] = 'Late'; NAMES[PUTAWAY] = 'Putaway';
+  const calls = [];
+  const call = mp.callPapyrusFunction;
+  mp.callPapyrusFunction = (k, c, fn, self, args) => { if (fn === 'RemoveSpell' || fn === 'AddSpell') calls.push([idOf(self.desc), fn, args[0].desc]); return call(k, c, fn, self, args); };
+  for (const [a, prep] of [[LATE, [T.boundSword[1]]], [PUTAWAY, []]]) {
+    put(a, 'profileId', a); at(a, SYNOD, [0, 0, 0]); online.push(a); ui('uiCaps', a, ['bank', 'spellbook', 'schools']); arcane(a, 2);
+    put(a, 'private.dboStudied', { arcane: [T.boundSword[1]] });
+    put(a, 'private.dboPrepared', prep);
+    if (prep.length) known(a).add(idOf(T.boundSword[1]));
+    put(a, 'private.dboSchools', { v: 1, primary: 'Conjuration', secondary: null, grandfathered: [], levels: { Conjuration: { level: 31, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, starter: T.boundSword[1] });
+    globalThis.__dboSchoolsLogin(a);
+  }
+  tick('schools.first');
+  check('an old grant is left alone in the client\'s first seconds', !calls.length, calls);
+  advance(91000); tick('schools.first');
+  check('...then taken back first, on its own check', calls.length === 1 && calls[0][0] === LATE && calls[0][1] === 'RemoveSpell' && calls[0][2] === T.boundSword[1] && rec(LATE).starterSent === 'taken', calls);
+  check('...the book and the prepared list keep it meanwhile', studied(LATE).includes(T.boundSword[1]) && (props.get(LATE + '|private.dboPrepared') || []).includes(T.boundSword[1]));
+  tick('schools.first');
+  check('...and given again on the next', calls.length === 2 && calls[1][1] === 'AddSpell' && known(LATE).has(idOf(T.boundSword[1])) && typeof rec(LATE).starterSent === 'number', calls);
+  check('...the player is told, and it is audited', said(LATE) === 'Your first spell is back. Bound Sword is ready among your spells.' && out.audits.some((l) => /SCHOOLS P1e was sent the Conjuration starter 211eb:Skyrim\.esm Bound Sword again/.test(l)), [said(LATE)]);
+  tick('schools.first'); globalThis.__dboSchoolsLogin(LATE); advance(91000); tick('schools.first'); tick('schools.first');
+  check('...only once, a relog later too', calls.length === 2, calls);
+  check('an old grant the player put away is only marked: nothing sent, nothing said', !calls.some(([x]) => x === PUTAWAY) && typeof rec(PUTAWAY).starterSent === 'number' && !out.said.some((x) => x[0] === PUTAWAY), calls);
+  mp.callPapyrusFunction = call;
+  online = online.filter((x) => x !== LATE && x !== PUTAWAY && x !== 0x1d);
+}
 
 // ---- an old client ----
 {

@@ -65,6 +65,11 @@ module.exports = (api) => {
     firstSchoolAt: 25,
     starters: { Destruction: '2b96b:Skyrim.esm', Conjuration: '211eb:Skyrim.esm', Illusion: '4dee8:Skyrim.esm', Alteration: '43324:Skyrim.esm' },
     firstStudyWeight: 3,
+    // The client sets its spells back to the list it was sent at character load for its first seconds in the world
+    // (skymp5-client remoteServer.ts SPELL_ENFORCE_PASSES, 1 to 20 s, paused by loading screens), so a spell the server
+    // adds then is taken off the player's screen while the server keeps it (3-4 Oct: every starter given at login). The
+    // starter waits until the character has been seen in the world this long.
+    starterSettleSeconds: 90,
     castUnits: 0.5,
     castDailyUnits: 120,
     study: {
@@ -246,20 +251,46 @@ module.exports = (api) => {
   // No school yet, and Arcane Arts short of the first spell
   const beforeFirst = (a, s) => !!FIRST_AT && !s.primary && arcaneOf(a).level < FIRST_AT;
   const notYet = (level) => `Your first spell and your school of magic open at Arcane Arts ${FIRST_AT}; yours is ${level}. Study Magic at a place of learning, or cast what you know, to get there.`;
-  // The school's starter into the Arcane Arts book, once, for a mage with no spell of the four schools yet; the line to tell
+  // When each online character was last seen arriving (login, or the first check that saw them), kept over a reload
+  const SETTLE_MS = Math.max(0, Number(C.starterSettleSeconds) || 0) * 1000;
+  const seenAt = globalThis.__dboSchoolsSeenAt instanceof Map ? globalThis.__dboSchoolsSeenAt : (globalThis.__dboSchoolsSeenAt = new Map());
+  const seen = (a, arrived) => { if (arrived || !seenAt.has(a >>> 0)) seenAt.set(a >>> 0, Date.now()); };
+  const settled = (a) => seenAt.has(a >>> 0) && Date.now() - seenAt.get(a >>> 0) >= SETTLE_MS;
+  // The school's starter into the Arcane Arts book, once, for a mage with no spell of the four schools yet; the line to tell.
+  // Inside the client's first seconds it waits (''), and firstCheck gives it once they are over.
   const giveStarter = (a, s) => {
     if (!s.primary || s.starter) return '';
     const had = firstSpell(a);
     if (had) { s.starter = 'had'; save(a, s); return ''; }
+    if (!settled(a)) return '';
     const id = starterId(s.primary);
     if (!id || typeof globalThis.__dboSpellsGrant !== 'function') return '';
     let r = null;
     try { r = globalThis.__dboSpellsGrant(a, id, C.arcaneSkill); } catch (e) { log('schools: starter failed', e.message); return ''; }
     if (!r) return '';
     s.starter = descOf(id);
+    s.starterSent = Date.now();
     save(a, s);
     audit(`SCHOOLS ${who(a)} was given the ${s.primary} starter ${s.starter} ${r.name}`);
     return r.ok ? `You learn ${r.name}. ${r.line}` : '';
+  };
+
+  // A starter given before starterSettleSeconds existed went in inside the client's first seconds and was taken off the
+  // screen again. It is sent once more, in two checks so the client cannot run the add before the remove: taken back,
+  // then given again (a relog, or putting it away and preparing it, did the same by hand).
+  const papyrusSpell = (a, fn, id, extra) => { try { return mp.callPapyrusFunction('method', 'Actor', fn, { type: 'form', desc: descOf(a) }, [{ type: 'espm', desc: descOf(id) }].concat(extra || [])) === true; } catch (e) { log(`schools: ${fn} ${descOf(id)} failed`, e.message); return false; } };
+  const resendStarter = (a, s) => {
+    if (!s.starter || s.starter === 'had' || (s.starterSent && s.starterSent !== 'taken') || !settled(a)) return '';
+    const id = idOf(s.starter);
+    const sp = id && typeof globalThis.__dboSpellsClassify === 'function' ? globalThis.__dboSpellsClassify(id) : null;
+    const prepared = (get(a, 'private.dboPrepared', []) || []).map((d) => norm(d)).includes(norm(s.starter));
+    if (!sp || !prepared) { s.starterSent = Date.now(); save(a, s); return ''; }
+    if (s.starterSent !== 'taken') { papyrusSpell(a, 'RemoveSpell', id); s.starterSent = 'taken'; save(a, s); return ''; }
+    papyrusSpell(a, 'AddSpell', id, [false]);
+    s.starterSent = Date.now();
+    save(a, s);
+    audit(`SCHOOLS ${who(a)} was sent the ${s.primary} starter ${s.starter} ${sp.name} again`);
+    return `${sp.name} is ready among your spells.`;
   };
 
   // ---- the Wheel: Arcane Arts through masterySystem's own cast credit ----------------------------------------------
@@ -305,7 +336,8 @@ module.exports = (api) => {
       save(a, s);
       audit(`SCHOOLS ${who(a)} chose ${school} as their primary school (level ${levelOf(s, school)})`);
       const learned = giveStarter(a, s);
-      return { ok: true, text: `${school} is your school of magic. ${learned ? learned + ' ' : ''}The other schools are closed to you until your Arcane Arts reaches ${C.secondaryAtLevel}.` };
+      const soon = !learned && !s.starter && starterName(school) ? `${starterName(school)} comes to you in a moment. ` : '';
+      return { ok: true, text: `${school} is your school of magic. ${learned ? learned + ' ' : soon}The other schools are closed to you until your Arcane Arts reaches ${C.secondaryAtLevel}.` };
     }
     if (as === 'secondary') {
       if (!s.primary) return { ok: false, text: 'Choose your primary school first.' };
@@ -589,10 +621,13 @@ module.exports = (api) => {
   // told once; at a Study Magic shelf the choice opens there, at login it opens on its own, in the field K has it.
   const firstCheck = (a, why) => {
     if (!ready(a) || !isPlayer(a)) return;
+    seen(a, why === 'login');
     const s = stateOf(a);
     if (s.primary) {
       const line = giveStarter(a, s);
       if (line) personal(a, `Your study of ${s.primary} brings you your first spell. ${line}`);
+      const again = line ? '' : resendStarter(a, s);
+      if (again) personal(a, `Your first spell is back. ${again}`);
       return;
     }
     if (!FIRST_AT || arcaneOf(a).level < FIRST_AT) return;
@@ -1137,6 +1172,8 @@ module.exports = (api) => {
   });
   // The first spell's moment for everyone online (firstCheck): Arcane Arts reached in the field, or a school with no spell
   every('schools.first', 10000, () => {
+    const on = new Set(onlineActors().map((x) => x >>> 0));
+    for (const a of [...seenAt.keys()]) if (!on.has(a)) seenAt.delete(a);
     for (const a of onlineActors()) { try { firstCheck(a, 'tick'); } catch (e) { log(`schools: first check for ${display(a)} failed: ${e.message}`); } }
   });
   every('schools.classes', 10000, () => {
