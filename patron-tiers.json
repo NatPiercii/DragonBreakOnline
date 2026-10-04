@@ -1,6 +1,6 @@
 {
   "_comment": "Patreon tiers by Discord role id, best first; a player gets the first tier they hold. bonuses stack on top. Read by fork skymp5-server/ts/systems/patronTiers.ts (character slots, reserved places) and server/patrons.js (identity rerolls). rerolls: 'unlimited', { perCharacter: n } or { total: n }.",
-  "reservedSlots": 20,
+  "reservedSlots": 40,
   "tiers": [
     { "id": "owner", "label": "Owner", "roleId": "1494126527489507369", "extraSlots": 5, "rerolls": "unlimited", "priority": true },
     { "id": "gm", "label": "GM", "roleId": "1494126618065506425", "extraSlots": 4, "rerolls": "unlimited", "priority": true },
