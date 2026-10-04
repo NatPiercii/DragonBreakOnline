@@ -32,6 +32,14 @@ const DEFAULT_MODES: VoiceMode[] = [
   { key: "shout", label: "Shout", units: 3150 },
 ];
 
+// The voice service's view of a button: keyboard keys keep their DxScanCode, mouse buttons become 256 + their
+// DirectInput index (as SkyrimPlatform's DxScanCode numbers them), anything else (gamepad) is ignored
+export const voiceEventCode = (device: InputDeviceType, rawCode: number): number | null => {
+  if (device === InputDeviceType.Keyboard) return rawCode;
+  if (device === InputDeviceType.Mouse) return rawCode >= 256 ? rawCode : 256 + rawCode;
+  return null;
+};
+
 export class VoiceService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
@@ -96,24 +104,27 @@ export class VoiceService extends ClientListener {
   }
 
   private onButtonEventImpl(e: ButtonEvent) {
-    if (e.device !== InputDeviceType.Keyboard) return;
+    // A mouse button can be the talk key (#suggestions 'Keybinds'): the launcher saves it as DxScanCode 256 + the
+    // DirectInput button index (258 middle, 259 Mouse 4, 260 Mouse 5), while a Mouse ButtonEvent carries the bare index
+    const code = voiceEventCode(e.device, e.code);
+    if (code === null) return;
 
-    if (this.modeKey !== DxScanCode.LeftAlt && e.code === this.modeKey) {
+    if (this.modeKey !== DxScanCode.LeftAlt && code === this.modeKey) {
       if (e.isDown && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
       return;
     }
 
     // Track Alt: a plain tap of Left Alt cycles whisper -> talk -> shout; Alt+V still does too
-    if (e.code === DxScanCode.LeftAlt || e.code === DxScanCode.RightAlt) {
+    if (code === DxScanCode.LeftAlt || code === DxScanCode.RightAlt) {
       if (e.isDown) { this.altDown = true; this.altUsedAsModifier = false; }
       else if (e.isUp) {
         this.altDown = false;
-        if (e.code === DxScanCode.LeftAlt && this.modeKey === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
+        if (code === DxScanCode.LeftAlt && this.modeKey === DxScanCode.LeftAlt && !this.altUsedAsModifier && !this.sp.browser.isFocused() && !isConsoleOpen(this.sp)) this.cycleMode();
       }
       return;
     }
     if (this.altDown && e.isDown) this.altUsedAsModifier = true;
-    if (e.code !== this.voiceKey) return;
+    if (code !== this.voiceKey) return;
     // The key went up here, so the page lost the keyboard while holding it (a window closed mid-talk): let its mic go
     if (e.isUp) this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.releaseDomPtt && window.__alduinakVoice.releaseDomPtt()`);
 

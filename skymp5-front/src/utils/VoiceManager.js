@@ -78,6 +78,8 @@ const DX_TO_CODE = (() => {
     0x28: 'Quote', 0x33: 'Comma', 0x34: 'Period', 0x35: 'Slash' });
   return m;
 })();
+// A mouse talk key (#suggestions 'Keybinds'): DxScanCode -> MouseEvent.button (258 middle, 259 Mouse 4, 260 Mouse 5)
+const DX_TO_MOUSE = { 258: 1, 259: 3, 260: 4 };
 // A field the player types letters into keeps the letter; buttons, number fields (the trade window's amounts, where a
 // letter cannot be typed anyway) and the rest of a window do not
 const isTextField = (el) => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
@@ -105,6 +107,7 @@ class VoiceManager {
     this.vectors = {};         // identity -> { d, az, fa } from setPeerVectors: distance, bearing, how squarely they face me
     this.peerRanges = {};      // identity -> that speaker's mode range
     this.ptt = false;
+    this.pttMouse = null;      // or the talk key's mouse button, when the launcher bound one
     this.pttCode = 'KeyV';     // the talk key while the page has the keyboard (the game side sees it otherwise)
     this.domPtt = false;       // the page's own push-to-talk is holding the mic
     this.audioEls = new Map(); // identity -> HTMLAudioElement
@@ -504,7 +507,10 @@ class VoiceManager {
     if (!cfg || typeof cfg !== 'object') return;
     if (Array.isArray(cfg.modes) && cfg.modes.length) this.modes = cfg.modes;
     if (cfg.mode && this.modeByKey(cfg.mode)) this.mode = cfg.mode;
-    if (typeof cfg.pttScanCode === 'number') this.pttCode = DX_TO_CODE[cfg.pttScanCode] || null;
+    if (typeof cfg.pttScanCode === 'number') {
+      this.pttCode = DX_TO_CODE[cfg.pttScanCode] || null;
+      this.pttMouse = DX_TO_MOUSE[cfg.pttScanCode] !== undefined ? DX_TO_MOUSE[cfg.pttScanCode] : null;
+    }
   }
 
   modeByKey(key) {
@@ -802,6 +808,26 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   const vm = window.__alduinakVoice;
   if (vm && e.code === vm.pttCode) vm.releaseDomPtt();
+}, true);
+// The same for a mouse talk key while a window has the cursor. The side buttons would otherwise also act as the
+// page's back and forward, so a bound one is swallowed
+window.addEventListener('mousedown', (e) => {
+  const vm = window.__alduinakVoice;
+  if (!vm || vm.pttMouse === null || e.button !== vm.pttMouse) return;
+  e.preventDefault();
+  if (vm.domPtt) return;
+  vm.domPtt = true;
+  vm.setPtt(true);
+}, true);
+window.addEventListener('mouseup', (e) => {
+  const vm = window.__alduinakVoice;
+  if (!vm || vm.pttMouse === null || e.button !== vm.pttMouse) return;
+  e.preventDefault();
+  vm.releaseDomPtt();
+}, true);
+window.addEventListener('auxclick', (e) => {
+  const vm = window.__alduinakVoice;
+  if (vm && vm.pttMouse !== null && e.button === vm.pttMouse) e.preventDefault();
 }, true);
 window.addEventListener('blur', () => { const vm = window.__alduinakVoice; if (vm) vm.releaseDomPtt(); });
 
