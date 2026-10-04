@@ -104,6 +104,7 @@ declare -A NEEDS=(
   [spawn-heading]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [spawn-stray]=server:skymp5-server/ts/systems/npcSpawnSystem.ts
   [name-release]=server:skymp5-server/ts/systems/spawn.ts
+  [playtime-slot]=server:skymp5-server/ts/systems/spawn.ts
   [capture-leash]=server:skymp5-server/ts/systems/captureSystem.ts
   [capture-rope]=server:skymp5-server/ts/systems/captureSystem.ts
   [trade-open-hook]=server:skymp5-server/ts/systems/tradeSystem.ts

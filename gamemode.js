@@ -5946,6 +5946,13 @@ try {
   delete require.cache[PLAYTESTERBOOST_JS];
   require(PLAYTESTERBOOST_JS)({ mp, log, personal, system, registerChatCommand, audit, who, display, profileOf, rolesOf, isAdmin, isLeadStaff, findByName, onlineActors, every, cfg });
 } catch (e) { log('playtesterboost.js failed to load:', e.stack || e.message); globalThis.__dboBoostLogin = null; }
+// ---- an extra character slot at 150 hours played (server\playtime.js, config "playtimeSlot"; fork patronTiers.ts counts it) ----
+// A failed load leaves globalThis.__dboEarnedSlots as the last good load set it, so earned slots never drop off the list
+try {
+  const PLAYTIME_JS = path.resolve('playtime.js');
+  delete require.cache[PLAYTIME_JS];
+  require(PLAYTIME_JS)({ mp, log, personal, system, registerChatCommand, audit, who, display, profileOf, isAdmin, findAnyByName, onlineActors, every, creationPending, cfg });
+} catch (e) { log('playtime.js failed to load:', e.stack || e.message); }
 
 // ---- vampirism and lycanthropy (server\supernatural.js) ------------------------------------------------
 try {
