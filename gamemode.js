@@ -1466,6 +1466,11 @@ globalThis.__dboHandlers.customPacket = (userId, rawContent) => {
       writeDiagLines(userId, content.lines);
       return;
     }
+    // RaceMenu face presets: uploads after RaceSexMenu and requests for a copy's face (racemenupresets.js)
+    if (typeof content.customPacketType === 'string' && content.customPacketType.startsWith('dboPreset')) {
+      if (typeof globalThis.__dboPresetPacket === 'function') globalThis.__dboPresetPacket(userId, content);
+      return;
+    }
     // Front widgets driven by this file talk back through the client's DboRelayService.
     if (content.customPacketType === 'dbo') {
       const a = actorOf(userId); const hs = (globalThis.__dboUiEvents && globalThis.__dboUiEvents.get(String(content.event))) || [];
@@ -4366,6 +4371,12 @@ try {
   delete require.cache[GEARSWAP_JS];
   require(GEARSWAP_JS)({ mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand, findByName, isStaff: isAdmin });
 } catch (e) { log('gearswap.js failed to load:', e.stack || e.message); }
+// ---- RaceMenu face sliders, expressions and sculpt per character (server\racemenupresets.js; config "racemenuPresets") ----
+try {
+  const RACEMENU_PRESETS_JS = path.resolve('racemenupresets.js');
+  delete require.cache[RACEMENU_PRESETS_JS];
+  require(RACEMENU_PRESETS_JS)({ mp, log, sendPacket, onlineActors, actorOf, profileOf, every, cfg });
+} catch (e) { log('racemenupresets.js failed to load:', e.stack || e.message); globalThis.__dboPresetPacket = null; }
 // The trade window (fork tradeSystem.ts) asks before an item changes hands: a reason for the player, or null
 globalThis.__dboTradeItemVeto = (a, baseId, count) => {
   try { return typeof globalThis.__dboManualsOwedMove === 'function' ? globalThis.__dboManualsOwedMove(Number(a) >>> 0, Number(baseId) >>> 0, Number(count)) || null : null; } catch (e) { return null; }

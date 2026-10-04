@@ -112,3 +112,6 @@ gearswap-restore-metals.json
 # RaceMenu extras kept per character (appearanceextras.js)
 appearance-extras.json
 appearance-extras.json.tmp
+
+# RaceMenu face presets, one file per character (racemenupresets.js)
+racemenu-presets/
