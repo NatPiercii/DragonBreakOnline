@@ -77,6 +77,24 @@ const check = (name, ok, got) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}$
   sys.doRevokeKeys(ctx, USER, NAMED, recOf(NAMED), true, false);
   check('a revoke scraps every copy', !opens(NAMED, n1) && !opens(NAMED, n2) && !opens(NAMED, n3));
 
+  // An unnamed property's keys are called after its door in doors.json (Nate, 4 Oct: "Property Key" says nothing), two
+  // doors of one name are told apart, and a door doors.json does not know keeps the credential
+  const CASTLE = 0x400, SHACK1 = 0x500, SHACK2 = 0x600;
+  const descs = { [CASTLE]: '6C4D9:BSHeartland.esm', [SHACK1]: '6766b:BSHeartland.esm', [SHACK2]: '67673:BSHeartland.esm' };
+  mp.getDescFromId = (id) => descs[id] || `${id.toString(16)}:Unknown.esp`;
+  fs.writeFileSync(path.join(out, 'doors.json'), JSON.stringify({ doors: { '6c4d9:BSHeartland.esm': 'Bruma Castle', '6766b:BSHeartland.esm': 'Bruma Shack', '67673:BSHeartland.esm': 'Bruma Shack' } }));
+  const cwd = process.cwd(); process.chdir(out);
+  for (const id of [CASTLE, SHACK1, SHACK2]) mp.set(id, HP, record(null));
+  sys.claimed = [NAMED, UNNAMED, OTHER, CASTLE, SHACK1, SHACK2];
+  const c1 = cut(CASTLE), c2 = cut(CASTLE);
+  check('an unnamed property\'s key is named after its door', c1 === 'Key to Bruma Castle' && c2 === 'Key to Bruma Castle No. 2', [c1, c2]);
+  check('both door-named keys open it, and nothing else', opens(CASTLE, c1) && opens(CASTLE, c2) && !opens(UNNAMED, c1) && !opens(SHACK1, c1));
+  const s1 = cut(SHACK1), s2 = cut(SHACK2);
+  check('two doors of one name get two key names', s1 === 'Key to Bruma Shack' && s2 === 'Key to Bruma Shack, the second', [s1, s2]);
+  check('each shack key opens only its shack', opens(SHACK1, s1) && !opens(SHACK1, s2) && opens(SHACK2, s2) && !opens(SHACK2, s1));
+  check('a door doors.json does not know keeps the credential', cut(UNNAMED) === 'Property Key No. 3 (200)', recOf(UNNAMED).issued);
+  process.chdir(cwd);
+
   fs.rmSync(out, { recursive: true, force: true });
   console.log(failures ? `${failures} FAILED` : 'all checks passed');
   process.exit(failures ? 1 : 0);

@@ -51,6 +51,9 @@ const GAMEMODE_CONFIG_FILE = "./gamemode-config.json";
 const TENANCY_FILE = "./tenancy.json";
 // The map of whole buildings, generated from the load order by the gameplay's tools/buildings_build.py (Nate, 4 Oct)
 const BUILDINGS_FILE = "./buildings.json";
+// Load door -> readable destination name (ck-mcp/doors.py), the names the door prompts show; an unnamed property's keys are
+// called after its door (Nate, 4 Oct: keys need real names, "Property Key" says nothing)
+const DOORS_FILE = "./doors.json";
 const PLACE_PLAN_DELAY_MS = 30000;
 const PLACE_PLAN_MAX_TRIES = 10;
 // The key serial of a granted way in whose old record cannot be read: far past any serial a claim reaches by re-keying
@@ -1305,8 +1308,9 @@ export class HousingSystem implements System {
   // when the locks have been re-cut, and both are rare. An unnamed property
   // keeps the old form, because there is nothing to call its key.
   // Keys cut before this still open their door: the credential is still taken.
-  private keyNameFor(label: string, rank: number, rec: PropertyRecord): string {
-    const base = rank > 1 ? `Key to the ${label}, the ${this.ordinal(rank)}` : `Key to the ${label}`;
+  private keyNameFor(label: string, rank: number, rec: PropertyRecord, the = true): string {
+    const to = the ? `Key to the ${label}` : `Key to ${label}`;
+    const base = rank > 1 ? `${to}, the ${this.ordinal(rank)}` : to;
     if (rec.serial <= 1) return base;
     return `${base} (recut${rec.serial > 2 ? " " + (rec.serial - 1) : ""})`;
   }
@@ -1335,13 +1339,34 @@ export class HousingSystem implements System {
   }
 
   // The lowest "Key to the X[, the Nth]" no other claimed property answers to
+  // An unnamed property's key is called after its door ("Key to Bruma Castle"); with no door name it keeps the credential
   private keyNameToCut(ctx: SystemContext, primary: number, rec: PropertyRecord, taken = this.takenKeyNames(ctx, primary)): string {
-    const label = (rec.name || "").trim();
+    const named = (rec.name || "").trim();
+    const label = named || this.doorLabel(ctx, primary);
     if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
     for (let rank = 1; ; rank++) {
-      const name = this.keyNameFor(label, rank, rec);
+      const name = this.keyNameFor(label, rank, rec, !!named);
       if (!taken.has(name)) return name;
     }
+  }
+
+  // The readable name doors.json gives this door ("Bruma Castle"), or ""; the file is read again when it changes
+  private doorLabel(ctx: SystemContext, refrId: number): string {
+    let mtime = 0;
+    try { mtime = fs.statSync(DOORS_FILE).mtimeMs; } catch { this.doorNames = null; return ""; }
+    if (!this.doorNames || this.doorNames.mtime !== mtime) {
+      const byDesc = new Map<string, string>();
+      try {
+        const data = JSON.parse(fs.readFileSync(DOORS_FILE, "utf8"));
+        const doors = data && typeof data.doors === "object" && data.doors ? data.doors : {};
+        for (const k of Object.keys(doors)) if (typeof doors[k] === "string" && doors[k].trim()) byDesc.set(k.toLowerCase(), doors[k].trim().slice(0, 48));
+      } catch (e) { this.log(`[housing] ${DOORS_FILE} unreadable: ${e}`); }
+      this.doorNames = { mtime, byDesc };
+    }
+    try {
+      const desc = String((ctx.svr as Mp).getDescFromId(refrId >>> 0) || "").toLowerCase();
+      return (desc && this.doorNames.byDesc.get(desc)) || "";
+    } catch { return ""; }
   }
 
   // Each key cut gets a name of its own ("Key to the X No. 2", "Property Key No. 2 (TAG)"), so two keys never stack
@@ -2191,6 +2216,7 @@ export class HousingSystem implements System {
 
   private claimed: number[] = [];
   private buildings: { mtime: number; byCell: Map<string, string[]> } | null = null;
+  private doorNames: { mtime: number; byDesc: Map<string, string> } | null = null;
   // The ref a property request was made at, while it runs
   private aimedAt = 0;
   private partnerCache = new Map<number, number>();
