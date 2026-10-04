@@ -8,8 +8,12 @@ export const CHUNK_CHARS = 12000;
 export const MAX_CHUNKS = Math.ceil(PRESET_MAX_CHARS / CHUNK_CHARS);
 export const MAX_CUSTOM_MORPHS = 1024;
 export const MAX_MORPH_NAME = 128;
-// skee repeats a preset slider's morph once per whole unit of its value (FaceMorphInterface::ApplyMorph)
-export const MAX_MORPH_VALUE = 100;
+// RaceMenu's ranges (skee FaceMorphInterface.cpp): a slider runs -1..1 times fSliderMultiplier (1.0 unless skee64.ini
+// changes it) and is applied once per whole unit past 1; a preset slider is a whole number 0..its preset count
+export const MAX_SLIDER = 1;
+export const MAX_PRESET_INDEX = 32;
+// A sculpt moves a vertex at most this many units (a head is about 20 across)
+export const MAX_SCULPT_UNITS = 30;
 export const MAX_SCULPT_HOSTS = 16;
 // skee keeps sculpt indices as UInt16
 export const MAX_VERTICES = 65535;
@@ -77,6 +81,9 @@ const modNamesFrom = (root: Record<string, unknown>): string[] => {
   return out;
 };
 
+export const morphValueOk = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v)
+  && (Number.isInteger(v) ? v >= -MAX_SLIDER && v <= MAX_PRESET_INDEX : Math.abs(v) <= MAX_SLIDER);
+
 const customFrom = (x: unknown): CustomMorph[] | null => {
   if (x === undefined || x === null) return [];
   if (!Array.isArray(x) || x.length > MAX_CUSTOM_MORPHS) return null;
@@ -84,13 +91,13 @@ const customFrom = (x: unknown): CustomMorph[] | null => {
   for (const m of x) {
     if (!isObject(m) || !isCleanString(m.name, MAX_MORPH_NAME)) return null;
     const value = m.value;
-    if (typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) > MAX_MORPH_VALUE) return null;
+    if (!morphValueOk(value)) return null;
     if (value !== 0) out.push({ name: m.name, value });
   }
   return out;
 };
 
-const sculptFrom = (x: unknown): SculptHost[] | null => {
+const sculptFrom = (x: unknown, divisor: unknown): SculptHost[] | null => {
   if (x === undefined || x === null) return [];
   if (!Array.isArray(x) || x.length > MAX_SCULPT_HOSTS) return null;
   const out: SculptHost[] = [];
@@ -102,7 +109,8 @@ const sculptFrom = (x: unknown): SculptHost[] | null => {
     const data: number[][] = [];
     for (const v of raw) {
       if (!Array.isArray(v) || v.length !== 4 || !isIntIn(v[0], 0, vertices - 1)) return null;
-      for (let k = 1; k < 4; k++) if (!isIntIn(v[k], -MAX_SCULPT_OFFSET, MAX_SCULPT_OFFSET)) return null;
+      const maxOffset = Math.min(MAX_SCULPT_OFFSET, MAX_SCULPT_UNITS * (divisor as number));
+      for (let k = 1; k < 4; k++) if (!isIntIn(v[k], -maxOffset, maxOffset)) return null;
       data.push([v[0], v[1], v[2], v[3]]);
     }
     if (data.length && !out.some((o) => o.host.toLowerCase() === host.toLowerCase())) out.push({ host, vertices, data });
@@ -118,13 +126,11 @@ export const facePresetFrom = (jslot: unknown): FacePreset | null => {
   if (!version) return null;
   const morphs = isObject(jslot.morphs) ? jslot.morphs : {};
   const custom = customFrom(morphs.custom);
-  const sculpt = sculptFrom(morphs.sculpt);
+  const hasSculpt = Array.isArray(morphs.sculpt) && morphs.sculpt.some((h) => isObject(h) && Array.isArray(h.data) && h.data.length > 0);
+  if (hasSculpt && !isIntIn(morphs.sculptDivisor, 1, MAX_SCULPT_DIVISOR)) return null;
+  const sculpt = sculptFrom(morphs.sculpt, hasSculpt ? morphs.sculptDivisor : 10000);
   if (!custom || !sculpt) return null;
-  let sculptDivisor = 10000;
-  if (sculpt.length) {
-    if (!isIntIn(morphs.sculptDivisor, 1, MAX_SCULPT_DIVISOR)) return null;
-    sculptDivisor = morphs.sculptDivisor;
-  }
+  const sculptDivisor = sculpt.length ? (morphs.sculptDivisor as number) : 10000;
   return { version, modNames: modNamesFrom(jslot), custom, sculptDivisor, sculpt };
 };
 

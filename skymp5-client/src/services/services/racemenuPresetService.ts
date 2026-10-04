@@ -6,7 +6,7 @@ import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { parseCustomPacket, sendCustomPacket } from "./customPacketUtil";
 import { getViewFromStorage } from "../../view/worldViewMisc";
 import { queueCopyNiNodeWork, queuePlayerNiNodeWork } from "../../view/niNodeQueue";
-import { isBeastRaceId } from "../../sync/beastRaceIds";
+import { isGuardedActor, isGuardedRace } from "../../sync/beastRaces";
 import { Appearance } from "../../sync/appearance";
 import {
   ApplyLedger, ChunkAssembler, FacePreset, applyBlockedBy, boundSculpt, buildJslot, chunkText, decodeFace, encodeFace,
@@ -144,8 +144,8 @@ export class RacemenuPresetService extends ClientListener {
     const natives = this.natives();
     const player = Game.getPlayer();
     if (!natives || !player) return;
+    if (isGuardedActor(player)) return;
     const race = (player.getRace()?.getFormID() ?? 0) >>> 0;
-    if (isBeastRaceId(race)) return;
     const name = presetFileName("self");
     let text: string | undefined;
     try {
@@ -281,12 +281,20 @@ export class RacemenuPresetService extends ClientListener {
     return out;
   }
 
+  private stillOwns(localId: number, remoteId: number, hash: string): boolean {
+    const current = this.cache[remoteId];
+    if (!current || current.hash !== hash || !current.face) return false;
+    return this.copies().some((c) => c.localId === localId && c.remoteId === remoteId);
+  }
+
   private gateFor(actor: Actor, entry: CacheEntry, now: number): string | null {
     let raceNow = 0, loaded3D = false, inCombat = false;
     try { raceNow = (actor.getRace()?.getFormID() ?? 0) >>> 0; } catch { return "gone"; }
     try { loaded3D = actor.is3DLoaded(); } catch { loaded3D = false; }
     try { inCombat = actor.isInCombat(); } catch { inCombat = false; }
-    return applyBlockedBy({ raceNow, presetRace: entry.race, isBeast: isBeastRaceId(raceNow), raceMenuSettling: this.raceMenuSettling(now), loaded3D, inCombat });
+    // One rule with part 1 for everything skee writes into a 3D: a non-humanoid or unreadable race is refused
+    const isBeast = isGuardedActor(actor) || isGuardedRace(entry.race);
+    return applyBlockedBy({ raceNow, presetRace: entry.race, isBeast, raceMenuSettling: this.raceMenuSettling(now), loaded3D, inCombat });
   }
 
   // Main head parts only, as skee's own SaveJsonPreset lists them, named as skee's GetFormIdentifier names forms
@@ -320,6 +328,8 @@ export class RacemenuPresetService extends ClientListener {
     // Marked now so the scan does not queue it twice; a slot that finds it blocked hands it back
     this.ledger.markDone(localId, hash);
     queueCopyNiNodeWork(localId, (copy) => {
+      // The id must still be this player's copy, and the face still theirs: a destroyed copy's id can be reused
+      if (!this.stillOwns(localId, remoteId, hash)) return false;
       if (this.gateFor(copy, entry, Date.now())) { this.ledger.forget(localId); return false; }
       if (!this.load(copy, name, jslot, natives)) return false;
       this.afterLoad(localId, `${remoteId.toString(16)} face on ${localId.toString(16)}, ${hash}`);

@@ -105,3 +105,10 @@ export const queuePlayerNiNodeWork = (work: NiNodeWork): void => {
   if (plan.copySentIn(frame)) { plan.wantPlayer(); return; }
   sendPlayer();
 };
+
+// A copy that is destroyed takes its queued work with it: its 0xff id can be reused by another reference
+export const dropCopyNiNodeWork = (formId: number): void => {
+  const id = formId >>> 0;
+  if (!copyWork.delete(id)) return;
+  if (!plainWanted.has(id)) plan.forget(id);
+};

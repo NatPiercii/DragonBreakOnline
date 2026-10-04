@@ -15,7 +15,7 @@ import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
-import { queueCopyNiNodeUpdate } from "./niNodeQueue";
+import { dropCopyNiNodeWork, queueCopyNiNodeUpdate } from "./niNodeQueue";
 import { lastTryHost, tryHost } from "./hostAttempts";
 import { GHOST_ALPHA, GHOST_SHADER_ID } from "../lib/ghostLook";
 import { ModelApplyUtils } from "./modelApplyUtils";
@@ -337,6 +337,7 @@ export class FormView {
     this.dealtWithRef = false;
     const refrId = this.refrId;
     const remoteRefrId = this.remoteRefrId;
+    if (refrId >= 0xff000000) dropCopyNiNodeWork(refrId);
     if (remoteRefrId) {
       const rawAll = storage["allCompanionIds"];
       if (Array.isArray(rawAll) && rawAll.includes(remoteRefrId)) {
