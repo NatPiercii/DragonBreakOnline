@@ -43,6 +43,7 @@ type Mp = any;
 //     { customPacketType: "masteryNotice", text }
 //   Gameplay (F3 journal): globalThis.__alduinakMasteryMenu(actorId) -> the masteryMenu object;
 //     __alduinakMasteryAction(actorId, "choose"|"drop"|"lock"|"takeUp", { skill, lock? }) -> { ok, text }
+//   Gameplay (skill rates): globalThis.__dboSkillRate(actorId, skillId, kind, detail) -> the rate metered work is worth, 0..5
 //
 // Persistence: `private.mastery` on the character's actor form.
 //   { skills: { <id>: { points, lastPointAt, rank, granted[] } }, order: [<id>], respecs }
@@ -51,6 +52,7 @@ type Mp = any;
 const MASTERY_PROP = "private.mastery";
 // { mult, until }: a timed skill boost the gameplay layer grants; honoured while Date.now() < until, mult 1..3
 const XP_BOOST_PROP = "private.xpBoost";
+const SKILL_RATE_HOOK = "__dboSkillRate";
 const SKILLS_FILE = "skills.json";
 const GOLD_BASE_ID = 0x0000000f;
 
@@ -552,7 +554,7 @@ export class MasterySystem implements System {
         if (rules.gateStations.size || rules.gatePrefixes.length) continue;
         if (!this.matches(ctx, id, rules, ev)) continue;
         const bank = prog || (rec.skills[id] = emptyProgress());
-        bank.shadow = (bank.shadow || 0) + this.weightFor(id, ev) * mult * boost;
+        bank.shadow = (bank.shadow || 0) + this.weightFor(id, ev) * mult * boost * this.rateOf(ev.actorId, id, ev.kind, ev.detail);
         changed = true;
         if (!bank.offered && bank.shadow >= P.unitsForLevel(1)) {
           bank.offered = true;
@@ -569,7 +571,7 @@ export class MasterySystem implements System {
       // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
       // It was never passed before, so every weight sat at its v=0 base and every scaling term in
       // weightOf was dead; an emitter that does not send one still gets that base.
-      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost);
+      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost, this.rateOf(ev.actorId, id, ev.kind, ev.detail));
       changed = true;
     }
     if (changed) this.write(ctx, ev.actorId, rec);
@@ -577,14 +579,14 @@ export class MasterySystem implements System {
 
   // One act's worth of work on one held skill: the same key again within the hour counts less, the bucket and the day's
   // caps decide what is kept, and a full Wheel takes from a waning skill. Returns the units credited.
-  // `boost` is the timed private.xpBoost multiplier (1..3); applyGain applies it after the bucket and the daily caps.
-  private gain(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, prog: SkillProgress, weight: number, novelty: number, now: number, userId: number, boost = 1): number {
+  // `boost` is the timed private.xpBoost multiplier (1..3) and `rate` the gameplay's skill rate (0..5); applyGain applies both after the bucket and the daily caps.
+  private gain(ctx: SystemContext, actorId: number, rec: MasteryRecord, id: string, prog: SkillProgress, weight: number, novelty: number, now: number, userId: number, boost = 1, rate = 1): number {
     const cfg = this.points; if (!cfg) return 0;
     const rep = P.repetitionFactor(prog.ring || [], novelty, now);
     prog.ring = rep.ring;
     const units = weight * rep.factor;
     const before = prog.level;
-    const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost);
+    const out = P.applyGain(rec as unknown as P.PointRecord, id, units, cfg, now, boost, rate);
     // Phase 0 measures units, not levels: a level is far too rare to tune weights against.
     if (out.units > 0) this.creditStats.credits.set(id, (this.creditStats.credits.get(id) || 0) + out.units);
     if (out.refused === "pool") this.noticeRefused(ctx, userId, actorId);
@@ -612,7 +614,8 @@ export class MasterySystem implements System {
     const prog = rec.skills[skillId]; if (!prog || !(prog.level >= 1)) return 0;
     this.creditStats.events.set("award", (this.creditStats.events.get("award") || 0) + 1);
     this.creditStats.actors.add(actorId);
-    const units = this.gain(ctx, actorId, rec, skillId, prog, Math.min(3, weight) * this.xpMultOf(ctx, actorId), (key >>> 0) ^ 0x61000000, Date.now(), this.userOf(ctx, actorId), this.xpBoostOf(ctx, actorId));
+    const units = this.gain(ctx, actorId, rec, skillId, prog, Math.min(3, weight) * this.xpMultOf(ctx, actorId), (key >>> 0) ^ 0x61000000, Date.now(), this.userOf(ctx, actorId), this.xpBoostOf(ctx, actorId),
+      this.rateOf(actorId, skillId, "award", { key: key >>> 0 }));
     this.write(ctx, actorId, rec);
     return units;
   }
@@ -666,6 +669,13 @@ export class MasterySystem implements System {
     try { const needs = mp.get(actorId, "private.needs"); mult *= clamp(needs && typeof needs === "object" ? needs.xpMult : 1); } catch { /* fed */ }
     try { mult *= clamp(mp.get(actorId, "private.partyXpMult")); } catch { /* no party */ }
     return mult;
+  }
+
+  // The gameplay's per-skill, per-activity rate (skillrates.js, gamemode-config "skillRates"); 1 when it is not loaded or answers oddly
+  private rateOf(actorId: number, skillId: string, kind: string, detail: Record<string, number>): number {
+    const hook = (globalThis as any)[SKILL_RATE_HOOK];
+    if (typeof hook !== "function") return 1;
+    try { return P.clampRate(hook(actorId, skillId, kind, detail || {})); } catch { return 1; }
   }
 
   private xpBoostOf(ctx: SystemContext, actorId: number): number {
