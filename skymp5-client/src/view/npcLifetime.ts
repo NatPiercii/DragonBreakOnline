@@ -5,9 +5,16 @@ export const NPC_SETTLE_MS = 1500;
 // A HostStart re-seat waits until the copy has been loaded this long, and is dropped after the give-up time
 export const RESEAT_MIN_LOADED_MS = 2000;
 export const RESEAT_GIVE_UP_MS = 8000;
-// A risky copy is disabled at once and deleted once its 3D is gone, at the earliest after the min frames, at the latest after the max
+// A disabled copy is deleted once its 3D has read as gone for the min updates in a row and the settle time has passed, both
+// counted only outside loading screens (Loading Menu, Fader Menu). One still loaded at the give-up time is left disabled,
+// never force-deleted: the 60-frame cap deleted Baan Malur actors in the fade after a load while havok still stepped them
+// (crash 4 Oct 07:35Z, bhkCharRigidBodyController through a freed Character)
 export const SAFE_DELETE_MIN_FRAMES = 3;
-export const SAFE_DELETE_MAX_FRAMES = 60;
+export const SAFE_DELETE_SETTLE_MS = 2000;
+export const SAFE_DELETE_GIVE_UP_MS = 30000;
+// One update counts for at most this much: no update runs while the Loading Menu is open, so the first one after it
+// would otherwise count the whole load
+export const SAFE_DELETE_STEP_MS = 100;
 // A relayed Ragdoll counts as ragdolling for this long
 export const RAGDOLL_HOLD_MS = 3000;
 // Seconds between host attempts the server does not answer: 1, 1, 2, 5, 10, then every 15
@@ -76,13 +83,16 @@ export interface DeleteFacts {
   is3DLoaded: boolean;
   state: CopyState | null; // null when the ref is not an actor
   defer: boolean;
+  loadingScreen?: boolean; // a Loading Menu or Fader Menu is open
 }
 
 export type DeletePlan = "skip" | "delete" | "defer";
 
-// skip: queue nothing on it; delete: Delete() now; defer: disableNoWait now, Delete() once its 3D is gone. No 3D is deleted outright.
+// skip: queue nothing on it; delete: Delete() now; defer: disableNoWait now, Delete() once its 3D is gone. No 3D is deleted outright,
+// except during a loading screen, when nothing is deleted at once
 export const deletePlan = (f: DeleteFacts, now: number): DeletePlan => {
   if (f.handedToDelete || f.queued || f.deleted) return "skip";
+  if (f.loadingScreen) return "defer";
   if (!f.is3DLoaded) return "delete";
   if (!f.state) return f.defer ? "defer" : "delete";
   return deleteNow(f.state, now, f.defer) ? "delete" : "defer";
@@ -96,8 +106,25 @@ export const reseatDecision = (s: CopyState, bornAt: number, askedAt: number, no
   return now - askedAt >= RESEAT_GIVE_UP_MS ? "skip" : "later";
 };
 
-export const deleteDecision = (framesSinceDisable: number, is3DLoaded: boolean): "delete" | "wait" =>
-  framesSinceDisable >= SAFE_DELETE_MAX_FRAMES || (framesSinceDisable >= SAFE_DELETE_MIN_FRAMES && !is3DLoaded) ? "delete" : "wait";
+// A copy safeDelete disabled and is waiting to delete: updates in a row its 3D read as gone, and time waited outside loading screens
+export interface PendingDelete {
+  unloadedFrames: number;
+  waitedMs: number;
+}
+
+export const newPendingDelete = (): PendingDelete => ({ unloadedFrames: 0, waitedMs: 0 });
+
+export type DeleteDecision = "delete" | "wait" | "give-up";
+
+// One update of a pending delete. loadingScreen: a Loading Menu or Fader Menu is open, when nothing counts and nothing is deleted
+// (the unloaded run starts again after it). give-up: leave it disabled and stop waiting
+export const deleteDecision = (p: PendingDelete, is3DLoaded: boolean, loadingScreen: boolean, stepMs: number): { decision: DeleteDecision; next: PendingDelete } => {
+  if (loadingScreen) return { decision: "wait", next: { unloadedFrames: 0, waitedMs: p.waitedMs } };
+  const step = Math.min(Math.max(0, stepMs || 0), SAFE_DELETE_STEP_MS);
+  const next = { unloadedFrames: is3DLoaded ? 0 : p.unloadedFrames + 1, waitedMs: p.waitedMs + step };
+  if (is3DLoaded) return { decision: next.waitedMs >= SAFE_DELETE_GIVE_UP_MS ? "give-up" : "wait", next };
+  return { decision: next.unloadedFrames >= SAFE_DELETE_MIN_FRAMES && next.waitedMs >= SAFE_DELETE_SETTLE_MS ? "delete" : "wait", next };
+};
 
 export const isSettling = (spawnMoment: number, now: number, settleMs: number = NPC_SETTLE_MS): boolean =>
   spawnMoment === 0 || now - spawnMoment < settleMs;
