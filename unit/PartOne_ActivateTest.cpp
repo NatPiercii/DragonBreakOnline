@@ -472,6 +472,37 @@ TEST_CASE("BarrelFood01 PutItem/TakeItem", "[PartOne][espm]")
   partOne.DestroyActor(0xff000000);
 }
 
+TEST_CASE("An occupant moved to another cell can still put, not take",
+          "[PartOne][espm]")
+{
+  auto& partOne = GetPartOne();
+  auto refrId = 0x20570;
+  auto& ref = partOne.worldState.GetFormAt<MpObjectReference>(refrId);
+
+  DoConnect(partOne, 0);
+  partOne.CreateActor(0xff000000, { 21272.0000, -7816.0000, -3608.0000 }, 0,
+                      0x1a26f);
+  partOne.SetUserActor(0, 0xff000000);
+
+  auto& actor = partOne.worldState.GetFormAt<MpActor>(0xff000000);
+  actor.RemoveAllItems();
+  ref.Activate(actor);
+
+  // The server moves the occupant while its container menu is open
+  actor.SetCellOrWorld(FormDesc::FromString("133c6:Skyrim.esm"));
+
+  actor.AddItem(0x12eb7, 2);
+  ref.PutItem(actor, { 0x12eb7, 2 });
+  REQUIRE(actor.GetInventory().GetItemCount(0x12eb7) == 0);
+  REQUIRE(ref.GetInventory().GetItemCount(0x12eb7) >= 2);
+
+  REQUIRE_THROWS_WITH(ref.TakeItem(actor, { 0x12eb7, 1 }),
+                      ContainsSubstring("WorldSpace doesn't match"));
+
+  DoDisconnect(partOne, 0);
+  partOne.DestroyActor(0xff000000);
+}
+
 TEST_CASE("Server creates and destroys an object for user correcly",
           "[PartOne][espm]")
 {

@@ -656,12 +656,21 @@ void MpObjectReference::SetOpen(bool open)
 
 void MpObjectReference::PutItem(MpActor& ac, const Inventory::Entry& e)
 {
-  CheckInteractionAbility(ac);
   if (this->occupant != &ac) {
+    CheckInteractionAbility(ac);
     std::stringstream err;
     err << std::hex << "Actor 0x" << ac.GetFormId() << " doesn't occupy ref 0x"
         << GetFormId();
     throw std::runtime_error(err.str());
+  }
+
+  // The occupant passed this check when it opened the container; a server teleport since must not refuse a put
+  try {
+    CheckInteractionAbility(ac);
+  } catch (std::exception& err) {
+    spdlog::warn("MpObjectReference::PutItem {:x} - occupant {:x} allowed "
+                 "across cells: {}",
+                 GetFormId(), ac.GetFormId(), err.what());
   }
 
   PutItemEvent putItemEvent(&ac, this, e);
