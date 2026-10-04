@@ -1,5 +1,19 @@
 [
   {
+    "title": "Skinning on a slow connection",
+    "date": "2026-10-04",
+    "version": "Server + Client 0.3.77",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Skinning",
+        "items": [
+          "A cut made just as the blade leaves the seam now counts, so a slow computer or a laggy connection no longer turns every cut into a slip."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Dragons are away for now",
     "date": "2026-10-04",
     "version": "Server update",
