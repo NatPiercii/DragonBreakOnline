@@ -1670,7 +1670,7 @@ module.exports = (api) => {
           hint: `${rite} begins wherever you are. Strike true ${C.rite.needFever} times in ${C.rite.rounds}, and the curse takes you. ${riteLegacySafe(a)
             ? 'Fail, and the fever breaks: you live, free of it.' : 'Fail, and the fever takes your life with it.'}`,
         },
-        { label: 'A cure', value: 'Still possible', hint: 'A held prayer to one of the Divines or the older faiths, or a Cure Disease potion, breaks the fever. Prayers to the Daedric Princes do not.' },
+        { label: 'A cure', value: 'Still possible', hint: 'A held prayer at a shrine of the Divines, a Cure Disease potion, or food or a potion that cures disease breaks the fever (an ingredient only when curing disease is its first effect). Prayers to the Daedric Princes or the older faiths, or away from a shrine, do not.' },
       ],
       powers: [],
     };

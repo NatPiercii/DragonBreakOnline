@@ -203,7 +203,7 @@ caps.add('riteJudge');
 f = globalThis.__dboSuperProgress(CARRIER);
 ok(/Fail, and the fever takes your life with it\.$/.test(row(f, 'When it peaks').hint), '...one that times its own strikes (riteJudge) is told a loss kills', row(f, 'When it peaks').hint);
 caps.delete('riteJudge');
-ok(/Divines or the older faiths.*Cure Disease potion.*Daedric Princes do not/.test(row(f, 'A cure').hint) && f.ladder === null && f.powers.length === 0, '...how it is cured; no ladder, no powers');
+ok(/shrine of the Divines.*Cure Disease potion.*first effect.*Daedric Princes or the older faiths, or away from a shrine, do not/.test(row(f, 'A cure').hint) && f.ladder === null && f.powers.length === 0, '...how it is cured; no ladder, no powers');
 curse(CARRIER2, { kind: null, disease: { kind: 'vampire', since: 0, played: 3.2, by: '' } });
 f = globalThis.__dboSuperProgress(CARRIER2);
 ok(f && f.kind === 'fever-vampire' && f.label === 'Sanguinare Vampiris' && f.epithet === 'At its peak' && row(f, 'The fever').value === '100% grown'
