@@ -97,7 +97,17 @@ export class Zones {
     if (!c || !Array.isArray(pos) || pos.length < 2) return false;
     return Math.hypot(Number(pos[0]) - c.center[0], Number(pos[1]) - c.center[1]) <= c.radius;
   }
-  titleOf(rank: string): string { return String(this.rankTitles[rank] || rank); }
+  // With a zone, the name staff gave the office there (gameplay rolenames.js via __dboOfficeTitle), else zones.json's title
+  titleOf(rank: string, zoneId?: string): string {
+    if (zoneId) {
+      try {
+        const hook = (globalThis as any).__dboOfficeTitle;
+        const t = typeof hook === "function" ? hook(zoneId, rank) : null;
+        if (typeof t === "string" && t) return t;
+      } catch { /* the default below */ }
+    }
+    return String(this.rankTitles[rank] || rank);
+  }
 
   // The zone a world position belongs to; null for interiors and unknown worldspaces.
   zoneAt(worldDesc: unknown, pos: unknown): Zone | null {

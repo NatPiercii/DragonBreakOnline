@@ -345,7 +345,7 @@ export class BountyBoardSystem implements System {
 
     const deposited = cost > 0 ? this.depositToTreasury(ctx, zone, Math.floor(cost * this.treasuryPercent / 100)) : 0;
 
-    const author = this.displayNameOf(ctx, actorId) + (official ? `, ${this.zones.titleOf(official)}` : "");
+    const author = this.displayNameOf(ctx, actorId) + (official ? `, ${this.zones.titleOf(official, zone.id)}` : "");
     rec.notes.push({ id: rec.nextId, tab, author, profileId, text, createdAt: now });
     rec.nextId += 1;
     this.saveStore();
@@ -454,7 +454,7 @@ export class BountyBoardSystem implements System {
   }
 
   private officialTitles(zone: Zone): string {
-    const titles = zone.officials.map((r) => this.zones.titleOf(r));
+    const titles = zone.officials.map((r) => this.zones.titleOf(r, zone.id));
     return titles.length ? titles.join(", ") : "officials";
   }
 
