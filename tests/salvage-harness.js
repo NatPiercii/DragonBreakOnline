@@ -112,6 +112,14 @@ reset(); S = load();
 INV[PLAYER] = [{ baseId: SWORD, count: 1, health: 1.1 }, { baseId: DAEDRIC, count: 1, name: 'Oathkeeper' }, { baseId: SWORD, count: 2, poisonId: 0x73f34, poisonCount: 1 }, { baseId: SWORD, count: 1, health: 1 }];
 act(SMELTER, PLAYER); w = lastWidget(PLAYER);
 ok(!w.actions.some((x) => /Daedric/.test(x.label)) && w.actions.filter((x) => x.id.startsWith('b:')).length === 1, 'tempered, named and poisoned copies are never offered; health exactly 1 is plain');
+// A player-made enchantment stored only as its effects (armour has no charge or id): never offered or taken
+reset(); S = load();
+INV[PLAYER] = [{ baseId: SWORD, count: 1, enchantmentEffects: [{ effectId: 0x3eb15, magnitude: 20, area: 0, duration: 0, cost: 30 }] }];
+ok(act(SMELTER, PLAYER) === false, 'a copy enchanted only by its effects is not plain: nothing to break down, the smelter just works');
+reset(); S = load();
+INV[PLAYER] = [{ baseId: SWORD, count: 1, enchantmentEffects: [{ effectId: 0x3eb15, magnitude: 20, area: 0, duration: 0, cost: 30 }] }, { baseId: SWORD, count: 1 }];
+act(SMELTER, PLAYER); choose(PLAYER, `b:${SWORD}`);
+ok(INV[PLAYER].filter((e) => e.baseId === SWORD).length === 1 && INV[PLAYER].find((e) => e.baseId === SWORD).enchantmentEffects && count(PLAYER, IRON) === 1, '...beside a plain one, only the plain one is taken', INV[PLAYER]);
 reset(); S = load();
 INV[PLAYER] = [{ baseId: SWORD, count: 1, health: 1.1 }];
 ok(act(SMELTER, PLAYER) === false, 'only a tempered sword: nothing to break down, the smelter just works');
