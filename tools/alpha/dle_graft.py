@@ -3,6 +3,8 @@
 
     python3 tools/alpha/dle_graft.py <base esp> <source esp> <out esp> [--only <hex ids>] [--overrides]
                                      [--deleted | --disable-deleted --data <Data dir>] [--dry-run]
+    python3 tools/alpha/dle_graft.py --manifest <plan.json> <base esp> <source esp> <out esp> --data <Data dir>
+                                     (any placed kind, record by record: see dle_graft_manifest.py)
 
 A PC build is a whole re-save of its own source, so it drops patches made on CT 115 and reorders records it never meant
 to touch (memory pc-dle-builds-drop-server-side-patches, xedit-resave-mutates-unrelated-records). This copies only the
@@ -347,6 +349,9 @@ def subrecords(rec):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == '--manifest':
+        import dle_graft_manifest
+        return dle_graft_manifest.run(sys.argv[2:], Plugin, Winners)
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('base'); ap.add_argument('source'); ap.add_argument('out')
     ap.add_argument('--only', help='comma-separated hex form ids to take (default: every new live reference)')

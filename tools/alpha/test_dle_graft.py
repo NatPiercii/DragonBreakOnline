@@ -4,7 +4,9 @@
     python3 tools/alpha/test_dle_graft.py
 
 The plugins are written under /tmp/claude-nate-graft-test-* and removed afterwards; no real plugin is read. Each graft is
-then proved by dle_graft_check.py, so this also tests the proof.
+then proved by dle_graft_check.py, so this also tests the proof. The --manifest part builds a master, a base and a source
+with a new compressed interior CELL, its compressed NAVM (NVNM door link) and NVMI, a VMAD naming a new door, a LAND,
+an exterior CELL override re-saved in the source, a moved tree, a Deleted REFR and a Deleted ACHR with an enable parent.
 """
 import os, shutil, struct, subprocess, sys, tempfile
 
@@ -248,6 +250,118 @@ try:
     plugin(src7, {CELL_A: {9: [refr(0x03000800, 1.0), rec(b'REFR', 0x00000903, sub(b'NAME', struct.pack('<I', 0x00000F00)), D.DELETED)]}}, 0x000801, masters=M3)
     rc, text = run(base3, src7, os.path.join(tmp, 'x.esp'), '--overrides', '--disable-deleted', '--data', data)
     ok(rc != 0 and 'enable parent' in text, '--disable-deleted refuses a master ref with an enable parent (XESP)', text)
+
+    # ---- --manifest: a new interior with its navmesh and NVMI, terrain, CELL overrides from the master, ACHR disables
+    import json, zlib
+    def crec(sig, fid, body, flags=0):            # a compressed record
+        z = struct.pack('<I', len(body)) + zlib.compress(body)
+        return sig + struct.pack('<IIIII', len(z), flags | 0x40000, fid, 0, 44) + z
+    def head_plugin(path, masters, next_id, tops):
+        allb = b''.join(tops)
+        n, i = 0, 0
+        while i < len(allb):
+            n += 1
+            i += 24 if allb[i:i + 4] == b'GRUP' else 24 + struct.unpack_from('<I', allb, i + 4)[0]
+        h = sub(b'HEDR', struct.pack('<fiI', 1.7, n, next_id))
+        for m in masters:
+            h += sub(b'MAST', m.encode() + b'\0') + sub(b'DATA', b'\0' * 8)
+        with open(path, 'wb') as fh:
+            fh.write(rec(b'TES4', 0, h) + allb)
+    def nvmi(nav, cell):
+        return struct.pack('<II3fI', nav, 0, 0, 0, 0, 0) + struct.pack('<III', 0, 0, 0) + b'\0' + struct.pack('<III', 0, 0, cell)
+    def navi(*entries):
+        return rec(b'NAVI', 0x00012FB4, sub(b'NVER', struct.pack('<I', 12)) + b''.join(sub(b'NVMI', e) for e in entries) + sub(b'NVPP', struct.pack('<II', 0, 0)))
+    def nvnm(cell, door):
+        return (struct.pack('<IIII', 12, 0, 0, cell) + struct.pack('<III', 0, 0, 0) + struct.pack('<I', 1) + struct.pack('<hII', 0, 0, door)
+                + struct.pack('<I', 0) + struct.pack('<I', 0) + b'\0' * 32)
+    def vmad(target):
+        return struct.pack('<hhH', 5, 2, 1) + struct.pack('<H', 1) + b'S' + b'\0' + struct.pack('<H', 1) + struct.pack('<H', 1) + b'P' + bytes([1, 1]) + struct.pack('<HhI', 0, -1, target)
+    def mref(fid, x, base_, *extra, flags=0):
+        return rec(b'REFR', fid, sub(b'NAME', struct.pack('<I', base_)) + b''.join(extra) + sub(b'DATA', struct.pack('<6f', x, 0, 0, 0, 0, 0)), flags)
+    def ext_world(cells):
+        kids = b''.join(c for c in cells)
+        return grp(0x4C525757, 0, rec(b'WRLD', WRLD, sub(b'EDID', b'W\0')), grp(WRLD, 1, grp(0, 4, grp(0, 5, kids))))
+    def ext_cell(cid, body, groups):
+        return rec(b'CELL', cid, body) + grp(cid, 6, *[grp(cid, t, *rs) for t, rs in sorted(groups.items())])
+    def interior(*cells):
+        return grp(0x4C4C4543, 0, grp(0, 2, grp(0, 3, *cells)))
+    XCLR_M = sub(b'XCLR', struct.pack('<II', 0x00000500, 0x00000501))
+    md = os.path.join(tmp, 'MData'); os.mkdir(md)
+    REG = rec(b'REGN', 0x500, b'') + rec(b'REGN', 0x501, b'')
+    LAND_M = rec(b'LAND', 0x210, sub(b'DATA', b'\0' * 4) + sub(b'BTXT', struct.pack('<IBBh', 0, 0, 0, 0)))
+    head_plugin(os.path.join(md, 'Skyrim.esm'), (), 0x1000, [
+        grp(0x54415453, 0, rec(b'STAT', 0xF00, b''), rec(b'STAT', 0xF01, b'')), grp(0x4E474552, 0, REG), grp(0x5F43504E, 0, rec(b'NPC_', 0xF10, b'')),
+        ext_world([ext_cell(0x100, sub(b'DATA', b'\2\0'), {9: [mref(0x900, 1.0, 0xF00)]}),
+                   ext_cell(0x200, sub(b'DATA', b'\2\0') + XCLR_M, {9: [LAND_M, mref(0x901, 2.0, 0xF00, sub(b'XSCL', struct.pack('<f', 1.5))),
+                                                                            rec(b'ACHR', 0x902, sub(b'NAME', struct.pack('<I', 0xF10)) + sub(b'XESP', struct.pack('<II', 0x900, 0)) + sub(b'DATA', b'\0' * 24)),
+                                                                            mref(0x903, 3.0, 0xF00)]})])])
+    own = 0x01000000
+    base_cellA = ext_cell(0x100, sub(b'DATA', b'\2\0'), {9: [mref(own | 0x600, 5.0, 0xF00)]})
+    base_int = rec(b'CELL', own | 0x700, sub(b'EDID', b'Old\0') + sub(b'DATA', b'\1\0')) + grp(own | 0x700, 6, grp(own | 0x700, 9, mref(own | 0x701, 0.0, 0xF00)))
+    N1, N2 = nvmi(0x00000990, 0x100), nvmi(0x00000991, 0x100)
+    b6 = os.path.join(tmp, 'b6.esp'); s6 = os.path.join(tmp, 's6.esp')
+    head_plugin(b6, ('Skyrim.esm',), 0x000800, [interior(base_int), ext_world([base_cellA]), grp(0x4956414E, 0, navi(N2, N1))])
+    NEWCELL = crec(b'CELL', own | 0x800, sub(b'EDID', b'NewMine\0') + sub(b'DATA', b'\1\0'))
+    NAVM = crec(b'NAVM', own | 0x803, sub(b'NVNM', nvnm(own | 0x800, own | 0x801)))
+    new_int = NEWCELL + grp(own | 0x800, 6, grp(own | 0x800, 8, mref(own | 0x801, 0.0, 0xF01, sub(b'XTEL', struct.pack('<I', own | 0x802) + b'\0' * 28))),
+                            grp(own | 0x800, 9, NAVM, mref(own | 0x804, 1.0, 0xF00, sub(b'VMAD', vmad(own | 0x801)))))
+    src_cellA = ext_cell(0x100, sub(b'DATA', b'\2\0'), {9: [mref(own | 0x600, 5.0, 0xF00), mref(own | 0x802, 9.0, 0xF01, sub(b'XTEL', struct.pack('<I', own | 0x801) + b'\0' * 28))]})
+    LAND_S = crec(b'LAND', 0x210, sub(b'DATA', b'\1\0\0\0') + sub(b'BTXT', struct.pack('<IBBh', 0, 0, 0, 0)))
+    src_cellB = ext_cell(0x200, sub(b'DATA', b'\2\0') + sub(b'XCLR', struct.pack('<II', 0x501, 0x500)),     # the re-save swapped the regions
+                         {9: [LAND_S, mref(0x901, 2.5, 0xF00, sub(b'XLRL', struct.pack('<I', 0x500)), sub(b'XSCL', struct.pack('<f', 1.5))),
+                              rec(b'ACHR', 0x902, sub(b'NAME', struct.pack('<I', 0xF10)), D.DELETED), rec(b'REFR', 0x903, sub(b'NAME', struct.pack('<I', 0xF00)), D.DELETED),
+                              mref(own | 0x805, 4.0, 0xF00)]})
+    N3 = nvmi(own | 0x803, own | 0x800)
+    head_plugin(s6, ('Skyrim.esm',), 0x000806, [interior(base_int, new_int), ext_world([src_cellA, src_cellB]), grp(0x4956414E, 0, navi(N2, N3, N1))])
+    man = {'copy': ['01000800', '01000801', '01000802', '01000803', '01000804', '01000805', '00000210'], 'master': ['00000200'],
+           'master_with': {'00000901': ['DATA']}, 'disable': ['00000903'], 'disable_drop_parent': ['00000902'],
+           'patch': {'01000600': {'data': [7.0, 0, 0, 0, 0, 0], 'flags_or': 2048}}, 'navi_add': ['01000803']}
+    mp = os.path.join(tmp, 'm6.json'); json.dump(man, open(mp, 'w'))
+    o6 = os.path.join(tmp, 'o6.esp')
+    r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft.py'), '--manifest', mp, b6, s6, o6, '--data', md], capture_output=True, text=True)
+    ok(r.returncode == 0, 'manifest: the graft is written and verified', r.stdout + r.stderr)
+    if r.returncode == 0:
+        O6, S6 = D.Plugin(o6), D.Plugin(s6)
+        by = {x[0]: x for x in O6.records}
+        sby = {x[0]: x for x in S6.records}
+        ok(all(O6.bytes_of(by[f]) == S6.bytes_of(sby[f]) and by[f][5] == sby[f][5] for f in (own | 0x800, own | 0x803, 0x210)),
+           'the new interior CELL, its NAVM and the LAND stay byte-identical (compressed) in the source\'s groups')
+        ok(by[own | 0x800][5] == ((0, 0x4C4C4543), (2, 0), (3, 0)) and (by[own | 0x801][5][-1], by[own | 0x804][5][-1]) == ((8, own | 0x800), (9, own | 0x800)),
+           'the interior cell sits in the sub-block, its refs in its new persistent and temporary groups')
+        kids = sorted((O6.groups[k][0], k[-1]) for k in O6.groups if len(k) == 4 and k[:3] == ((0, 0x4C4C4543), (2, 0), (3, 0)))
+        ok([k for _, k in kids] == [(6, own | 0x700), (6, own | 0x800)] and O6.groups[((0, 0x4C4C4543), (2, 0), (3, 0), (6, own | 0x800))][0] == by[own | 0x800][3] + by[own | 0x800][4],
+           'its Cell Children group follows its CELL record, after the old cell', kids)
+        import dle_layouts as LL
+        cellb = LL.unpack(O6.bytes_of(by[0x200]))[1]
+        ok(dict((s_, v) for s_, _, v in LL.subs(cellb)).get(b'XCLR') == struct.pack('<II', 0x500, 0x501), "the CELL override is the master's (the regions in its order), not the re-save")
+        t = dict((s_, v) for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[0x901]))[1]))
+        ok(struct.unpack('<f', t[b'DATA'][:4])[0] == 2.5 and b'XLRL' not in t and t.get(b'XSCL') == struct.pack('<f', 1.5), 'master_with: the source\'s DATA on the master record, without the XLRL', t)
+        a2 = dict((s_, v) for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[0x902]))[1]))
+        ok(by[0x902][2] & D.DISABLED and not by[0x902][2] & D.DELETED and b'XESP' not in a2 and by[0x902][1] == 'ACHR', 'an ACHR comes over Initially Disabled with its enable parent dropped')
+        ok(by[0x903][2] & D.DISABLED and not by[0x903][2] & D.DELETED, 'a deleted REFR comes over Initially Disabled')
+        p6 = dict((s_, v) for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[own | 0x600]))[1]))
+        ok(struct.unpack('<f', p6[b'DATA'][:4])[0] == 7.0 and by[own | 0x600][2] & D.DISABLED, 'a patch moves and disables a base record in place')
+        nv = [LL.nvmi(v)[0] for s_, _, v in LL.subs(LL.unpack(O6.bytes_of(by[0x12FB4]))[1]) if s_ == b'NVMI']
+        ok(nv == [0x991, own | 0x803, 0x990], 'NAVI: the new NVMI goes after the entry the source has before it, the rest in the base\'s order', ['%08X' % x for x in nv])
+        lg = [x for x in O6.records if x[5] and x[5][-1] == (9, 0x200)]
+        ok([x[1] for x in lg][:1] == ['LAND'], 'the LAND is first in its cell\'s group')
+        c6 = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), '--manifest', mp, b6, s6, o6, '--data', md, '--live', b6, '--live-expect', '11'], capture_output=True, text=True)
+        ok(c6.returncode == 0, 'dle_graft_check --manifest proves it', c6.stdout + c6.stderr)
+        # the checker catches a tampered NVMI and a planned record left out
+        bad = bytearray(open(o6, 'rb').read()); i = bytes(bad).index(N1); bad[i + 8] ^= 1
+        open(o6 + '.bad', 'wb').write(bad)
+        c7 = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), '--manifest', mp, b6, s6, o6 + '.bad', '--data', md], capture_output=True, text=True)
+        ok(c7.returncode == 1 and 'NAVI' in c7.stdout, 'dle_graft_check fails a NAVI with another entry changed', c7.stdout)
+        man2 = dict(man); man2['copy'] = man['copy'][:-1]; mp2 = os.path.join(tmp, 'm7.json'); json.dump(man2, open(mp2, 'w'))
+        c8 = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft_check.py'), '--manifest', mp2, b6, s6, o6, '--data', md], capture_output=True, text=True)
+        ok(c8.returncode == 1 and 'added' in c8.stdout, 'dle_graft_check fails a record the manifest does not name', c8.stdout)
+    for what, change, expect in (("a 'disable' of a master record with an enable parent", {'disable': ['00000903', '00000902'], 'disable_drop_parent': []}, 'enable parent'),
+                                 ('a copy of a record the base has', {'copy': man['copy'] + ['01000600']}, 'already has it'),
+                                 ('a NVMI the source lacks', {'navi_add': ['01000999']}, 'no NVMI')):
+        m3 = dict(man); m3.update(change); mp3 = os.path.join(tmp, 'm8.json'); json.dump(m3, open(mp3, 'w'))
+        r = subprocess.run([sys.executable, os.path.join(HERE, 'dle_graft.py'), '--manifest', mp3, b6, s6, os.path.join(tmp, 'x6.esp'), '--data', md], capture_output=True, text=True)
+        if expect:
+            ok(r.returncode != 0 and expect in (r.stdout + r.stderr) and not os.path.exists(os.path.join(tmp, 'x6.esp')), f'manifest: {what} is refused', r.stdout + r.stderr)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

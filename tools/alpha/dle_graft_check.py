@@ -3,6 +3,8 @@
 
     python3 tools/alpha/dle_graft_check.py <base esp> <source esp> <grafted esp> --expect <n> [--expect-disabled <d>]
                                            [--data <dir>]
+    python3 tools/alpha/dle_graft_check.py --manifest <plan.json> <base> <source> <out> --data <dir> [--live <esp>]
+                                           (a manifest graft: see dle_graft_check_manifest.py)
 
 Exit 0 with "ok" lines, or 1 with one line per failure. It checks that the grafted file is the base plus exactly <n>
 references and nothing else:
@@ -81,6 +83,10 @@ def tree(path):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == '--manifest':
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import dle_graft_check_manifest
+        return dle_graft_check_manifest.main(sys.argv[2:])
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('base'); ap.add_argument('source'); ap.add_argument('out')
     ap.add_argument('--expect', type=int, required=True, help='the number of references the graft should add')

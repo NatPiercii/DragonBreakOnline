@@ -119,11 +119,30 @@ class Esp:
         return out
 
 
+def border_in_owner(k, data):
+    """whether the plugin that owns cell k names the border region in that cell's own XCLR"""
+    try:
+        files = {n.lower(): os.path.join(data, n) for n in os.listdir(data)}
+        if k[0] not in files:
+            return False
+        o = Esp(files[k[0]])
+        if (k[0], k[1]) not in o.rec:
+            return False
+        for s, v in o.subs((k[0], k[1])):
+            if s == b'XCLR':
+                return any(o.p.modindex_source(x)[0] and o.p.modindex_source(x)[0].lower() == BORDER[0] and (x & 0xFFFFFF) == BORDER[1]
+                           for x in struct.unpack_from('<%dI' % (len(v) // 4), v))
+    except Exception:
+        return False
+    return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('esp')
     ap.add_argument('--live', default='/opt/skyrim-data/DragonBreak Online Edits.esp')
     ap.add_argument('--spawns', default=os.path.join(SERVER, 'owned-spawns.json'))
+    ap.add_argument('--data', default='/opt/skyrim-data', help='the masters, to read a newly overridden cell\'s own regions')
     a = ap.parse_args()
     fails, oks = [], []
     try:
@@ -146,12 +165,16 @@ def main():
             fails.append('border: REGN 0B0CBCDD is not the live border (points, or another field, differ)')
     bn, bl = new.border_cells(), live.border_cells()
     fmt = lambda ks: ', '.join('%06X %s' % (k[1], new.edid(k) or live.edid(k)) for k in sorted(ks)[:12]) + (' ...' if len(ks) > 12 else '')
-    if bn - bl:
-        fails.append(f'border: {len(bn - bl)} border cell(s) not in live: {fmt(bn - bl)}')
+    # A cell newly overridden here (to host new references) keeps its own plugin's regions: if that plugin's CELL already
+    # names the border region, the cell was a border cell before, and the override changes nothing about the border
+    kept = {k for k in bn - bl if k not in live.rec and border_in_owner(k, a.data)}
+    if bn - bl - kept:
+        fails.append(f'border: {len(bn - bl - kept)} border cell(s) not in live: {fmt(bn - bl - kept)}')
     if bl - bn:
         fails.append(f'border: {len(bl - bn)} live border cell(s) missing: {fmt(bl - bn)}')
     if not fails:
-        oks.append(f'border: REGN 0B0CBCDD {BORDER_SIZE} bytes as live, {len(bn)} border cells as live')
+        oks.append(f'border: REGN 0B0CBCDD {BORDER_SIZE} bytes as live, {len(bn)} border cells: live\'s {len(bl)}'
+                   + (f' + {len(kept)} newly overridden that their own plugin already puts on the border ({fmt(kept)})' if kept else ''))
 
     # ---- spawns ------------------------------------------------------------------------------------------------------
     n0 = len(fails)
