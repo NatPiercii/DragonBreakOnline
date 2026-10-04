@@ -157,6 +157,7 @@ interface PrimaryPointer {
 
 // Everything an access decision needs about one actor.
 interface ViewerAccess {
+  actorId: number;
   profileId: number;
   admin: boolean;
   ranks: Array<{ hold: string; rank: string }>;
@@ -235,7 +236,7 @@ export class HousingSystem implements System {
         if (!this.placesOn()) {
           if (this.countClaims(ctx, profileId) >= this.maxClaims) return `They already hold ${this.maxClaims} properties.`;
         } else {
-          const full = this.overCap(ctx, profileId, actor, false, this.isBuilding(ctx, p, rec));
+          const full = this.overCap(ctx, profileId, actor, false, this.isBuilding(ctx, p, { ...rec, partner: this.partnerOf(ctx, p) }));
           if (full) return full;
         }
         if (rec.owner !== 0) this.reKey(ctx, p, rec);
@@ -582,7 +583,7 @@ export class HousingSystem implements System {
       this.notice(ctx, userId, "They already own it.");
       return;
     }
-    const full = this.overCap(ctx, recipientProfile, recipientActor, false, this.isBuilding(ctx, primary, rec));
+    const full = this.overCap(ctx, recipientProfile, recipientActor, false, this.isBuilding(ctx, primary, { ...rec, partner: this.partnerOf(ctx, primary) }));
     if (full) {
       this.notice(ctx, userId, full);
       return;
@@ -812,6 +813,7 @@ export class HousingSystem implements System {
     if (v.admin) return true;
     const hold = this.holdOf(ctx, primary);
     if (hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1)) return true;
+    if (this.inHall(ctx, primary, rec, v)) return true;
     const credential = this.keyCredential(primary, rec);
     const names = this.acceptedKeyNames(ctx, primary, rec);
     if (Array.from(v.keys).some((n) => this.isKeyFor(n, credential, names))) return true;
@@ -834,8 +836,19 @@ export class HousingSystem implements System {
     if (rec.owner === 0) return true;
     if (v.profileId && v.profileId === rec.owner) return true;
     if (v.admin) return true;
+    if (this.inHall(ctx, primary, rec, v)) return true;
     const hold = this.holdOf(ctx, primary);
     return !!hold && v.ranks.some((r) => r.hold === hold && MANAGER_RANKS.indexOf(r.rank) !== -1);
+  }
+
+  // A faction's hall (Nate, 4 Oct): a place whose door the gameplay lists as a faction's hall and whose owner leads that
+  // faction (guilds.js __dboHallMember); its members open, lock and use all of it as the owner does, but only the owner (or
+  // a manager) names it, cuts keys, assigns its rooms, hands it over or gives it up
+  private inHall(ctx: SystemContext, root: number, rootRec: PropertyRecord, v: ViewerAccess): boolean {
+    if (!this.placesOn() || !rootRec.place || !v.actorId || rootRec.owner === 0) return false;
+    const member = (globalThis as any).__dboHallMember;
+    if (typeof member !== "function") return false;
+    try { return member([root, rootRec.partner].filter(Boolean), rootRec.owner, v.actorId) === true; } catch { return false; }
   }
 
   // ── Places (N3): access ─────────────────────────────────────────────────────
@@ -1123,6 +1136,7 @@ export class HousingSystem implements System {
       }
     } catch { /* actor gone */ }
     return {
+      actorId,
       profileId: this.profileOf(ctx, actorId),
       admin: this.isAdmin(ctx, actorId),
       ranks: this.holdRanks(ctx, actorId),
