@@ -6057,7 +6057,7 @@ try {
   const PATRONS_JS = path.resolve('patrons.js');
   delete require.cache[PATRONS_JS];
   require(PATRONS_JS)({ mp, log, personal, system, registerChatCommand, audit, who, display, profileOf, rolesOf, isAdmin, findByName });
-} catch (e) { log('patrons.js failed to load:', e.stack || e.message); globalThis.__dboRerollDone = null; globalThis.__dboRerollsLeft = null; }
+} catch (e) { log('patrons.js failed to load:', e.stack || e.message); globalThis.__dboRerollDone = null; globalThis.__dboRerollsLeft = null; globalThis.__dboRerollStatsGroup = null; }
 // ---- the playtesters' skill boost at the alpha launch (server\playtesterboost.js, config "playtesterBoost") ----------
 try {
   const PLAYTESTERBOOST_JS = path.resolve('playtesterboost.js');

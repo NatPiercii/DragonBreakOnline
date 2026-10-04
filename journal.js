@@ -183,9 +183,12 @@ module.exports = (api) => {
     };
   };
   const km = (units) => Number(units) / 70 / 1000;
-  const statsView = (a) => {
+  // own: the player's own journal; staff reading another's never see that player's reroll tokens (patrons.js)
+  const rerollGroup = (a) => { try { return typeof globalThis.__dboRerollStatsGroup === 'function' ? globalThis.__dboRerollStatsGroup(a) : null; } catch (e) { log('journal: reroll tokens failed', e.message); return null; } };
+  const statsView = (a, own) => {
     const st = statsData(a);
-    if (!st) return { groups: [] };
+    const tokens = own === false ? null : rerollGroup(a);
+    if (!st) return { groups: tokens ? [tokens] : [] };
     const n = (v) => String(Math.max(0, Math.floor(Number(v) || 0)));
     return { groups: [
       { name: 'Character History', rows: [
@@ -219,7 +222,7 @@ module.exports = (api) => {
         { label: 'Dungeons cleared', value: n(st.dungeonsCleared) },
         { label: 'Spells learned', value: n(st.spellsLearned) },
       ] },
-    ] };
+    ].concat(tokens ? [tokens] : []) };
   };
   // keep: a redraw keeps the faction panel's nonce, so a faction click in flight is not refused by the clock tick
   // readOnly: another's faction panel, read by staff: guilds.js makes no nonce for them
@@ -244,7 +247,7 @@ module.exports = (api) => {
   const memo = (m, k, f) => (k in m ? m[k] : (m[k] = f()));
   const factionTabInfo = (a) => { try { return typeof globalThis.__dboFactionTabInfo === 'function' ? globalThis.__dboFactionTabInfo(a) : null; } catch (e) { return null; } };
   SECTIONS.profile = { visible: () => true, view: (a) => profileView(a) };
-  SECTIONS.stats = { visible: () => true, view: (a) => statsView(a) };
+  SECTIONS.stats = { visible: () => true, view: (a, o) => statsView(a, !(o && o.readOnly)) };
   // A member, someone invited, or staff (who see every faction); without guilds.js's count it shows, as before the hub.
   // Hold and stronghold memberships count here only when the viewer's front has no Court tab (m.viewer: who is looking)
   SECTIONS.faction = {

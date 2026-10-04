@@ -108,6 +108,21 @@ module.exports = (api) => {
     setTimeout(() => { try { personal(a, 'Your new identity is set.'); } catch (e) { /* gone */ } }, 1500);
   };
   globalThis.__dboRerollsLeft = (a) => rerollsLeft(a >>> 0);
+  // The F3 journal's Stats tab, the player's own journal only (journal.js): what they hold, as plain facts. Nothing for
+  // a player whose tier gives no rerolls and who has none open. Display only: no offer, no tier names, no prices.
+  globalThis.__dboRerollStatsGroup = (actorId) => {
+    const a = actorId >>> 0;
+    const r = rerollsLeft(a);
+    const open = pending(a);
+    if (!(r.left > 0) && !(r.tier && r.tier.rerolls) && !open) return null;
+    const rows = [
+      { label: 'Tokens left', value: r.left === Infinity ? 'Unlimited' : r.text === 'none' ? '0' : r.text },
+      { label: 'What one does', value: 'Reopens the character creator', hint: 'Race, look and name change; skills, gear and progress stay' },
+      { label: 'To use one', value: '/reroll, then /reroll confirm', hint: 'Spent only when the creator closes with the new look' },
+    ];
+    if (open) rows.push({ label: 'Open now', value: 'One reroll is unfinished', hint: '/reroll reopens it at no cost' });
+    return { name: 'Reroll Tokens', rows };
+  };
 
   log(`patrons on: ${tiers().length} tiers, ${Object.keys(store.profiles).length} accounts with rerolls on record`);
 };

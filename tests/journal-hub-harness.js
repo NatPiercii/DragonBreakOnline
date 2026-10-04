@@ -306,6 +306,25 @@ fire('journalClose', STAFF, [last(STAFF).nonce]);
 globalThis.__dboJournalRequest(STAFF);
 check('the staff member\'s own journal keeps Settings', ids(last(STAFF)).includes('settings') && !last(STAFF).readOnly && !('subject' in last(STAFF)));
 
+// ---- reroll tokens (patrons.js) on the Stats tab: the player's own journal only, nothing for one without them ----
+globalThis.__dboRerollStatsGroup = (a) => (a === WOLF ? { name: 'Reroll Tokens', rows: [{ label: 'Tokens left', value: '1 of 2 across your characters' }] } : null);
+fire('journalClose', STAFF, [last(STAFF).nonce]);
+now += 5000;
+globalThis.__dboJournalRequest(WOLF, 'stats');
+w = last(WOLF);
+check('reroll tokens: the holder\'s own Stats tab ends with them', w.tab === 'stats' && w.stats.groups[w.stats.groups.length - 1].name === 'Reroll Tokens' && w.stats.groups.length === 6, w.stats && w.stats.groups.map((g) => g.name));
+globalThis.__dboJournalRequest(HUB, 'stats');
+check('...a player without tokens sees no such group', last(HUB).tab === 'stats' && !last(HUB).stats.groups.some((g) => g.name === 'Reroll Tokens'), last(HUB).stats.groups.map((g) => g.name));
+now += 5000;
+globalThis.__dboJournalOpenFor(STAFF, WOLF, 'stats');
+check('...staff reading another\'s journal never see that player\'s tokens', last(STAFF).readOnly === 1 && last(STAFF).tab === 'stats' && !last(STAFF).stats.groups.some((g) => g.name === 'Reroll Tokens'), last(STAFF).stats);
+fire('journalClose', STAFF, [last(STAFF).nonce]);
+globalThis.__dboRerollStatsGroup = () => { throw new Error('boom'); };
+now += 5000;
+globalThis.__dboJournalRequest(WOLF, 'stats');
+check('...a failing tokens hook leaves the Stats tab as it was', last(WOLF).stats.groups.length === 5);
+delete globalThis.__dboRerollStatsGroup;
+
 // ---- a reload keeps the other modules' sections ----
 load();
 check('a hot reload of journal.js keeps the sections other modules registered', !!globalThis.__dboJournalSections.court && !!globalThis.__dboJournalSections.factionStaff && !!globalThis.__dboJournalSections.profile);

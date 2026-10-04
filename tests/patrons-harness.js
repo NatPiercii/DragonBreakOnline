@@ -87,5 +87,23 @@ actors[13] = { profile: 90, roles: [roleOf('adventurer')] };
 commands.get('reroll')(13, '');
 check('without confirm nothing opens', mp.get(13, 'private.rerollPending'), undefined);
 
+// The F3 journal's Stats group (display only): what the player holds, nothing for a player without rerolls
+const group = (a) => globalThis.__dboRerollStatsGroup(a);
+const val = (a, l) => { const g = group(a); const r = g && g.rows.find((x) => x.label === l); return r ? r.value : undefined; };
+check('stats group: no tier, nothing', group(9), null);
+check('stats group: a spent tier still shows (a neutral 0)', group(8) !== null, true);
+check('...the spent traveler reads 0 of 1', val(8, 'Tokens left'), '0 of 1 across your characters');
+check('...a pathfinder with one spent reads 1 of 2', (actors[14] = { profile: 100, roles: [roleOf('pathfinder')] }, reroll(14), val(14, 'Tokens left')), '1 of 2 across your characters');
+check('...grand champion, per character', val(6, 'Tokens left'), '1 of 1 for this character');
+check('...gm', val(7, 'Tokens left'), 'Unlimited');
+check('...group name', group(14).name, 'Reroll Tokens');
+check('...says how one is used', val(14, 'To use one'), '/reroll, then /reroll confirm');
+check('...no open row when none is open', val(14, 'Open now'), undefined);
+commands.get('reroll')(14, 'confirm');
+check('...an unfinished one shows', val(14, 'Open now'), 'One reroll is unfinished');
+check('...every value is a string', group(14).rows.every((r) => typeof r.label === 'string' && typeof r.value === 'string'), true);
+const words = JSON.stringify([group(14), group(7), group(8)]);
+check('...no tier name, price or offer in the text', /patreon|tier|traveler|adventurer|pathfinder|champion|\$|support|subscribe|buy|unlock/i.test(words), false);
+
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);
