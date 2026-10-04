@@ -51,6 +51,8 @@ const GAMEMODE_CONFIG_FILE = "./gamemode-config.json";
 const TENANCY_FILE = "./tenancy.json";
 const PLACE_PLAN_DELAY_MS = 30000;
 const PLACE_PLAN_MAX_TRIES = 10;
+// The key serial of a granted way in whose old record cannot be read: far past any serial a claim reaches by re-keying
+const GRANT_SERIAL = 1000;
 const OWNER_INDEX_PROP = "private.indexed.housingOwner";
 const REGISTRY_FILE = "./housing.json";
 
@@ -1663,6 +1665,8 @@ export class HousingSystem implements System {
     }
     if (unreadable.length && !lastTry) return false;
     const staff = this.staffProfiles();
+    const grants = this.placeGrants(ctx, claims, staff);
+    for (const g of grants) if (g.claim) claims.push(g.claim);
     const plan = planPlaces(claims, isWorld, this.placeCap, staff);
     const details = this.refinePlaces(ctx, plan.places, claims);
     const hex = (n: number) => (n >>> 0).toString(16);
@@ -1680,15 +1684,51 @@ export class HousingSystem implements System {
     }
     for (const o of plan.overCap) this.log(`[housing] place plan: ${o.ownerName} (${o.owner}) would hold ${o.places.length} places (${o.places.map(hex).join(", ")}); kept, for Nate to decide`);
     for (const k of plan.staffKept) this.log(`[housing] place plan: staff, left as they are: ${k.ownerName} (${k.owner}) ${k.claims.map(hex).join(", ")}`);
+    for (const g of grants) this.log(`[housing] place plan: grant of ${g.door} (${hex(g.ref)}) to ${g.ownerName || "profile"} (${g.profile}): ${g.why || "its building becomes theirs"}`);
     const tenancy = this.listingsOnMembers(details);
     for (const t of tenancy) this.log(`[housing] place plan: the tenancy listing at ${t.door} would sit on a member of ${t.root}; move it to the place's root before apply`);
-    const out = { at: new Date().toISOString(), mode: this.placeMigration, unreadable: unreadable.map(hex), ...plan, details: [...details.values()], tenancyListingsOnMembers: tenancy };
+    const grantsOut = grants.map((g) => ({ door: g.door, ref: g.ref, profile: g.profile, ownerName: g.ownerName, granted: !!g.claim, why: g.why }));
+    const out = { at: new Date().toISOString(), mode: this.placeMigration, unreadable: unreadable.map(hex), ...plan, details: [...details.values()], tenancyListingsOnMembers: tenancy, grants: grantsOut };
     try { fs.writeFileSync(PLACE_PLAN_FILE, JSON.stringify(out, null, 1)); } catch (e) { this.log(`[housing] ${PLACE_PLAN_FILE} write failed: ${e}`); }
     if (this.placeMigration === "apply") {
       if (unreadable.length) this.log(`[housing] place migration NOT applied: ${unreadable.length} of ${this.claimed.length} claims are still unreadable`);
-      else this.applyPlaces(ctx, plan.places, details);
+      else this.applyPlaces(ctx, plan.places, details, new Set(grants.filter((g) => !!g.claim).map((g) => g.ref)));
     }
     return true;
+  }
+
+  // Buildings the migration grants (Nate, 4 Oct: Sylvia is given the Cathedral of St Martin her claims stand in):
+  // gamemode-config.json housingPlaces.grants [{ door: "<a way in, as a desc>", profile }], read when the plan runs. A way in
+  // nobody holds becomes that profile's claim in the plan, so their claims inside join it as one property; a door someone
+  // else holds, one that is no way in, or a staff profile is refused and listed. Nothing is written in dryrun.
+  private placeGrants(ctx: SystemContext, claims: PlaceClaim[], staff: Set<number>): Array<{ door: string; ref: number; profile: number; ownerName: string; why: string; claim?: PlaceClaim }> {
+    let list: unknown[] = [];
+    try {
+      const cfg = JSON.parse(fs.readFileSync(GAMEMODE_CONFIG_FILE, "utf8"));
+      list = cfg && cfg.housingPlaces && Array.isArray(cfg.housingPlaces.grants) ? cfg.housingPlaces.grants : [];
+    } catch { return []; }
+    const out: Array<{ door: string; ref: number; profile: number; ownerName: string; why: string; claim?: PlaceClaim }> = [];
+    for (const raw of list) {
+      const g = raw as { door?: unknown; profile?: unknown };
+      const door = String(g && g.door || "");
+      const profile = Number(g && g.profile) || 0;
+      const ownerName = (claims.find((c) => c.owner === profile) || { ownerName: "" }).ownerName;
+      let id = 0;
+      try { id = (ctx.svr as Mp).getIdFromDesc(door) >>> 0; } catch { id = 0; }
+      const ref = id ? this.primaryOf(ctx, id) : 0;
+      const entry: { door: string; ref: number; profile: number; ownerName: string; why: string; claim?: PlaceClaim } = { door, ref, profile, ownerName, why: "" };
+      out.push(entry);
+      if (!ref || profile <= 0) { entry.why = "NOT GRANTED: no such door or profile"; continue; }
+      if (staff.has(profile)) { entry.why = "NOT GRANTED: staff claims are left as they are"; continue; }
+      const rec = this.read(ctx, ref);
+      if (rec && rec.owner === profile) { entry.why = "theirs already"; continue; }
+      if (rec && rec.owner !== 0) { entry.why = `NOT GRANTED: the door is ${rec.ownerName || rec.owner}'s`; continue; }
+      const partner = this.partnerOf(ctx, ref);
+      const cell = this.cellDescOf(ctx, ref), partnerCell = partner ? this.cellDescOf(ctx, partner) : "";
+      if (!partner || this.isWorldDesc(ctx, cell) === this.isWorldDesc(ctx, partnerCell)) { entry.why = "NOT GRANTED: the door is no way into a building"; continue; }
+      entry.claim = { ref, owner: profile, ownerName, name: null, locked: false, door: true, cell, partnerCell };
+    }
+    return out;
   }
 
   // What the migration will do with each planned house, by the same rule a newly claimed door follows: its cells are the
@@ -1770,12 +1810,14 @@ export class HousingSystem implements System {
   // chest), so no door key stops working once access goes by place; each member points at its root; an unlocked claimed
   // chest inside is marked ownerOnly (Nate, 3 Oct); unclaimed entrances join. Owners and locks stay as they are. A place
   // already built (by an earlier boot, or by a claim since) is left alone, so a second boot changes nothing.
-  private applyPlaces(ctx: SystemContext, places: PlannedPlace[], details: Map<number, PlaceDetail>): void {
+  private applyPlaces(ctx: SystemContext, places: PlannedPlace[], details: Map<number, PlaceDetail>, granted: Set<number> = new Set()): void {
     const mp = ctx.svr as Mp;
     const hex = (n: number) => (n >>> 0).toString(16);
     const built = (ref: number) => { const r = this.read(ctx, ref); return !r || !!r.place || !!r.memberOf; };
+    // A granted way in has no owner yet; it is skipped only if someone has claimed it since the plan, or it is a place already
+    const grantTaken = (p: PlannedPlace) => { const r = this.read(ctx, p.root); return !!r && (!!r.place || !!r.memberOf || (r.owner !== 0 && r.owner !== p.owner)); };
     const todo = places.filter((p) => p.kind === "house").map((p) => ({ p, d: details.get(p.root)! }))
-      .filter(({ p, d }) => !!d && !d.notApplied && d.cells.length > 0 && !built(p.root) && !d.members.some(built));
+      .filter(({ p, d }) => !!d && !d.notApplied && d.cells.length > 0 && !(granted.has(p.root) ? grantTaken(p) : built(p.root)) && !d.members.some(built));
     if (!todo.length) { this.log(`[housing] place migration: nothing to apply`); return; }
     const backup: Record<string, unknown> = {};
     const keep = (ref: number) => {
@@ -1789,11 +1831,16 @@ export class HousingSystem implements System {
     for (const { p, d } of todo) for (const ref of [p.root, ...d.members, ...d.entrances]) keep(ref);
     const file = `${PLACE_BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     // What each place was made of, so a restore takes back only the migration's own changes
-    const meta = todo.map(({ p, d }) => ({ root: hex(p.root), owner: p.owner, members: d.members.map(hex), entrances: d.entrances.map(hex) }));
+    const meta = todo.map(({ p, d }) => ({ root: hex(p.root), owner: p.owner, members: d.members.map(hex), entrances: d.entrances.map(hex), ...(granted.has(p.root) ? { granted: true } : {}) }));
     try { fs.writeFileSync(file, JSON.stringify({ version: 2, places: meta, records: backup }, null, 1)); } catch (e) { this.log(`[housing] place migration NOT applied: the backup ${file} could not be written: ${e}`); return; }
     let applied = 0, failed = 0;
     for (const { p, d } of todo) {
-      const root = this.read(ctx, p.root);
+      let root = this.read(ctx, p.root);
+      // A granted way in: the owner's from now, on a serial no key was ever cut at (an unreadable stub's is unknown)
+      if (granted.has(p.root) && (!root || root.owner !== p.owner)) {
+        root = { ...(root || emptyRecord()), owner: p.owner, ownerName: p.ownerName, name: null, locked: false, partner: this.partnerOf(ctx, p.root), issued: [], serial: root ? root.serial + 1 : GRANT_SERIAL };
+        this.log(`[housing] place migration: ${hex(p.root)} granted to ${p.ownerName} (${p.owner})`);
+      }
       if (!root) { failed++; continue; }
       const aliases = new Set<string>(root.keyAliases || []);
       const members: Array<{ ref: number; rec: PropertyRecord }> = [];
@@ -1861,13 +1908,24 @@ export class HousingSystem implements System {
     const changed: Array<{ ref: string; was: { owner: number; serial: number } | null; now: { owner: number; serial: number } }> = [];
     const failed: string[] = [];
     let stripped = 0, released = 0, keptEntrances = 0;
-    for (const place of backup.places as Array<{ root: string; owner: number; members: string[]; entrances: string[] }>) {
+    for (const place of backup.places as Array<{ root: string; owner: number; members: string[]; entrances: string[]; granted?: boolean }>) {
       const root = num(place.root);
       for (const h of [place.root, ...(place.members || [])]) {
         const ref = num(h);
         if (!ref) continue;
         const cur = this.read(ctx, ref);
         if (!cur) { failed.push(h); continue; }
+        // A way in the migration granted goes back to nobody's, while it is still that owner's place
+        if (place.granted && ref === root) {
+          if (cur.owner === 0 && !placeFields(cur)) continue;
+          if (cur.owner === place.owner && cur.place) {
+            const stub = emptyRecord();
+            stub.serial = cur.serial + 1;
+            stub.partner = cur.partner;
+            if (this.write(ctx, ref, stub)) released++; else failed.push(h);
+            continue;
+          }
+        }
         const before = was(h);
         if (!before || before.owner !== cur.owner || (Number(before.serial) || 1) !== cur.serial) {
           changed.push({ ref: h, was: before ? { owner: before.owner, serial: Number(before.serial) || 1 } : null, now: { owner: cur.owner, serial: cur.serial } });
