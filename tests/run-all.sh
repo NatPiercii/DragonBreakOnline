@@ -68,6 +68,7 @@ declare -A NEEDS=(
   [chat-bubble-plan]=client:skymp5-client/src/services/services/chatBubblePlan.ts
   [refdecor-names]=client:skymp5-client/src/services/services/refDecorNames.ts
   [glow-plan]=client:skymp5-client/src/services/services/dboGlowPlan.ts
+  [appearance-extras-plan]=client:skymp5-client/src/services/services/appearanceExtrasPlan.ts
   [caster-guard]=client:skymp5-client/src/sync/beastRaceIds.ts
   [npc-lifetime-plan]=client:skymp5-client/src/view/npcLifetime.ts
   [wc-safe-delete]=client:skymp5-client/src/view/npcLifetime.ts
