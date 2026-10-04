@@ -148,11 +148,20 @@ section('labour', () => {
   const r = last('dbo:labour');
   check('labour: a won round reports nonce, strike times, its own clock and the verdict', r && r[1] === 'm1' && JSON.stringify(json(r[2])) === '[496,1504]' && typeof r[3] === 'number', r);
   check('labour: the verdict argument is {v:1,win:true,hits:2}', r && JSON.stringify(json(r[4])) === '{"v":1,"win":true,"hits":2}', r && r[4]);
-  check('labour: judge client shows the win at once', w.text().includes('The seam gives way.') && w.hasClass('labour__bar--win'), w.text());
+  check('labour: judge client shows the win at once', w.text().includes('The seam gives up its ore.') && w.hasClass('labour__bar--win'), w.text());
   check('labour: and offers to stand up', w.text().includes('Stand up'));
   w.set(Object.assign({}, round, { result: 'You take 2 iron ore.', resultKind: 'win' }));
-  check('labour: the server text replaces the widget verdict when it lands', w.text().includes('You take 2 iron ore.') && !w.text().includes('The seam gives way.'));
+  check('labour: the server text replaces the widget verdict when it lands', w.text().includes('You take 2 iron ore.') && !w.text().includes('The seam gives up its ore.'));
   check('labour: one report only', count('dbo:labour') === 1, count('dbo:labour'));
+
+  w = mount(Labour, Object.assign({}, round, { nonce: 'm1b' }));
+  w.advance(500); w.key(' ');
+  const crack = w.byClass('labour__mark--hit')[0];
+  check('labour: a landed blow cracks the face where the marker stood', crack && Math.abs(parseFloat(crack.p.style.left) - 49.6) < 0.01, crack && crack.p.style);
+  w.advance(300); w.key(' ');
+  check('labour: a glancing blow only scrapes it, and says so', w.hasClass('labour__mark--miss') && w.text().includes('glances off'), w.text());
+  w.advance(708); w.key(' ');
+  check('labour: the band and the marker go when the seam splits', w.hasClass('labour__split') && !w.hasClass('labour__band') && !w.hasClass('labour__marker'));
 
   w = mount(Labour, Object.assign({}, round, { nonce: 'm2' }));
   w.advance(10100);
@@ -168,7 +177,7 @@ section('labour', () => {
   w.advance(500); w.key(' '); w.advance(1004); w.key(' ');
   const s = last('dbo:labour');
   check('labour: a server-judged round still sends the verdict argument (an old server reads three)', s && json(s[4]).win === true);
-  check('labour: but shows no verdict of its own', !w.text().includes('The seam gives way.') && !w.hasClass('labour__bar--win'), w.text());
+  check('labour: but shows no verdict of its own', !w.text().includes('The seam gives up its ore.') && !w.hasClass('labour__bar--win'), w.text());
 
   const strug = { id: 31, nonce: 's1', kind: 'struggle', event: 'struggle', title: 'Bound', strikes: 2, band: 8, bands: [50, 50], sweepMs: 1000, totalMs: 10000, hitMs: 0, missMs: 0, failOnMiss: true, judge: 'client' };
   w = mount(Labour, strug);
