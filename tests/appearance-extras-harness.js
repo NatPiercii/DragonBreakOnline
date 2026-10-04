@@ -34,21 +34,71 @@ check('slot 20, spell overlays, a texture set key, other folders and a climb out
 check('drops are counted', s.dropped >= 7, s.dropped);
 check('sex kept', s.extras.f === 1);
 
-s = sanitize({ tr: [['NPC', 'RSMPlugin', 1.3, 0], ['NPC Head [Head]', 'RSMPlugin', 1.5, 0], ['NPC L Thigh [LThg]', 'RSMPlugin', 1.5, 0],
-  ['NPC L Breast', 'RSMPlugin', 3, 0], ['NPC L Breast', 'Other', 0.9, 0], ['WEAPON', 'RSMPlugin', 2, 0], ['NPC L Hand [LHnd]', 'internal', 2, 0],
-  ['NPC', 'RSMPlugin', 0.5, 1], ['NPC Spine [Spn0]', 'k', 1.05, 0], ['NPC Spine [Spn0]', 'k', 1.06, 0], ['NPC Belly', 'k', 1, 0]] });
-const sc = (node, key, fp = 0) => { const e = s.extras.tr.find((x) => x[0] === node && x[1] === key && x[3] === fp); return e ? e[2] : undefined; };
-check('the whole body (NPC) at most 10% bigger', sc('NPC', 'RSMPlugin') === 1.1, s.extras.tr);
-check('first person counted on its own, at least 90%', sc('NPC', 'RSMPlugin', 1) === 0.9);
-check('a leg bone within 10%', sc('NPC L Thigh [LThg]', 'RSMPlugin') === 1.1);
-check('the head within 25%', sc('NPC Head [Head]', 'RSMPlugin') === 1.25);
-check('two keys on one node: their product fits, their ratio kept',
-  Math.abs(sc('NPC L Breast', 'RSMPlugin') * sc('NPC L Breast', 'Other') - 2) < 1e-3 && Math.abs(sc('NPC L Breast', 'RSMPlugin') / sc('NPC L Breast', 'Other') - 3 / 0.9) < 1e-2, s.extras.tr);
-check('weapon nodes, skee\'s internal key and a duplicate are dropped; a scale of 1 is not kept',
-  !s.extras.tr.some((e) => e[0] === 'WEAPON' || e[1] === 'internal' || e[0] === 'NPC Belly') && s.extras.tr.filter((e) => e[0] === 'NPC Spine [Spn0]').length === 1, s.extras.tr);
-s = sanitize({ tr: [['NPC', 'a', 1.08, 0], ['NPC Root [Root]', 'a', 1.08, 0], ['NPC COM [COM ]', 'a', 1.08, 0]] });
-const height = s.extras.tr.reduce((p, e) => p * e[2], 1);
-check('the root chain together is held to 10% (1.08^3 -> 1.1)', Math.abs(height - 1.1) < 1e-3, height);
+// A model of the humanoid skeleton's tree (XPMSE names), for checking the products the game would multiply. The module has
+// no tree of its own; its bound must hold for this one whatever the scales.
+const TREE = {
+  'NPC Root [Root]': 'NPC', 'NPC COM [COM ]': 'NPC Root [Root]', 'NPC Pelvis [Pelv]': 'NPC COM [COM ]',
+  'NPC Spine [Spn0]': 'NPC Pelvis [Pelv]', 'NPC Spine1 [Spn1]': 'NPC Spine [Spn0]', 'NPC Spine2 [Spn2]': 'NPC Spine1 [Spn1]',
+  'NPC Neck [Neck]': 'NPC Spine2 [Spn2]', 'NPC Head [Head]': 'NPC Neck [Neck]',
+  'NPC Belly': 'NPC Spine [Spn0]', 'NPC Tail1': 'NPC Pelvis [Pelv]',
+};
+for (const S of ['L', 'R']) {
+  Object.assign(TREE, {
+    [`NPC ${S} Thigh [${S}Thg]`]: 'NPC Pelvis [Pelv]', [`NPC ${S} ThighTwist [${S}TTw]`]: `NPC ${S} Thigh [${S}Thg]`,
+    [`NPC ${S} Calf [${S}Clf]`]: `NPC ${S} Thigh [${S}Thg]`, [`NPC ${S} Foot [${S}ft ]`]: `NPC ${S} Calf [${S}Clf]`,
+    [`NPC ${S} Toe0 [${S}Toe]`]: `NPC ${S} Foot [${S}ft ]`,
+    [`NPC ${S} Clavicle [${S}Clv]`]: 'NPC Spine2 [Spn2]', [`NPC ${S} UpperArm [${S}Uar]`]: `NPC ${S} Clavicle [${S}Clv]`,
+    [`NPC ${S} UpperarmTwist1 [${S}Ut1]`]: `NPC ${S} UpperArm [${S}Uar]`, [`NPC ${S} Forearm [${S}Lar]`]: `NPC ${S} UpperArm [${S}Uar]`,
+    [`NPC ${S} ForearmTwist1 [${S}Lt1]`]: `NPC ${S} Forearm [${S}Lar]`, [`NPC ${S} Hand [${S}Hnd]`]: `NPC ${S} Forearm [${S}Lar]`,
+    [`NPC ${S} Finger00 [${S}F00]`]: `NPC ${S} Hand [${S}Hnd]`, [`NPC ${S} Finger01 [${S}F01]`]: `NPC ${S} Finger00 [${S}F00]`,
+    [`NPC ${S} Finger02 [${S}F02]`]: `NPC ${S} Finger01 [${S}F01]`,
+    [`NPC ${S} Breast`]: 'NPC Spine2 [Spn2]', [`NPC ${S} Breast01`]: `NPC ${S} Breast`, [`NPC ${S} Butt`]: 'NPC Pelvis [Pelv]',
+  });
+}
+const BONES = ['NPC', ...Object.keys(TREE)];
+const LIMIT = (node) => /Thigh|Calf|Foot|Toe|Spine|Neck|Pelv|COM|Root|^NPC$/.test(node) ? [0.9, 1.1]
+  : /Clavicle|Upper|Forearm|Hand|Finger|Head/.test(node) ? [0.8, 1.25] : [0.5, 2.0];
+// The cumulative scale of each bone in the kept extras, as the game multiplies it down the tree (case-insensitive names)
+const cumulative = (kept, fp = 0) => {
+  const own = new Map();
+  for (const e of kept.tr) if (e[3] === fp) { const k = e[0].toLowerCase(); own.set(k, (own.get(k) || 1) * e[2]); }
+  const out = new Map();
+  for (const b of BONES) { let p = 1; for (let n = b; n; n = TREE[n]) p *= own.get(n.toLowerCase()) || 1; out.set(b, p); }
+  return out;
+};
+const outOfRange = (kept, fp = 0) => [...cumulative(kept, fp)].filter(([b, p]) => { const [lo, hi] = LIMIT(b); return p > hi + 1e-9 || p < lo - 1e-9; })
+  .map(([b, p]) => `${b} ${p.toFixed(3)}`);
+const all = (v, name = (b) => b) => BONES.map((b) => [name(b), 'RSMPlugin', v, 0]);
+
+for (const v of [1.5, 0.6, 3, 0.2]) {
+  s = sanitize({ tr: all(v) });
+  check(`every bone at ${v}: every chain within its limit`, !outOfRange(s.extras).length, outOfRange(s.extras).slice(0, 4));
+}
+s = sanitize({ tr: all(1.5, (b) => b.toLowerCase()) });
+check('lower-case names are the same bones and are held too', s.extras.tr.length > 30 && !outOfRange(s.extras).length, outOfRange(s.extras).slice(0, 4));
+s = sanitize({ tr: [['NPC Spine [Spn0]', 'a', 1.1, 0], ['NPC Spine1 [Spn1]', 'a', 1.1, 0], ['NPC Spine2 [Spn2]', 'a', 1.1, 0], ['NPC Neck [Neck]', 'a', 1.1, 0],
+  ['NPC L Thigh [LThg]', 'a', 1.1, 0], ['NPC L Calf [LClf]', 'a', 1.1, 0]] });
+const cum = cumulative(s.extras);
+check('spine, neck and legs at 1.1 each: the height chains held to 1.1 (was 1.46)', cum.get('NPC Neck [Neck]') <= 1.1 + 1e-9 && cum.get('NPC L Calf [LClf]') <= 1.1 + 1e-9, [cum.get('NPC Neck [Neck]'), cum.get('NPC L Calf [LClf]')]);
+s = sanitize({ tr: [['NPC L Clavicle [LClv]', 'a', 1.25, 0], ['NPC L UpperArm [LUar]', 'a', 1.25, 0], ['NPC L UpperarmTwist1 [LUt1]', 'a', 1.25, 0],
+  ['NPC L Forearm [LLar]', 'a', 1.25, 0], ['NPC L Hand [LHnd]', 'a', 1.25, 0], ['npc l finger00 [lf00]', 'a', 1.25, 0], ['NPC L Finger01 [LF01]', 'a', 1.25, 0]] });
+check('the arm chain with twist and finger bones held to 1.25 (was 4.8)', !outOfRange(s.extras).length && cumulative(s.extras).get('NPC L Finger01 [LF01]') <= 1.25 + 1e-9, outOfRange(s.extras));
+check('the twist bone and a lower-case finger are kept and fitted, not passed through', s.extras.tr.some((e) => /UpperarmTwist1/.test(e[0]) && e[2] < 1.25) && s.extras.tr.some((e) => e[0] === 'npc l finger00 [lf00]' && e[2] < 1.25), s.extras.tr);
+s = sanitize({ tr: [['NPC Spine2 [Spn2]', 'a', 1.1, 0], ['NPC Neck [Neck]', 'a', 1.1, 0], ['NPC Head [Head]', 'a', 1.6, 0]] });
+check('the head chain held to 1.25 (was ~2)', cumulative(s.extras).get('NPC Head [Head]') <= 1.25 + 1e-9, cumulative(s.extras).get('NPC Head [Head]'));
+s = sanitize({ tr: [['NPC L Thigh [LThg]', 'a', 1.1, 0], ['NPC R Thigh [RThg]', 'a', 1.1, 0]] });
+check('the two sides are separate chains: both thighs keep 1.1', s.extras.tr.every((e) => e[2] === 1.1), s.extras.tr);
+s = sanitize({ tr: [['NPC', 'RSMPlugin', 1.05, 0], ['NPC', 'Other', 1.05, 0], ['NPC Head [Head]', 'k', 1.1, 0]] });
+check('keys on one node multiply into the chain; their ratio kept', Math.abs(cumulative(s.extras).get('NPC') - 1.1) < 1e-3
+  && Math.abs(s.extras.tr.find((e) => e[1] === 'RSMPlugin')[2] - s.extras.tr.find((e) => e[1] === 'Other')[2]) < 1e-3, s.extras.tr);
+s = sanitize({ tr: [['NPC', 'k', 1.3, 1], ['NPC', 'k', 0.95, 0]] });
+check('first person counted on its own', s.extras.tr.find((e) => e[3] === 1)[2] === 1.1 && s.extras.tr.find((e) => e[3] === 0)[2] === 0.95, s.extras.tr);
+s = sanitize({ tr: [['NPC Belly', 'k', 1.8, 0], ['NPC L Breast', 'k', 1.5, 0], ['NPC L Breast01', 'k', 1.5, 0]] });
+check('soft bones within 0.5-2 together', !outOfRange(s.extras).length && cumulative(s.extras).get('NPC L Breast01') <= 2 + 1e-9, outOfRange(s.extras));
+s = sanitize({ tr: [['WEAPON', 'k', 2, 0], ['NPC L Hand [LHnd]', 'internal', 2, 0], ['NPC L Hand [LHnd]', 'INTERNAL', 2, 0], ['NPC Spine [Spn0]', 'k', 1.05, 0],
+  ['npc spine [spn0]', 'K', 1.06, 0], ['NPC Belly', 'k', 1, 0]] });
+check('weapon nodes, skee\'s internal key in any case and a duplicate in another case are dropped; a scale of 1 is not kept',
+  same(s.extras.tr, [['NPC Spine [Spn0]', 'k', 1.05, 0]]), s.extras.tr);
 s = sanitize({ mo: [['Breasts', 'RaceMenuMorphsCBBE', 5], ['Waist', 'k', 0], ['a/b', 'k', 1], ['Hips', 'k', -0.5]] });
 check('morphs clamped, zero and bad names dropped', same(s.extras.mo, [['Breasts', 'RaceMenuMorphsCBBE', 2], ['Hips', 'k', -0.5]]), s.extras.mo);
 const big = []; for (let i = 0; i < 300; i++) big.push(['NPC L Finger0' + (i % 10), 'k' + i, 1.1, 0]);
@@ -71,6 +121,8 @@ const to = (a, type) => sent.filter((x) => x[0] === (a >>> 0) && (!type || x[1].
   delete globalThis.__dboAppearanceExtras;
   load()(ctx());
   const h = () => globalThis.__dboAppearanceExtrasPacket;
+  // Forget every rate window and pending deferred send, for the steps that test a flow rather than the limits
+  const fresh = () => { const st = globalThis.__dboAppearanceExtras; st.lastSet.clear(); st.sentAt.clear(); for (const t of st.timers.values()) clearTimeout(t); st.timers.clear(); };
   const set = { customPacketType: 'dboAppearanceExtras', f: 0, ov: [['Body [Ovl0]', 9, 0, TEX], ['Body [Ovl0]', 8, 0, 0.7]],
     tr: [['NPC', 'RSMPlugin', 1.4, 0], ['NPC Head [Head]', 'RSMPlugin', 1.1, 0]], mo: [['Breasts', 'k', 0.3]] };
   h()(A, set);
@@ -85,18 +137,21 @@ const to = (a, type) => sent.filter((x) => x[0] === (a >>> 0) && (!type || x[1].
   check('written after the delay, off the main thread, with no .tmp left', file.chars[A.toString(16)].rev === 1 && !fs.existsSync(path.join(dir, 'appearance-extras.json.tmp')));
 
   sent.length = 0;
+  globalThis.__dboAppearanceExtras.sentAt.clear();
   h()(A, set);
   check('a second save inside 3 s changes nothing and answers self', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 1 && to(A).length === 1 && to(B).length === 0);
-  globalThis.__dboAppearanceExtras.lastSet.clear();
+  fresh();
   sent.length = 0;
   h()(A, set);
   check('the same extras again: no new revision, nobody told', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 1 && to(B).length === 0 && to(A).length === 1);
 
+  fresh();
   sent.length = 0;
   h()(B, { customPacketType: 'dboAppearanceExtrasGet', self: true, index: true });
   check('B, with nothing kept, gets an empty self', (() => { const p = to(B, 'dboAppearanceExtras')[0]; return p && p.self && p.rev === 0 && !p.ov.length; })(), to(B));
   check('B gets the index of the others online', same(to(B, 'dboAppearanceExtrasIndex'), [{ customPacketType: 'dboAppearanceExtrasIndex', revs: [[A, 1]] }]), to(B));
   check('nobody is told about B (nothing kept)', to(A).length === 0);
+  fresh();
   sent.length = 0;
   h()(A, { customPacketType: 'dboAppearanceExtrasGet', self: true });
   check('A spawning: the others are told A\'s revision', same(to(B), [{ customPacketType: 'dboAppearanceExtrasRev', actor: A, rev: 1 }]));
@@ -121,18 +176,19 @@ const to = (a, type) => sent.filter((x) => x[0] === (a >>> 0) && (!type || x[1].
   check('an actor id now played by another profile keeps nothing', to(B)[0].rev === 0, to(B));
   profiles.set(A, 7);
 
-  globalThis.__dboAppearanceExtras.lastSet.clear();
+  fresh();
   sent.length = 0;
   h()(A, { customPacketType: 'dboAppearanceExtras', f: 0, ov: [], tr: [], mo: [] });
   check('everything removed: a new revision, the others told rev 0', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 2 && same(to(B), [{ customPacketType: 'dboAppearanceExtrasRev', actor: A, rev: 0 }]), to(B));
+  fresh();
   sent.length = 0;
   h()(B, { customPacketType: 'dboAppearanceExtrasGet', index: true });
   check('an empty character is not in the index', same(to(B)[0].revs, []), to(B));
-  globalThis.__dboAppearanceExtras.lastSet.clear();
+  fresh();
   h()(A, set);
   check('added again: the revision keeps counting (a client holding rev 1 data asks again)', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 3);
 
-  globalThis.__dboAppearanceExtras.lastSet.clear();
+  fresh();
   sent.length = 0;
   h()(A, Object.assign({}, set, { junk: 'x'.repeat(40000) }));
   check('a report over 32000 characters is refused', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 3 && to(A).length === 0 && logs.some((l) => /too large/.test(l)));
@@ -140,25 +196,48 @@ const to = (a, type) => sent.filter((x) => x[0] === (a >>> 0) && (!type || x[1].
   h()(0, set); h()(A, null);
   check('no actor or no content: ignored', sent.length === 0);
 
+  // ---- the per-client limits: a flood of requests is answered once now and once at the window's end ----
+  fresh();
+  load()(ctx({ appearanceExtras: { writeDelayMs: 30, selfMinSeconds: 0.1, indexMinSeconds: 0.1, announceMinSeconds: 0.1 } }));
+  online = [A, B, C];
+  sent.length = 0;
+  for (let i = 0; i < 200; i++) h()(A, { customPacketType: 'dboAppearanceExtrasGet', self: true, index: true });
+  check('200 self+index requests: one self and one index now', to(A, 'dboAppearanceExtras').length === 1 && to(A, 'dboAppearanceExtrasIndex').length === 1, [to(A, 'dboAppearanceExtras').length, to(A, 'dboAppearanceExtrasIndex').length]);
+  check('and each other player is told A\'s revision once, not 200 times', to(B, 'dboAppearanceExtrasRev').length === 1 && to(C, 'dboAppearanceExtrasRev').length === 1, [to(B).length, to(C).length]);
+  await wait(250);
+  check('at the window\'s end: exactly one more of each (nothing asked is left unanswered)', to(A, 'dboAppearanceExtras').length === 2 && to(A, 'dboAppearanceExtrasIndex').length === 2
+    && to(B, 'dboAppearanceExtrasRev').length === 2, [to(A, 'dboAppearanceExtras').length, to(A, 'dboAppearanceExtrasIndex').length, to(B, 'dboAppearanceExtrasRev').length]);
+  await wait(250);
+  check('then quiet', to(A).length === 4 && to(B).length === 2, [to(A).length, to(B).length]);
+  fresh();
+  sent.length = 0;
+  for (let i = 0; i < 30; i++) { globalThis.__dboAppearanceExtras.lastSet.clear(); h()(A, Object.assign({}, set, { mo: [['Breasts', 'k', 0.1 + i / 100]] })); }
+  check('30 changed saves: the others hear one revision now', to(B, 'dboAppearanceExtrasRev').length === 1, to(B).length);
+  await wait(250);
+  const revs = to(B, 'dboAppearanceExtrasRev');
+  check('and one more at the window\'s end, carrying the latest revision', revs.length === 2 && revs[1].rev === globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev, revs);
+  online = [A, B];
+
   // ---- a hot reload keeps the store and the pending write ----
-  globalThis.__dboAppearanceExtras.lastSet.clear();
+  fresh();
   h()(A, Object.assign({}, set, { mo: [['Breasts', 'k', 0.6]] }));
   const pendingBefore = !!globalThis.__dboAppearanceExtras.timer;
   load()(ctx());
-  check('reload: same store, the pending write still pending', pendingBefore && !!globalThis.__dboAppearanceExtras.timer && globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 4);
+  const revNow = globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev;
+  check('reload: same store, the pending write still pending', pendingBefore && !!globalThis.__dboAppearanceExtras.timer && revNow >= 4);
   await wait(120);
-  check('the write the old code scheduled landed', JSON.parse(fs.readFileSync(path.join(dir, 'appearance-extras.json'), 'utf8')).chars[A.toString(16)].rev === 4);
+  check('the write the old code scheduled landed', JSON.parse(fs.readFileSync(path.join(dir, 'appearance-extras.json'), 'utf8')).chars[A.toString(16)].rev === revNow);
   // State made by an older module that had only the store
   globalThis.__dboAppearanceExtras = { store: globalThis.__dboAppearanceExtras.store };
   load()(ctx());
   sent.length = 0;
   h()(B, { customPacketType: 'dboAppearanceExtrasGet', ids: [A] });
-  check('reload over a state with missing keys still serves', to(B)[0] && to(B)[0].rev === 4, to(B));
+  check('reload over a state with missing keys still serves', to(B)[0] && to(B)[0].rev === revNow, to(B));
 
   // ---- the file at boot ----
   delete globalThis.__dboAppearanceExtras;
   load()(ctx());
-  check('a fresh process reads the kept characters', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === 4 && logs.some((l) => /appearanceextras: 1 character\(s\) kept/.test(l)));
+  check('a fresh process reads the kept characters', globalThis.__dboAppearanceExtras.store.chars[A.toString(16)].rev === revNow && logs.some((l) => /appearanceextras: 1 character\(s\) kept/.test(l)));
   fs.writeFileSync(path.join(dir, 'appearance-extras.json'), '{oops');
   delete globalThis.__dboAppearanceExtras;
   logs.length = 0;

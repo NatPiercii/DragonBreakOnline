@@ -15,12 +15,18 @@ const STORE_FILE = 'appearance-extras.json';
 const DEFAULTS = {
   enabled: true,
   setMinSeconds: 3,
+  // Per client: its own extras answered, the index sent and its revision told to the others at most this often; a request
+  // inside the window is answered at the window's end, once, with what is current then
+  selfMinSeconds: 5,
+  indexMinSeconds: 10,
+  announceMinSeconds: 10,
   maxChars: 32000,
   maxIdsPerAsk: 32,
   idsPerMinute: 400,
   writeDelayMs: 5000,
-  // A size a sword fight can be won by stays out: the whole body and its frame within 10%, limbs and head within 25%
-  scale: { height: [0.9, 1.1], frame: [0.9, 1.1], limb: [0.8, 1.25], other: [0.5, 2.0] },
+  // A size a sword fight can be won by stays out. Each range bounds the product of every scale along a chain from the root:
+  // body (root, spine, neck, legs: the height) within 10%, arms and head within 25%, anything else within 0.5-2
+  scale: { body: [0.9, 1.1], limb: [0.8, 1.25], other: [0.5, 2.0] },
   morph: [-1, 2],
 };
 const MAX_SLOT = 16;
@@ -30,14 +36,26 @@ const MAX_MORPHS = 96;
 const MAX_PATH = 160;
 
 const OVERLAY_NODE = /^(Body|Hands|Feet|Face) \[Ovl([0-9]{1,2})\]$/;
-const TRANSFORM_NODE = /^NPC( [A-Za-z0-9 _.\-\[\]]{1,44})?$/;
+const TRANSFORM_NODE = /^NPC( [A-Za-z0-9 _.\-\[\]]{1,44})?$/i;
 const SAFE_KEY = /^[A-Za-z0-9 _.:\-]{1,48}$/;
 const MORPH_NAME = /^[A-Za-z0-9 _.\-]{1,48}$/;
 const OVERLAY_TEXTURE = /^(textures\\)?actors\\character\\overlays\\[a-z0-9_ \-\\.()&'+]+\.dds$/;
-// The nodes every other bone hangs from: their scales multiply into the whole body's size
-const HEIGHT_NODES = new Set(['NPC', 'NPC Root [Root]', 'NPC COM [COM ]', 'NPC Pelvis [Pelv]']);
-const FRAME_NODE = /Spine|Spn|Neck|Thigh|Calf|Foot|Toe/;
-const LIMB_NODE = /Clavicle|UpperArm|Forearm|Hand|Head/;
+// Bone groups by name, matched case-insensitively (the game's node names compare that way). A child's scale multiplies into
+// its parent's, so limits hold for the product along every chain. Without the skeleton's tree here, a chain is bounded by
+// every scale of every group it may pass through: the product of all scales above 1, and of all below 1, in those groups.
+const BONE_GROUPS = [
+  ['root', /^npc$|^npc (root|com|pelvis)\b/],
+  ['head', /head|jaw|eye|\bear|brow|\blip|tongue|face|hair|helmet/],
+  ['torso', /spine|spn|neck|chest|torso/],
+  ['leg', /thigh|thg|calf|clf|knee|foot|toe|leg|ankle/],
+  ['arm', /clav|arm|elbow|shoulder|hand|hnd|finger|thumb|wrist|weapon|shield|magic|quiver|bow/],
+];
+// Every group a name matches (a name in two groups is bounded by both chains), or 'other'
+const boneGroups = (node) => { const n = node.toLowerCase(); const gs = BONE_GROUPS.filter(([, re]) => re.test(n)).map(([g]) => g); return gs.length ? gs : ['other']; };
+const boneSide = (node) => { const w = node.toLowerCase().split(/\s+/); return w.includes('l') ? 'l' : w.includes('r') ? 'r' : ''; };
+// A chain's groups and the range it gets; a sided group counts only that side's bones (and the unsided ones)
+const CHAINS = [['body', ['root', 'torso', 'leg']], ['limb', ['root', 'torso', 'arm']], ['limb', ['root', 'torso', 'head']],
+  ['other', ['root', 'torso', 'leg', 'arm', 'head', 'other']]];
 // skee's override keys (OverrideVariant.h) and the range each may take
 const OVERRIDE_KEYS = { 0: 'int', 1: [0, 10], 2: [0, 1000], 3: [0, 100], 7: 'int', 8: [0, 1], 9: 'string' };
 
@@ -53,18 +71,39 @@ const normalizeTexture = (raw) => {
   return p;
 };
 
-const scaleRange = (node, ranges) => (HEIGHT_NODES.has(node) ? ranges.height : FRAME_NODE.test(node) ? ranges.frame
-  : LIMB_NODE.test(node) ? ranges.limb : ranges.other);
+// Brings a chain's worst case into [lo, hi]: the scales above 1 are shrunk toward 1 (in log space, keeping their ratios)
+// until their product is hi, and those below 1 likewise up to lo. Moving a scale toward 1 only helps every other chain,
+// so fitting the chains one after another leaves all of them in range.
+const fitChain = (entries, lo, hi) => {
+  let n = 0;
+  for (const [side, limit] of [[1, hi], [-1, lo]]) {
+    const part = entries.filter((e) => (side > 0 ? e[2] > 1 : e[2] < 1));
+    const sum = part.reduce((t, e) => t + Math.log(e[2]), 0);
+    const cap = Math.log(limit);
+    if (side > 0 ? sum <= cap + 1e-9 : sum >= cap - 1e-9) continue;
+    const k = cap / sum;
+    for (const e of part) e[2] = Math.exp(Math.log(e[2]) * k);
+    n += part.length;
+  }
+  return n;
+};
+// Rounded toward 1, so rounding never takes a fitted chain back out of range
+const roundToward1 = (v) => (v > 1 ? Math.floor(v * 10000) / 10000 : Math.ceil(v * 10000) / 10000);
 
-// Scales on one node multiply, so a node's keys are brought back together into its range, keeping their ratio
-const fitProduct = (entries, lo, hi) => {
-  if (!entries.length) return 0;
-  const product = entries.reduce((p, e) => p * e[2], 1);
-  const target = clamp(product, lo, hi);
-  if (Math.abs(target - product) < 1e-6) return 0;
-  const k = Math.pow(target / product, 1 / entries.length);
-  for (const e of entries) e[2] = e[2] * k;
-  return entries.length;
+const fitScales = (entries, ranges) => {
+  let n = 0;
+  const tagged = entries.map((e) => ({ e, g: boneGroups(e[0]), s: boneSide(e[0]) }));
+  for (const fp of [0, 1]) {
+    for (const side of ['l', 'r']) {
+      for (const [range, groups] of CHAINS) {
+        const chain = tagged.filter((t) => t.e[3] === fp && t.g.some((g) => groups.includes(g)) && (!t.s || t.s === side)).map((t) => t.e);
+        const r = ranges[range] || DEFAULTS.scale[range];
+        n += fitChain(chain, r[0], r[1]);
+      }
+    }
+  }
+  for (const e of entries) e[2] = roundToward1(e[2]);
+  return n;
 };
 
 // What may be kept of a client's report. Returns { extras, clamped, dropped }.
@@ -113,19 +152,13 @@ const sanitize = (content, opts) => {
   for (const raw of tr.slice(0, MAX_TRANSFORMS)) {
     if (!Array.isArray(raw) || raw.length !== 4) { dropped++; continue; }
     const node = String(raw[0]); const key = String(raw[1]); const v = Number(raw[2]); const fp = raw[3] ? 1 : 0;
-    if (!TRANSFORM_NODE.test(node) || !SAFE_KEY.test(key) || key === 'internal' || !Number.isFinite(v) || v <= 0) { dropped++; continue; }
-    const id = `${fp}|${node}|${key}`;
+    if (!TRANSFORM_NODE.test(node) || !SAFE_KEY.test(key) || key.toLowerCase() === 'internal' || !Number.isFinite(v) || v <= 0) { dropped++; continue; }
+    const id = `${fp}|${node.toLowerCase()}|${key.toLowerCase()}`;
     if (seenTr.has(id)) { dropped++; continue; }
     seenTr.add(id);
     outTr.push([node, key, clamp(v, 0.05, 20), fp]);
   }
-  for (const fp of [0, 1]) {
-    const nodes = new Map();
-    for (const e of outTr) if (e[3] === fp) { const l = nodes.get(e[0]) || []; l.push(e); nodes.set(e[0], l); }
-    for (const [node, list] of nodes) { const r = scaleRange(node, ranges); clamped += fitProduct(list, r[0], r[1]); }
-    clamped += fitProduct(outTr.filter((e) => e[3] === fp && HEIGHT_NODES.has(e[0])), ranges.height[0], ranges.height[1]);
-  }
-  for (const e of outTr) e[2] = round(e[2]);
+  clamped += fitScales(outTr, ranges);
 
   const mo = Array.isArray(content && content.mo) ? content.mo : [];
   if (mo.length > MAX_MORPHS) dropped += mo.length - MAX_MORPHS;
@@ -166,6 +199,8 @@ module.exports = (ctx) => {
   if (!(state.lastSet instanceof Map)) state.lastSet = new Map();
   if (!(state.asks instanceof Map)) state.asks = new Map();
   if (typeof state.writing !== 'boolean') state.writing = false;
+  if (!(state.sentAt instanceof Map)) state.sentAt = new Map();
+  if (!(state.timers instanceof Map)) state.timers = new Map();
   const chars = state.store.chars;
 
   // Async and coalesced: a sync write on this box stalls the server's main loop
@@ -195,20 +230,39 @@ module.exports = (ctx) => {
   const packetOf = (a, e, self) => Object.assign({ customPacketType: 'dboAppearanceExtras', actor: a >>> 0, rev: e && !isEmpty(e) ? e.rev : 0 },
     self ? { self: true } : {}, e && !isEmpty(e) ? { f: e.f, ov: e.ov, tr: e.tr, mo: e.mo } : { f: 0, ov: [], tr: [], mo: [] });
   const revOf = (a) => { const e = entryOf(a); return e && !isEmpty(e) ? e.rev : 0; };
-  const tellOthers = (a, rev) => {
-    for (const b of onlineActors()) if ((b >>> 0) !== (a >>> 0)) sendPacket(b, { customPacketType: 'dboAppearanceExtrasRev', actor: a >>> 0, rev });
+  // At most once per window per client and kind; a call inside the window runs once at its end (nothing is lost, so a
+  // spawn's request is never left unanswered)
+  const throttled = (kind, a, seconds, fn) => {
+    const key = `${kind}:${a >>> 0}`;
+    const now = Date.now();
+    const ms = Number(seconds) * 1000;
+    const last = state.sentAt.get(key) || 0;
+    if (now - last >= ms) { state.sentAt.set(key, now); fn(); return; }
+    if (state.timers.has(key)) return;
+    state.timers.set(key, setTimeout(() => {
+      state.timers.delete(key);
+      state.sentAt.set(key, Date.now());
+      try { fn(); } catch (e) { log(`appearance extras ${kind} failed: ${e.message}`); }
+    }, Math.max(0, last + ms - now)));
   };
+  // The others hear this character's current revision (read when it goes, so a deferred one is never stale)
+  const announce = (a) => throttled('announce', a, opts.announceMinSeconds, () => {
+    const rev = revOf(a);
+    for (const b of onlineActors()) if ((b >>> 0) !== (a >>> 0)) sendPacket(b, { customPacketType: 'dboAppearanceExtrasRev', actor: a >>> 0, rev });
+  });
+  const answerSelf = (a) => throttled('self', a, opts.selfMinSeconds, () => sendPacket(a, packetOf(a, entryOf(a), true)));
 
   const prune = (now) => {
     if (state.lastSet.size > 500) for (const [k, t] of state.lastSet) if (now - t > 600000) state.lastSet.delete(k);
     if (state.asks.size > 500) for (const [k, w] of state.asks) if (now - w.since > 120000) state.asks.delete(k);
+    if (state.sentAt.size > 1500) for (const [k, t] of state.sentAt) if (now - t > 600000 && !state.timers.has(k)) state.sentAt.delete(k);
   };
 
   const onSet = (a, content) => {
     const now = Date.now();
     prune(now);
     const last = state.lastSet.get(a >>> 0) || 0;
-    if (now - last < Number(opts.setMinSeconds) * 1000) { sendPacket(a, packetOf(a, entryOf(a), true)); return; }
+    if (now - last < Number(opts.setMinSeconds) * 1000) { answerSelf(a); return; }
     state.lastSet.set(a >>> 0, now);
     if (JSON.stringify(content).length > Number(opts.maxChars)) { log(`appearance extras from ${display(a)} refused: too large`); return; }
     const { extras, clamped, dropped } = sanitize(content, opts);
@@ -220,24 +274,25 @@ module.exports = (ctx) => {
       const rev = ((chars[hex(a)] && chars[hex(a)].rev) || 0) + 1;
       chars[hex(a)] = { p, rev, at: new Date(now).toISOString(), f: extras.f, ov: extras.ov, tr: extras.tr, mo: extras.mo };
       scheduleWrite();
-      tellOthers(a, isEmpty(extras) ? 0 : rev);
+      announce(a);
       log(`appearance extras saved for ${display(a)}: ${extras.ov.length} overlay value(s), ${extras.tr.length} scale(s), ${extras.mo.length} morph(s)`
         + `${clamped ? `, ${clamped} clamped` : ''}${dropped ? `, ${dropped} dropped` : ''} (rev ${rev})`);
     }
-    sendPacket(a, packetOf(a, entryOf(a), true));
+    answerSelf(a);
   };
 
   const onGet = (a, content) => {
     if (content.self) {
-      sendPacket(a, packetOf(a, entryOf(a), true));
+      answerSelf(a);
       // A spawn: the others learn this character's revision, and this client everyone else's
-      const mine = revOf(a);
-      if (mine) tellOthers(a, mine);
+      if (revOf(a)) announce(a);
     }
     if (content.index) {
-      const revs = [];
-      for (const b of onlineActors()) { if ((b >>> 0) === (a >>> 0)) continue; const r = revOf(b); if (r) revs.push([b >>> 0, r]); }
-      sendPacket(a, { customPacketType: 'dboAppearanceExtrasIndex', revs });
+      throttled('index', a, opts.indexMinSeconds, () => {
+        const revs = [];
+        for (const b of onlineActors()) { if ((b >>> 0) === (a >>> 0)) continue; const r = revOf(b); if (r) revs.push([b >>> 0, r]); }
+        sendPacket(a, { customPacketType: 'dboAppearanceExtrasIndex', revs });
+      });
     }
     if (Array.isArray(content.ids)) {
       const now = Date.now();
@@ -264,3 +319,5 @@ module.exports = (ctx) => {
 module.exports.sanitize = sanitize;
 module.exports.normalizeTexture = normalizeTexture;
 module.exports.DEFAULTS = DEFAULTS;
+module.exports.boneGroups = boneGroups;
+module.exports.boneSide = boneSide;

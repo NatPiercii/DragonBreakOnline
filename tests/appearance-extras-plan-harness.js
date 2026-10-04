@@ -270,7 +270,34 @@ check('the job goes on after its wait', order.includes('after'));
 const bad = new P.Job('bad'); bad.add(() => { throw new Error('boom'); }); bad.add(() => { order.push('survived'); });
 const errs = []; rr.put(4, bad); rr.run((fn) => fn, (id) => ({ id }), 2000, 10, (j, e) => errs.push(e.message));
 check('a failing step is reported and the job goes on', same(errs, ['boom']) && order.includes('survived'));
+// ---- a target refused mid-job (a copy turned beast) stops before its next step; resolve once per ref per frame ----
+{
+  const gr = new P.JobRunner();
+  const asked = new Map();
+  let guarded = false;
+  const steps = [];
+  const j = new P.Job('apply-copy'); for (let i = 0; i < 10; i++) j.add((call) => { call('x'); steps.push(i); });
+  gr.put(7, j);
+  const resolve = (id) => { asked.set(id, (asked.get(id) || 0) + 1); return guarded ? null : { id }; };
+  gr.run((fn) => fn, resolve, 0, 3, () => {});
+  check('resolve is asked once per reference per frame, not per step', asked.get(7) === 1 && steps.length === 3, [asked.get(7), steps.length]);
+  guarded = true;
+  gr.run((fn) => fn, resolve, 16, 3, () => {});
+  check('a reference refused this frame ends its job at once: no further step runs', steps.length === 3 && gr.size === 0, steps);
+}
+check('skee\'s internal key is refused in any case; node names in any case', !P.isTransformKey('Internal') && !P.isTransformKey('INTERNAL')
+  && P.isTransformNode('npc l upperarmtwist1 [lut1]') && P.isTransformNode('NPC L Finger01 [LF01]'));
 check('toPapyrusInt', P.toPapyrusInt(0xffffffff) === -1 && P.toPapyrusInt(0x7fffffff) === 0x7fffffff && P.toPapyrusInt(0x80000000) === -0x80000000);
 
+// ---- the service wires the guard into every step (source check; run-all passes FORK) ----
+if (process.env.FORK) {
+  const fs = require('fs');
+  const svc = fs.readFileSync(path.join(process.env.FORK, 'skymp5-client/src/services/services/appearanceExtrasService.ts'), 'utf8');
+  check('the runner resolves through resolveTarget, which refuses a guarded actor', /runner\.run\(this\.call, \(id\) => this\.resolveTarget\(id\)/.test(svc)
+    && /private resolveTarget[\s\S]{0,200}isGuardedActor\(actor\)/.test(svc));
+  check('the copy scan guards on the model race and the live actor', /isGuardedRace\(Number\(form\.appearance\.raceId\) >>> 0\) \|\| isGuardedActor\(actor\)/.test(svc));
+  const br = fs.readFileSync(path.join(process.env.FORK, 'skymp5-client/src/sync/beastRaces.ts'), 'utf8');
+  check('the shared guard resolves the non-humanoid races and fails closed', /export const isGuardedActor[\s\S]{0,250}return true;/.test(br) && /export const isGuardedRace[\s\S]{0,120}resolveNonHumanoidRaces\(\)/.test(br));
+} else console.log('SKIP  3 source checks: FORK is not set');
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);
