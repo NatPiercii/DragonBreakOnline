@@ -174,7 +174,7 @@ const emptyRecord = (): PropertyRecord => ({
 });
 
 // Oldest issued key names drop off (and stop opening) past this
-const MAX_ISSUED_KEY_NAMES = 16;
+const MAX_ISSUED_KEY_NAMES = 32;
 
 export class HousingSystem implements System {
   systemName = "HousingSystem";
@@ -546,7 +546,7 @@ export class HousingSystem implements System {
       return;
     }
     this.freezeKeyNames(ctx, primary, rec);
-    const keyName = this.keyNameToCut(ctx, primary, rec);
+    const keyName = this.keyCopyToCut(ctx, primary, rec);
     const issued = (rec.issued || []).filter((n) => n !== keyName);
     issued.push(keyName);
     rec.issued = issued.slice(-MAX_ISSUED_KEY_NAMES);
@@ -1323,19 +1323,36 @@ export class HousingSystem implements System {
     return rec.issued ? rec.issued : [this.legacyKeyName(ctx, primary, rec)];
   }
 
-  // The lowest "Key to the X[, the Nth]" no other claimed property answers to
-  private keyNameToCut(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
-    const label = (rec.name || "").trim();
-    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
+  // Key names every other claimed property answers to
+  private takenKeyNames(ctx: SystemContext, primary: number): Set<string> {
     const taken = new Set<string>();
     for (const other of this.claimed) {
       if (other === primary) continue;
       const o = this.read(ctx, other);
       if (o && o.owner !== 0) for (const n of this.acceptedKeyNames(ctx, other, o)) taken.add(n);
     }
+    return taken;
+  }
+
+  // The lowest "Key to the X[, the Nth]" no other claimed property answers to
+  private keyNameToCut(ctx: SystemContext, primary: number, rec: PropertyRecord, taken = this.takenKeyNames(ctx, primary)): string {
+    const label = (rec.name || "").trim();
+    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
     for (let rank = 1; ; rank++) {
       const name = this.keyNameFor(label, rank, rec);
       if (!taken.has(name)) return name;
+    }
+  }
+
+  // Each key cut gets a name of its own ("Key to the X No. 2", "Property Key No. 2 (TAG)"), so two keys never stack
+  private keyCopyToCut(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
+    const taken = this.takenKeyNames(ctx, primary);
+    const base = this.keyNameToCut(ctx, primary, rec, taken);
+    const issued = rec.issued || [];
+    const cred = /^(.*) (\([0-9A-F]+(?:-\d+)?\))$/.exec(base);
+    for (let n = 1; ; n++) {
+      const name = n === 1 ? base : cred ? `${cred[1]} No. ${n} ${cred[2]}` : `${base} No. ${n}`;
+      if (issued.indexOf(name) === -1 && !taken.has(name)) return name;
     }
   }
 
