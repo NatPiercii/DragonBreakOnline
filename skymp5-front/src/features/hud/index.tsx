@@ -42,6 +42,13 @@ const Watermark = ({ on }: { on: boolean }) => (on ? <div className="dboWatermar
 export const vitalsShown = (ui: UiSettings, full: boolean, sinceChangeMs: number): boolean =>
   ui.vitals === 'always' || (ui.vitals === 'fade' && (!full || sinceChangeMs < ui.vitalsFadeSeconds * 1000));
 
+// The status panel (hunger, voice) follows the same choice as the bars (Nate, 4 Oct: fade when inactive): Always shows
+// it; Fade when full shows it for vitalsFadeSeconds after its stage or voice range changes, while talking, and while
+// Hungry or Starving; Hidden shows it only while talking. The hunger percentage creeps every tick, so it is no change.
+export const cornerShown = (ui: UiSettings, talking: boolean, sinceChangeMs: number, stage: string): boolean =>
+  ui.vitals === 'always' || talking
+  || (ui.vitals === 'fade' && (sinceChangeMs < ui.vitalsFadeSeconds * 1000 || stage === 'hungry' || stage === 'starving'));
+
 const Vitals = ({ data, ui }: { data: HudData; ui: UiSettings }) => {
   const h = clampPct(data.health), m = clampPct(data.magicka), s = clampPct(data.stamina);
   const full = h >= 100 && m >= 100 && s >= 100;
@@ -138,6 +145,22 @@ const useUiCaps = (): void => {
   }, []);
 };
 
+// The bottom-left panel, faded by cornerShown; `watch` is what counts as a change
+const Corner = ({ ui, talking, watch, stage, children }: { ui: UiSettings; talking: boolean; watch: string; stage: string; children: React.ReactNode }) => {
+  const changedAt = useRef(Date.now());
+  const last = useRef(watch);
+  if (last.current !== watch) { last.current = watch; changedAt.current = Date.now(); }
+  const [, tick] = useState(0);
+  const shown = cornerShown(ui, talking, Date.now() - changedAt.current, stage);
+  // One redraw when the fade is due, since nothing else moves while the panel is still
+  useEffect(() => {
+    if (!shown || ui.vitals === 'always' || talking) return undefined;
+    const t = setTimeout(() => tick((n) => n + 1), Math.max(50, ui.vitalsFadeSeconds * 1000 - (Date.now() - changedAt.current) + 20));
+    return () => clearTimeout(t);
+  }, [watch, ui.vitals, ui.vitalsFadeSeconds, talking, shown]);
+  return <div className={'dboCorner' + (shown ? '' : ' dboCorner--faded')}>{children}</div>;
+};
+
 const Hud = ({ data }: { data: HudData }) => {
   const { mode: voice, talking } = useVoice();
   const ui = useUiSettings();
@@ -150,7 +173,7 @@ const Hud = ({ data }: { data: HudData }) => {
   return (
     <>
       <Watermark on={data.watermarkOn !== false} />
-      <div className="dboCorner">
+      <Corner ui={ui} talking={talking} watch={`${stage}|${voice}|${data.goldOn !== false ? gold : ''}`} stage={stage}>
         {data.goldOn !== false && data.gold !== undefined && (
           <div className="dboStatus">
             <div className="dboStatus__row dboStatus__row--gold" title="The gold you carry">
@@ -171,7 +194,7 @@ const Hud = ({ data }: { data: HudData }) => {
           </div>
         )}
         <Voice mode={voice} talking={talking} />
-      </div>
+      </Corner>
       <Vitals data={data} ui={ui} />
     </>
   );
