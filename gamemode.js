@@ -470,6 +470,10 @@ try {
       if (typeof ctx.value !== 'number') return;
       var p = ctx.sp.Game.getPlayer(); if (!p) return;
       if (ctx.sp.Ui.isMenuOpen('RaceSex Menu')) return;
+      // Applied once per value: getScale() can read back other than what was set (1.0868 for 1.06), and comparing
+      // with it re-set the scale and bounced the camera every update (Barush Highhammer, 4 Oct)
+      if (ctx.state.dboScale === ctx.value) return;
+      ctx.state.dboScale = ctx.value;
       if (Math.abs(p.getScale() - ctx.value) <= 0.001) return;
       p.setScale(ctx.value);
       // setScale moves the body but leaves the first person camera at the old

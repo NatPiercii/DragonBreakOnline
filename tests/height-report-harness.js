@@ -35,6 +35,39 @@ if (m) {
   step(1.05);
   check('a later change in the same session is still reported', sent.length === 2 && sent[1] === 1.05, JSON.stringify(sent));
 }
+// Applying the saved height (ff_scale updateOwner): once per value. getScale() read back 1.0868 for a set 1.06, so
+// comparing with it re-set the scale and bounced the camera on every update (Barush Highhammer, 4 Oct)
+const u = /mp\.makeProperty\(SCALE_PROP, \{[\s\S]*?updateOwner: `([\s\S]*?)`,\s*updateNeighbor/.exec(src);
+check('the updateOwner script is found', !!u);
+if (u) {
+  const run = (readBack, ticks, cam) => {
+    const calls = { setScale: 0, third: 0, first: 0 };
+    let scale = 1.0;
+    const ctx = {
+      value: 1.06, state: {},
+      sp: {
+        Game: {
+          getPlayer: () => ({ getScale: () => readBack(scale), setScale: (v) => { scale = v; calls.setScale++; } }),
+          getCameraState: () => cam, forceThirdPerson: () => { calls.third++; }, forceFirstPerson: () => { calls.first++; },
+        },
+        Ui: { isMenuOpen: () => false },
+        Utility: { wait: () => ({ then: (f) => f() }) },
+      },
+    };
+    const f = new Function('ctx', u[1]);
+    for (let i = 0; i < ticks; i++) f(ctx);
+    return { calls, ctx };
+  };
+  let r = run((s) => s * 1.0253, 100, 0);
+  check('a scale that reads back different is set once, not every update', r.calls.setScale === 1, JSON.stringify(r.calls));
+  check('...and the first person camera is bounced once', r.calls.third === 1 && r.calls.first === 1, JSON.stringify(r.calls));
+  r = run((s) => s, 100, 9);
+  check('a scale that reads back exact is set once, third person untouched', r.calls.setScale === 1 && r.calls.third === 0, JSON.stringify(r.calls));
+  r = run((s) => s, 1, 0); r.ctx.value = 1.0; 
+  const f = new Function('ctx', u[1]); for (let i = 0; i < 10; i++) f(r.ctx);
+  check('a new value is applied again', r.calls.setScale === 2, JSON.stringify(r.calls));
+}
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);
