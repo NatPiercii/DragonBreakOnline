@@ -202,8 +202,13 @@ const hit = (tgt, src, defense, deity) => {
 // ---- 8. the patch note
 const notes = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
 const block = notes.find((n) => n.title === 'Vampirism and lycanthropy, rarer and clearer');
-const line = 'Vampires take more harm from silver and fire, and werewolves in beast form from silver and poison.';
-ok(!!block && block.date === 'SHIP_DATE' && block.sections.some((s) => (s.items || []).includes(line)), 'the patch note is in the update block', block && block.sections.map((s) => s.heading));
+// The note says what changed for werewolves (50% in every form -> 25% in beast form) and that a poisoned blade does not count
+const weak = block && block.sections.find((s) => s.heading === 'Weaknesses');
+const items = (weak && weak.items) || [];
+ok(!!block && block.date === 'SHIP_DATE' && items.length === 3, 'the Weaknesses notes are in the update block', block && block.sections.map((s) => s.heading));
+ok(/silver only in beast form: 25% more, down from 50%/.test(items[0] || '') && /In human form silver harms them as it harms anyone/.test(items[0] || ''), 'the silver note names the change', items[0]);
+ok(/poison spells and venom also strike werewolves 25% harder/.test(items[1] || '') && /Poison on a blade does not count/.test(items[1] || ''), 'the poison note names its limit', items[1]);
+ok(/Vampires still take more harm from silver and fire/.test(items[2] || ''), 'the vampire note', items[2]);
 
 console.log(`${pass}/${pass + fail}`);
 process.exitCode = fail ? 1 : 0;
