@@ -210,7 +210,7 @@
     ]
   },
   {
-    "title": "Aleswell's farm and Fort Caractacus' smithy",
+    "title": "A farm, a smithy and a mine",
     "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "New",
@@ -219,7 +219,8 @@
         "heading": "The world",
         "items": [
           "Aleswell's farm is replanted: leeks, wheat, potatoes, carrots, gourds and grapes, where the old tomato beds were.",
-          "Fort Caractacus has a working smithy: a forge, an armour workbench, a sharpening wheel, and a supply chest that everyone shares."
+          "Fort Caractacus has a working smithy: a forge, an armour workbench, a sharpening wheel, and a supply chest that everyone shares.",
+          "The Bleak-Frost Mine is open a short walk west of Bruma: a new road leads to its door, and its veins can be worked for iron and corundum, with a few veins of gold for miners skilled enough to work it."
         ]
       }
     ]
