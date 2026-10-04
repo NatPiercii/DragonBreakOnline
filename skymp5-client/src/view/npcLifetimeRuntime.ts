@@ -54,6 +54,9 @@ export const allowRelayedRagdoll = (ac: Actor): boolean => {
   return true;
 };
 
+// When a relayed Ragdoll was last applied to this local id, 0 if never (ragdollHold.ts reads it)
+export const ragdolledAtOf = (id: number): number => ragdolledAt.get(id) || 0;
+
 // A copy that is dead, downed, in a kill move or ragdolling is disabled now and deleted once its 3D is gone; any other at once.
 // defer: always the slow way (the world cleaner's actors may be fighting or casting when it reaches them).
 // A ref already deleted, already handed to Delete() or already waiting is left alone; one with no 3D is deleted outright

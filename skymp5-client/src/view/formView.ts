@@ -13,6 +13,8 @@ import { hostBackoff, noteActorCall, noteCopyBorn, noteCopyPlaced, safeDelete } 
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
+import { holdsRelayedRagdoll, niNodeWaitsForRagdoll } from "./ragdollHold";
+import { ragdolledAtOf } from "./npcLifetimeRuntime";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
 import { queueCopyNiNodeUpdate } from "./niNodeQueue";
@@ -651,7 +653,8 @@ export class FormView {
       }
     }
 
-    if (refr.is3DLoaded() && !this.isSettlingCopy(model)) {
+    // A relayed Ragdoll on a copy placed a moment ago waits for it to settle (ragdollHold.ts)
+    if (refr.is3DLoaded() && !this.isSettlingCopy(model) && !holdsRelayedRagdoll(model.animation?.animEventName, this.spawnMoment, Date.now())) {
       if (model.animation) {
         if (alreadyHosted) {
           // The server echoes our own AI's animations back; replaying them restarts swings and can turn collision off
@@ -698,7 +701,8 @@ export class FormView {
           screenPoint[0] < 1 &&
           screenPoint[1] < 1 &&
           screenPoint[2] < 1;
-        if (isOnScreen != this.isOnScreen) {
+        // Not while a relayed Ragdoll plays on it: it goes out once that is over (ragdollHold.ts)
+        if (isOnScreen != this.isOnScreen && !niNodeWaitsForRagdoll(ragdolledAtOf(this.refrId), Date.now())) {
           this.isOnScreen = isOnScreen;
           // Never on a beast copy: the queued 3D reset holds a raw actor pointer and the beast graph is the one that crashed
           if (isOnScreen && !this.isBeastCopy(model) && Date.now() - this.lastNiNodeUpdateMs >= FormView.niNodeUpdateMinIntervalMs) {
