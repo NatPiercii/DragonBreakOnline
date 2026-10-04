@@ -439,6 +439,30 @@ function readClientSettings() {
   } catch { return {} }
 }
 
+// Community Shaders can be switched off in Settings: on some older graphics cards the game cannot create its window
+// with it and crashes at start (karta.gina, 4 Oct). The mod stays installed, its modlist.txt line is written '-'.
+const COMMUNITY_SHADERS_NEXUS_ID = 86492
+const COMMUNITY_SHADERS_FILE = 'SKSE/Plugins/CommunityShaders.dll'
+function disabledManagedMods(manifest) {
+  if (!store.get('communityShadersOff')) return []
+  return (manifest && Array.isArray(manifest.mods) ? manifest.mods : [])
+    .filter(m => m && Number(m.modId) === COMMUNITY_SHADERS_NEXUS_ID).map(m => m.name)
+}
+ipcMain.handle('mods:communityShadersLoad', () => {
+  const name = mo2.findModWithFile(COMMUNITY_SHADERS_FILE)
+  const line = name ? mo2.isModEnabled(name) : null
+  return { ok: true, installed: line !== null, enabled: line !== null ? line : !store.get('communityShadersOff') }
+})
+ipcMain.handle('mods:communityShadersSet', async (_e, on) => {
+  // MO2 writes modlist.txt back when it exits, so a change made while it runs would be lost
+  if (await skyrimRunning()) return { ok: false, error: 'Close the game first, then change this setting.' }
+  store.set('communityShadersOff', !on)
+  const name = mo2.findModWithFile(COMMUNITY_SHADERS_FILE)
+  const applied = name ? mo2.setModEnabled(name, !!on) : false
+  log(`[settings] Community Shaders ${on ? 'on' : 'off'}${applied ? '' : ' (applied at the next install)'}`)
+  return { ok: true, applied }
+})
+
 ipcMain.handle('graphics:load', () => {
   try {
     const p = skyrimPrefsPath()
@@ -3645,7 +3669,7 @@ async function runMO2Install(opts = {}) {
         ? manifest.order.slice()
         : manifest.mods.map(m => m.name)
       if (fs.existsSync(path.join(mo2.getModsDir(), 'SKSE')) && !order.includes('SKSE')) order.push('SKSE')
-      mo2.setModlistOrder(order)        // also prunes managed mods dropped from the manifest
+      mo2.setModlistOrder(order, disabledManagedMods(manifest))  // also prunes managed mods dropped from the manifest
       mo2.setPlugins(manifest.plugins)
       store.set('installedRootHash', manifest.rootHash || '')
     }
