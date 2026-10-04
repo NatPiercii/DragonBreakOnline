@@ -1,0 +1,18 @@
+{
+  "title": "Faster Mining, Smithing and Skinning",
+  "date": "",
+  "version": "Server update",
+  "tag": "Balance",
+  "sections": [
+    {
+      "heading": "Skills",
+      "items": [
+        "Mining a vein now counts twice as much toward your Miner skill.",
+        "Iron-tier smithing (iron, copper and leather gear, horseshoes, fittings and smelting ore) now counts two and a half times as much toward Blacksmith.",
+        "Skinning, tanning and hunting animals now count half as much again toward Skinner.",
+        "Your hourly and daily skill limits are unchanged: the same work simply moves you further.",
+        "Remaking an item you broke down in the last hour no longer counts toward your skill."
+      ]
+    }
+  ]
+}

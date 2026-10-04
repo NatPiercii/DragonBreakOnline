@@ -345,6 +345,7 @@ module.exports = (api) => {
     if (!gives || !takeOne(a, baseId)) { openPanel(a, p.target, station, p.page, `You no longer have that ${name} to break down.`); return; }
     for (const [d, n] of gives) { const mid = idOf(d); if (mid) giveItem(a, mid, n); }
     log(`salvage: ${who(a)} broke down ${name} (${descOf(baseId)}) at the ${station.label}, ${TIER_NAMES[rank]}: ${givesText(gives)}`);
+    try { if (typeof globalThis.__dboSkillRateBrokeDown === 'function') globalThis.__dboSkillRateBrokeDown(a, baseId); } catch (e) { /* no skill rates */ }
     const left = openPanel(a, p.target, station, p.page, `${name} broken down: ${givesText(gives)}`);
     if (!left) { closePanel(a); personal(a, `${name} broken down: ${givesText(gives)}. Nothing else here to break down.`); }
   });
