@@ -5067,7 +5067,11 @@ const rankHook = (hook, ...args) => { try { const m = typeof globalThis[hook] ==
 const huntDamageMult = (agg, tgt) => rankHook('__dboHuntDamageMult', agg, tgt) * rankHook('__dboBloodDamageMult', agg, tgt);
 // Every player-on-player hit, after skills and armor; config "pvp": { "damageMult" }
 const PVP = Object.assign({ damageMult: 1 }, cfg.pvp || {});
-// A vampire burns under fire and a werewolf under silver (supernatural.js): the extra comes off after the engine's hit
+// A vampire burns under fire and silver, a werewolf in beast form under silver and poison (supernatural.js
+// __dboSuperDamageMult): the extra comes off after the engine's hit, measured from what landed once the mastery chain
+// (Defense, a blessing, the race, capped together at racial.js reductionCap) had its say. A weakness is a separate
+// multiplier on top of that chain, never part of the cap: a capped 75% reduction on a beast-form werewolf struck with silver
+// lands 0.25 x 1.25 of the blow.
 const superBonusDamage = (agg, tgt, src, damage) => {
   const pend = globalThis.__dboSuperPending; globalThis.__dboSuperPending = null;
   if (!pend || pend.agg !== agg || pend.tgt !== tgt || !(damage > 0)) return 0;
@@ -5340,7 +5344,8 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   if (dmg > 0 && agg !== tgt && globalThis.__dboHostCooldown) { if (profileOf(agg) < 0) globalThis.__dboHostCooldown.noteFight(agg); if (profileOf(tgt) < 0) globalThis.__dboHostCooldown.noteFight(tgt); }
   // Any landed blow, PvE included, puts the players in it in combat for the armour swap timer
   if (dmg > 0 && agg !== tgt && armourSwap) armourSwap.onHit(agg, tgt);
-  // Fire on a vampire, silver on a werewolf: note the health now, the extra comes off in onHitDamage
+  // Fire or silver on a vampire, silver or poison on a werewolf in beast form: note the health now, the extra comes off in
+  // onHitDamage, after the mastery give-back, so it multiplies the capped target side rather than joining it
   globalThis.__dboSuperPending = null;
   try { const m = globalThis.__dboSuperDamageMult ? Number(globalThis.__dboSuperDamageMult(agg, tgt, src)) : 1; if (m > 1 && dmg > 0) { const p = mp.get(tgt, 'percentages'); if (p && p.health > 0) globalThis.__dboSuperPending = { agg, tgt, mult: m, health: p.health }; } } catch (e) { /* not an actor */ }
 
@@ -5933,7 +5938,7 @@ try {
   delete require.cache[SUPERNATURAL_JS];
   // Feeding counts as a meal for the hunger meter
   const needsFeed = (a) => { if (!NEEDS.enabled) return; const n = needsOf(a); n.hunger = Math.max(0, n.hunger - (Number((NEEDS.restore || {}).meal) || 0)); saveNeeds(a, n); applyNeedsStage(a, n, false); };
-  require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg, hasUiCap });
+  require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg, hasUiCap, sourceResistsOf });
 } catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperPrayWarning', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboSuperAdminInfect', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave', '__dboSuperProgress', '__dboSuperProgressSend', '__dboSuperRateMult', '__dboSuperFoodMult']) globalThis[k] = null; }
 
 // ---- friendly fire and the down state (server\downed.js): after supernatural.js, whose hooks it wraps -------

@@ -126,6 +126,20 @@ module.exports = (api) => {
     return STUDY_POINTS.find((p) => p.cells.has(cell) && (!school || p.schools.includes(school))
       && (p.places ? nearPlace(a, p) : !p.refr || distanceMeters(a, idOf(p.refr)) <= p.radius)) || null;
   };
+  // Meters to the nearest study spot of the school in the reader's own cell, or null when the cell has none: a reader
+  // inside Frost Crag Spire or the Synod was told only the places' names, which named the place they stood in
+  const nearestHere = (a, school) => {
+    const cell = norm(get(a, 'worldOrCellDesc', ''));
+    const pos = get(a, 'pos', null);
+    let best = Infinity;
+    if (Array.isArray(pos)) {
+      for (const p of STUDY_POINTS) {
+        if (!p.places || !p.cells.has(cell) || !p.schools.includes(school)) continue;
+        for (const q of p.places) best = Math.min(best, Math.hypot(pos[0] - q[0], pos[1] - q[1], pos[2] - q[2]) / UNITS_PER_METER);
+      }
+    }
+    return best < Infinity ? best : null;
+  };
   const studyPointNames = (school) => [...new Set(STUDY_POINTS.filter((p) => p.schools.includes(school)).map((p) => (p.places ? `Study Magic in ${p.name.replace(/^The /, 'the ')}` : p.name)))].join(', ');
 
   // ---- spells and tomes ------------------------------------------------------------------------------
@@ -325,7 +339,10 @@ module.exports = (api) => {
     }
     const why = slotRefusal(a, tome, 'You have');
     if (why) return refuse(why);
-    if (!studyPointAt(a, tome.school)) return refuse(`a tome is studied at a spell study point: ${studyPointNames(tome.school) || 'none is set'}.`);
+    if (!studyPointAt(a, tome.school)) {
+      const near = nearestHere(a, tome.school);
+      return refuse(`a tome is studied at a spell study point: ${studyPointNames(tome.school) || 'none is set'}.${near === null ? '' : ` The nearest one here is ${Math.max(1, Math.round(near))} m away.`}`);
+    }
     const skill = bookSkillFor(a, tome);
     return {
       // Runs after the engine's OnFireSuccess, which skips spells the actor's race or base already grants

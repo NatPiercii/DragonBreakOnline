@@ -386,7 +386,7 @@
    6,
    8
   ],
-  "veinRestMinutes": 45,
+  "veinRestMinutes": 30,
   "blockRestMinutes": 10,
   "failRestMinutes": 2,
   "_clientJudged": "Jake, 2026-09-30: the widget judges the round on the player's machine and the server accepts its verdict, keeping only checks latency cannot fail (nonce, one report, the worker within nearMeters of the node when the report lands, plus 10 m for every second of that report's own lag up to 120 m more, or within it when their close arrived; no faster than the round's exact minimum, rests and yields). roundTimeoutMs cleans up a round nobody reports. replayCheck: 'log' lets a claimed win its own strike times do not bear out stand with a LABOUR-MISMATCH audit line, 'refuse' refuses it. ROLLBACK: commit clientJudged false to this file on origin/server and ship it (a release, or dev-server.sh deploy-gameplay --hotfix); today's server judging (lagGraceMs refuses late reports) comes back for every client. Not as a live-only edit: every release and hotfix copies this file over the live one and keeps only admins, so a live edit lasts only until the next deploy.",
@@ -697,6 +697,9 @@
   "_comment": "exclude: dungeon ids never leased. AbandonedPrisonLocation is out because its main cell is now Windhelm's prison, a jail (Nat, 2026-09-23); its other cell is the spare prison template.",
   "restoreOutfits": true,
   "exclude": ["AbandonedPrisonLocation"],
+  "_count": "Enemies per placement by party size n (dungeons.js partyCountMult): countBase + countPerPlayer x n, between countMin 0.6 and countMax 1.8. Nate, 4 Oct: half the add per member (was 0.4 + 0.3 n): solo 0.7, 2 0.85, 3 1.0, 4 1.15, 6 1.45.",
+  "countBase": 0.55,
+  "countPerPlayer": 0.15,
   "ayleidLoot": {
    "_comment": "Ayleid treasure from ayleid-loot.json, by the lease's difficulty (Nate, 2026-09-28). chestChance: a big chest holds one piece; bossChance: the boss chest. chest/boss: tier weights (common, uncommon, rare = Major jewellery and Shocks arms, rarest = Eminent jewellery and the Lich Helmet). raidBossChance/raidBoss: a raid's boss chests and masters. These pieces never come from the general pools. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
    "enabled": true,

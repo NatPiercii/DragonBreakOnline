@@ -130,6 +130,13 @@
           "Oakflesh, Stoneflesh, Ironflesh and Ebonyflesh now really protect you. While one lasts, the server counts its armour (40, 60, 80 or 100) against weapon and unarmed hits, on top of what you wear.",
           "A new Flesh spell replaces the one before it; they don't stack."
         ]
+      },
+      {
+        "heading": "Studying tomes",
+        "items": [
+          "Frost Crag Spire: you can now learn spells from tomes in its study upstairs, beside the Scholars' Ledger and the Class Lecterns, as well as at the Study Magic shelf by the alchemy table.",
+          "Reading a tome too far from a study spot now tells you how far away the nearest one in that place is."
+        ]
       }
     ]
   },
@@ -159,6 +166,14 @@
           "A Cure Disease potion still cures it, and so does food or a potion with a cure disease effect. An ingredient cures it only when curing disease is its first effect.",
           "Prayer cures the fever only at a shrine of the Divines. Praying to a Daedric Prince or to one of the older faiths, or praying away from a shrine, no longer does.",
           "Before such a prayer cures you, the shrine warns you. Pray again within a minute to go on."
+        ]
+      },
+      {
+        "heading": "Weaknesses",
+        "items": [
+          "Werewolves now take extra harm from silver only in beast form: 25% more, down from 50%. In human form silver harms them as it harms anyone.",
+          "In beast form, poison spells and venom also strike werewolves 25% harder. Poison on a blade does not count.",
+          "Vampires still take more harm from silver and fire."
         ]
       }
     ]
@@ -224,20 +239,6 @@
     ]
   },
   {
-    "title": "The character creator",
-    "date": "SHIP_DATE",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Character creation",
-        "items": [
-          "The character creator: you no longer spawn inside another player, and other players creating a character are hidden from you."
-        ]
-      }
-    ]
-  },
-  {
     "title": "Followers keep formation",
     "date": "SHIP_DATE",
     "version": "Client 0.3.76",
@@ -286,6 +287,24 @@
           "The admin panel has a left rail in place of the row of tabs, one Acting on target that every tab uses, and one search bar with category chips and match counts.",
           "Lead GMs and above can give a player Sanguinare Vampiris or Sanies Lupinus from the panel. It starts the fever as a bite would, and it is refused for a player who already carries a disease or a curse.",
           "Lead GMs and above can set a player's level in each school of magic."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Fixes",
+    "date": "2026-10-04",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Character creation: new characters no longer appear inside someone else, and people making a character can no longer see each other.",
+          "First spells that went missing from your spell list come back, with a message when they do. A new first spell now arrives once your game has settled after loading.",
+          "Enchanted gear swapped by the new loot rules keeps its enchantment. Pieces that were swapped plain get their enchantment back the next time you log in.",
+          "Dungeon parties face fewer extra enemies for each member.",
+          "Iron and corundum seams give more ore and recover faster."
         ]
       }
     ]
