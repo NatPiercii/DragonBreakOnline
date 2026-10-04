@@ -57,6 +57,281 @@
     ]
   },
   {
+    "title": "Your journal holds it all (F3)",
+    "date": "SHIP_DATE",
+    "version": "Server + Client 0.3.76",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "One journal, every tab",
+        "items": [
+          "F3 opens your journal, which now has a tab for each part of your character's life: Profile, Faction, Court, Stats, Skills, Magic, Deity, Supernatural and Settings. It opens on the tab you used last.",
+          "Faction and Court show when you belong to one, Magic once you have taken up Arcane Arts or Priest, and Supernatural for vampires, werewolves and anyone carrying their disease."
+        ]
+      },
+      {
+        "heading": "Skills",
+        "items": [
+          "K now opens the Skills tab of your journal: the Wheel, your skills and their tiers, with the same choices as the old skills window."
+        ]
+      },
+      {
+        "heading": "Magic",
+        "items": [
+          "The Magic tab shows your five schools of magic with their level and rank and which tomes your rank lets you read, your prepared spells, every spell you know, and a few tomes to look for next.",
+          "You can pick a school's first spell here too, anywhere outside a fight. Prepared spells are still changed at a Scholars' Ledger."
+        ]
+      },
+      {
+        "heading": "Deity",
+        "items": [
+          "The Deity tab lists every god and faith: what they rule, their boon, their shrines in Bruma, and where their worship breaks the law. You can turn to a new god from here, with the same 7-day wait as before, and /deity opens it.",
+          "Talos' entry gives the law as it stands in 4E 211: under the White-Gold Concordat his worship is outlawed throughout the Empire, and Bruma is Imperial land. North of the Jerall Mountains each Jarl now decides for their own hold."
+        ]
+      },
+      {
+        "heading": "Court and Faction",
+        "items": [
+          "If you hold an office or a place in a hold's household, or someone has offered you a post, the Court tab shows your court: its offices and who holds them, its free seats and its household. A ruler appoints, dismisses and moves people from here, and you accept or decline an offered post here.",
+          "A hold's household now shows on the Court tab rather than the Faction tab.",
+          "A faction's leader can rename the faction's rank titles on the Faction tab."
+        ]
+      },
+      {
+        "heading": "Settings",
+        "items": [
+          "General: change your menu keys, such as chat, journal, skills, emotes and push to talk. New keys take effect the next time you start the game. There is also a new Hide chat key, unset until you choose one.",
+          "Controls: the game's own keys are listed here, and you still change them in the launcher.",
+          "Voice, while voice chat is on: your microphone and speakers, your volume and everyone else's, push to talk or voice activity, and a volume for each player near you. In the X menu, Voice settings for a player opens this page at their name.",
+          "Interface: show your health, magicka and stamina always, only when they are not full, or never, in the Quiet or the Classic style; show the chat always, only while it is in use, or only once you press T; and pick its lettering.",
+          "Help: report a problem from here. It sends the same report as /bug."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "A quieter look",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.76",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Interface",
+        "items": [
+          "Everyone now starts with the quieter look. Your health, magicka and stamina bars are thinner and muted, fade out a few seconds after all three are full, and come back as soon as one drops. The chat fades when you are not using it and uses book lettering.",
+          "Prefer the old look? Switch back in F3, Settings, Interface. A choice you save there stays.",
+          "The chat window is restyled to match the journal.",
+          "Your gold now shows on your HUD.",
+          "The X menu's entries are grouped under headings: Party, Faction, Law, Shadows, Your nature and Voice."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Trading made easier",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.76",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Trading",
+        "items": [
+          "The trade window sorts your things into categories, such as weapons, armour, clothing, jewellery, potions, ingredients, books, soul gems, ingots and ore, and keys.",
+          "Sort by name, value or weight, and see each side's total value and weight before you agree."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Magic: A First Spell for Every School",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Your first spell, in each school",
+        "items": [
+          "When one of your schools of magic reaches 25, you choose its first spell, no tome needed: Flames, Sparks or Frostbite for Destruction; Courage or Fury for Illusion; Bound Sword or Conjure Familiar for Conjuration; Oakflesh or Candlelight for Alteration.",
+          "Restoration is the priest's school: when your Priest skill reaches 25, you can take Healing as your first Restoration spell.",
+          "Your school starts at your Arcane Arts level, so if you choose it at 25 its first spell follows straight away. A secondary school starts at 33, so its first spell comes as soon as you choose it.",
+          "The choice opens at a Study Magic shelf, at a Scholars' Ledger, or when you log in. Spells you already know aren't offered.",
+          "If you were given a first spell when you chose your school, that was your pick for that school.",
+          "Fury turns a person or creature on whoever is near them. Inside a dungeon, enemies can't hurt each other, so it does little there."
+        ]
+      },
+      {
+        "heading": "Starting spells",
+        "items": [
+          "Characters start out knowing no spells. Flames and Healing are learned like any other spell, and if you already know them you keep them."
+        ]
+      },
+      {
+        "heading": "Schools grow more slowly",
+        "items": [
+          "Schools of magic now grow at about a third of their old pace, from casting and from classes alike.",
+          "Taking a school from 25 to 50 by casting alone now takes about 13 days at the daily limit."
+        ]
+      },
+      {
+        "heading": "Changing your school",
+        "items": [
+          "You can now swap one of your schools of magic for another at a Scholars' Ledger or a Study Magic shelf, once every 7 days.",
+          "The new school starts at half the level of the one it replaces. The old school rests at its level, and if you change back later you pick it up where you left it.",
+          "Your spells stay in your spellbook and can still be prepared. You can't read the tomes of a resting school or raise it by casting.",
+          "A swap never gives you a third school."
+        ]
+      },
+      {
+        "heading": "Flesh spells protect you",
+        "items": [
+          "Oakflesh, Stoneflesh, Ironflesh and Ebonyflesh now really protect you. While one lasts, the server counts its armour (40, 60, 80 or 100) against weapon and unarmed hits, on top of what you wear.",
+          "A new Flesh spell replaces the one before it; they don't stack."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Vampirism and lycanthropy, rarer and clearer",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Rarer",
+        "items": [
+          "Both diseases are now rarer, and lycanthropy the rarest. A werewolf's bite passes on Sanies Lupinus 1 time in 200. A vampire's blow passes on Sanguinare Vampiris 3 times in 100, and a vampire's feeding 1 time in 20.",
+          "Surviving Hircine's Great Hunt now marks you with Sanies Lupinus 1 time in 10."
+        ]
+      },
+      {
+        "heading": "The fever",
+        "items": [
+          "Carrying Sanies Lupinus no longer lets you take the beast's form. The beast is yours only once the fever has peaked and you have turned.",
+          "When your fever breaks, you are now told what broke it."
+        ]
+      },
+      {
+        "heading": "Curing the fever",
+        "items": [
+          "A Cure Disease potion still cures it, and so does food or a potion with a cure disease effect. An ingredient cures it only when curing disease is its first effect.",
+          "Prayer cures the fever only at a shrine of the Divines. Praying to a Daedric Prince or to one of the older faiths, or praying away from a shrine, no longer does.",
+          "Before such a prayer cures you, the shrine warns you. Pray again within a minute to go on."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Courts offer their posts",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Offices",
+        "items": [
+          "When a ruler or another official appoints someone to an office, it is now an offer. The person accepts or declines it: type /court offers to see yours, then /court accept or /court decline. An offer lapses after 24 hours. Staff still appoint outright.",
+          "Holding an office now gives you its rank in the hold's household, and leaving the office takes that rank away. The household ranks that offices set can't be renamed."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Adept, not Journeyman",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "A skill's third tier is now called Adept everywhere, as spells and schools of magic already call it. It used to be Journeyman."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Aleswell's farm and Fort Caractacus' smithy",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "The world",
+        "items": [
+          "Aleswell's farm is replanted: leeks, wheat, potatoes, carrots, gourds and grapes, where the old tomato beds were.",
+          "Fort Caractacus has a working smithy: a forge, an armour workbench, a sharpening wheel, and a supply chest that everyone shares."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Held gold counts in the launcher",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Launcher",
+        "items": [
+          "The gold players hold, shown in the launcher, now also counts gold the server keeps for players until it is paid out: commission rewards, tenancy deposits, business takings, and charter fees and refunds."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Followers keep formation",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.76",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Followers",
+        "items": [
+          "Followers walking with you each keep their own place in a formation, so a group of them no longer crowds into one spot."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Warbands and the Place tab",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Bodies",
+        "items": [
+          "The bodies of raiders and garrison NPCs that a GM has set loose are cleared away five minutes after they fall."
+        ]
+      },
+      {
+        "heading": "For staff",
+        "items": [
+          "NPCs raised with /warband never harm the GM who raised them. Two GMs' warbands never fight each other unless the GMs choose opposing sides with /warband side. /warband charge sends idle followers at the nearest NPC of an enemy side.",
+          "Raiders a GM sets loose are now run by a player near them rather than by the GM.",
+          "/raid shows and clears your own raid; /raid all and /raid clear all cover every GM's.",
+          "The Place tab's search puts the best matches first. Every word you type must match, \"quoted words\" must appear together, -word leaves out what holds it, and mod:name keeps only mods whose file name holds it."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "A new admin panel",
+    "date": "SHIP_DATE",
+    "version": "Server + Client 0.3.76",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "For staff",
+        "items": [
+          "The admin panel has a left rail in place of the row of tabs, one Acting on target that every tab uses, and one search bar with category chips and match counts.",
+          "Lead GMs and above can give a player Sanguinare Vampiris or Sanies Lupinus from the panel. It starts the fever as a bite would, and it is refused for a player who already carries a disease or a curse.",
+          "Lead GMs and above can set a player's level in each school of magic."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your race's gifts",
     "date": "2026-10-03",
     "version": "Server update",
@@ -127,54 +402,6 @@
         "items": [
           "Gear above the new loot rules (Elven, Glass and up, high-end ingots and ores, and arrows above steel) has been swapped for steel or iron equivalents: in your inventory when you next log in, and in containers as you open them.",
           "Enchanted pieces come back plain. Staff-granted artifacts are untouched."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "Magic: A First Spell for Every School",
-    "date": "SHIP_DATE",
-    "version": "Server update",
-    "tag": "Change",
-    "sections": [
-      {
-        "heading": "Your first spell, in each school",
-        "items": [
-          "When one of your schools of magic reaches 25, you choose its first spell, no tome needed: Flames, Sparks or Frostbite for Destruction; Courage or Fury for Illusion; Bound Sword or Conjure Familiar for Conjuration; Oakflesh or Candlelight for Alteration.",
-          "Restoration is the priest's school: when your Priest skill reaches 25, you can take Healing as your first Restoration spell.",
-          "Your school starts at your Arcane Arts level, so if you choose it at 25 its first spell follows straight away. A secondary school starts at 33, so its first spell comes as soon as you choose it.",
-          "The choice opens at a Study Magic shelf, at a Scholars' Ledger, or when you log in. Spells you already know aren't offered.",
-          "If you were given a first spell when you chose your school, that was your pick for that school.",
-          "Fury turns a person or creature on whoever is near them. Inside a dungeon, enemies can't hurt each other, so it does little there."
-        ]
-      },
-      {
-        "heading": "Starting spells",
-        "items": [
-          "Characters start out knowing no spells. Flames and Healing are learned like any other spell, and if you already know them you keep them."
-        ]
-      },
-      {
-        "heading": "Schools grow more slowly",
-        "items": [
-          "Schools of magic now grow at about a third of their old pace, from casting and from classes alike.",
-          "Taking a school from 25 to 50 by casting alone now takes about 13 days at the daily limit."
-        ]
-      },
-      {
-        "heading": "Changing your school",
-        "items": [
-          "You can now swap one of your schools of magic for another at a Scholars' Ledger or a Study Magic shelf, once every 7 days.",
-          "The new school starts at half the level of the one it replaces. The old school rests at its level, and if you change back later you pick it up where you left it.",
-          "Your spells stay in your spellbook and can still be prepared. You can't read the tomes of a resting school or raise it by casting.",
-          "A swap never gives you a third school."
-        ]
-      },
-      {
-        "heading": "Flesh spells protect you",
-        "items": [
-          "Oakflesh, Stoneflesh, Ironflesh and Ebonyflesh now really protect you. While one lasts, the server counts its armour (40, 60, 80 or 100) against weapon and unarmed hits, on top of what you wear.",
-          "A new Flesh spell replaces the one before it; they don't stack."
         ]
       }
     ]
