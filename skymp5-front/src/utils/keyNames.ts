@@ -105,7 +105,10 @@ export const DOM_TO_DX: Record<string, [number, string]> = {
 
 const DX_NAME: Record<number, string> = {};
 for (const k of Object.keys(DOM_TO_DX)) { const [code, name] = DOM_TO_DX[k]; if (!(code in DX_NAME)) DX_NAME[code] = name; }
-// Mouse buttons (DxScanCode 256 + the DirectInput button), which the launcher can set as the talk key
+// MouseEvent.button -> the key code, for the mouse buttons the page receives (middle only: left and right click stay the
+// page's, and SkyrimPlatform hands the page no other button)
+export const MOUSE_BUTTON_TO_DX: Record<number, number> = { 1: 258 };
+// Mouse buttons (DxScanCode 256 + the DirectInput button), which the launcher and F3 can set as menu keys
 Object.assign(DX_NAME, { 256: 'Left Mouse', 257: 'Right Mouse', 258: 'Middle Mouse', 259: 'Mouse 4', 260: 'Mouse 5', 261: 'Mouse 6', 262: 'Mouse 7', 263: 'Mouse 8' });
 
 // The name of a scan code ('' for none)

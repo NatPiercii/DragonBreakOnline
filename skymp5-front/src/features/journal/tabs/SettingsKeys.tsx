@@ -1,11 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { Row, SettingsPartProps, registerSettingsSection } from './SettingsTab';
-import { DOM_TO_DX, keyName } from '../../../utils/keyNames';
+import { DOM_TO_DX, MOUSE_BUTTON_TO_DX, keyName } from '../../../utils/keyNames';
 
 // F3, Settings, General: the menu keys (specs/f3-hub-design.md 3.7, piece H4). A key-capture field per row: press a key,
 // Escape cancels, Backspace puts the launcher's key back (or clears an optional one). Two rows on one key are both
 // marked. The client (keybindsService) keeps them in keybinds-no-load; they take effect at the next launch.
+// A mouse button binds too, as 256 + the button (Middle Mouse 258, Mouse 4 259, Mouse 5 260); left and right click stay
+// the page's. This page has the browser focus, and SkyrimPlatform hands it only left, right and middle, so it can take
+// the middle button itself; Mouse 4 and 5 reach it only from the client (dbo:keybindMouse), which hears them while a
+// window is open only with the SkyrimPlatform change that stops hiding them from the game. Until then they are set in
+// the launcher.
 
 interface KeyRow { id: string; label: string; names: string[]; group: 'menus' | 'view'; optional?: boolean; staff?: boolean; hint?: string }
 export const KEY_ROWS: KeyRow[] = [
@@ -19,11 +24,13 @@ export const KEY_ROWS: KeyRow[] = [
   { id: 'nametags', group: 'view', label: 'Nametags', names: ['nametagKeyCode'] },
   { id: 'hideUi', group: 'view', label: 'Hide interface', names: ['hideUiKeyCode'] },
   { id: 'hideChat', group: 'view', label: 'Hide chat', names: ['hideChatKeyCode'], optional: true, hint: 'Hides the chat until pressed again; T still opens it.' },
-  { id: 'ptt', group: 'view', label: 'Push to talk', names: ['voicePushToTalkKeyCode'], hint: 'A mouse button can be set in the launcher.' },
+  { id: 'ptt', group: 'view', label: 'Push to talk', names: ['voicePushToTalkKeyCode'] },
   { id: 'range', group: 'view', label: 'Voice range', names: ['voiceModeKeyCode'] },
   { id: 'mask', group: 'view', label: 'Mask', names: ['maskToggleKeyCode'] },
   { id: 'admin', group: 'menus', label: 'Admin panel', names: ['adminMenuKeyCode'], staff: true },
 ];
+type MouseSink = (code: number) => void;
+const noMouse: MouseSink = () => undefined;
 // Keys the capture itself uses, or the chat always takes
 const RESERVED = new Set([1, 14, 28]);
 
@@ -46,12 +53,21 @@ const GeneralPart = ({ section }: SettingsPartProps) => {
   const [state, setState] = useState<KeyState | null>(readState);
   const [capturing, setCapturing] = useState('');
   const [note, setNote] = useState('');
+  // The press of a mouse side button the client heard while this row waits (set below, after the rows are known)
+  const onClientMouse = useRef<MouseSink>(noMouse);
   useEffect(() => {
     const on = (): void => setState(readState());
     window.addEventListener('dbo:keybinds', on);
     tell('cef::keybinds:get');
     return () => window.removeEventListener('dbo:keybinds', on);
   }, []);
+  useEffect(() => {
+    if (!capturing) return undefined;
+    const on = (e: Event): void => { const code = Number((e as CustomEvent).detail); if (Number.isInteger(code)) onClientMouse.current(code); };
+    window.addEventListener('dbo:keybindMouse', on);
+    tell('cef::keybinds:capture', '1');
+    return () => { window.removeEventListener('dbo:keybindMouse', on); tell('cef::keybinds:capture', '0'); };
+  }, [capturing]);
   const rows = KEY_ROWS.filter((r) => !r.staff || section.staff);
   if (!state) return <p className="journal__empty">Reading your keys…</p>;
   const clash = clashes(rows, state.next);
@@ -74,6 +90,17 @@ const GeneralPart = ({ section }: SettingsPartProps) => {
     if (RESERVED.has(hit[0])) { setNote(`${hit[1]} is kept for the chat and for closing panels.`); return; }
     save(r, hit[0]);
   };
+  // The middle button binds here; left and right click go on to the page (a click on the field again cancels)
+  const onMouse = (r: KeyRow) => (e: React.MouseEvent<HTMLButtonElement>): void => {
+    if (capturing !== r.id) return;
+    const code = MOUSE_BUTTON_TO_DX[e.button];
+    if (code === undefined) return;
+    e.preventDefault();
+    e.stopPropagation();
+    save(r, code);
+  };
+  const capturingRow = rows.find((r) => r.id === capturing);
+  onClientMouse.current = (code: number): void => { if (capturingRow && code >= 258 && code <= 263) save(capturingRow, code); };
   const keyRow = (r: KeyRow) => {
     const code = state.next[r.names[0]] || 0;
     const on = capturing === r.id;
@@ -81,8 +108,9 @@ const GeneralPart = ({ section }: SettingsPartProps) => {
       <Row key={r.id} label={r.label} hint={r.hint}>
         <span className="jset__key-row">
           <button type="button" className={'jset__key' + (on ? ' jset__key--capture' : '') + (clash.has(r.id) ? ' jset__key--clash' : '')}
-            onClick={() => { setNote(''); setCapturing(on ? '' : r.id); }} onKeyDown={onKey(r)} onBlur={() => { if (on) setCapturing(''); }}>
-            {on ? 'Press a key' : code ? keyName(code) : 'None'}
+            onClick={() => { setNote(''); setCapturing(on ? '' : r.id); }} onKeyDown={onKey(r)} onMouseDown={onMouse(r)}
+            onAuxClick={(e) => { if (on || e.button === 1) e.preventDefault(); }} onBlur={() => { if (on) setCapturing(''); }}>
+            {on ? 'Press a key or the middle mouse button' : code ? keyName(code) : 'None'}
           </button>
           {clash.has(r.id) ? <span className="jset__clash">Shared with another key</span> : null}
           {(state.live[r.names[0]] || 0) !== code ? <span className="jset__later">from your next start</span> : null}
@@ -99,7 +127,7 @@ const GeneralPart = ({ section }: SettingsPartProps) => {
       <section className="jset__group">
         <h2 className="journal__heading">View and voice</h2>
         {rows.filter((r) => r.group === 'view').map(keyRow)}
-        <p className="jset__note">{note || (pending ? 'Saved. Takes effect when you next start the game.' : 'Click a key, then press the new one. Escape cancels; Backspace puts the launcher\'s key back.')}</p>
+        <p className="jset__note">{note || (pending ? 'Saved. Takes effect when you next start the game.' : 'Click a key, then press the new one, or the middle mouse button. Escape cancels; Backspace puts the launcher\'s key back. Mouse 4 and Mouse 5 are set in the launcher.')}</p>
       </section>
     </div>
   );

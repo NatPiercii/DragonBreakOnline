@@ -824,7 +824,8 @@ window.addEventListener('blur', () => { const vm = window.__alduinakVoice; if (v
 // autoscroll and a middle click's auxclick, is kept from the window.
 const isMouseTalk = (e) => { const vm = window.__alduinakVoice; return !!vm && vm.pttMouseButton !== null && e.button === vm.pttMouseButton; };
 window.addEventListener('mousedown', (e) => {
-  if (!isMouseTalk(e)) return;
+  // A key field waiting for a new key (F3, Settings, General) takes the press as the key
+  if (!isMouseTalk(e) || (e.target && typeof e.target.closest === 'function' && e.target.closest('.jset__key--capture'))) return;
   e.preventDefault();
   const vm = window.__alduinakVoice;
   if (vm.domPtt) return;
