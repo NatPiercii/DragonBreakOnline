@@ -18,6 +18,7 @@ import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
 import { queueCopyNiNodeUpdate } from "./niNodeQueue";
 import { lastTryHost, tryHost } from "./hostAttempts";
 import { GHOST_ALPHA, GHOST_SHADER_ID } from "../lib/ghostLook";
+import { AdminView, keepNoCopy, nextHiddenAt } from "./adminCopyPolicy";
 import { ModelApplyUtils } from "./modelApplyUtils";
 import { localIdToRemoteId } from "./worldViewMisc";
 import { SpApiInteractor } from "../services/spApiInteractor";
@@ -31,8 +32,6 @@ export interface ScreenResolution {
   width: number;
   height: number;
 }
-
-type AdminView = "visible" | "hidden" | "ghost";
 
 // A copy nobody drives this far from where the server holds it is re-seated, not left standing there
 const STRANDED_UNITS = 512;
@@ -112,6 +111,21 @@ export class FormView {
         this.refrId = 0;
         return;
       }
+    }
+
+    // No copy of a hidden player (Invisible admin, character creation): alpha 0 still played footsteps and kept a body
+    if (model.appearance) {
+      const now = Date.now();
+      const view = FormView.adminViewOf(model);
+      this.lastAdminHiddenAt = nextHiddenAt(view, this.lastAdminHiddenAt, now);
+      if (keepNoCopy(view, this.lastAdminHiddenAt, now)) {
+        if (this.refrId !== 0) {
+          this.destroy();
+          this.refrId = 0;
+        }
+        return;
+      }
+      this.lastAdminHiddenAt = 0;
     }
 
     // Apply appearance before base form selection to prevent double-spawn
@@ -1211,6 +1225,7 @@ export class FormView {
   private aggro: WindowState = newWindowState();
   private combatReported = false;
   private adminView: AdminView = "visible";
+  private lastAdminHiddenAt = 0;
   private adminShaderOn = false;
   private adminShaderReplayAt = 0;
   private lastSpellInvisCheck = 0;
