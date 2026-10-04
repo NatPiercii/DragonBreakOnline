@@ -110,12 +110,17 @@ const stubPlugin = {
   try {
     await esbuild.build({ entryPoints: [file('skymp5-client/src/view/npcLifetimeRuntime.ts')], bundle: true, platform: 'node', format: 'cjs', outfile: out, plugins: [stubPlugin], logLevel: 'error' });
   } catch (e) {
+    fs.rmSync(dir, { recursive: true, force: true });
     console.log(`FAIL  bundling npcLifetimeRuntime.ts: ${e.message}`);
     failures++;
     finish(0);
   }
   const R = require(out);
   fs.rmSync(dir, { recursive: true, force: true });
+  // A runtime without the guard's exports still runs every scenario and reports its failures
+  const handed = (id) => typeof R.isHandedToDelete === 'function' && R.isHandedToDelete(id) === true;
+  const placed = (id) => { if (typeof R.noteCopyPlaced === 'function') R.noteCopyPlaced(id); };
+  if (typeof R.isHandedToDelete !== 'function' || typeof R.noteCopyPlaced !== 'function') console.log('FAIL  this npcLifetimeRuntime.ts has no isHandedToDelete / noteCopyPlaced'), failures++;
   const mkRef = (id, o) => {
     const ref = Object.assign({ actor: true, loaded: true, deleted: false, disabled: false, dead: false }, o || {});
     Object.assign(ref, {
@@ -147,7 +152,7 @@ const stubPlugin = {
   R.safeDelete(a, { defer: true });
   for (let i = 0; i < 5; i++) frame();
   check('delete then deferred delete of one ref within one frame: one Delete(), no Disable queued', callsOn(a.getFormID(), 'delete') === 1 && callsOn(a.getFormID(), 'disableNoWait') === 0 && !W.crashed, W.calls);
-  check('...and the cleaner sees it as handed to delete (it touches nothing on it)', R.isHandedToDelete(a.getFormID()) === true);
+  check('...and the cleaner sees it as handed to delete (it touches nothing on it)', handed(a.getFormID()));
   check('...and the trail says so', W.log.some((l) => / delete-skipped ff001426 /.test(l)), W.log.slice(-4));
 
   // A deferred delete of a copy with no 3D: deleted outright
@@ -171,10 +176,10 @@ const stubPlugin = {
   check('a ref that reads as deleted gets nothing queued', callsOn(d.getFormID()) === 0);
   const e = mkRef(0xff001503);
   R.safeDelete(e);
-  R.noteCopyPlaced(e.getFormID());
+  placed(e.getFormID());
   const e2 = mkRef(0xff001503);
   R.safeDelete(e2);
-  check('a new copy placed under a reused id is deleted again', callsOn(e2.getFormID(), 'delete') === 2 && R.isHandedToDelete(e2.getFormID()));
+  check('a new copy placed under a reused id is deleted again', callsOn(e2.getFormID(), 'delete') === 2 && handed(e2.getFormID()));
   check('no Disable ever ran on a deleted ref', !W.crashed, W.crashed && W.crashed.toString(16));
   finish(0);
 })();
