@@ -85,6 +85,35 @@ module.exports = (api) => {
     try { fs.writeFileSync(STATE_PATH + '.tmp', JSON.stringify(ST.members, null, 1)); fs.renameSync(STATE_PATH + '.tmp', STATE_PATH); }
     catch (e) { log('guilds.json write failed', e.message); }
   };
+  // ---- a rank list changed in guild-defs.json keeps every member on their title -----------------------------------
+  // Members are stored by rank index, so a rank inserted or moved in the defs would shift everyone below it. Each
+  // faction's titles are kept in guild-ranks-seen.json (runtime, gitignored); at load a faction whose titles differ
+  // from that snapshot has its roster remapped by title, and a member whose title is gone takes the lowest rank. With
+  // no snapshot yet, the previous list is taken to be today's without the ranks marked "added" in the defs.
+  const SEEN_PATH = path.resolve('guild-ranks-seen.json');
+  const SEEN = readJson(SEEN_PATH, {});
+  const saveSeen = () => { try { fs.writeFileSync(SEEN_PATH + '.tmp', JSON.stringify(SEEN, null, 1)); fs.renameSync(SEEN_PATH + '.tmp', SEEN_PATH); } catch (e) { log('guild-ranks-seen.json write failed', e.message); } };
+  const remapByTitle = () => {
+    let moved = 0;
+    for (const f of FACTIONS.values()) {
+      const now = f.ranks.map((r) => String(r.title).toLowerCase());
+      const was = Array.isArray(SEEN[f.id]) ? SEEN[f.id].map((t) => String(t).toLowerCase())
+        : f.ranks.filter((r) => !r.added).map((r) => String(r.title).toLowerCase());
+      SEEN[f.id] = f.ranks.map((r) => r.title);
+      if (was.join('|') === now.join('|')) continue;
+      const roster = ST.members[f.id] || {};
+      for (const e of Object.values(roster)) {
+        const at = now.indexOf(was[e.rank]);
+        const to = at >= 0 ? at : now.length - 1;
+        if (to !== e.rank) { e.rank = to; moved++; }
+      }
+      log(`guilds: ${f.id}'s ranks changed (${was.join(', ')} -> ${now.join(', ')}); its members keep their titles`);
+    }
+    if (moved) save();
+    saveSeen();
+    return moved;
+  };
+  remapByTitle();
   // ---- the faction's storage ---------------------------------------------------------------------
   // Nate 2026-09-27: recruitment and access stay roleplay. A leader claims a container through housing, locks
   // it and cuts keys for whoever should reach it; this records only WHERE it is, so members can find it and it
@@ -467,6 +496,7 @@ module.exports = (api) => {
     f.ranks = ranks;
     for (const e of Object.values(roster)) e.rank = newIndex(e.rank);
     save();
+    SEEN[fid] = ranks.map((r) => r.title); saveSeen();
     for (const id of Object.keys(roster).map(Number)) if (isOnline(id)) mirror(id);
     // economy.js keeps a non-hold faction's wages by rank title: every rename at once, so a swap or a chain keeps each wage
     if (renamed.length && typeof globalThis.__dboEconomyRanksRenamed === 'function') { try { globalThis.__dboEconomyRanksRenamed(fid, renamed); } catch (e) { log('guilds: wage rename failed', e.message); } }

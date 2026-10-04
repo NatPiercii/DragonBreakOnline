@@ -34,9 +34,9 @@ module.exports = (api) => {
   const C = Object.assign({
     enabled: true, offerHours: 24,
     // office -> the household rank titles it maps to, the first the faction has ('@leader': the faction's leader rank).
-    // An office with none (Steward, Bane) only makes sure its holder is in the household.
+    // An office with none (Bane) only makes sure its holder is in the household.
     factionRanks: {
-      jarl: ['@leader'], count: ['@leader'], baron: ['@leader'], chieftain: ['@leader'],
+      jarl: ['@leader'], count: ['@leader'], baron: ['@leader'], chieftain: ['@leader'], steward: ['Steward'],
       guardcaptain: ['Guard Captain'], captain: ['Guard Captain'], commander: ['Guard Captain'],
       strongholdcommander: ['Stronghold Guard Commander'],
       courtmage: ['Court Wizard', 'Battlemage'], shaman: ['Clan Mystic'], wisewoman: ['Clan Mystic'],

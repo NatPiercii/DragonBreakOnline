@@ -30,6 +30,11 @@
         "role": "leader"
       },
       {
+        "title": "Steward",
+        "role": "officer",
+        "added": "2026-10-04"
+      },
+      {
         "title": "Guard Captain",
         "role": "officer"
       },
@@ -208,6 +213,11 @@
         {
           "title": "Count",
           "role": "leader"
+        },
+        {
+          "title": "Steward",
+          "role": "officer",
+          "added": "2026-10-04"
         },
         {
           "title": "Guard Captain",

@@ -2,7 +2,7 @@
 // Scholar section, shared by /appoint and the tab), the real guilds.js with the real guild-defs.json, and court.js, run
 // against stubs in a temp folder. Covers: staff seat outright, a ruler's appointment is an offer the target accepts or
 // declines, an offer re-checked at acceptance (the ruler lost the seat, the seats filled), expiry after 24 h, the office
-// setting the household rank (Count -> leader, Guard -> Guard, Steward -> joins as Citizen) and unseating dropping it,
+// setting the household rank (Count -> leader, Guard -> Guard, Steward -> Steward) and unseating dropping it,
 // moving an official, the household's own rank actions, the views per player kind, stale nonces, /appoint by a ruler.
 //
 //   node tests/court-harness.js   (from server/)
@@ -97,6 +97,7 @@ const court = require(path.join(ROOT, 'court.js'))(Object.assign({}, base, O));
 const sec = globalThis.__dboJournalSections.court;
 const ev = (name, a, ...args) => { answers.length = 0; told.length = 0; for (const f of handlers[name] || []) f(a, args); return answers[answers.length - 1] || null; };
 const household = () => (globalThis.__dboGuildState.members['county-bruma'] || {});
+const hhIndex = (t) => JSON.parse(fs.readFileSync(path.join(dir, 'guild-defs.json'), 'utf8')).factions.find((f) => f.id === 'county-bruma').ranks.findIndex((r) => r.title === t);
 const hhTitle = (a) => { const e = household()[String(a >>> 0)]; if (!e) return null; return JSON.parse(fs.readFileSync(path.join(dir, 'guild-defs.json'), 'utf8')).factions.find((f) => f.id === 'county-bruma').ranks[e.rank].title; };
 const seated = (z, r) => (officials[z] && officials[z][r]) || [];
 
@@ -124,7 +125,7 @@ r = ev('courtAnswer', ALDO, 'N', offerId, 'accept');
 ok('accepting seats them', seated('bruma', 'steward').includes(12) && r.kind === 'ok' && /You are now Steward of Bruma/.test(r.text), [r, officials]);
 ok('the one who offered is told', told.some((t) => t.a === COUNT && /accepted the post of Steward/.test(t.text)), told);
 ok('the audit names the offer', audits.some((t) => /appointed Aldo Varro #ALD1 \(profile 12\) Steward of Bruma, offered and accepted/.test(t)), audits.slice(-2));
-ok('a Steward has no household rank of its own: Aldo joins as Citizen', hhTitle(ALDO) === 'Citizen', hhTitle(ALDO));
+ok('the Steward office sets the household\'s Steward rank (#bugs 4 Oct: no Steward to grant)', hhTitle(ALDO) === 'Steward', hhTitle(ALDO));
 ok('the offer is gone', sec.view(ALDO).offers.length === 0 && sec.visible(ALDO) === true);
 
 // ---- decline, withdraw, re-check at acceptance --------------------------------------------------------------------------
@@ -171,16 +172,16 @@ ok('dismissing a Guard drops them to Citizen', !seated('bruma', 'guard').include
 // ---- the household's own actions -------------------------------------------------------------------------------------
 r = ev('courtRank', ADMIN, 'N', 'bruma', ALDO, 0);
 ok('the household head follows the office: courtRank cannot make a second Count, staff included', r.kind === 'refused' && /follows the court's office/.test(r.text) && hhTitle(ALDO) !== 'Count' && hhTitle(COUNT) === 'Count', [r, hhTitle(ALDO), hhTitle(COUNT)]);
-r = ev('courtRank', ADMIN, 'N', 'bruma', COUNT, 8);
+r = ev('courtRank', ADMIN, 'N', 'bruma', COUNT, hhIndex('Citizen'));
 ok('...nor take the Count\'s rank away', r.kind === 'refused' && hhTitle(COUNT) === 'Count', r);
-r = ev('courtRank', COUNT, 'N', 'bruma', ALDO, 2);
+r = ev('courtRank', COUNT, 'N', 'bruma', ALDO, hhIndex('Knight'));
 ok('the Count sets a household rank (Knight)', hhTitle(ALDO) === 'Knight' && r.kind === 'ok', [r, hhTitle(ALDO)]);
-ok('a Citizen cannot', ev('courtRank', ALDO, 'N', 'bruma', COUNT, 8).kind === 'refused' && hhTitle(COUNT) === 'Count');
+ok('a Citizen cannot', ev('courtRank', ALDO, 'N', 'bruma', COUNT, hhIndex('Citizen')).kind === 'refused' && hhTitle(COUNT) === 'Count');
 r = ev('courtInvite', COUNT, 'N', 'bruma', 'Kesta');
 ok('the Count invites into the household', r.kind === 'ok' && told.some((t) => t.a === KNIGHT && /invites you to join County of Bruma/.test(t.text)), r);
 view = sec.view(COUNT);
 const hh = view.courts[0].household;
-ok('the household view lists members, ranks and the invite out', hh && hh.id === 'county-bruma' && hh.members.length === 3 && hh.ranks.length === 9 && hh.pending.some((p) => p.name === 'Kesta'), hh && { members: hh.members.length, pending: hh.pending });
+ok('the household view lists members, ranks and the invite out', hh && hh.id === 'county-bruma' && hh.members.length === 3 && hh.ranks.length === 10 && hh.pending.some((p) => p.name === 'Kesta'), hh && { members: hh.members.length, pending: hh.pending });
 r = ev('courtKick', COUNT, 'N', 'bruma', ALDO);
 ok('the Count removes a household member', !household()[String(ALDO)] && r.kind === 'ok', r);
 
