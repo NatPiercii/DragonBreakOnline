@@ -293,9 +293,37 @@ check('a mage with a spell of their school gets nothing, and is marked so the ch
   const removes = [];
   const call = mp.callPapyrusFunction;
   mp.callPapyrusFunction = (k, c, fn, self, args) => { if (fn === 'RemoveSpell' || fn === 'AddSpell') removes.push([idOf(self.desc), fn]); return call(k, c, fn, self, args); };
-  tick('schools.first'); tick('schools.first');
-  check('...a starter given after the client settled is not sent again', !removes.some(([x]) => x === QUICK), removes);
+  const mine = () => removes.filter(([x]) => x === QUICK).map(([, fn]) => fn);
+  const lines0 = out.said.filter((x) => x[0] === QUICK).length;
+  advance(60000); tick('schools.first'); tick('schools.first');
+  check('...a new starter is not sent again before starterResendSeconds', !mine().length, mine());
+  advance(61000); tick('schools.first');
+  check('...then once more for a client that sat in a menu: taken back on one check', mine().join() === 'RemoveSpell' && !known(QUICK).has(idOf(T.frostbite[1])) && studied(QUICK).includes(T.frostbite[1]), mine());
+  tick('schools.first');
+  check('...given again on the next, quietly', mine().join() === 'RemoveSpell,AddSpell' && known(QUICK).has(idOf(T.frostbite[1])) && out.said.filter((x) => x[0] === QUICK).length === lines0 && !Object.keys(rec(QUICK).resend || {}).length, [mine(), rec(QUICK).resend]);
+  advance(300000); tick('schools.first'); globalThis.__dboSchoolsLogin(QUICK); advance(300000); tick('schools.first'); tick('schools.first');
+  check('...and only once per grant, a relog later too', mine().join() === 'RemoveSpell,AddSpell', mine());
   mp.callPapyrusFunction = call;
+}
+
+// ---- a reconnect inside one check starts the clock again ----
+{
+  const RECON = 0x20; NAMES[RECON] = 'Recon'; put(RECON, 'profileId', RECON); at(RECON, SYNOD, [0, 0, 0]); online.push(RECON); ui('uiCaps', RECON, ['bank', 'spellbook', 'schools']); arcane(RECON, 3);
+  put(RECON, 'private.dboSchools', { v: 1, primary: 'Illusion', secondary: null, grandfathered: [], levels: { Illusion: { level: 30, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null });
+  // Seen long ago, then gone before the starter could be given (no school record read it yet: a record with no spell)
+  globalThis.__dboSchoolsArrived(RECON); advance(200000);
+  globalThis.__dboSchoolsLeave(RECON); globalThis.__dboSchoolsArrived(RECON);
+  tick('schools.first');
+  check('a logout and a new character ready between two checks: the starter waits again', !studied(RECON).length && !rec(RECON).starter, studied(RECON));
+  advance(91000); tick('schools.first');
+  check('...and comes once the new arrival has settled', studied(RECON).includes(T.courage[1]), studied(RECON));
+  // The login check's clock is reset even when the client's capabilities are not in yet
+  const NOCAPS = 0x22; NAMES[NOCAPS] = 'Nocaps'; put(NOCAPS, 'profileId', NOCAPS); at(NOCAPS, SYNOD, [0, 0, 0]);
+  globalThis.__dboSchoolsArrived(NOCAPS); advance(200000); globalThis.__dboSchoolsLogin(NOCAPS);
+  check('...the login check restarts the clock with no capabilities yet', globalThis.__dboSchoolsSeenAt.get(NOCAPS) === Date.now());
+  globalThis.__dboSchoolsLeave(NOCAPS);
+  check('...and a logout forgets it', !globalThis.__dboSchoolsSeenAt.has(NOCAPS));
+  online = online.filter((x) => x !== RECON);
 }
 
 // ---- a starter given at login before this rule: sent to the client again, once ----
@@ -312,17 +340,18 @@ check('a mage with a spell of their school gets nothing, and is marked so the ch
     put(a, 'private.dboSchools', { v: 1, primary: 'Conjuration', secondary: null, grandfathered: [], levels: { Conjuration: { level: 31, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, starter: T.boundSword[1] });
     globalThis.__dboSchoolsLogin(a);
   }
+  const callsOf = (a) => calls.filter(([x]) => x === a);
   tick('schools.first');
-  check('an old grant is left alone in the client\'s first seconds', !calls.length, calls);
+  check('an old grant is left alone in the client\'s first seconds', !callsOf(LATE).length && !callsOf(PUTAWAY).length, calls);
   advance(91000); tick('schools.first');
-  check('...then taken back first, on its own check', calls.length === 1 && calls[0][0] === LATE && calls[0][1] === 'RemoveSpell' && calls[0][2] === T.boundSword[1] && rec(LATE).starterSent === 'taken', calls);
+  check('...then taken back first, on its own check', callsOf(LATE).length === 1 && callsOf(LATE)[0][1] === 'RemoveSpell' && callsOf(LATE)[0][2] === T.boundSword[1] && rec(LATE).resend[T.boundSword[1]].taken === true, calls);
   check('...the book and the prepared list keep it meanwhile', studied(LATE).includes(T.boundSword[1]) && (props.get(LATE + '|private.dboPrepared') || []).includes(T.boundSword[1]));
   tick('schools.first');
-  check('...and given again on the next', calls.length === 2 && calls[1][1] === 'AddSpell' && known(LATE).has(idOf(T.boundSword[1])) && typeof rec(LATE).starterSent === 'number', calls);
-  check('...the player is told, and it is audited', said(LATE) === 'Your first spell is back. Bound Sword is ready among your spells.' && out.audits.some((l) => /SCHOOLS P1e was sent the Conjuration starter 211eb:Skyrim\.esm Bound Sword again/.test(l)), [said(LATE)]);
+  check('...and given again on the next', callsOf(LATE).length === 2 && callsOf(LATE)[1][1] === 'AddSpell' && known(LATE).has(idOf(T.boundSword[1])) && rec(LATE).starterSent === 'before' && !Object.keys(rec(LATE).resend).length, calls);
+  check('...the player is told, and it is audited', said(LATE) === 'Your first spell is back. Bound Sword is ready among your spells.' && out.audits.some((l) => /SCHOOLS P1e was sent 211eb:Skyrim\.esm Bound Sword again/.test(l)), [said(LATE)]);
   tick('schools.first'); globalThis.__dboSchoolsLogin(LATE); advance(91000); tick('schools.first'); tick('schools.first');
-  check('...only once, a relog later too', calls.length === 2, calls);
-  check('an old grant the player put away is only marked: nothing sent, nothing said', !calls.some(([x]) => x === PUTAWAY) && typeof rec(PUTAWAY).starterSent === 'number' && !out.said.some((x) => x[0] === PUTAWAY), calls);
+  check('...only once, a relog later too', callsOf(LATE).length === 2, calls);
+  check('an old grant the player put away is only marked: nothing sent, nothing said', !callsOf(PUTAWAY).length && rec(PUTAWAY).starterSent === 'before' && !Object.keys(rec(PUTAWAY).resend).length && !out.said.some((x) => x[0] === PUTAWAY), calls);
   mp.callPapyrusFunction = call;
   online = online.filter((x) => x !== LATE && x !== PUTAWAY && x !== 0x1d);
 }
