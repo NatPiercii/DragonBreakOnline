@@ -9,6 +9,9 @@ server-settings.*.json
 # Runtime state written by the server
 world/
 zone-spawns.json
+# fork npcSpawnSystem.ts FALLEN_FILE: the spots the live server learned drop npcs into the void; the tracked copy (20 Sep,
+# 19 legacy keys loadFallen ignores) was installed over them by every deploy-gameplay (G11, 4 Oct)
+npc-fallen-spots.json
 *.tmp
 notice-boards.json
 officials.json
