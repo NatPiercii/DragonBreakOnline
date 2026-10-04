@@ -482,7 +482,8 @@
     [
      "Orichalcum",
      "Moonstone",
-     "Gold"
+     "Gold",
+     "MeteoricIron"
     ],
     [
      "Malachite"
@@ -501,7 +502,7 @@
    "tiers": [
     "Copper, iron, corundum",
     "Silver, quicksilver",
-    "Orichalcum, moonstone",
+    "Orichalcum, moonstone, gold, meteoric iron",
     "Ebony, malachite",
     "Double yield from every vein"
    ],
