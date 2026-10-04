@@ -242,3 +242,45 @@ TEST_CASE("Changes are transferred to SaveStorage", "[save]")
     }
   }
 }
+
+TEST_CASE("FileDatabase writes a batch whole and leaves no temp files",
+          "[save]")
+{
+  auto directory = "unit/data";
+  if (std::filesystem::exists(directory)) {
+    std::filesystem::remove_all(directory);
+  }
+  FileDatabase db(directory, spdlog::default_logger());
+
+  auto makeBatch = [](float x) {
+    std::vector<std::optional<MpChangeForm>> forms;
+    forms.push_back(std::nullopt);
+    for (const char* desc : { "0:Skyrim.esm", "1:Skyrim.esm", "ff000729" }) {
+      MpChangeForm cf = CreateChangeForm(desc);
+      cf.position = { x, 2.f, 3.f };
+      forms.push_back(cf);
+    }
+    return forms;
+  };
+
+  REQUIRE(db.Upsert(makeBatch(1.f)) == 3);
+  REQUIRE(db.Upsert(makeBatch(7.f)) == 3);
+
+  const std::filesystem::path dir =
+    std::filesystem::path(directory) / "changeForms";
+  size_t numJson = 0;
+  for (auto& entry : std::filesystem::directory_iterator(dir)) {
+    REQUIRE(entry.path().extension() == ".json");
+    REQUIRE(std::filesystem::file_size(entry.path()) > 0);
+    ++numJson;
+  }
+  REQUIRE(numJson == 3);
+
+  std::vector<MpChangeForm> loaded;
+  db.Iterate([&](const MpChangeForm& cf) { loaded.push_back(cf); },
+             std::nullopt);
+  REQUIRE(loaded.size() == 3);
+  for (auto& cf : loaded) {
+    REQUIRE(cf.position.x == 7.f);
+  }
+}
