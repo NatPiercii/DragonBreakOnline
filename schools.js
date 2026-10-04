@@ -31,7 +31,8 @@
 //     daily cap per school;
 //   Study Magic: a study activator (base editor id `study.edid`, or a ref in `study.refs`) plays a reading idle and pays
 //     the primary school every `tickSeconds` while the reader stays put, `minutesPerWindow` minutes per `windowHours`.
-//     Studying closes for good once a spell of the four schools is in the spellbook (learned through Arcane Arts);
+//     Studying a school closes once a spell of it is in the spellbook (learned through Arcane Arts); before the first
+//     school, any spell of the four closes it. A mage who changes school studies the new one (Z63J, 4 Oct);
 //   classes at a Class Lectern (base editor id `classes.edid`): a qualified teacher picks one spell they know, which sets
 //     the class's school and rank only (nobody learns it); students sign up at the same lectern. It runs `minutes` (30),
 //     teacher and students in the classroom (the lectern's interior cell, or `radiusMeters` outdoors); after it the
@@ -691,7 +692,7 @@ module.exports = (api) => {
     // (no shelf), it closes once the school is chosen.
     if (fromStudy) {
       const at = studyAt.get(a >>> 0);
-      if (at && r.ok && !firstSpell(a)) startStudy(a, at);
+      if (at && r.ok && !firstSpell(a, stateOf(a).primary)) startStudy(a, at);
       else if (at || !r.ok) openStudy(a, at || 0, r.text, r.ok ? 'ok' : 'refused');
       else { studyNonces.delete(a >>> 0); studyAt.delete(a >>> 0); closeWidget(a, STUDY_PANEL_ID); }
     }
@@ -751,11 +752,13 @@ module.exports = (api) => {
     return { usedMs: used, leftMs: Math.max(0, budgetMs(conf) - used), resetsIn };
   };
   // A spell learned through Arcane Arts: a priest's Alteration spells do not close the shelves to a new mage
-  const firstSpell = (a) => bookOf(a).find((sp) => sp && SCHOOLS.includes(sp.school) && (!sp.book || sp.book === C.arcaneSkill)) || null;
+  // With a school given, only a spell of that school: the shelves pay the primary, so a mage who changed school studies
+  // the new one until a spell of it is in the book (Z63J, 4 Oct: "You have learned Bound Sword" refused Destruction)
+  const firstSpell = (a, school) => bookOf(a).find((sp) => sp && SCHOOLS.includes(sp.school) && (!school || sp.school === school) && (!sp.book || sp.book === C.arcaneSkill)) || null;
   // Why `a` cannot study now, or ''
   const studyRefusal = (a, s) => {
     if (!C.enabled || !C.study.enabled) return 'Study is closed.';
-    const first = firstSpell(a);
+    const first = firstSpell(a, s && s.primary);
     if (first) return `You have learned ${first.name}; the shelves have nothing more to teach you. Your schools grow now by casting and in class.`;
     const b = studyBudget(s);
     if (b.leftMs <= 0) return `You've done enough studying for the day. Come back in ${inWords(b.resetsIn || windowMs())}.`;
@@ -893,7 +896,7 @@ module.exports = (api) => {
     if (S.studying.has(a >>> 0)) return openStudy(a, ref);
     // A first spell waiting to be chosen opens here; with the books closed to them, a mage may change school here
     if (firstCheck(a, 'shelf', ref)) return;
-    if (s.primary && firstSpell(a) && C.swap.enabled) return openSchoolMenu(a, ref, 'shelf', studyRefusal(a, s));
+    if (s.primary && firstSpell(a, s.primary) && C.swap.enabled) return openSchoolMenu(a, ref, 'shelf', studyRefusal(a, s));
     startStudy(a, ref);
   };
   // One set of books at a time; the new panel opens before the other closes, so the cursor stays (panel handoff)

@@ -241,6 +241,11 @@ check('changed: Illusion is the primary at 20, Destruction rests at 40', rec(MAG
 check('...told, and the menu shows it', said(MAGE) === "Illusion takes the place of Destruction at 20. Destruction rests at 40; change back to take it up where you left it. Your next change is 7 days away." && contextOf(MAGE).targetName === said(MAGE), said(MAGE));
 check('...audited', out.audits.some((l) => /SCHOOLS P14 changed Destruction \(40, now resting\) for Illusion \(20\) as their primary school/.test(l)));
 check('...no pick: Illusion is below 25', !rec(MAGE).picks.Illusion && contextOf(MAGE).actions.every((x) => !/first spell/.test(x.label)));
+// Z63J (4 Oct): Sparks closed the shelves to Destruction, never to the new school; the change opens them for Illusion
+activate(BOOKCASE, MAGE);
+check('after the change the shelf studies the new school (Sparks closed Destruction\'s books, not Illusion\'s)', globalThis.__dboSchoolsState.studying.has(MAGE) && lastWidget(MAGE, 'studyMagic').mode === 'studying' && lastWidget(MAGE, 'studyMagic').school === 'Illusion', lastWidget(MAGE, 'studyMagic'));
+ui('studyStop', MAGE, [lastWidget(MAGE, 'studyMagic').nonce]);
+check('...and stops again', !globalThis.__dboSchoolsState.studying.has(MAGE));
 p = progress(MAGE);
 check('K: Illusion primary, Destruction resting at 40', p.schools.find((x) => x.name === 'Illusion').role === 'primary' && p.schools.find((x) => x.name === 'Destruction').roleLabel === 'Resting' && p.schools.find((x) => x.name === 'Destruction').hint === 'Resting at 40', p.schools);
 check('a resting school\'s tomes are refused', globalThis.__dboSchoolsRefusal(MAGE, 'Destruction', 1, 'You') === 'Destruction is not one of your schools of magic.');
