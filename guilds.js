@@ -338,15 +338,25 @@ module.exports = (api) => {
   // A faction's hall as a house (Nate, 4 Oct: the College of Whispers in Frostcrag Spire): a claimed building one of whose
   // doors guild-defs lists as the faction's hall, owned by an account that leads the faction. Its members use it as its
   // owner does (beds in rest.js; chests and doors in fork housingSystem.ts); only the owner sells, hands it over or gives it up.
+  // Staff mark a building as a hall, or unmark one, in game (/faction hallmark, hallunmark): faction-halls.json (runtime,
+  // gitignored) { fid: { doors: [desc], off: [desc], by, at } }, read on every ask, so a mark takes effect at once
+  const MARKS_PATH = path.resolve('faction-halls.json');
+  const readMarks = () => { const m = readJson(MARKS_PATH, {}); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; };
   const HALL_DOORS = new Map();
   for (const f of FACTIONS.values()) for (const d of (hallOf(f) || { doors: [] }).doors) { const k = String(d).toLowerCase(); HALL_DOORS.set(k, (HALL_DOORS.get(k) || []).concat([f.id])); }
+  const hallFactionsAt = (desc) => {
+    const marks = readMarks();
+    const out = new Set((HALL_DOORS.get(desc) || []).filter((fid) => !((marks[fid] || {}).off || []).includes(desc)));
+    for (const [fid, m] of Object.entries(marks)) if (FACTIONS.has(fid) && ((m || {}).doors || []).includes(desc)) out.add(fid);
+    return [...out];
+  };
   const leadsAccount = (pid, fid) => { let ids = []; try { ids = (mp.getActorsByProfileId(Number(pid)) || []).map((x) => Number(x) >>> 0); } catch (e) { return false; } return ids.some((x) => (rankOf(fid, x) || {}).role === 'leader'); };
   // refs: the building's door ids (its record's half and the far half); owner: the profile holding the claim
   const hallFactionsOf = (refs, owner) => {
     const out = new Set();
     for (const r of Array.isArray(refs) ? refs : []) {
       let desc = ''; try { desc = String(mp.getDescFromId(Number(r) >>> 0) || '').toLowerCase(); } catch (e) { continue; }
-      for (const fid of HALL_DOORS.get(desc) || []) if (leadsAccount(owner, fid)) out.add(fid);
+      for (const fid of hallFactionsAt(desc)) if (leadsAccount(owner, fid)) out.add(fid);
     }
     return [...out];
   };
@@ -703,6 +713,38 @@ module.exports = (api) => {
       audit(`FACTION ${who(a)} set the storage of ${f.name} to ${rec.name || ref.toString(16)}`);
       return personal(a, `${f.name} keeps its things in ${rec.name || 'that container'}${hall ? ` at ${hall.name}` : ''}. Lock it and cut keys for whoever should reach it.`);
     }
+    // Staff (Lead GM and above) mark the building whose door they stand at as a faction's hall, or unmark it (Nate, 4 Oct)
+    if (s === 'hallmark' || s === 'hallunmark') {
+      if (!isLeadStaff(a)) return personal(a, 'Only a Lead GM or above marks a faction\'s hall.');
+      const f = FACTIONS.get(String(rest[0] || '').toLowerCase());
+      if (!f) return personal(a, `Usage: /faction ${s} <faction id>, standing at the building's door   (/faction list)`);
+      const H = globalThis.__dboHousing;
+      const ref = propertyAt(a);
+      const root = ref && H && typeof H.primaryOf === 'function' ? Number(H.primaryOf(ref)) >>> 0 : 0;
+      const rec = root && typeof H.recordOf === 'function' ? H.recordOf(root) : null;
+      if (!rec || !rec.owner || !Number(rec.partner)) return personal(a, 'Stand at the door of a claimed building and try again.');
+      let doors = [];
+      try { doors = [root, Number(rec.partner) >>> 0].map((r) => String(mp.getDescFromId(r) || '').toLowerCase()).filter(Boolean); } catch (e) { doors = []; }
+      if (!doors.length) return personal(a, 'That door cannot be marked.');
+      const marks = readMarks();
+      const m = marks[f.id] = Object.assign({ doors: [], off: [] }, marks[f.id] || {});
+      const place = rec.name || `${rec.ownerName || 'someone'}'s property`;
+      if (s === 'hallmark') {
+        m.doors = [...new Set(m.doors.concat(doors))]; m.off = m.off.filter((d) => !doors.includes(d));
+      } else {
+        const listed = doors.some((d) => (HALL_DOORS.get(d) || []).includes(f.id));
+        m.doors = m.doors.filter((d) => !doors.includes(d));
+        if (listed) m.off = [...new Set(m.off.concat(doors))];
+      }
+      m.by = who(a); m.at = Date.now();
+      if (!m.doors.length && !m.off.length) delete marks[f.id];
+      try { fs.writeFileSync(MARKS_PATH + '.tmp', JSON.stringify(marks, null, 1)); fs.renameSync(MARKS_PATH + '.tmp', MARKS_PATH); }
+      catch (e) { log('faction-halls.json write failed', e.message); return personal(a, 'The mark could not be saved. Try again later.'); }
+      audit(`FACTION ${who(a)} ${s === 'hallmark' ? 'marked' : 'unmarked'} ${place} (${doors.join(', ')}, owner profile ${rec.owner}) as the hall of ${f.name}`);
+      const leads = leadsAccount(rec.owner, f.id);
+      if (s === 'hallunmark') return personal(a, `${place} is no longer the hall of ${f.name}.`);
+      return personal(a, `${place} is the hall of ${f.name}.` + (leads ? ' Its members use it as its owner does.' : ` It is shared only while its owner, ${rec.ownerName || 'someone'}, leads ${f.name}.`));
+    }
     if (s === 'hall' || s === 'halls') {
       const one = rest[0] && FACTIONS.get(String(rest[0]).toLowerCase());
       if (rest[0] && !one) return personal(a, `No such faction: ${rest[0]} (/faction list)`);
@@ -733,7 +775,7 @@ module.exports = (api) => {
       const fid = rest[1] || ''; const id = findMember(fid, rest[0]); if (!FACTIONS.get(fid) || !id) return personal(a, 'Usage: /faction remove <name|#TAG> <faction id>');
       removeMember(fid, id); return personal(a, 'Removed.');
     }
-    personal(a, 'Usage: /faction [menu|list|accept [id]|invite <player> [id]]  admins: /faction leader <player> <id>, /faction remove <name> <id>');
+    personal(a, 'Usage: /faction [menu|list|accept [id]|invite <player> [id]]  admins: /faction leader <player> <id>, /faction remove <name> <id>, /faction hallmark|hallunmark <id> (at a building\'s door)');
   }, { help: '[menu|list|accept|invite] your factions (F3 opens the menu)' });
 
   // ---- packs: the leader runs with the pale coat, and a packmate who kills them in beast form takes the pack
