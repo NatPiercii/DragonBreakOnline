@@ -43,17 +43,20 @@ const fileEntry = (fid, a) => JSON.parse(fs.readFileSync(GFILE, 'utf8'))[fid][St
 // Today's live state (4 Oct 00:09, before stamping): the Count at 0 and a Citizen at 8; the Blades' second Blade (5)
 const PRESHIP = { 'county-bruma': { [COUNT]: { rank: 0, name: 'Frigga Hux', tag: 'GLNP', since: 1 }, [REYLA]: { rank: 8, name: 'Reyla Feign', tag: 'FXWY', since: 2 } },
   'hold-whiterun': { [OLD]: { rank: 7, name: 'Old Guard', tag: 'OLDG', since: 3 } },
+  'clan-largashbur': { [0x41]: { rank: 0, name: 'Chief', tag: 'CHIF', since: 7 }, [0x42]: { rank: 8, name: 'Blood-Kin', tag: 'KIN1', since: 8 }, [0x43]: { rank: 1, name: 'Commander', tag: 'CMDR', since: 9 } },
   blades: { [B1]: { rank: 2, name: 'Sergeant Blade', tag: 'BLD1', since: 4 }, [B2]: { rank: 5, name: 'Member Blade', tag: 'BLD2', since: 5 }, [B3]: { rank: 6, name: 'Initiate', tag: 'BLD3', since: 6 } } };
 const expectPostShip = (label) => {
   ok(`${label}: the Count is Count`, titleOf('county-bruma', COUNT) === 'Count' && entry('county-bruma', COUNT).rank === 0, entry('county-bruma', COUNT));
   ok(`${label}: the Citizen is a Citizen (index 9), not a Guard`, titleOf('county-bruma', REYLA) === 'Citizen' && entry('county-bruma', REYLA).rank === 9, entry('county-bruma', REYLA));
   ok(`${label}: a Whiterun Guard is a Guard (index 8)`, entry('hold-whiterun', OLD).rank === 8);
+  ok(`${label}: Largashbur keeps its Chief (0), Blood-Kin (8 -> 9) and Guard Commander (1 -> 2)`, entry('clan-largashbur', 0x41).rank === 0 && entry('clan-largashbur', 0x42).rank === 9 && entry('clan-largashbur', 0x43).rank === 2, globalThis.__dboGuildState.members['clan-largashbur']);
   ok(`${label}: the Blades keep both Blades apart (2 and 5)`, entry('blades', B1).rank === 2 && entry('blades', B2).rank === 5 && entry('blades', B3).rank === 6, [entry('blades', B1), entry('blades', B2)]);
 };
 
 const bruma = DEFS.factions.find((f) => f.id === 'county-bruma');
 ok('the County of Bruma has a Steward rank, right under the Count, marked added', bruma.ranks[1].title === 'Steward' && bruma.ranks[1].role === 'officer' && !!bruma.ranks[1].added, bruma.ranks.slice(0, 2));
 ok('so has every hold of the template', DEFS.templates.hold[1].title === 'Steward' && !!DEFS.templates.hold[1].added);
+ok('the stronghold template has a Bane right under the Chief, marked added', DEFS.templates.stronghold[1].title === 'Bane' && DEFS.templates.stronghold[1].role === 'officer' && !!DEFS.templates.stronghold[1].added, DEFS.templates.stronghold.slice(0, 2));
 
 writeDefs(DEFS);
 fs.writeFileSync(GFILE, JSON.stringify(PRESHIP));

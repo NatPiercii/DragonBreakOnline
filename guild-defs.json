@@ -73,6 +73,11 @@
         "role": "leader"
       },
       {
+        "title": "Bane",
+        "role": "officer",
+        "added": "2026-10-04"
+      },
+      {
         "title": "Stronghold Guard Commander",
         "role": "officer"
       },
