@@ -2,8 +2,9 @@
 //   1. worldclock.js sends a player in character creation the noon nearest now (the Realm's Sovngarde climate is dark
 //      20:30-05:30 game time, and the world clock made the creator dark for 1.5 of every 4 real hours). Only that
 //      player's packet changes: the clock, night, the moons and every server-side reader stay as they were.
-//   2. gamemode.js spreads new characters over 19 checked spots around the Realm marker before RaceMenu opens, so
-//      nobody is made standing inside someone else (Nate).
+//   2. gamemode.js spreads new characters over 18 checked spots around the Realm marker before RaceMenu opens, so
+//      nobody is made standing inside someone else (Nate). The marker is not one of them: every new character spawns
+//      on it, so anyone left there had the next arrivals spawn inside them (Nate, 4 Oct).
 // Run it from this folder's parent with
 //
 //   node tests/creator-light-spread-harness.js
@@ -96,7 +97,8 @@ const S = new Function('HUB', 'mp', 'onlineActors', 'inHub', 'log', 'creationPen
   () => online, (a) => inHubSet.has(a), () => {}, () => true, creationMap, () => {}, String, globalThis);
 
 const spots = S.CREATOR_SPOTS;
-check('19 spots: the marker, a ring of 6 and a ring of 12', spots.length === 19 && spots[0].join() === HUB.pos.join());
+check('18 spots: a ring of 6 and a ring of 12, and the marker (where everyone spawns) is not one', spots.length === 18
+  && spots.every((s) => Math.hypot(s[0] - HUB.pos[0], s[1] - HUB.pos[1]) >= S.CREATOR_SPACING));
 let minPair = Infinity, maxR = 0;
 for (let i = 0; i < spots.length; i++) {
   maxR = Math.max(maxR, Math.hypot(spots[i][0] - HUB.pos[0], spots[i][1] - HUB.pos[1]));
@@ -108,31 +110,33 @@ check('all within 240 units of the marker (the checked flat ground reaches 300)'
 const arrive = (a) => { online.push(a); inHubSet.add(a); pos.set(a, HUB.pos.slice()); };
 now = 2_000_000_000_000;
 arrive(1);
-check('the first arrival stays on the marker, with no move', S.placeInCreatorSpot(1) === false && moves.length === 0);
+check('the first arrival is moved off the marker too, where the next one will spawn', S.placeInCreatorSpot(1) === true && moves.length === 1
+  && Math.hypot(pos.get(1)[0] - HUB.pos[0], pos.get(1)[1] - HUB.pos[1]) >= 105, pos.get(1));
 arrive(2);
-check('the second is moved off the first', S.placeInCreatorSpot(2) === true && moves.length === 1 && Math.hypot(pos.get(2)[0] - pos.get(1)[0], pos.get(2)[1] - pos.get(1)[1]) >= 105, pos.get(2));
-check('...inside the Realm, facing the marker\'s way', moves[0][1].cellOrWorldDesc === HUB.cellOrWorldDesc && moves[0][1].rot.join() === HUB.rot.join());
+check('the second is moved off the first', S.placeInCreatorSpot(2) === true && moves.length === 2 && Math.hypot(pos.get(2)[0] - pos.get(1)[0], pos.get(2)[1] - pos.get(1)[1]) >= 105, pos.get(2));
+check('...inside the Realm, facing the marker\'s way', moves[1][1].cellOrWorldDesc === HUB.cellOrWorldDesc && moves[1][1].rot.join() === HUB.rot.join());
 // The third arrives before the second's move has landed on the server: the promised spot is still skipped
 pos.set(2, HUB.pos.slice());
 arrive(3);
 S.placeInCreatorSpot(3);
-check('a spot promised to someone whose move has not landed is not given again', moves[1][1].pos.join() !== moves[0][1].pos.join(), [moves[0][1].pos, moves[1][1].pos]);
-pos.set(2, moves[0][1].pos.slice());
-for (let i = 4; i <= 19; i++) { arrive(i); S.placeInCreatorSpot(i); }
-const taken = [1, 2, 3].concat(Array.from({ length: 16 }, (_, i) => i + 4)).map((a) => pos.get(a).map(Math.round).join());
-check('19 arrivals take 19 different spots', new Set(taken).size === 19, new Set(taken).size);
+check('a spot promised to someone whose move has not landed is not given again', moves[2][1].pos.join() !== moves[1][1].pos.join(), [moves[1][1].pos, moves[2][1].pos]);
+pos.set(2, moves[1][1].pos.slice());
+for (let i = 4; i <= 18; i++) { arrive(i); S.placeInCreatorSpot(i); }
+const ids = Array.from({ length: 18 }, (_, i) => i + 1);
+const taken = ids.map((a) => pos.get(a).map(Math.round).join());
+check('18 arrivals take 18 different spots', new Set(taken).size === 18, new Set(taken).size);
 let closest = Infinity;
-const ids = Array.from({ length: 19 }, (_, i) => i + 1);
 for (const x of ids) for (const y of ids) if (x < y) closest = Math.min(closest, Math.hypot(pos.get(x)[0] - pos.get(y)[0], pos.get(x)[1] - pos.get(y)[1]));
 check('...nobody within 1.5 m of anybody', closest >= 105, Math.round(closest));
-arrive(20);
-S.placeInCreatorSpot(20);
-check('a 20th still gets a spot (the least crowded), not a crash', Array.isArray(pos.get(20)) && spots.some((s) => s.join() === pos.get(20).join()));
+check('...and nobody left on the marker, where every new character spawns', ids.every((a) => Math.hypot(pos.get(a)[0] - HUB.pos[0], pos.get(a)[1] - HUB.pos[1]) >= 105));
+arrive(19);
+S.placeInCreatorSpot(19);
+check('a 19th still gets a spot (the least crowded), not a crash, and not the marker', Array.isArray(pos.get(19)) && spots.some((s) => s.join() === pos.get(19).join()));
 S.creatorSpotRelease(2);
 online = online.filter((a) => a !== 2); inHubSet.delete(2);
-arrive(21);
-S.placeInCreatorSpot(21);
-check('a spot left behind is handed out again', pos.get(21).join() === moves[0][1].pos.join(), pos.get(21));
+arrive(20);
+S.placeInCreatorSpot(20);
+check('a spot left behind is handed out again', pos.get(20).join() === moves[1][1].pos.join(), pos.get(20));
 
 // ---- the overflow at 05:00: 25 arrivals inside 30 s, none of whose moves has landed yet (review 2026-09-30) ----
 {
@@ -146,13 +150,12 @@ check('a spot left behind is handed out again', pos.get(21).join() === moves[0][
   const got = [];
   // Each is placed as the arrived handler does it: stage 'placed' once promised a spot
   for (let i = 0; i < 25; i++) { now += 1000; got.push(S2.CREATOR_SPOTS.findIndex((s) => s.join() === S2.creatorSpotFor(100 + i).join())); stages.set(100 + i, 'placed'); }
-  const firstNineteen = new Set(got.slice(0, 19));
-  check('25 arrivals in 25 s, all still standing on the marker: the first 19 take all 19 spots', firstNineteen.size === 19, got.slice(0, 19));
+  const firstSpots = new Set(got.slice(0, 18));
+  check('25 arrivals in 25 s, all still standing on the marker: the first 18 take all 18 spots', firstSpots.size === 18, got.slice(0, 18));
   const counts = new Map(); for (const i of got) counts.set(i, (counts.get(i) || 0) + 1);
-  check('...and the other 6 double up on 6 different spots, never a third on one', [...counts.values()].filter((n) => n === 2).length === 6 && Math.max(...counts.values()) === 2, [...counts.entries()]);
+  check('...and the other 7 double up on 7 different spots, never a third on one', [...counts.values()].filter((n) => n === 2).length === 7 && Math.max(...counts.values()) === 2, [...counts.entries()]);
   const firstDouble = got.findIndex((x, k) => got.indexOf(x) < k);
-  check('...no spot is doubled while any spot is still unpromised', firstDouble === 19, firstDouble);
-  check('...and the first of them stays on the marker (spot 0), as nobody placed stands there', got[0] === 0, got[0]);
+  check('...no spot is doubled while any spot is still unpromised', firstDouble === 18, firstDouble);
 }
 // A reconnect mid-creation standing on its own spot, with nobody near, keeps it (no move)
 {
@@ -187,8 +190,8 @@ check('...and opens once it has landed', opened.includes(30));
   const creation2 = new Map([[60, 'open'], [61, 'open']]);
   const pending = new Set([61]);
   const clockTo = [], released = [];
-  const L = new Function('creation', 'creationPending', 'creatorSpotRelease', 'globalThis', lr + '\nreturn leftRealm;')(
-    creation2, (a) => pending.has(a), (a) => released.push(a), { __dboClock: { sendTo: (a) => clockTo.push(a) } });
+  const L = new Function('creation', 'creationPending', 'creatorSpotRelease', 'setCreatorHidden', 'globalThis', lr + '\nreturn leftRealm;')(
+    creation2, (a) => pending.has(a), (a) => released.push(a), () => {}, { __dboClock: { sendTo: (a) => clockTo.push(a) } });
   L(60); L(61);
   check('a finished player found outside the Realm drops the entry, frees the spot and gets the real clock at once', !creation2.has(60) && released.includes(60) && clockTo.includes(60));
   check('...one still creating keeps it (noon is right for them)', creation2.has(61) && !clockTo.includes(61));

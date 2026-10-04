@@ -1571,11 +1571,13 @@ const creation = globalThis.__dboCreation;
 const worldIdOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
 const setFade = (a, on) => sendPacket(a, { customPacketType: 'dboFade', on: !!on });
 // Where new characters stand in the Realm while they make themselves (Nate, 2026-09-30: nobody made inside someone else).
-// The marker, a ring of 6 at 120 units and a ring of 12 at 240, on the flat ground around it: its terrain is 0 for 300
+// A ring of 6 at 120 units and a ring of 12 at 240 around the marker, on the flat ground there: its terrain is 0 for 300
 // units, water -512, and no plugin places anything within 450 (checked in DragonBreak Hub.esp and every plugin that
-// masters it). The first spot with nobody within 105 units (1.5 m) and not promised to another arrival, else the least
-// crowded. The move is made before RaceMenu opens, never with it open.
-const CREATOR_SPOTS = [[0, 0]].concat(...[[6, 120], [12, 240]].map(([n, r]) => Array.from({ length: n }, (_, i) =>
+// masters it). The marker itself is never a spot: every new character spawns on it (server-settings startPoints), so
+// whoever was left standing there had each later arrival spawn inside them (Nate, 4 Oct). The first spot with nobody
+// within 105 units (1.5 m) and not promised to another arrival, else the least crowded. The move is made before RaceMenu
+// opens, never with it open.
+const CREATOR_SPOTS = [].concat(...[[6, 120], [12, 240]].map(([n, r]) => Array.from({ length: n }, (_, i) =>
   [Math.round(r * Math.cos((2 * Math.PI * i) / n)), Math.round(r * Math.sin((2 * Math.PI * i) / n))])))
   .map(([dx, dy]) => [HUB.pos[0] + dx, HUB.pos[1] + dy, HUB.pos[2]]);
 const CREATOR_SPACING = 105;
@@ -1721,6 +1723,7 @@ const leftRealm = (a) => {
   if (!creation.has(a >>> 0) || creationPending(a)) return;
   creation.delete(a >>> 0);
   creatorSpotRelease(a);
+  setCreatorHidden(a, false);
   try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* the next broadcast */ }
 };
 const sendToArrival = (a) => {
@@ -1734,6 +1737,7 @@ const sendToArrival = (a) => {
     mp.set(a, 'locationalData', arrivalLocFor(a));
     creation.delete(a);
     creatorSpotRelease(a);
+    setCreatorHidden(a, false);
     setFade(a, false);
     // The creator's noon ends with the Realm
     try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* the next broadcast */ }
@@ -1749,6 +1753,41 @@ function inHubForName(a) { try { return String(mp.get(a, 'worldOrCellDesc') || '
 const DEITY_STEP_MAX_MS = 5 * 60000;
 const inHub = (a) => { try { return String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase() === String(HUB.cellOrWorldDesc).toLowerCase(); } catch (e) { return false; } };
 globalThis.__dboAtCreationEnd = (a) => inHub(a) && !creationPending(a);
+// Nobody making a character sees anyone else doing it, nor is seen (Nate, 4 Oct: people saw each other in the creator).
+// The live client already hides an actor whose neighbour-visible ff_adminModes says invis: formView draws the body at
+// alpha 0 with no nametag, and shows it to staff as a ghost. AdminSystem keeps the real modes per profile and only mirrors
+// them into that property (god mode and the rest are judged from its own state), so this changes nothing server-side.
+// Only `invis` is written, the other mirrored modes are kept. AdminSystem rewrites the mirror at each login and each
+// toggle, so a sweep puts the flag back; leaving the Realm takes it off at once. actor -> invis was already on (staff).
+const creatorHidden = globalThis.__dboCreatorHidden instanceof Map ? globalThis.__dboCreatorHidden : (globalThis.__dboCreatorHidden = new Map());
+const inCreatorRealm = (a) => inHub(a) && (creationPending(a) || creation.has(a >>> 0));
+const adminModesOf = (a) => { try { const m = mp.get(a, 'ff_adminModes'); return m && typeof m === 'object' ? m : {}; } catch (e) { return {}; } };
+const setCreatorHidden = (a, on) => {
+  const id = a >>> 0;
+  try {
+    if (on) {
+      const m = adminModesOf(a);
+      if (!creatorHidden.has(id)) creatorHidden.set(id, m.invis === true);
+      if (m.invis !== true) mp.set(a, 'ff_adminModes', Object.assign({}, m, { invis: true }));
+      return;
+    }
+    if (!creatorHidden.has(id)) return;
+    const was = creatorHidden.get(id);
+    creatorHidden.delete(id);
+    const m = adminModesOf(a);
+    if (!was && m.invis === true) mp.set(a, 'ff_adminModes', Object.assign({}, m, { invis: false }));
+  } catch (e) { log('creator hide failed', e.message); }
+};
+every('creatorHide', 1000, () => {
+  const seen = new Set();
+  for (const a of onlineActors()) {
+    const id = a >>> 0; seen.add(id);
+    if (inCreatorRealm(a)) setCreatorHidden(a, true);
+    else if (creatorHidden.has(id)) setCreatorHidden(a, false);
+  }
+  // Offline: AdminSystem clears a stale mirror at the next login, so the entry only has to go
+  for (const id of creatorHidden.keys()) if (!seen.has(id)) creatorHidden.delete(id);
+});
 // The move never beats the starter kit, which lands 6 s after the creator closes
 const CREATION_MOVE_MS = 9000;
 const creatorClosedAt = globalThis.__dboCreatorClosedAt instanceof Map ? globalThis.__dboCreatorClosedAt : (globalThis.__dboCreatorClosedAt = new Map());
@@ -1833,7 +1872,7 @@ const onCharacterReady = (userId, a) => {
   try { if (globalThis.__dboSuperLogin) globalThis.__dboSuperLogin(a); } catch (e) { log('supernatural login failed', e.message); }
   try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* clock later */ }
   // A new character is carried through the landing into the hub behind a black screen
-  if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
+  if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); if (inHub(a)) setCreatorHidden(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
   try { const worn = wornOf(mp.get(a, 'equipment')); if (worn.length) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0])); } catch (e) { /* nothing saved */ }
   setTimeout(() => { if (actorOf(userId) === a && !creationPending(a)) { try { redress(a); } catch (e) { log('redress failed', e.message); } } }, 12000);
@@ -2480,6 +2519,7 @@ onUi('arrived', (a, args) => {
   const world = Number(args[0]) >>> 0;
   if (!creationPending(a)) { if (world !== worldIdOf(HUB.cellOrWorldDesc)) leftRealm(a); return; }
   const stage = creation.get(a);
+  if (world === worldIdOf(HUB.cellOrWorldDesc)) setCreatorHidden(a, true);
   if (world === worldIdOf(HUB.cellOrWorldDesc) && (stage === 'spawning' || stage === 'hub')) {
     log(`${display(a)} arrived in the hub${stage === 'spawning' ? ' straight from the spawn' : ''}`);
     if (placeInCreatorSpot(a)) {
