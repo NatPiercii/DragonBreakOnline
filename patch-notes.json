@@ -1,5 +1,21 @@
 [
   {
+    "title": "Fixes",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Character creation: new characters no longer appear inside someone else, and people making a character can no longer see each other.",
+          "First spells that went missing from your spell list come back, with a message when they do. A new first spell now arrives once your game has settled after loading.",
+          "Enchanted gear swapped by the new loot rules keeps its enchantment. Pieces that were swapped plain get their enchantment back the next time you log in."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Your race's gifts",
     "date": "2026-10-03",
     "version": "Server update",
