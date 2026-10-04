@@ -36,6 +36,13 @@ const BARREL = ref(0x202, WORLD, 'CONT'), BARREL2 = ref(0x203, WORLD, 'CONT');
 ref(0x300, WORLD, 'DOOR', 0x301); ref(0x301, PUB, 'DOOR', 0x300);
 const R1 = ref(0x302, PUB, 'DOOR', 0x303); ref(0x303, ROOM, 'DOOR', 0x302);
 const S1 = ref(0x400, WORLD, 'DOOR', 0x401); ref(0x401, STAFF, 'DOOR', 0x400);
+// The Cathedral of St Martin (Nate, 4 Oct: Sylvia is given the building her claims stand in): two ways in nobody holds,
+// Sylvia's room door off the nave and two chests in her rooms; a staff chest in the nave
+const CATH = '12cd:BSHeartland.esm', VESTRY = '5f78e:BSHeartland.esm';
+const G1 = ref(0x600, WORLD, 'DOOR', 0x601); ref(0x601, CATH, 'DOOR', 0x600);
+const G3 = ref(0x602, WORLD, 'DOOR', 0x603); ref(0x603, CATH, 'DOOR', 0x602);
+const RD = ref(0x604, CATH, 'DOOR', 0x605); ref(0x605, VESTRY, 'DOOR', 0x604);
+const SC1 = ref(0x606, VESTRY, 'CONT'), SC2 = ref(0x607, VESTRY, 'CONT'), STAFFBOX = ref(0x608, CATH, 'CONT'), NAVEBOX = ref(0x609, CATH, 'CONT');
 const Z1 = ref(0x500, WORLD, 'DOOR', 0x501); ref(0x501, '20ea:BSHeartland.esm', 'DOOR', 0x500);   // a house nobody ever claimed
 const byId = new Map(REFS.map((r) => [r.id, r]));
 const STEWARD = 0xff000041, VIGGO = 0xff000009, STRANGER = 0xff000051, AKATOSH = 0xff000004, WHISPER = 0xff000061;
@@ -199,6 +206,44 @@ try {
   sys.dryRunPlaces(ctx);
   plan = JSON.parse(fs.readFileSync('housing-places-plan.json', 'utf8'));
   ok(plan.overCap.length === 1 && plan.overCap[0].owner === 9 && JSON.stringify(plan.overCap[0].places) === JSON.stringify([E1, Q1]), 'two houses: listed for Nate with the two houses only', plan.overCap);
+
+  // ---- the migration grants Sylvia the cathedral (gamemode-config.json housingPlaces.grants) ----
+  sys = build('dryrun');
+  const SYLVIA = 52;
+  const put2 = (r, o) => { props.set(`${r}:private.housing`, Object.assign({ owner: 0, ownerName: '', name: null, locked: false, serial: 1, partner: 0, containers: [], issued: [] }, o)); sys.claimed.push(r); const p = byId.get(r).partner; if (p) props.set(`${p}:private.housing`, { primary: r }); };
+  put2(RD, { owner: SYLVIA, ownerName: 'Sylvia Dawnveil', partner: H(0x605) });
+  put2(SC1, { owner: SYLVIA, ownerName: 'Sylvia Dawnveil' });
+  put2(SC2, { owner: SYLVIA, ownerName: 'Sylvia Dawnveil', locked: true });
+  put2(STAFFBOX, { owner: 4, ownerName: 'Akatosh', name: 'Chest of Akatosh', locked: true });
+  props.set(`${G1}:private.housing`, { owner: 0, ownerName: '', name: null, locked: false, serial: 3, partner: H(0x601), containers: [], issued: [] });
+  const grantCfg = (grants) => fs.writeFileSync('gamemode-config.json', JSON.stringify({ housingPlaces: { staffProfiles: [4], grants } }));
+  grantCfg([{ door: '600:BSHeartland.esm', profile: SYLVIA }, { door: '400:BSHeartland.esm', profile: 4 }, { door: '609:BSHeartland.esm', profile: 9 }]);
+  const staffBefore = JSON.stringify(rec(STAFFBOX));
+  sys.dryRunPlaces(ctx);
+  plan = JSON.parse(fs.readFileSync('housing-places-plan.json', 'utf8'));
+  const cath = plan.places.find((p) => p.root === G1);
+  const cd = plan.details.find((x) => x.root === G1) || {};
+  ok(cath && cath.owner === SYLVIA && cath.kind === 'house' && JSON.stringify(cd.members.slice().sort()) === JSON.stringify([RD, SC1, SC2].sort()) && JSON.stringify(cd.cells) === JSON.stringify([CATH, VESTRY]), "dry run: the cathedral's way in is granted to Sylvia; her room door and chests become one property with it", { cath, cd });
+  ok(JSON.stringify(cd.entrances) === JSON.stringify([G3]) && cd.unclaimedChests.includes(NAVEBOX) && !cd.unclaimedChests.includes(STAFFBOX), '...its other way in joins; the nave chest becomes hers; the staff chest is not', cd);
+  ok(plan.grants[0].granted === true && plan.grants[1].granted === false && /staff/.test(plan.grants[1].why) && plan.grants[2].granted === false && /no way into a building/.test(plan.grants[2].why), 'the plan lists each grant: given, refused for staff, refused for a door that is no way in', plan.grants);
+  ok(!rec(G1).owner && !rec(G3) && !rec(RD).memberOf && plan.overCap.length === 0, 'dry run: nothing is written');
+  sys.placeMigration = 'apply';
+  sys.dryRunPlaces(ctx);
+  ok(rec(G1).owner === SYLVIA && rec(G1).place && rec(G1).serial === 4 && rec(G3).owner === SYLVIA && rec(G3).memberOf === G1 && rec(RD).memberOf === G1 && rec(SC1).memberOf === G1 && rec(SC1).ownerOnly === true, 'apply: the cathedral is hers, re-keyed past its old stub; her claims and the other way in are members', [rec(G1), rec(RD)]);
+  ok(JSON.stringify(rec(STAFFBOX)) === staffBefore, '...the staff chest in the nave is exactly as it was');
+  ok(sys.countPlaces(ctx, SYLVIA) === 1 && sys.countLoose(ctx, SYLVIA) === 0, '...one property, no loose claims left');
+  ok(sys.onActivate(ctx, NAVEBOX, VIGGO) === false && sys.onActivate(ctx, STAFFBOX, VIGGO) === false, '...a stranger opens neither the nave chest (hers) nor the staff chest (locked)');
+  const backupFile = fs.readdirSync('.').find((f) => /^housing-places-backup-.*\.json$/.test(f));
+  const backup = backupFile ? JSON.parse(fs.readFileSync(backupFile, 'utf8')) : {};
+  ok(backup.places && backup.places.some((p) => p.root === G1.toString(16) && p.granted === true), 'the backup marks the cathedral as granted', backup.places);
+  sys.placeMigration = 'dryrun';
+  sys.restorePlaces(ctx, backupFile);
+  ok(rec(G1).owner === 0 && !rec(G1).place && rec(G1).serial === 5 && rec(G3).owner === 0 && rec(RD).owner === SYLVIA && !rec(RD).memberOf && !rec(SC1).ownerOnly, 'a restore takes the grant back (nobody owns the way in, re-keyed again) and leaves her own claims as they were', [rec(G1), rec(RD)]);
+  grantCfg([{ door: '600:BSHeartland.esm', profile: SYLVIA }]);
+  props.set(`${G1}:private.housing`, { owner: 61, ownerName: 'Fink', name: null, locked: false, serial: 6, partner: H(0x601), containers: [], issued: [] }); sys.claimed.push(G1);
+  sys.dryRunPlaces(ctx);
+  plan = JSON.parse(fs.readFileSync('housing-places-plan.json', 'utf8'));
+  ok(plan.grants[0].granted === false && /Fink/.test(plan.grants[0].why), "a way in someone else holds is never granted over them", plan.grants);
 } finally {
   process.chdir(home);
   fs.rmSync(dir, { recursive: true, force: true });
