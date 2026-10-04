@@ -142,6 +142,24 @@ ok(globalThis.__dboHallMember([SPIRE], 501, MEMBER) === true, '...and marked aga
 ok(/Usage/.test(faction(STAFF, 'hallmark not-a-faction')), 'an unknown faction is refused');
 ok(require('child_process').execSync(`git -C ${JSON.stringify(path.resolve(__dirname, '..'))} check-ignore faction-halls.json`).toString().trim() === 'faction-halls.json', 'faction-halls.json is gitignored');
 
+// ---- a building shared with an office, whoever holds it (Nate, 4 Oct: Castle Bruma and Bruma's Steward) ----
+const CASTLE = 0x0806c473, CASTLE_OUT = 0x0806c4d9;
+const gd = api.mp.getDescFromId;
+api.mp.getDescFromId = (id) => ((id >>> 0) === CASTLE ? '6c473:BSHeartland.esm' : (id >>> 0) === CASTLE_OUT ? '6c4d9:BSHeartland.esm' : gd(id));
+fs.writeFileSync('officials.json', JSON.stringify({ bruma: { count: [503], steward: [502] } }));
+api.cfg.housingPlaces = { shares: { '6c473:bsheartland.esm': ['bruma:steward'] } };
+ok(globalThis.__dboHallOffice([CASTLE, CASTLE_OUT], 503, MEMBER) === true && globalThis.__dboHallMember([CASTLE, CASTLE_OUT], 503, MEMBER) === true, "the Steward of Bruma shares Castle Bruma (config housingPlaces.shares)");
+ok(globalThis.__dboHallOffice([CASTLE, CASTLE_OUT], 503, LEADER) === false && globalThis.__dboHallOffice([SHOP], 501, MEMBER) === false, '...nobody else, and no other building');
+fs.writeFileSync('officials.json', JSON.stringify({ bruma: { count: [503], steward: [501] } }));
+ok(globalThis.__dboHallOffice([CASTLE], 503, LEADER) === true && globalThis.__dboHallOffice([CASTLE], 503, MEMBER) === false, 'a new Steward takes over at once; the old one no longer shares it');
+props.set(`${STAFF}|pos`, [300, 100, 0]);
+r = faction(STAFF, 'hallmark bruma:steward');
+ok(/Bruma Annex is shared with the steward of bruma/.test(r) && globalThis.__dboHallOffice([SHOP], 501, LEADER) === true && audits.some((t) => /shared Bruma Annex .* with the steward of bruma \(bruma:steward\)/.test(t)), 'a Lead GM shares a building with an office at its door, audited', r);
+r = faction(STAFF, 'hallunmark bruma:steward');
+ok(/no longer shared/.test(r) && globalThis.__dboHallOffice([SHOP], 501, LEADER) === false, '...and takes it back', r);
+ok(/Only a Lead GM/.test(faction(LEADER, 'hallmark bruma:steward')), 'only staff share a building with an office');
+delete api.cfg.housingPlaces;
+
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });
 console.log(`\n${fail ? fail + ' FAILED' : 'all checks passed'}`);

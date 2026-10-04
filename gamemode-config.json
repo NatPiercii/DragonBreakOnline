@@ -846,7 +846,14 @@
  },
  "housingPlaces": {
   "_comment": "Places (N3, fork housingSystem.ts): staff profiles whose claims the place migration leaves exactly as they are and the one-place cap never counts (Nate, 3 Oct: storage lent to players). Read when the migration plan runs; no restart needed.",
-  "staffProfiles": [4]
+  "staffProfiles": [4],
+  "_grants": "Buildings the place migration gives whole (fork housingSystem.ts placeGrants, Nate 4 Oct): a way in nobody holds becomes the profile's and their claims inside join it; cells, when given, are all the building's interior cells (more rooms than the walk takes). Refused and listed for a door someone else holds or a staff profile. Read when the migration plan runs.",
+  "grants": [
+   { "door": "7a817:BSHeartland.esm", "profile": 52, "note": "Sylvia Dawnveil: the Cathedral of St Martin (cell 12cb) her 8 claims stand in" },
+   { "door": "6c473:BSHeartland.esm", "profile": 70, "note": "Frigga Hux: all of Castle Bruma, one building", "cells": ["6c40f:BSHeartland.esm", "6c40e:BSHeartland.esm", "6c410:BSHeartland.esm", "6c40d:BSHeartland.esm", "6c40c:BSHeartland.esm", "72653:BSHeartland.esm"] }
+  ],
+  "_shares": "Offices whose holders share a building as its owner does, '<zone>:<office>', keyed by a door of it in lower case (guilds.js __dboHallOffice, read live; staff add or take one away with /faction hallmark|hallunmark zone:office). They cannot rename, hand over or give it up.",
+  "shares": { "6c473:bsheartland.esm": ["bruma:steward"] }
  },
  "hud": {
   "_comment": "The HUD panel (dboHud, gamemode.js pushHud): gold hides the gold row (Nate, 4 Oct: \"I want it gone, it makes it look convoluted\"); vitals and watermark as before. Hot reload.",

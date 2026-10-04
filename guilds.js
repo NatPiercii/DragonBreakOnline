@@ -361,7 +361,22 @@ module.exports = (api) => {
     return [...out];
   };
   globalThis.__dboHallOf = (refs, owner) => hallFactionsOf(refs, owner);
-  globalThis.__dboHallMember = (refs, owner, actor) => { const a = Number(actor) >>> 0; return !!a && hallFactionsOf(refs, owner).some((fid) => !!entryOf(fid, a)); };
+  // A building may also name offices whose holders share it, "<zone>:<office>" (Nate, 4 Oct: Castle Bruma and Bruma's
+  // Steward, whoever holds it): gamemode-config.json housingPlaces.shares { door desc: [office] } and the staff marks
+  // ("@offices", "@officesOff" in faction-halls.json). Read live from officials.json, so a new Steward takes over at once.
+  const OFFICIALS_PATH = path.resolve('officials.json');
+  const officials = () => { try { return typeof api.readOfficials === 'function' ? api.readOfficials() || {} : readJson(OFFICIALS_PATH, {}); } catch (e) { return {}; } };
+  const officesAt = (desc) => {
+    const marks = readMarks();
+    const off = ((marks['@officesOff'] || {})[desc] || []);
+    const fromCfg = (((cfg.housingPlaces || {}).shares || {})[desc] || []).map((k) => String(k).toLowerCase());
+    return [...new Set(fromCfg.concat((marks['@offices'] || {})[desc] || []))].filter((k) => !off.includes(k));
+  };
+  const holdsOffice = (a, key) => { const [zone, office] = String(key).split(':'); const pid = Number(profileOf(a)); return pid >= 0 && ((officials()[zone] || {})[office] || []).map(Number).includes(pid); };
+  const descsOf = (refs) => (Array.isArray(refs) ? refs : []).map((r) => { try { return String(mp.getDescFromId(Number(r) >>> 0) || '').toLowerCase(); } catch (e) { return ''; } }).filter(Boolean);
+  const officeShare = (refs, a) => descsOf(refs).some((d) => officesAt(d).some((k) => holdsOffice(a, k)));
+  globalThis.__dboHallOffice = (refs, owner, actor) => { const a = Number(actor) >>> 0; return !!a && officeShare(refs, a); };
+  globalThis.__dboHallMember = (refs, owner, actor) => { const a = Number(actor) >>> 0; return !!a && (hallFactionsOf(refs, owner).some((fid) => !!entryOf(fid, a)) || officeShare(refs, a)); };
   // charters.js: a faction founded by charter goes live at once (charters.js has already written player-factions.json, so a
   // reload keeps it). The founder takes the leader rank, and each co-founder ({ actor, role }) the rank of their role, or
   // the rank below the leader without one. An error string, or null.
@@ -716,8 +731,11 @@ module.exports = (api) => {
     // Staff (Lead GM and above) mark the building whose door they stand at as a faction's hall, or unmark it (Nate, 4 Oct)
     if (s === 'hallmark' || s === 'hallunmark') {
       if (!isLeadStaff(a)) return personal(a, 'Only a Lead GM or above marks a faction\'s hall.');
-      const f = FACTIONS.get(String(rest[0] || '').toLowerCase());
-      if (!f) return personal(a, `Usage: /faction ${s} <faction id>, standing at the building's door   (/faction list)`);
+      const arg = String(rest[0] || '').toLowerCase();
+      // "<zone>:<office>": the holders of that office share the building (Castle Bruma's Steward)
+      const office = /^[a-z0-9-]+:[a-z0-9_-]+$/.test(arg) ? arg : '';
+      const f = office ? { id: '@offices', name: `the ${office.split(':')[1]} of ${office.split(':')[0]}` } : FACTIONS.get(arg);
+      if (!f) return personal(a, `Usage: /faction ${s} <faction id | zone:office>, standing at the building's door   (/faction list)`);
       const H = globalThis.__dboHousing;
       const ref = propertyAt(a);
       const root = ref && H && typeof H.primaryOf === 'function' ? Number(H.primaryOf(ref)) >>> 0 : 0;
@@ -727,8 +745,21 @@ module.exports = (api) => {
       try { doors = [root, Number(rec.partner) >>> 0].map((r) => String(mp.getDescFromId(r) || '').toLowerCase()).filter(Boolean); } catch (e) { doors = []; }
       if (!doors.length) return personal(a, 'That door cannot be marked.');
       const marks = readMarks();
-      const m = marks[f.id] = Object.assign({ doors: [], off: [] }, marks[f.id] || {});
       const place = rec.name || `${rec.ownerName || 'someone'}'s property`;
+      if (office) {
+        const on = marks['@offices'] = marks['@offices'] || {}, offs = marks['@officesOff'] = marks['@officesOff'] || {};
+        for (const d of doors) {
+          if (s === 'hallmark') { on[d] = [...new Set((on[d] || []).concat([office]))]; offs[d] = (offs[d] || []).filter((k) => k !== office); }
+          else { on[d] = (on[d] || []).filter((k) => k !== office); offs[d] = [...new Set((offs[d] || []).concat([office]))]; }
+          if (!on[d].length) delete on[d];
+          if (!offs[d].length) delete offs[d];
+        }
+        try { fs.writeFileSync(MARKS_PATH + '.tmp', JSON.stringify(marks, null, 1)); fs.renameSync(MARKS_PATH + '.tmp', MARKS_PATH); }
+        catch (e) { log('faction-halls.json write failed', e.message); return personal(a, 'The mark could not be saved. Try again later.'); }
+        audit(`FACTION ${who(a)} ${s === 'hallmark' ? 'shared' : 'unshared'} ${place} (${doors.join(', ')}, owner profile ${rec.owner}) ${s === 'hallmark' ? 'with' : 'from'} ${f.name} (${office})`);
+        return personal(a, s === 'hallmark' ? `${place} is shared with ${f.name}, whoever holds it. They use it as its owner does but cannot rename, hand over or give it up.` : `${place} is no longer shared with ${f.name}.`);
+      }
+      const m = marks[f.id] = Object.assign({ doors: [], off: [] }, marks[f.id] || {});
       if (s === 'hallmark') {
         m.doors = [...new Set(m.doors.concat(doors))]; m.off = m.off.filter((d) => !doors.includes(d));
       } else {
