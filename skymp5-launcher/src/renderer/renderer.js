@@ -76,6 +76,13 @@ const KEY_TABLE = {
 }
 const DIK_LABELS = {}
 for (const [dik, label] of Object.values(KEY_TABLE)) DIK_LABELS[dik] = label
+// MouseEvent.button -> [code, label] for the keys that take a mouse button. The code is 256 + the DirectInput button
+// (DxScanCode.MiddleMouseButton 258, MouseButton3 259, MouseButton4 260 in the Skyrim Platform client): DirectInput
+// numbers left 0, right 1, middle 2, back 3, forward 4. Left and right click stay the game's attack and block.
+const MOUSE_TABLE = { 1: [258, 'Middle Mouse'], 3: [259, 'Mouse 4'], 4: [260, 'Mouse 5'] }
+Object.assign(DIK_LABELS, { 258: 'Middle Mouse', 259: 'Mouse 4', 260: 'Mouse 5', 261: 'Mouse 6', 262: 'Mouse 7', 263: 'Mouse 8' })
+// The client reads a mouse button only for push-to-talk (voiceService.ts)
+const MOUSE_HOTKEY_IDS = ['hk-voice-ptt']
 
 const RESOLUTIONS = ['1280x720', '1366x768', '1600x900', '1920x1080', '2560x1080', '2560x1440', '3440x1440', '3840x2160']
 
@@ -101,10 +108,11 @@ let activeCapture = null
 
 function endCapture(restorePrev) {
   if (!activeCapture) return
-  const { btn, prevCode, onKey, timer } = activeCapture
+  const { btn, prevCode, onKey, onMouse, timer } = activeCapture
   activeCapture = null
   if (timer) clearTimeout(timer)
   window.removeEventListener('keydown', onKey, { capture: true })
+  if (onMouse) window.removeEventListener('mousedown', onMouse, { capture: true })
   btn.classList.remove('hotkey-btn--capturing')
   if (restorePrev) setKey(btn.id, prevCode)
   btn.blur()
@@ -112,7 +120,9 @@ function endCapture(restorePrev) {
 
 function startCapture(btn, canUnbind) {
   endCapture(true)
-  const prompt = canUnbind ? 'Press a key… (Esc cancels, Backspace unbinds)' : 'Press a key… (Esc cancels)'
+  const takesMouse = MOUSE_HOTKEY_IDS.includes(btn.id)
+  const what = takesMouse ? 'Press a key or mouse button…' : 'Press a key…'
+  const prompt = canUnbind ? `${what} (Esc cancels, Backspace unbinds)` : `${what} (Esc cancels)`
   const onKey = (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -128,10 +138,27 @@ function startCapture(btn, canUnbind) {
     endCapture(false)
     setKey(btn.id, entry[0])
   }
+  // Middle, back and forward bind; left and right click go on to the page as before (a click elsewhere, or on the
+  // button again)
+  const onMouse = takesMouse ? (e) => {
+    const entry = MOUSE_TABLE[e.button]
+    if (!entry) return
+    e.preventDefault()
+    e.stopPropagation()
+    // The press still has its mouseup and auxclick to come: kept from the page, so back and forward navigate nothing
+    const button = e.button
+    const swallow = (ev) => { if (ev.button === button) { ev.preventDefault(); ev.stopPropagation() } }
+    window.addEventListener('mouseup', swallow, { capture: true })
+    window.addEventListener('auxclick', swallow, { capture: true })
+    setTimeout(() => { window.removeEventListener('mouseup', swallow, { capture: true }); window.removeEventListener('auxclick', swallow, { capture: true }) }, 1500)
+    endCapture(false)
+    setKey(btn.id, entry[0])
+  } : null
   btn.classList.add('hotkey-btn--capturing')
   btn.textContent = prompt
   window.addEventListener('keydown', onKey, { capture: true })
-  activeCapture = { btn, prevCode: getKey(btn.id), onKey, timer: null }
+  if (onMouse) window.addEventListener('mousedown', onMouse, { capture: true })
+  activeCapture = { btn, prevCode: getKey(btn.id), onKey, onMouse, timer: null }
 }
 
 ;[...SERVER_HOTKEY_IDS, ...GAME_HOTKEY_IDS].forEach(id => {
