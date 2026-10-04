@@ -9,7 +9,7 @@
 // loot straight into the pack (the container never opens), once per player per chest per hour.
 //
 // gamemode-config.json "wildlife": { enabled, radius, despawnSeconds, respawnSeconds, pick,
-//   maxZones, campLootMinutes, safeZones: [{ world, pos, radius, pick }] }
+//   maxZones, campLootMinutes, campGold: [min, max], safeZones: [{ world, pos, radius, pick }] }
 // A spot inside a safe zone uses that zone's pick (e.g. "low" near where new players arrive).
 'use strict';
 const fs = require('fs');
@@ -18,7 +18,14 @@ const crypto = require('crypto');
 
 module.exports = (api) => {
   const { mp, log, personal, system, registerChatCommand, giveItem, profileOf, display, who, audit, isAdmin, cfg, onlineActors, sendPacket } = api;
-  const C = Object.assign({ enabled: true, radius: 6000, despawnSeconds: 240, respawnSeconds: 1800, pick: 'mid', maxZones: 4000, campLootMinutes: 60, safeZones: [] }, cfg.wildlife || {});
+  const C = Object.assign({ enabled: true, radius: 6000, despawnSeconds: 240, respawnSeconds: 1800, pick: 'mid', maxZones: 4000, campLootMinutes: 60, campGold: [8, 22], safeZones: [] }, cfg.wildlife || {});
+  // The coin a camp chest hands over, a range in gold (config wildlife.campGold). A broken range falls back to 8-22, and
+  // [0, 0] hands over no coin
+  const CAMP_GOLD = (() => {
+    const g = C.campGold;
+    const lo = Array.isArray(g) ? Math.floor(Number(g[0])) : NaN, hi = Array.isArray(g) ? Math.floor(Number(g[1])) : NaN;
+    return Number.isFinite(lo) && Number.isFinite(hi) && lo >= 0 && hi >= lo ? [lo, hi] : [8, 22];
+  })();
   const SPAWNS_FILE = path.resolve('NPC-Spawns.json');
   const PREFIX = 'wild:';
   const GOLD_BASE = 0x0000000f;
@@ -139,8 +146,9 @@ module.exports = (api) => {
   const campLoot = (province = '') => {
     const out = [];
     const add = (item, count) => { if (!item) return; const id = idOf(item.id); if (id) out.push({ id, count, name: item.name }); };
-    // Halved on 1 Oct with the dungeons' gold (was 15-45)
-    out.push({ id: GOLD_BASE, count: rnd(8, 22), name: 'Gold' });
+    // Halved on 1 Oct with the dungeons' gold (was 15-45), and cut again on 4 Oct (gold-cut-1004, config wildlife.campGold)
+    const coin = rnd(CAMP_GOLD[0], CAMP_GOLD[1]);
+    if (coin > 0) out.push({ id: GOLD_BASE, count: coin, name: 'Gold' });
     if (Math.random() < 0.6) add(pickFrom(pool('ingredients')), rnd(1, 3));
     if (Math.random() < 0.5) add(pickFrom(pool('materials')), rnd(1, 2));
     if (Math.random() < 0.25) add(pickFrom(pool('gems').filter((g) => !/flawless/i.test(g.name))), 1);

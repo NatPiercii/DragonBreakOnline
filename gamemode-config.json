@@ -345,9 +345,10 @@
   "dungeonChance": 0.08,
   "scale": 1.14,
   "toughness": 0.5,
+  "_gold": "Gold cut (Nate, 4 Oct: \"decrease the amount of gold people can get\"; gold-cut-1004): goldReward was 25-120, measured 554 paid kills and about 38,000 gold in 68 h, the largest single source. Now 5-20 (about 12 a kill, shared among the fighters).",
   "goldReward": [
-   25,
-   120
+   5,
+   20
   ],
   "gemChance": 0.35,
   "creditShare": 0.1
@@ -506,6 +507,8 @@
   "respawnSeconds": 1800,
   "pick": "mid",
   "campLootMinutes": 60,
+  "_campGold": "Coin a giant or goblin camp chest hands over, a range (wildlife.js campLoot). Was 8-22 in code; gold cut of 4 Oct (gold-cut-1004).",
+  "campGold": [4, 10],
   "safeZones": [
    {
     "_comment": "Pale Pass arrival for the Bruma playtest: only the weakest creature of each spot (no ogres or trolls on the first stretch of road).",
@@ -705,6 +708,11 @@
   "_count": "Enemies per placement by party size n (dungeons.js partyCountMult): countBase + countPerPlayer x n, between countMin 0.6 and countMax 1.8. Nate, 4 Oct: half the add per member (was 0.4 + 0.3 n): solo 0.7, 2 0.85, 3 1.0, 4 1.15, 6 1.45.",
   "countBase": 0.55,
   "countPerPlayer": 0.15,
+  "_gold": "Coin in a lease (dungeons.js). goldMult scales every chest's, urn's and boss chest's coin (and an empty locked chest's), bodyGoldMult a searched body's; goldChance and bodyGoldChance are how often there is any. Gold cut (Nate, 4 Oct; gold-cut-1004): goldChance 0.35 -> 0.25, goldMult 0.3 -> 0.12, bodyGoldChance 0.4 -> 0.25 and bodyGoldMult 0.15 -> 0.06: about two thirds less coin from a cleared dungeon (the chances matter at Novice, where every coin roll is at least 1).",
+  "goldChance": 0.25,
+  "goldMult": 0.12,
+  "bodyGoldChance": 0.25,
+  "bodyGoldMult": 0.06,
   "ayleidLoot": {
    "_comment": "Ayleid treasure from ayleid-loot.json, by the lease's difficulty (Nate, 2026-09-28). chestChance: a big chest holds one piece; bossChance: the boss chest. chest/boss: tier weights (common, uncommon, rare = Major jewellery and Shocks arms, rarest = Eminent jewellery and the Lich Helmet). raidBossChance/raidBoss: a raid's boss chests and masters. These pieces never come from the general pools. ruins: expeditions, or all to add Bruma's own Ayleid ruins.",
    "enabled": true,
@@ -894,5 +902,10 @@
   "cooldownHours": 24,
   "allowRace": false,
   "allowSex": false
+ },
+ "coinPurses": {
+  "_comment": "Coin purses (gamemode.js PURSE): goldMin..goldMax per purse before the Harvesting multiplier, a purse rests restMinutes for everyone (in a claimed dungeon it is full again for the next claim). Gold cut (Nate, 4 Oct; gold-cut-1004): was 8-30.",
+  "goldMin": 3,
+  "goldMax": 12
  }
 }

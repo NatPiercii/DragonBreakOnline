@@ -1,5 +1,23 @@
 [
   {
+    "title": "Less coin from fighting",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Economy",
+        "items": [
+          "Gold was coming into the world about seven times faster than it was being spent, so the coin you get from fighting is cut to about a quarter. Prices stay the same, so a house, a tax bill or a new look at /appearance is worth working towards again.",
+          "Champion beasts pay 5 to 20 gold a kill, shared among the fighters (was 25 to 120).",
+          "Dungeons and expeditions: chests, urns and bodies hold coin less often and less of it, about 60% less a clear. A cleared Bruma dungeon pays roughly 20 gold on Novice and 75 on Master, on top of everything else it holds.",
+          "Coin purses hold 3 to 12 gold (was 8 to 30), and goblin and giant camp chests 4 to 10 (was 8 to 22).",
+          "Gold you already have is not touched."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Fixes",
     "date": "SHIP_DATE",
     "version": "Server update",

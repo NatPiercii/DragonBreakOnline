@@ -189,17 +189,20 @@ for (const diff of DIFFS) {
   check(`all ${EXP.length} expeditions at ${diff}: ${f1(nowItems)} items of ${f1(wasItems)} (${(nowItems / wasItems).toFixed(2)}, about a quarter); value ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}, under the old)`,
     nowItems > wasItems * 0.18 && nowItems < wasItems * 0.36 && now < was * 0.95);
 }
+// The ordinary dungeons' value is held without their coin: coin was cut on purpose on 4 Oct (gold-cut-1004, about 60% less a
+// clear; tests/gold-cut-harness.js holds it), and in a small dungeon it was a fifth of the value (Freezewind Hollow 0.75)
+const goods = (m) => (Number(m.value) || 0) - (Number(m.gold) || 0);
 for (const d of ORD) {
-  const now = DIFFS.reduce((n, diff) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
-  const was = DIFFS.reduce((n, diff) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
+  const now = DIFFS.reduce((n, diff) => n + goods(rows.find((r) => r.d === d && r.diff === diff).m), 0);
+  const was = DIFFS.reduce((n, diff) => n + goods(BEFORE[`${d.raw.id}|${diff}`] || {}), 0);
   // Untrimmed again (Nate, 2026-09-30): about the old value, more where bodies outnumber containers (a bandit mine of 15
   // containers gains about 1.9x from its bodies' gear), a little less in torches; the whole set is held tighter below
   if (was > 0) check(`${d.name} (ordinary, ${(d.raw.chests || []).length} containers), all difficulties: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)})`, now > was * 0.8 && now < was * 2.5);
 }
 for (const diff of DIFFS) {
-  const now = ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
-  const was = ORD.reduce((n, d) => n + ((BEFORE[`${d.raw.id}|${diff}`] || {}).value || 0), 0);
-  check(`all ${ORD.length} ordinary dungeons at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}), the old value again`, now > was * 0.9 && now < was * 1.5);
+  const now = ORD.reduce((n, d) => n + goods(rows.find((r) => r.d === d && r.diff === diff).m), 0);
+  const was = ORD.reduce((n, d) => n + goods(BEFORE[`${d.raw.id}|${diff}`] || {}), 0);
+  check(`all ${ORD.length} ordinary dungeons at ${diff}: ${f0(now)} of ${f0(was)} (${(now / was).toFixed(2)}) without coin, the old value again`, now > was * 0.9 && now < was * 1.5);
 }
 {
   const total = (diff) => ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
