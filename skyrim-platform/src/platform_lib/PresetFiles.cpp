@@ -29,6 +29,22 @@ bool EndsWithTri(std::string_view s)
     (tail[2] == 'r' || tail[2] == 'R') && (tail[3] == 'i' || tail[3] == 'I');
 }
 
+// CON, PRN, AUX, NUL, COM1-9 and LPT1-9 open a device on Windows, whatever the
+// suffix
+bool IsDeviceName(std::string_view name)
+{
+  std::string upper;
+  for (char c : name) {
+    upper += ('a' <= c && c <= 'z') ? static_cast<char>(c - 'a' + 'A') : c;
+  }
+  if (upper == "CON" || upper == "PRN" || upper == "AUX" || upper == "NUL") {
+    return true;
+  }
+  return upper.size() == 4 &&
+    (upper.compare(0, 3, "COM") == 0 || upper.compare(0, 3, "LPT") == 0) &&
+    '1' <= upper[3] && upper[3] <= '9';
+}
+
 void RequireName(std::string_view name)
 {
   if (!ValidateName(name)) {
@@ -48,7 +64,7 @@ bool ValidateName(std::string_view name)
       return false;
     }
   }
-  return true;
+  return !IsDeviceName(name);
 }
 
 std::filesystem::path PathFor(std::string_view name)

@@ -35,6 +35,14 @@ int main()
   for (auto bad :
        { "..", "a.b", "a/b", "a\\b", "a:b", "C:", "a b", "a\x01", "\xc3\xa9" })
     CHECK(!ValidateName(bad));
+  for (auto dev :
+       { "CON", "con", "Prn", "aux", "NUL", "COM1", "com9", "LPT1", "lpt9" }) {
+    CHECK(!ValidateName(dev));
+  }
+  for (auto ok : { "COM0", "COM10", "LPT", "CONX", "NULL", "xCON", "COMA" }) {
+    CHECK(ValidateName(ok));
+  }
+  CHECK(throws([] { Write("nul", "x"); }));
   CHECK(PathFor("x").generic_string() ==
         "Data/SKSE/Plugins/CharGen/Presets/DBO/x.jslot");
   CHECK(throws([] { PathFor("../x"); }));

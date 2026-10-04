@@ -448,12 +448,9 @@ void TESModPlatform::ResizeHeadpartsArray(IVM* vm, StackID stackId,
     npc->headParts = nullptr;
     npc->numHeadParts = 0;
   } else {
-    npc->headParts = new RE::BGSHeadPart*[newSize];
-    npc->numHeadParts = newSize;
-
-    for (int8_t i = 0; i < npc->numHeadParts; ++i) {
-      npc->headParts[i] = nullptr;
-    }
+    // Game heap, as the engine and skee's ApplyPresetData (Heap_Free) free it
+    npc->headParts = RE::calloc<RE::BGSHeadPart*>(newSize);
+    npc->numHeadParts = npc->headParts ? newSize : 0;
   }
 }
 
