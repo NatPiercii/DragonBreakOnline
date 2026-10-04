@@ -35,7 +35,7 @@ check('Cyrodiil pieces stay Cyrodiil: an Elven sword to CYR steel, an Elven cuir
 const targets = Object.values(SWAP.replacements).map((r) => r.to);
 check('every replacement is loot under the cap itself (loottiers says gear)', targets.every((d) => TIERS.classOf(d).kind === 'gear'), targets.filter((d) => TIERS.classOf(d).kind !== 'gear'));
 check('every mapped item is above the cap by loottiers', Object.keys(SWAP.items).every((d) => { const c = TIERS.classOf(d); return c.kind === 'capped' || c.kind === 'never'; }));
-check('Dwarven and Adamantium ingots (no ore to mine) become steel ingots', SWAP.metals['db8a2:skyrim.esm'].toEdid === 'IngotSteel' && SWAP.metals['602099:bsassets.esm'].toEdid === 'IngotSteel');
+check('Adamantium ingots (no ore to mine) become steel ingots; Dwarven ingots, smelted from scrap, are off the list (Nate, 4 Oct: "Keep them (crafted, like mined ores)")', SWAP.metals['602099:bsassets.esm'].toEdid === 'IngotSteel' && !SWAP.metals['db8a2:skyrim.esm']);
 check('the metals players mine and their ingots are not on the list (Nate, 4 Oct: "Keep mined ores, swap only gear")', !Object.values(SWAP.metals).some((m) => /^(Ingot|Ore)I?(Moonstone|Malachite|Ebony|Quicksilver|Orichalcum)$|MeteoricIron/.test(m.edid)));
 check('corundum, silver and gold ingots are not on the metals list', !Object.values(SWAP.metals).some((m) => /^(Ingot|Ore)(Corundum|Silver|Gold)$|^ingotSilver$/i.test(m.edid)));
 
@@ -44,11 +44,13 @@ let p = planOf([{ baseId: ID.GlassSword, count: 1 }, { baseId: ID.IronSword, cou
 check('a glass sword is swapped, iron and gold stay', p.swaps.length === 1 && p.swaps[0].to === ID.SteelSword && p.keep.length === 2, p.swaps);
 check('...worn in the right hand, so its replacement goes on there', p.swaps[0].worn === true && p.swaps[0].wornLeft === false);
 check('...and the new inventory has the steel sword instead', p.entries.some((e) => e.baseId === ID.SteelSword && e.count === 1) && !p.entries.some((e) => e.baseId === ID.GlassSword));
-p = planOf([{ baseId: ID.IngotDwarven, count: 3 }, { baseId: ID.BSKIngotAdamantium, count: 2 }, { baseId: ID.IngotSteel, count: 4 }]);
+p = planOf([{ baseId: ID.BSKIngotAdamantium, count: 5 }, { baseId: ID.IngotSteel, count: 4 }]);
 check('metals go count for count into the plain steel ingot stack', p.entries.length === 1 && p.entries[0].baseId === ID.IngotSteel && p.entries[0].count === 9, p.entries);
+p = planOf([{ baseId: ID.IngotDwarven, count: 3 }]);
+check('Dwarven metal ingots, smelted from scrap, are kept like a mined ore (Nate, 4 Oct: "Keep them (crafted, like mined ores)")', p.swaps.length === 0 && p.entries.length === 1 && p.entries[0].baseId === ID.IngotDwarven && p.entries[0].count === 3, p.swaps);
 p = planOf([{ baseId: ID.IngotIMoonstone, count: 2 }, { baseId: ID.OreMoonstone, count: 6 }, { baseId: ID.IngotEbony, count: 1 }]);
 check('mined metals and their ingots are kept as they are (refined moonstone, moonstone ore, ebony)', p.swaps.length === 0 && p.entries.length === 3, p.swaps);
-p = planOf([{ baseId: ID.IngotDwarven, count: 1 }, { baseId: ID.IngotSteel, count: 1, health: 1.2 }]);
+p = planOf([{ baseId: ID.BSKIngotAdamantium, count: 1 }, { baseId: ID.IngotSteel, count: 1, health: 1.2 }]);
 check('...but never into a tempered stack', p.entries.length === 2 && p.entries.some((e) => e.baseId === ID.IngotSteel && e.count === 1 && !e.health));
 p = planOf([{ baseId: ID.DA08EbonyBlade, count: 1 }]);
 check('an artifact is never touched, even above the cap', p.swaps.length === 0 && p.skipped.artifact === 1 && p.entries[0].baseId === ID.DA08EbonyBlade);
@@ -69,7 +71,7 @@ check('wornIn reads the equipment', G.wornIn({ inv: { entries: [{ baseId: 5, wor
 // ---- 3. the runtime, against a stub server ----
 const A = 0xff000303, B = 0xff000304;
 const store = {
-  [A]: { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }, { baseId: ID.CYRArmorElvenCuirass, count: 1 }, { baseId: ID.IngotDwarven, count: 2 }, { baseId: ID.IngotIMoonstone, count: 3 }] },
+  [A]: { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }, { baseId: ID.CYRArmorElvenCuirass, count: 1 }, { baseId: ID.BSKIngotAdamantium, count: 2 }, { baseId: ID.IngotDwarven, count: 2 }, { baseId: ID.IngotIMoonstone, count: 3 }] },
     equipment: { inv: { entries: [{ baseId: ID.GlassSword, worn: true }, { baseId: ID.CYRArmorElvenCuirass, worn: true }] } },
     'private.lastWorn': [ID.GlassSword, ID.CYRArmorElvenCuirass], profileId: 35 },
   [B]: { inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }] }, equipment: { inv: { entries: [] } }, profileId: 3 },
@@ -109,8 +111,8 @@ check('...and one in a beast form', !store[A]['private.dboGearSwap']);
 globalThis.__dboBeastOriginalRace = () => 0;
 loginAll();
 const inv = store[A].inventory.entries;
-check('then the swap: steel sword, CYR leather cuirass, steel ingots, the high-end pieces gone',
-  inv.some((e) => e.baseId === ID.SteelSword) && inv.some((e) => e.baseId === ID.CYRArmorLeatherCuirassA) && inv.some((e) => e.baseId === ID.IngotSteel && e.count === 2) && !inv.some((e) => [ID.GlassSword, ID.CYRArmorElvenCuirass, ID.IngotDwarven].includes(e.baseId)) && inv.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 3), inv);
+check('then the swap: steel sword, CYR leather cuirass, steel ingots for the Adamantium, the high-end pieces gone, Dwarven and moonstone ingots kept',
+  inv.some((e) => e.baseId === ID.SteelSword) && inv.some((e) => e.baseId === ID.CYRArmorLeatherCuirassA) && inv.some((e) => e.baseId === ID.IngotSteel && e.count === 2) && !inv.some((e) => [ID.GlassSword, ID.CYRArmorElvenCuirass, ID.BSKIngotAdamantium].includes(e.baseId)) && inv.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 3) && inv.some((e) => e.baseId === ID.IngotDwarven && e.count === 2), inv);
 const equips = calls.filter((c) => c[2] === 'EquipItem').map((c) => c[4][0].desc);
 check('both worn pieces are put on again as their replacements', equips.length === 2 && equips.includes(descOf(ID.SteelSword)) && equips.includes(descOf(ID.CYRArmorLeatherCuirassA)), equips);
 check('the login re-dress remembers the replacements', JSON.stringify(store[A]['private.lastWorn']) === JSON.stringify([ID.SteelSword, ID.CYRArmorLeatherCuirassA]));
@@ -118,7 +120,16 @@ check('one message to the player and one audit line per swap', said.length === 1
 check('the character is marked with the version', store[A]['private.dboGearSwap'] && store[A]['private.dboGearSwap'].version === G.VERSION && store[A]['private.dboGearSwap'].swapped === 4);
 store[A].inventory.entries.push({ baseId: ID.GlassSword, count: 1 });
 loginAll();
-check('once only: glass found later is not swapped again (that is the loot cap\'s job)', store[A].inventory.entries.some((e) => e.baseId === ID.GlassSword) && said.length === 1);
+check('every login (Nate, 4 Oct: keep removing Glass and Elven): glass come by later is swapped at the next login, with a message', !store[A].inventory.entries.some((e) => e.baseId === ID.GlassSword) && said.length === 2 && store[A]['private.dboGearSwap'].swapped === 5, said);
+const before = JSON.stringify(store[A]['private.dboGearSwap']);
+loginAll();
+check('...a login with nothing to swap says nothing and leaves the mark as it was', said.length === 2 && JSON.stringify(store[A]['private.dboGearSwap']) === before);
+load({ exemptProfiles: [3], repeat: false });
+store[A].inventory.entries.push({ baseId: ID.GlassSword, count: 1 });
+loginAll();
+check('repeat false: once per version, as before (glass come by later stays)', store[A].inventory.entries.some((e) => e.baseId === ID.GlassSword) && said.length === 2);
+store[A].inventory.entries = store[A].inventory.entries.filter((e) => e.baseId !== ID.GlassSword);
+load({ exemptProfiles: [3] });
 online = [A, B];
 loginAll();
 check('an exempt profile is left alone', store[B].inventory.entries[0].baseId === ID.ArmorEbonyCuirass && !store[B]['private.dboGearSwap']);
@@ -149,9 +160,14 @@ const cinv = store[CH].inventory.entries;
 check('an opened container\'s over-cap gear and arrows become steel and iron, its artifact stays',
   cinv.some((e) => e.baseId === ID.ArmorSteelCuirassA) && cinv.some((e) => e.baseId === ID.IronArrow && e.count === 12) && cinv.some((e) => e.baseId === ID.DA08EbonyBlade) && !cinv.some((e) => e.baseId === ID.ArmorEbonyCuirass), cinv);
 check('...with an audit line per swap and no message to anyone', audits.length === 2 && audits.every((t) => /^GEARSWAP container 800f001: /.test(t)) && said.length === 0, audits);
-cinv.push({ baseId: ID.GlassSword, count: 1 });
+store[CH].inventory.entries.push({ baseId: ID.GlassSword, count: 1 });
 globalThis.__dboGearSwapContainer(CH);
-check('...once only: a container is marked', cinv.some((e) => e.baseId === ID.GlassSword) && (store[CH]['private.dboGearSwap'] || {}).version === G.VERSION);
+check('...every opening: glass put in later is swapped the next time it is opened', !store[CH].inventory.entries.some((e) => e.baseId === ID.GlassSword) && store[CH].inventory.entries.some((e) => e.baseId === ID.SteelSword) && (store[CH]['private.dboGearSwap'] || {}).version === G.VERSION, store[CH].inventory.entries);
+load({ repeat: false });
+store[CH].inventory.entries.push({ baseId: ID.GlassSword, count: 1 });
+globalThis.__dboGearSwapContainer(CH);
+check('...repeat false: a marked container is left alone, as before', store[CH].inventory.entries.some((e) => e.baseId === ID.GlassSword));
+load({});
 globalThis.__dboGearSwapContainer(BAR);
 check('something that is not a container (CONT) is never touched', store[BAR].inventory.entries[0].baseId === ID.GlassSword && !store[BAR]['private.dboGearSwap']);
 const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');

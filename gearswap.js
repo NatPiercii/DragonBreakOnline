@@ -1,10 +1,10 @@
-// DragonBreak Online: weapons, armour and metals above the steel loot cap are swapped for their steel equivalent, once
-// per character (Nate, 1 Oct 2026). "Above the cap" is loottiers.js's own verdict ('capped', or a never-loot family);
+// DragonBreak Online: weapons, armour and metals above the steel loot cap are swapped for their steel equivalent at
+// every login (Nate, 1 Oct 2026; every time since 4 Oct, config gearSwap.repeat). "Above the cap" is loottiers.js's own verdict ('capped', or a never-loot family);
 // what replaces each item is gear-swap.json (tools/loot/steel_swap_map.py: the same type or slot, same province).
 // Artifacts (artifacts.json) are never touched. A character in a fight, downed or in a beast form waits for a quiet
 // moment; each character is swept at its login (no timer: the server cannot see an open inventory or container menu,
 // and a loading screen has closed them all); staff are left alone;
-// containers are swapped once, as they are opened. Arrows and bolts above the cap become iron arrows and steel bolts.
+// containers are swapped as they are opened, every time. Arrows and bolts above the cap become iron arrows and steel bolts.
 // An enchanted piece keeps its enchantment on the replacement (Nate, 4 Oct): a player's enchantment as it was, an item
 // enchanted by its own record (EITM, "Ayleid Bow of Arcing") as that record's enchantment on the steel piece, with its
 // charge, named "<replacement> of <...>". A piece whose enchantment cannot go across is kept as it is, never made plain.
@@ -199,7 +199,9 @@ module.exports = (api) => {
   const { mp, log, audit, who, personal, onlineActors, every, recordOf, cfg, registerChatCommand } = api;
   // Staff are left alone (Nate, 3 Oct): the roles source the admin tiers use (gamemode.js tierOf)
   const isStaff = typeof api.isStaff === 'function' ? api.isStaff : () => false;
-  const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], combatSeconds: 30 }, (cfg && cfg.gearSwap) || {});
+  // repeat (Nate, 4 Oct: "keep running script to remove glass and elven"): every login and every container opening swaps
+  // again, not once per version; Glass or Elven a character or a chest has come by since goes too. false: once, as before.
+  const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], combatSeconds: 30, repeat: true }, (cfg && cfg.gearSwap) || {});
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`gearswap: ${file} unreadable`, e.message); return fallback; } };
   const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
   delete require.cache[LOOT_TIERS_JS];
@@ -287,7 +289,7 @@ module.exports = (api) => {
   const sweep = (a) => {
     a = a >>> 0;
     let mark = null; try { mark = mp.get(a, MARK); } catch (e) { return; }
-    if (mark && mark.version === C.version) return;
+    if (!C.repeat && mark && mark.version === C.version) return;
     if (exempt.has(Number(mp.get(a, 'profileId'))) || isStaff(a)) return;
     if (busy(a)) return;
     const p = planFor(a);
@@ -311,7 +313,7 @@ module.exports = (api) => {
       if (p.skipped.enchanted) log(`gearswap kept ${p.skipped.enchanted} enchanted piece(s) of ${who(a)} whose enchantment cannot go on the replacement`);
       personal(a, message(p.swaps));
     }
-    mp.set(a, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
+    if (p.swaps.length || !mark || mark.version !== C.version) mp.set(a, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) + (mark && mark.version === C.version ? Number(mark.swapped) || 0 : 0) });
   };
   // A container is swapped once, as it is opened (Nate, 3 Oct: world, dungeon and house containers too): no message,
   // an audit line per swap. Called from gamemode.js's activate chain before the container opens; it never refuses.
@@ -323,7 +325,7 @@ module.exports = (api) => {
     const r = base && recordOf(base);
     if (!r || !r.record || String(r.record.type) !== 'CONT') return;
     let mark = null; try { mark = mp.get(ref, MARK); } catch (e) { return; }
-    if (mark && mark.version === C.version) return;
+    if (!C.repeat && mark && mark.version === C.version) return;
     let inv; try { inv = mp.get(ref, 'inventory'); } catch (e) { return; }
     const p = plan(Object.assign({ entries: (inv && Array.isArray(inv.entries)) ? inv.entries : [], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, edidOf,
       isArtifact: (e) => !!ARTIFACT && ARTIFACT.test(e) }, extra));
@@ -332,7 +334,7 @@ module.exports = (api) => {
       mp.set(ref, 'inventory', { entries: p.entries });
       for (const s of p.swaps) audit(`GEARSWAP container ${ref.toString(16)}: ${s.count} x ${s.edid || s.from.toString(16)} -> ${s.toEdid || s.to.toString(16)}${s.carried ? ' (enchantment kept)' : ''}`);
     }
-    mp.set(ref, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) });
+    if (p.swaps.length || !mark || mark.version !== C.version) mp.set(ref, MARK, { version: C.version, at: Date.now(), swapped: p.swaps.reduce((n, s) => n + s.count, 0) + (mark && mark.version === C.version ? Number(mark.swapped) || 0 : 0) });
   };
   // Loot handed over from a body (Nate, 4 Oct). -> { entries: what may be given (replacements carry their extras),
   // swaps: the plan's, dropped: entries kept back (metals) }. Never refuses: what it cannot place it keeps as it is.
@@ -535,7 +537,7 @@ module.exports = (api) => {
       personal(a, `${who(target)}: ${p.swaps.reduce((n, s) => n + s.count, 0)} item(s) to swap, ${p.skipped.artifact} artifact(s) kept, ${p.skipped.unmapped} without a replacement, ${p.skipped.enchanted} enchanted kept; mark ${JSON.stringify(mp.get(target, MARK) || null)}; restore ${JSON.stringify(mp.get(target, RESTORE_MARK) || null)}`);
     }, { admin: true, help: '[name]: what the steel-cap gear swap would take from a player' });
   }
-  log(`gearswap: mode ${C.mode}, version ${C.version}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}, enchantments kept`);
+  log(`gearswap: mode ${C.mode}, ${C.repeat ? 'every login and container opening' : `once per version ${C.version}`}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}, enchantments kept`);
   restorePlanNow();
   return { plan, sweep, sweepContainer, bodyTake, lootCap, busy, restoreAt, restoreContainer, enchantOf };
 };

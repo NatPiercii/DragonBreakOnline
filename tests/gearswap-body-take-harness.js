@@ -55,23 +55,21 @@ const count = (who, base) => (store[who].inventory.entries || []).filter((e) => 
   check('...the body loses those 3, the pack gets 3 iron arrows on its own iron stack', count(BODY, ID.ElvenArrow) === 2 && count(PLAYER, ID.IronArrow) === 13 && count(PLAYER, ID.ElvenArrow) === 0
     && store[PLAYER].inventory.entries.filter((e) => e.baseId === ID.IronArrow).length === 1, store[PLAYER].inventory.entries);
   check('...with an audit line and a word to the player', audits.some((t) => t === 'GEARSWAP take Pff000303 from body ff000500: 3 x ElvenArrow -> IronArrow') && said.some(([a, t]) => a === PLAYER && /^To match the loot rules, .*Arrow x3 from the body became .*Iron Arrow x3\.$/.test(t)), { audits, said });
-  check('a take of Dwarven metal ingots (no ore to mine) gives steel ingots', take(BODY, PLAYER, ID.IngotDwarven, 2) === true);
-  await tick();
-  check('...2 for 2, the Dwarven gone from the body', count(BODY, ID.IngotDwarven) === 0 && count(PLAYER, ID.IngotSteel) === 2 && count(PLAYER, ID.IngotDwarven) === 0);
+  check('Dwarven metal ingots, smelted from scrap, are an ordinary take: kept like a mined ore (Nate, 4 Oct: "Keep them (crafted, like mined ores)")', take(BODY, PLAYER, ID.IngotDwarven, 2) === false);
   check('refined moonstone and moonstone ore, which players mine, are ordinary takes (Nate, 4 Oct: "Keep mined ores, swap only gear")', take(BODY, PLAYER, ID.IngotIMoonstone, 2) === false && take(BODY, PLAYER, ID.OreMoonstone, 3) === false);
   check('Adamantium (Beyond Skyrim) is swapped the same way', take(BODY, PLAYER, ID.BSKIngotAdamantium, 1) === true);
   await tick();
-  check('...for a steel ingot', count(PLAYER, ID.IngotSteel) === 3 && count(BODY, ID.BSKIngotAdamantium) === 0);
+  check('...for a steel ingot', count(PLAYER, ID.IngotSteel) === 1 && count(BODY, ID.BSKIngotAdamantium) === 0);
   // Meteoric Iron is mined (the Bleak-Frost Mine; Nate, 4 Oct): kept out of loot (loottiers.js LOOT_ONLY_METALS), never swapped
   check('Meteoric Iron, ingot or ore, is never swapped at a take: an ordinary take', take(BODY, PLAYER, ID.BSKIngotMeteoricIron, 1) === false && take(BODY, PLAYER, ID.BSKOreMeteoricIron, 2) === false);
   {
     const G = require(path.join(SERVER, 'gearswap.js'));
     const SWAP = JSON.parse(fs.readFileSync(path.join(SERVER, 'gear-swap.json'), 'utf8'));
     const TIERS = require(path.join(SERVER, 'loottiers.js'))({ materials: JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')), swap: SWAP });
-    const p = G.plan({ entries: [{ baseId: ID.BSKIngotMeteoricIron, count: 5 }, { baseId: ID.BSKOreMeteoricIron, count: 8 }, { baseId: ID.IngotIMoonstone, count: 4 }, { baseId: ID.OreMoonstone, count: 6 }, { baseId: ID.IngotDwarven, count: 1 }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, isArtifact: () => false, edidOf: (id) => EDID[id >>> 0] || '' });
-    check('a carried or stored Meteoric or moonstone ingot or ore is not swapped (the plan the login and container sweeps use); a Dwarven ingot beside them is',
-      p.swaps.length === 1 && p.swaps[0].edid === 'IngotDwarven' && p.entries.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 4) && p.entries.some((e) => e.baseId === ID.OreMoonstone && e.count === 6) && p.entries.some((e) => e.baseId === ID.BSKIngotMeteoricIron && e.count === 5) && p.entries.some((e) => e.baseId === ID.BSKOreMeteoricIron && e.count === 8), p.swaps);
-    check('...and it is not on gear-swap.json\'s metals, yet loottiers keeps it out of loot', !SWAP.metals['601c91:bsassets.esm'] && !SWAP.metals['601c92:bsassets.esm'] && TIERS.aboveCap('601c91:BSAssets.esm', 'metal').lootOnly === true);
+    const p = G.plan({ entries: [{ baseId: ID.BSKIngotMeteoricIron, count: 5 }, { baseId: ID.BSKOreMeteoricIron, count: 8 }, { baseId: ID.IngotIMoonstone, count: 4 }, { baseId: ID.OreMoonstone, count: 6 }, { baseId: ID.IngotDwarven, count: 1 }, { baseId: ID.BSKIngotAdamantium, count: 1 }], descOf, classOf: TIERS.classOf, swap: SWAP, idOf, isArtifact: () => false, edidOf: (id) => EDID[id >>> 0] || '' });
+    check('a carried or stored Meteoric, moonstone or Dwarven ingot or ore is not swapped (the plan the login and container sweeps use); an Adamantium ingot beside them is',
+      p.swaps.length === 1 && p.swaps[0].edid === 'BSKIngotAdamantium' && p.entries.some((e) => e.baseId === ID.IngotDwarven && e.count === 1) && p.entries.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 4) && p.entries.some((e) => e.baseId === ID.OreMoonstone && e.count === 6) && p.entries.some((e) => e.baseId === ID.BSKIngotMeteoricIron && e.count === 5) && p.entries.some((e) => e.baseId === ID.BSKOreMeteoricIron && e.count === 8), p.swaps);
+    check('...and neither Meteoric Iron nor the Dwarven ingot is on gear-swap.json\'s metals, yet loottiers keeps both out of loot', !SWAP.metals['601c91:bsassets.esm'] && !SWAP.metals['601c92:bsassets.esm'] && !SWAP.metals['db8a2:skyrim.esm'] && TIERS.aboveCap('601c91:BSAssets.esm', 'metal').lootOnly === true && TIERS.aboveCap('db8a2:Skyrim.esm', 'metal').lootOnly === true);
   }
   check('a slain dragon\'s bone is never swapped at a take: its body is the one source (Nate, 2026-09-30)', take(BODY, PLAYER, ID.DragonBone, 2) === false);
   {

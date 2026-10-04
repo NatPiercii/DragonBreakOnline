@@ -1,5 +1,21 @@
 [
   {
+    "title": "High-end gear keeps being swapped",
+    "date": "2026-10-04",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Weapons, armour and metals",
+        "items": [
+          "Glass, Elven and other gear above the loot rules is now swapped for its steel or iron equivalent every time you log in, and in a container every time it is opened, not only the first time.",
+          "Enchantments still carry over to the replacement, and staff-granted artifacts are still left alone.",
+          "Dwarven metal ingots, which you smelt from Dwarven scrap, are now kept like the ores you mine: they are no longer swapped for steel. They still never come from loot."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Call a GM from the game",
     "date": "2026-10-04",
     "version": "Server update",

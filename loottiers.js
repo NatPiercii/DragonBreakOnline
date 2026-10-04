@@ -17,11 +17,12 @@
 //   - Every ingot and ore above steel is NEVER loot, at any cap, 'none' too: "people should have to craft higher tiers
 //     and grind for it" (Nate, 4 Oct): mine and craft, never loot. Lifting the cap brings back the higher gear and
 //     arrows, never these. Two lists hold them:
-//   - gear-swap.json `metals`: those with no ore a player can mine (Dwarven from scrap, Adamantium and Stalhrim, which
-//     skills.json oreByTier does not list). The swap takes these from packs and containers. Dragon bone and scales are
+//   - gear-swap.json `metals`: those with no ore a player can mine (Adamantium and Stalhrim, which skills.json oreByTier
+//     does not list). The swap takes these from packs and containers. Dragon bone and scales are
 //     on neither list: a slain dragon's body is their one source, and dungeons.js DRAGON_LOOT keeps them out of loot.
 //   - LOOT_ONLY_METALS: the ores players mine (oreByTier above steel: quicksilver, orichalcum, moonstone, malachite,
-//     ebony; Meteoric Iron, the Bleak-Frost Mine) and the ingots they smelt to (2 ore to 1 at the smelter). Never swapped
+//     ebony; Meteoric Iron, the Bleak-Frost Mine) and the ingots they smelt to (2 ore to 1 at the smelter), and the Dwarven
+//     metal ingot, smelted from Dwarven scrap (Nate, 4 Oct: "Keep them (crafted, like mined ores)"). Never swapped
 //     (Nate, 4 Oct: "Keep mined ores, swap only gear"): they stay off gear-swap.json, or the login and container sweeps
 //     would turn a miner's ore into steel. `to` is what salvage gives in their place (salvage.js), as the swap's list
 //     does for the others. More via config lootTiers.lootOnlyMetals (descs). tests/loot-tiers-harness.js checks both
@@ -42,7 +43,8 @@ const NEVER = new Set(['DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'gold
 const UNIFORM = new Set(['stormcloak', 'guard', 'penitus', 'thievesguild', 'dawnguard', 'blades']);
 const TRINKET = new Set(['clothing', 'staff']);
 // Kept out of loot, never swapped: the metals players mine and their ingots (Skyrim.esm's five, from the Recipe<Ingot>
-// smelter records; Beyond Skyrim's Meteoric Iron, BSAssets.esm, which tempers the Ayleid gear)
+// smelter records; Beyond Skyrim's Meteoric Iron, BSAssets.esm, which tempers the Ayleid gear), and the Dwarven metal
+// ingot players smelt from scrap
 const STEEL = '5ace5:Skyrim.esm', IRON_ORE = '71cf3:Skyrim.esm';
 const LOOT_ONLY_METALS = {
   '5ace2:skyrim.esm': { edid: 'OreQuicksilver', to: IRON_ORE }, '5ada0:skyrim.esm': { edid: 'IngotQuicksilver', to: STEEL },
@@ -51,6 +53,7 @@ const LOOT_ONLY_METALS = {
   '5ace1:skyrim.esm': { edid: 'OreMalachite', to: IRON_ORE }, '5ada1:skyrim.esm': { edid: 'IngotMalachite', to: STEEL },
   '5acdc:skyrim.esm': { edid: 'OreEbony', to: IRON_ORE }, '5ad9d:skyrim.esm': { edid: 'IngotEbony', to: STEEL },
   '601c92:bsassets.esm': { edid: 'BSKOreMeteoricIron', to: IRON_ORE }, '601c91:bsassets.esm': { edid: 'BSKIngotMeteoricIron', to: STEEL },
+  'db8a2:skyrim.esm': { edid: 'IngotDwarven', to: STEEL },
 };
 // Nate, 1 Oct ("you can allow it"): vanilla Steel plate, Scaled and Elven gilded drop in Cyrodiil too, filling its tier 3
 const ANY_PROVINCE = new Set(['steelplate', 'scaled', 'elven_gilded']);
