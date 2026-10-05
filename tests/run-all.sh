@@ -97,6 +97,7 @@ declare -A NEEDS=(
   [admin-school]=server:skymp5-server/ts/systems/adminSystem.ts
   [staff-mastery]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-killing-blow]=server:skymp5-server/ts/systems/masterySystem.ts
+  [board-placed]=server:skymp5-server/ts/systems/bountyBoardSystem.ts
   [crafted-credit]=server:skymp5-server/ts/systems/craftedExtrasSystem.ts
   [mastery-boost]=server:skymp5-server/ts/systems/masterySystem.ts
   [mastery-rate]=server:skymp5-server/ts/systems/masterySystem.ts
