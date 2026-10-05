@@ -51,12 +51,13 @@ const stubs = {
   who: () => 'Reader',
   display: () => 'Reader',
   every: (name, ms, fn) => everyFns.set(name, fn),
-  openWidget: (a, w, focus) => { out.widgets.push({ w, focus }); return true; },
+  openWidget: (a, w, focus) => { out.widgets.push({ w, focus }); if (w && w.result) out.results.push(String(w.result)); return true; },
   closeWidget: () => { out.closed++; return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
   giveItem: (a, id) => { out.given.push(id >>> 0); return true; },
 };
 out.given = [];
+out.results = [];
 globalThis.__alduinakMasteryEvent = (kind, a) => out.events.push(kind);
 // eslint-disable-next-line no-new-func
 const READ = new Function(...Object.keys(stubs), section + '\nreturn READ;')(...Object.values(stubs));
@@ -210,9 +211,17 @@ check('an abandoned round expires and the book opens again', out.widgets.length 
   for (let i = 0; i < 9; i++) readThrough(SKYRIM_BOOK);
   const copies = out.given.filter((id) => id === 0xf).length;
   check('an ordinary book is copied at most 6 times a day', copies === 6, copies);
+  const capLines = out.personals.filter((x) => /you can today; more wait for the new day/.test(x));
+  check('a reader who reached the day\'s caps is told, each cap once', capLines.length >= 1 && ['books copied', 'scrolls', 'spell tomes'].every((k) => capLines.filter((x) => x.includes(k)).length === 1), capLines);
+  check('...in the round\'s result text too', out.results.some((x) => /You read it through\..* you can today/.test(x)), out.results.slice(-1));
+  const before = capLines.length;
+  readThrough(SKYRIM_BOOK);
+  check('...and not again that day', out.personals.filter((x) => /you can today; more wait/.test(x)).length === before);
+  check('the audit line stays as it was (the note is not a find)', !out.audits.some((x) => /you can today/.test(x)));
   props.set(READER + '|private.scholarCopies', { day: '2000-01-01', n: 6 }); // yesterday's six
   readThrough(SKYRIM_BOOK);
   check('...and again the next day', out.given.filter((id) => id === 0xf).length === 7);
+  props.delete(READER + '|private.scholarCapTold');
   Math.random = realRandom;
 }
 // ---- client-judged candle (Jake, 2026-09-30): the widget's own clock decides in time; no check lag can fail ----
