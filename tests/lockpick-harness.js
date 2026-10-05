@@ -426,6 +426,86 @@ lw = beginC(1);
 check('a client without lockpickLocal is played try by try even with the switch on', lw.judge === undefined);
 ui.lockpickCancel(A, [lw.nonce]);
 
+// ---- "Find where the pins give": a UI that also names 'pickRound' gets a pick lock, every other UI today's lock ----------
+console.log('');
+console.log('pick locks:');
+{
+  const MG = require(path.resolve(__dirname, '..', 'minigames.js'));
+  Math.random = realRandom;
+  load({ lockpick: { enabled: true } });
+  caps.add('lockpickLocal');
+  const TIMING_KEYS = 'type,id,nonce,title,level,riseMs,fallMs,holds,set,picks,notice,noticeKind,done,seq,judge,graceMs,snaps,maxTries,_sentAt';
+  let pw = beginC(2);
+  check('a UI without pickRound gets exactly today\'s client lock', Object.keys(pw).join(',') === TIMING_KEYS, Object.keys(pw).join(','));
+  ui.lockpickCancel(A, [pw.nonce]);
+  caps.add('pickRound');
+  // The widget's own rules: try k picks from steps[k]; a right pick sets the loose tumbler, a wrong one snaps on snaps[k]
+  const playPick = (lw, plan, gap) => {
+    const tries = []; let t = 0, set = lw.set.map(() => false), snapped = 0, outcome = 'cancel';
+    for (const p of plan) {
+      if (outcome !== 'cancel') break;
+      const k = tries.length;
+      const right = MG.rightOf(lw.steps[k]);
+      t += gap || 400;
+      tries.push([p === 'hit' ? right : (right + 1) % lw.steps[k].length, t]);
+      if (p === 'hit') { set[set.indexOf(false)] = true; if (set.every(Boolean)) outcome = 'win'; }
+      else if (lw.snaps[k]) { snapped++; set = set.map(() => false); if (snapped >= lw.picks) outcome = 'fail'; }
+      if (outcome === 'cancel' && tries.length >= lw.maxTries) outcome = 'fail';
+    }
+    return { tries, startMs: 0, endMs: t, outcome, snapped };
+  };
+  pw = beginC(2);
+  check('a UI with it gets a pick lock: positions for every try, no rise, hang or grace', pw.mode === 'pick' && pw.judge === 'client' && pw.steps.length === pw.maxTries && pw.maxTries === 60 && pw.snaps.length === 60 && pw.holds === undefined && pw.riseMs === undefined, Object.keys(pw).join(','));
+  check('...four positions on an Adept lock, all on the pick\'s line', pw.steps.every((st) => st.length === 4 && st.every((q) => q[1] === 50)));
+  check('...three on a Novice lock, five on a Master', beginC(0).steps[0].length === 3 && beginC(4).steps[0].length === 5);
+  pw = beginC(2);
+  let r = playPick(pw, ['hit', 'hit', 'hit']);
+  let line = send(pw, r, 150);
+  check('every tumbler found: the lock opens, with the same onSuccess and mastery event', /^lockpick win /.test(line) && opened === 1 && events.some((e) => e[0] === 'lock'), line);
+  pw = beginC(2, 3);
+  pw.snaps.fill(0); pw.snaps[1] = 1;
+  globalThis.__dboLockpickState.get(A).snaps = pw.snaps.map(Boolean);
+  r = playPick(pw, ['hit', 'miss', 'hit', 'hit', 'hit']);
+  line = send(pw, r, 150);
+  check('a wrong position on a try whose snap was rolled breaks a pick and drops the tumblers, then the lock still opens', /^lockpick win /.test(line) && / snaps=1 /.test(line) && pickCount() === 2 && opened === 1, `${line} picks=${pickCount()}`);
+  pw = beginC(2, 1);
+  globalThis.__dboLockpickState.get(A).snaps = pw.snaps.map(() => true);
+  pw.snaps.fill(1);
+  r = playPick(pw, ['miss']);
+  line = send(pw, r, 150, 'fail');
+  check('a snapped last pick fails the lock', /^lockpick fail /.test(line) && pickCount() === 0 && opened === 0, line);
+  pw = beginC(2);
+  r = playPick(pw, ['hit', 'hit', 'hit'], 40);
+  line = send(pw, r, 150);
+  check('picks faster than a hand are refused(fast)', /refused\(fast\)/.test(line) && opened === 0, line);
+  pw = beginC(2);
+  r = playPick(pw, ['hit', 'hit', 'hit']); r.tries.push([0, r.endMs + 400]);
+  line = send(pw, r, 150);
+  check('a try after the lock opened is refused(extra)', /refused\(extra\)/.test(line) && opened === 0, line);
+  pw = beginC(2);
+  line = send(pw, { tries: [[0, 300, 900, 1]], startMs: 0, endMs: 900, outcome: 'cancel' }, 150);
+  check('a timing try sent for a pick lock is refused(shape)', /refused\(shape\)/.test(line), line);
+  pw = beginC(2);
+  line = send(pw, { tries: [[9, 400]], startMs: 0, endMs: 400, outcome: 'cancel' }, 150);
+  check('a position that was never drawn is refused(shape)', /refused\(shape\)/.test(line), line);
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    const lv = i % 5;
+    pw = beginC(lv, 1 + (i % 3));
+    const plan = Array.from({ length: 30 }, () => (Math.random() < 0.8 ? 'hit' : 'miss'));
+    r = playPick(pw, plan, 200 + Math.floor(Math.random() * 600));
+    line = send(pw, r, 150, r.outcome === 'cancel' ? 'cancel' : r.outcome);
+    const want = r.outcome === 'win' ? /^lockpick win / : r.outcome === 'fail' ? /^lockpick fail / : /^lockpick cancel /;
+    if (want.test(line)) agree++; else if (agree > i - 3) console.log('   ', r.outcome, line);
+  }
+  check('the widget and the server agree on 200 random pick locks', agree === 200, `${agree}/200`);
+  load({ lockpick: { enabled: true, pick: { enabled: false } } });
+  pw = beginC(2);
+  check('lockpick.pick.enabled false gives the timing lock again', Object.keys(pw).join(',') === TIMING_KEYS, Object.keys(pw).join(','));
+  ui.lockpickCancel(A, [pw.nonce]);
+  caps.delete('pickRound');
+}
+
 Math.random = realRandom;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

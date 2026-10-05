@@ -58,6 +58,12 @@ module.exports = (api) => {
     // audit line, 'refuse' refuses the report (picks for its snaps are still taken)
     replayCheck: 'log',
   }, cfg.lockpick || {});
+  // "Find where the pins give" (Nate, 4-5 Oct: no timing mini-games): a client lock for a UI that also names MG.PICK_CAP has
+  // no push and hang. Every try shows positions along the pick's travel (spotsByLevel, by the lock), one where the
+  // tumbler gives with the clearest cue (cueByTier and decoyByTier: the first for a non-Lockpicker, then Novice to
+  // Master). A right pick sets the loose tumbler; a wrong one is a miss, and snaps the pick when that try's snap was
+  // rolled, from the same odds as today. seconds bounds the whole lock; maxTries is the most tries one lock may take.
+  const PICK = Object.assign({ enabled: true, seconds: 180, maxTries: 60, spotsByLevel: [3, 3, 4, 4, 5], cueByTier: [0.6, 0.65, 0.72, 0.8, 0.9, 1], decoyByTier: [0.45, 0.42, 0.36, 0.3, 0.22, 0.14], minPickMs: 150 }, C.pick || {});
 
   if (!C.enabled) { globalThis.__dboLockpick = null; return; }
 
@@ -132,6 +138,11 @@ module.exports = (api) => {
       notice: text, noticeKind: noticeKind || '', done: noticeKind === 'win' || noticeKind === 'fail', seq: L.seq,
     };
     if (L.mode === 'client') Object.assign(w, { judge: 'client', graceMs: C.graceMs, snaps: L.snaps.map((x) => (x ? 1 : 0)), maxTries: L.maxTries });
+    // A pick lock has no rise or hang: the positions of every try instead
+    if (L.pick) {
+      for (const k of ['riseMs', 'fallMs', 'holds', 'graceMs']) delete w[k];
+      Object.assign(w, { mode: 'pick', steps: L.steps, totalMs: L.totalMs, minPickMs: L.minPickMs });
+    }
     return w;
   };
   const end = (L) => { S.delete(L.a); };
@@ -162,9 +173,16 @@ module.exports = (api) => {
       L.snaps = Array.from({ length: L.maxTries }, () => Math.random() < snapChanceOf(L));
       L.sentAt = nowMs();
       L.picksAtBegin = picksOf(a);
+      if (PICK.enabled !== false && hasUiCap(a, MG.PICK_CAP)) {
+        L.pick = true;
+        L.maxTries = Math.max(1, Math.floor(Number(PICK.maxTries) || 60));
+        L.snaps = L.snaps.slice(0, L.maxTries);
+        const p = MG.pickSteps(Math.random, L.maxTries, MG.byTier(PICK.spotsByLevel, level, 4), MG.byTier(PICK.cueByTier, tier + 1, 0.7), MG.byTier(PICK.decoyByTier, tier + 1, 0.35), 'line');
+        Object.assign(L, { steps: p.steps, right: p.right, totalMs: Math.max(10000, Math.round((Number(PICK.seconds) || 180) * 1000)), minPickMs: Math.max(0, Number(PICK.minPickMs) || 0) });
+      }
     }
     S.set(a, L);
-    if (L.mode === 'client') verdictLine(L, 'issue', ` judge=client tumblers=${L.holds.length} picks=${L.picksAtBegin}`);
+    if (L.mode === 'client') verdictLine(L, 'issue', ` judge=client${L.pick ? ` pick spots=${L.steps[0].length}` : ''} tumblers=${L.holds.length} picks=${L.picksAtBegin}`);
     return openWidget(a, payload(L), true);
   };
   const snapChanceOf = (L) => { const S2 = C.snap; return Math.max(S2.min, L.tier < 0 ? S2.anyone : S2.lockpicker + S2.perTier * L.tier); };
@@ -334,6 +352,36 @@ module.exports = (api) => {
     }
     return r;
   };
+  // A pick lock's tries, [[index, ms], ...]: the loose tumbler is always the first unset one, a right pick sets it, a wrong
+  // one is a miss and snaps the pick when that try's snap was rolled. The same fields as replay(), so the verdict reads both.
+  const replayPick = (L, list, picks) => {
+    const r = { bad: '', outcome: 'cancel', set: L.holds.map(() => false), snapped: 0, misses: 0, mismatch: 0, tooFast: 0, held: [] };
+    let prev = 0;
+    for (let k = 0; k < list.length; k++) {
+      const t = list[k];
+      if (!Array.isArray(t) || t.length !== 2) { r.bad = 'shape'; return r; }
+      const i = MG.ms(t[0]), at = MG.ms(t[1]);
+      if (!Number.isFinite(i) || !Number.isFinite(at) || at < prev || at > L.totalMs || i < 0 || i >= (L.steps[k] || []).length) { r.bad = 'shape'; return r; }
+      if (r.outcome !== 'cancel') { r.bad = 'extra'; return r; }
+      if (at - prev < L.minPickMs) r.tooFast++;
+      prev = at;
+      if (i === L.right[k]) {
+        const loose = r.set.indexOf(false);
+        r.set[loose] = true;
+        r.held.push(loose);
+        if (r.set.every(Boolean)) r.outcome = 'win';
+      } else {
+        r.misses++;
+        if (L.snaps[k]) {
+          r.snapped++;
+          r.set = r.set.map(() => false);
+          if (r.snapped >= picks) { r.outcome = 'fail'; r.failWhy = 'picks'; }
+        }
+      }
+      if (r.outcome === 'cancel' && k + 1 >= L.maxTries) { r.outcome = 'fail'; r.failWhy = 'tries'; }
+    }
+    return r;
+  };
   onUi('lockpickResult', (a, args) => {
     const nonce = String(args[0]);
     let L = S.get(a);
@@ -361,7 +409,7 @@ module.exports = (api) => {
     let r = { bad: '', outcome: 'cancel', set: [], snapped: 0, misses: 0, mismatch: 0, tooFast: 0, held: [] };
     if (!['win', 'fail', 'cancel'].includes(outcome) || !Array.isArray(list) || list.length > L.maxTries) bad = 'shape';
     else {
-      r = replay(L, list, Math.max(1, L.picksAtBegin));
+      r = (L.pick ? replayPick : replay)(L, list, Math.max(1, L.picksAtBegin));
       bad = r.bad;
     }
     // Every snapped pick is taken, whatever else the report says, a cancel included
@@ -369,7 +417,7 @@ module.exports = (api) => {
     for (let k = 0; k < r.snapped; k++) if (takePick(a)) taken++;
     const own = Number.isFinite(startMs) && Number.isFinite(endMs) ? endMs - startMs : NaN;
     const sinceSent = nowMs() - (Number(L.sentAt) || nowMs());
-    const minMs = (L.level + 1) * Math.max(0, C.riseMs - C.graceMs);
+    const minMs = L.pick ? MG.pickMinMs(L.level + 1, L.minPickMs) : (L.level + 1) * Math.max(0, C.riseMs - C.graceMs);
     const sus = [];
     if (r.mismatch) sus.push('mismatch');
     if (closed) sus.push('after-close');
