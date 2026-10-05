@@ -102,6 +102,13 @@ const pos = (n) => byName(n).position;
   check('its home town becomes a role, created under the homes divider', r.includes('Bruma') && pos('Bruma') < pos('---HOMES---') && pos('Bruma') > pos('---SKILLS---'), `${pos('Bruma')}`);
   check("someone else's house gives nothing", !r.includes('Falkreath') && !byName('Falkreath'));
   check('roles outside the two groups are never touched', r.includes('Owners'));
+  // A chest or an inner door is no home (Nate, 5 Oct): the housing view says the claim is no building
+  globalThis.__dboHousing.isBuilding = (ref) => ref !== HOUSE;
+  await mod.sync(PLAYER);
+  check('a claim that is no building (a chest, an inner door) gives no home role', !names('111111111111111111').includes('Bruma'), names('111111111111111111').join(', '));
+  delete globalThis.__dboHousing.isBuilding;
+  await mod.sync(PLAYER);
+  r = names('111111111111111111');
 
   const before = calls.length;
   await mod.sync(PLAYER);

@@ -126,6 +126,8 @@ module.exports = (api) => {
         if (typeof H.primaryOf === 'function' && (Number(H.primaryOf(ref)) >>> 0) !== ref) { delete d.overdue[String(ref)]; continue; }
         const rec = H.recordOf(ref);
         if (!rec || !rec.owner) continue;
+        // A chest or an inner door is no property and pays no tax (Nate, 5 Oct)
+        if (typeof H.isBuilding === 'function' && !H.isBuilding(ref)) { delete d.overdue[String(ref)]; continue; }
         const inside = [ref, Number(rec.partner) >>> 0].filter(Boolean).map(interiorOf).find(Boolean);
         const key = inside ? `${rec.owner}|${inside}` : `ref|${ref}`;
         const had = groups.get(key);

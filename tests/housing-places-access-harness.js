@@ -17,9 +17,9 @@ const H = (n) => (0x08000000 | n) >>> 0;
 const ROOT = H(0xb5c6e), DOOR = H(0xb5eac), CHEST = H(0xb5c86);
 // Refs nobody claimed in the fort's cell, and a chest in another cell
 const FORT = 'b5936:BSHeartland.esm', WORLD = 'a764b:BSHeartland.esm';
-const LOOSE_CHEST = H(0xb6001), SHARED_CHEST = H(0xb6002), ROOM_DOOR = H(0xb6003), HALL_DOOR = H(0xb6004), OUTSIDE_CHEST = H(0xb6005), OTHERS_CHEST = H(0xb6006);
-const CELLS = { [ROOT]: FORT, [DOOR]: WORLD, [CHEST]: FORT, [LOOSE_CHEST]: FORT, [SHARED_CHEST]: FORT, [ROOM_DOOR]: FORT, [HALL_DOOR]: FORT, [OUTSIDE_CHEST]: WORLD, [OTHERS_CHEST]: FORT };
-const TYPES = { [ROOT]: 'DOOR', [DOOR]: 'DOOR', [CHEST]: 'CONT', [LOOSE_CHEST]: 'CONT', [SHARED_CHEST]: 'CONT', [ROOM_DOOR]: 'DOOR', [HALL_DOOR]: 'DOOR', [OUTSIDE_CHEST]: 'CONT', [OTHERS_CHEST]: 'CONT' };
+const INNER_DOOR = H(0xb6010), INNER_PARTNER = H(0xb6011), DOOR_INSIDE = H(0xb6012), LOOSE_CHEST = H(0xb6001), SHARED_CHEST = H(0xb6002), ROOM_DOOR = H(0xb6003), HALL_DOOR = H(0xb6004), OUTSIDE_CHEST = H(0xb6005), OTHERS_CHEST = H(0xb6006);
+const CELLS = { [INNER_DOOR]: FORT, [INNER_PARTNER]: FORT, [DOOR_INSIDE]: FORT, [ROOT]: FORT, [DOOR]: WORLD, [CHEST]: FORT, [LOOSE_CHEST]: FORT, [SHARED_CHEST]: FORT, [ROOM_DOOR]: FORT, [HALL_DOOR]: FORT, [OUTSIDE_CHEST]: WORLD, [OTHERS_CHEST]: FORT };
+const TYPES = { [INNER_DOOR]: 'DOOR', [INNER_PARTNER]: 'DOOR', [DOOR_INSIDE]: 'DOOR', [ROOT]: 'DOOR', [DOOR]: 'DOOR', [CHEST]: 'CONT', [LOOSE_CHEST]: 'CONT', [SHARED_CHEST]: 'CONT', [ROOM_DOOR]: 'DOOR', [HALL_DOOR]: 'DOOR', [OUTSIDE_CHEST]: 'CONT', [OTHERS_CHEST]: 'CONT' };
 const OWNER = 0xff000060, ASSIGNEE = 0xff000061, STRANGER = 0xff000062, KEYHOLDER = 0xff000063, OLDKEY = 0xff000064;
 const PROFILE = { [OWNER]: 60, [ASSIGNEE]: 61, [STRANGER]: 62, [KEYHOLDER]: 63, [OLDKEY]: 64 };
 const props = new Map();
@@ -41,7 +41,9 @@ props.set(`${ROOT}:private.housing`, base({ name: 'Fort Caractacus', locked: tru
   assigned: { [CHEST.toString(16)]: { profile: 61, name: 'Assigned One' }, [ROOM_DOOR.toString(16)]: { profile: 61, name: 'Assigned One' } }, shared: [SHARED_CHEST.toString(16)] }));
 // Another owner's own claim inside the fort keeps its own rules
 props.set(`${OTHERS_CHEST}:private.housing`, base({ owner: 77, ownerName: 'Tavia' }));
-props.set(`${DOOR}:private.housing`, base({ locked: true, memberOf: ROOT }));
+props.set(`${DOOR}:private.housing`, base({ locked: true, memberOf: ROOT, partner: DOOR_INSIDE }));
+// An inner door of the place (both sides in its cells), claimed and locked: its own key only (Nate, 5 Oct)
+props.set(`${INNER_DOOR}:private.housing`, base({ locked: true, memberOf: ROOT, partner: INNER_PARTNER }));
 props.set(`${CHEST}:private.housing`, base({ memberOf: ROOT, ownerOnly: true }));
 const sys = new HousingSystem(() => {});
 sys.holdOf = () => null; sys.isAdmin = () => false; sys.holdRanks = () => []; sys.saveRegistry = () => {};
@@ -49,6 +51,7 @@ sys.primaryOf = (c, id) => id >>> 0;
 sys.userOf = () => -1; sys.notice = () => {};
 sys.claimed = [ROOT, DOOR, CHEST, OTHERS_CHEST];
 sys.baseTypeOf = (c, id) => TYPES[id >>> 0] || '';
+sys.isWorldDesc = (c, d) => d === WORLD;
 const rec = (id) => sys.read(ctx, id);
 const opens = (id, who) => sys.onActivate(ctx, id, who);
 const access = (id, who) => sys.hasAccess(ctx, id, rec(id), who);
@@ -82,7 +85,13 @@ ok(opens(LOOSE_CHEST, STRANGER) === true && opens(CHEST, STRANGER) === true, "..
 sys.holdOf = () => null; sys.holdRanks = () => [];
 const r0 = rec(ROOT); r0.shared = [CHEST.toString(16)]; delete r0.assigned[CHEST.toString(16)]; sys.write(ctx, ROOT, r0);
 ok(opens(CHEST, KEYHOLDER) === true, 'a member chest the owner shares opens for the household');
-ok(access(DOOR, KEYHOLDER) === true, "a member door answers to the place's key");
+ok(access(DOOR, KEYHOLDER) === true, "an exterior member door answers to the place's key");
+ok(access(INNER_DOOR, KEYHOLDER) === false, "an inner door does not answer to the place's key (Nate, 5 Oct)");
+ok(access(INNER_DOOR, OWNER) === true, '...its owner still opens it');
+inventories[STRANGER] = [key(`Key to the room (${INNER_DOOR.toString(16).toUpperCase()}-2)`)];
+ok(access(INNER_DOOR, STRANGER) === true, '...and a key cut for that door opens it');
+ok(access(ROOT, STRANGER) === false && access(DOOR, STRANGER) === false, "...but that door's key opens neither the place nor its exterior door");
+inventories[STRANGER] = [];
 ok(access(DOOR, OLDKEY) === true, '...and to a key cut for that door before the migration (carried over as an alias)');
 ok(access(DOOR, ASSIGNEE) === false, "the chest's assignee does not get the other doors");
 ok(access(ROOT, OLDKEY) === true, 'the root answers to the carried-over key names too');
@@ -113,5 +122,23 @@ ok(access(ROOT, OLDKEY) === true, 'the root answers to the carried-over key name
 const r = rec(ROOT);
 sys.onlineUsers = () => []; sys.reKey(ctx, ROOT, r); sys.write(ctx, ROOT, r);
 ok((rec(ROOT).keyAliases || []).length === 0 && access(ROOT, OLDKEY) === false && access(DOOR, OLDKEY) === false, 're-keying the place: the old member keys stop opening it');
+// Cutting a key (Nate, 5 Oct): at an inner door or chest the key is that door's or chest's own; at an exterior door, the place's
+{
+  const cut = [];
+  const saved = { cut: sys.doCreateKey, actorOf: sys.actorOf, near: sys.nearProperty, place: sys.placeOfRef, last: sys.lastRequestMs };
+  sys.doCreateKey = (c, u, a, primary, r, isOwner) => cut.push({ primary, isOwner, memberOf: r.memberOf });
+  sys.actorOf = () => OWNER; sys.nearProperty = () => true; const n0 = sys.notice; sys.notice = (c, u, t) => console.log('    notice: ' + t);
+  const request = (target) => { sys.lastRequestMs = new Map(); sys.onPropertyRequest(ctx, 1, { target, action: 'createkey' }); return cut[cut.length - 1]; };
+  let k = request(INNER_DOOR);
+  ok(k && k.primary === INNER_DOOR && k.isOwner, "a key cut at an inner door is that door's own", k);
+  k = request(DOOR);
+  ok(k && k.primary === ROOT, "a key cut at an exterior door is the place's", k);
+  k = request(CHEST);
+  ok(k && k.primary === CHEST && k.isOwner, "a key cut at a chest of the place is the chest's own", k);
+  k = request(LOOSE_CHEST);
+  ok(k && k.primary === LOOSE_CHEST && k.memberOf === ROOT && k.isOwner, "a key cut at a chest nobody claimed: the chest's own, taken on by the place's owner", k);
+  Object.assign(sys, { doCreateKey: saved.cut, actorOf: saved.actorOf, nearProperty: saved.near, lastRequestMs: saved.last });
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);
