@@ -8,8 +8,14 @@
       {
         "heading": "Fixes",
         "items": [
-          "Fighting in werewolf or Vampire Lord form no longer trains Martial Arts: beast claws are not fists.",
-          "Reading tells you when you have found all the books, scrolls or spell tomes you can for the day (6 copies, 6 scrolls and 2 tomes); finds come back at midnight UTC, and reading still trains Scholar."
+          "Werewolf and Vampire Lord forms train no skills: claws are not fists, and nothing a beast does counts toward a skill or a school of magic.",
+          "Reading tells you when you have found all the books, scrolls or spell tomes you can for the day (6 copies, 6 scrolls and 2 tomes); finds come back at midnight UTC, and reading still trains Scholar.",
+          "Killing animals no longer trains Skinner. Skinning and tanning still do.",
+          "For 20 seconds after you log in, creatures cannot hurt you while the world loads in around you. Attacking or casting ends it early.",
+          "When the beast takes a werewolf without asking (hunger or the full moon), you are warned 12 seconds before the change.",
+          "Other players see a werewolf's beast body again, and anyone in werewolf or Vampire Lord form goes only by Werewolf or Vampire Lord, never their own name.",
+          "The Bloodscale Bone Helmet no longer drops as loot: for now it only fits Argonians and Khajiit.",
+          "Enchantments a few characters learned at the arcane enchanter before the 4 October update come back at their next login."
         ]
       }
     ]
