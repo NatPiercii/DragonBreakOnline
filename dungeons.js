@@ -410,9 +410,11 @@ module.exports = (api) => {
   // Nat: ebony and daedric never come out of a dungeon (chests, bodies, corpses, or what an enemy is armed with); Nate,
   // 1 Oct: nor dragon gear (Dragonplate, Dragonscale, Dragonbone, Dawnguard's Keeper set, Dragonhide, Dragonsteel, the
   // Dragon Priest dagger), nor Stalhrim (Ebony's tier), nor Orcish ("orcs would be mad") and its orichalcum ingot.
+  // Nate, 5 Oct: nor the colleges' and the Synod's robes (College of Winterhold, College of Whispers, the Archmage's set,
+  // the Synod's robes and hood); the colleges give them out in RP. The generic mage robes stay loot.
   // Matched on the editor id, so the enchanted variants and the ingot go too. Config dungeons.bannedLoot overrides.
   // The camp chests (wildlife.js) take the same pattern from globalThis.__dboBannedLoot.
-  const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric|Dragon(?:plate|scale|bone)|DLC1Keeper|DragonHide|Dragonsteel|DragonPriestDagger|Orcish|Orichalcum|Stalhrim/i;
+  const BANNED_LOOT = C.bannedLoot ? new RegExp(C.bannedLoot, 'i') : /Ebony|Daedric|Dragon(?:plate|scale|bone)|DLC1Keeper|DragonHide|Dragonsteel|DragonPriestDagger|Orcish|Orichalcum|Stalhrim|College(?:Robes|Hood|Boots|ofWhispers)|CoWArchmage|MG(?:Robes|Boots|Hood)Archmage|Synod(?:Robes|Hood)/i;
   globalThis.__dboBannedLoot = BANNED_LOOT;
   // The camp chests (wildlife.js) take their weapons through the same material check
   globalThis.__dboLootable = TIERS.lootable;

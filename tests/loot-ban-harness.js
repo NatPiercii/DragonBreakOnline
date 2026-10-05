@@ -44,11 +44,19 @@ const MUST = ['BSKEnchArmorDragonscaleBootsWaterWalking', 'BSKEnchArmorDragonpla
   'IWDragonsteelSword', 'DLC1DragonboneArrow', 'IngotEbony', 'EnchEbonyDaggerFire04',
   // and what Worker D's census found the first pattern still let through: Orcish (Nate) and Stalhrim (Ebony's tier)
   'OrcishDagger', 'ArmorOrcishCuirass', 'EnchArmorOrcishBootsSneak02', 'DLC2StalhrimSword', 'DLC2ArmorStalhrimHeavyCuirass', 'DLC2EnchArmorStalhrimLightBoots01', 'DragonPriestDagger',
-  'IngotOrichalcum'];
+  'IngotOrichalcum',
+  // Nate, 5 Oct: the colleges' and the Synod's robes (every one of them in loot.json)
+  'ClothesCollegeRobesCommon', 'ClothesCollegeRobesCommonVariant1', 'CYRClothesCollegeofWhispersRobes', 'CYRCoWArchmageRobe',
+  'ClothesMGRobesArchmage', 'ClothesMGRobesArchmage1Hooded', 'ClothesMGBootsArchmage', 'CYRSynodRobes', 'CYRSynodHood'];
 const missed = MUST.filter((n) => !BANNED.test(n));
-ok(!missed.length, 'the ban takes the Dragon Water Walking pieces, Ebony/Daedric, plain Dragon gear, Keeper, Dragonhide, Dragonsteel, Orcish, Stalhrim, the Dragon Priest dagger, the orichalcum ingot', missed);
+ok(!missed.length, 'the ban takes the Dragon Water Walking pieces, Ebony/Daedric, plain Dragon gear, Keeper, Dragonhide, Dragonsteel, Orcish, Stalhrim, the Dragon Priest dagger, the orichalcum ingot, the College and Synod robes', missed);
+const FACTION_ROBE = /college|synod|CoWArchmage|MG(?:Robes|Boots|Hood)Archmage/i;
+const robesLeft = Object.values(LOOT).flat().filter((it) => FACTION_ROBE.test(String(it.name || '')) && !BANNED.test(String(it.name || ''))).map((it) => it.name);
+ok(!robesLeft.length, 'no College or Synod piece in loot.json escapes the ban', robesLeft);
 const KEEP = ['IronSword', 'SteelDagger', 'ArmorGlassCuirass', 'CYRGlassSword', 'ArmorElvenCuirass', 'DwarvenBow', 'DragonsTongue', 'BSKGoblinWarAxe',
-  'ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorNordicCuirass', 'ArmorElvenGildedCuirass', 'ArmorHideCuirass', 'ImperialSword', 'ArmorDwarvenCuirass'];
+  'ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorNordicCuirass', 'ArmorElvenGildedCuirass', 'ArmorHideCuirass', 'ImperialSword', 'ArmorDwarvenCuirass',
+  // the generic mage robes and the Ayleid mage set are not a college's
+  'EnchClothesRobesMageConjuration02', 'EnchClothesRobesMageHoodNovice', 'CYRAyleidMageRobes', 'CYRClothesMasterMageBoots', 'CYROrnateMageGloves'];
 const wrong = KEEP.filter((n) => BANNED.test(n));
 ok(!wrong.length, 'ordinary gear and dragon\'s tongue (an ingredient) stay loot', wrong);
 const inPools = Object.values(LOOT).flat().filter((it) => BANNED.test(String(it.name || ''))).length;
