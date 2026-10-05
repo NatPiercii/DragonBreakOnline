@@ -6,6 +6,7 @@ import { System, Log, SystemContext, Content } from "./system";
 import { resolveEditorIds, isEditorId } from "./espmEditorIds";
 import { espmFieldFormIds } from "./formIdUtil";
 import { npcLevel } from "./espmMagic";
+import { readCraftPerkTiers, craftPerkHeld } from "./craftPerkTiers";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -44,6 +45,8 @@ type Mp = any;
 //   Gameplay (F3 journal): globalThis.__alduinakMasteryMenu(actorId) -> the masteryMenu object;
 //     __alduinakMasteryAction(actorId, "choose"|"drop"|"lock"|"takeUp", { skill, lock? }) -> { ok, text }
 //   Gameplay (skill rates): globalThis.__dboSkillRate(actorId, skillId, kind, detail) -> the rate metered work is worth, 0..5
+//   Native (craft perks): mp.onCraftPerkRequired(actorId, perkId) -> false when the crafter's tier stands in for the
+//     vanilla perk a recipe asks for (craftPerkTiers.ts); anything else keeps the recipe locked
 //
 // Persistence: `private.mastery` on the character's actor form.
 //   { skills: { <id>: { points, lastPointAt, rank, granted[] } }, order: [<id>], respecs }
@@ -355,6 +358,12 @@ export class MasterySystem implements System {
     });
     chain("onActivate", "activate", ([refrId, casterId]) => [casterId, { refrId }], ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
     chain("onEatItem", "eat", ([actorId, baseId]) => [actorId, { baseId }]);
+    const prevPerk = typeof mp.onCraftPerkRequired === "function" ? mp.onCraftPerkRequired : null;
+    mp.onCraftPerkRequired = (...args: unknown[]) => {
+      if (prevPerk && prevPerk(...args) === false) return false;
+      try { return this.craftPerkHeldBy(ctx, Number(args[0]) >>> 0, Number(args[1]) >>> 0) ? false : undefined; }
+      catch (e) { this.log(`[skills] craft perk check failed: ${e}`); return undefined; }
+    };
     // Whether the target still lived when the hit was attempted, read before the damage lands: the killing blow counts as a
     // hit, and a blow to a body that was already dead is neither a hit nor a kill
     const prevAttempt = typeof mp.onHitDamageAttempt === "function" ? mp.onHitDamageAttempt : null;
@@ -399,6 +408,18 @@ export class MasterySystem implements System {
       if (verdict !== false) { const [casterId, spellId] = args; this.enqueue("cast", casterId, { spellId, value: this.spellCost(ctx, Number(spellId) >>> 0) }); }
       return verdict;
     };
+  }
+
+  // Whether the crafter's tier in the table's skill stands in for a vanilla perk a recipe asks for
+  craftPerkHeldBy(ctx: SystemContext, actorId: number, perkId: number): boolean {
+    const perk = this.baseInfo(ctx, perkId);
+    if (!actorId || !perk || perk.type !== "PERK" || !perk.editorId) return false;
+    const table = readCraftPerkTiers();
+    const rec = this.read(ctx, actorId);
+    const prog = rec ? rec.skills[table.skill] : undefined;
+    const holds = !!rec && !!prog && (this.points ? prog.level >= 1 : rec.order.indexOf(table.skill) !== -1);
+    const tier = holds ? this.rankFor(prog!.level) + 1 : 0;
+    return craftPerkHeld(table, perk.editorId, tier);
   }
 
   private enqueue(kind: string, actorId: unknown, detail: unknown): void {
