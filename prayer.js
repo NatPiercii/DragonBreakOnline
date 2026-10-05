@@ -1426,7 +1426,8 @@ module.exports = (api) => {
       audit(`DEITY ${by} reset of ${who(t)} FAILED part-way (${e.message}); cleared before it: ${cleared.join('; ') || 'nothing'}`);
       return { ok: false, text: `The reset of ${display(t)} failed part-way (${e.message}). Cleared before it: ${cleared.join('; ') || 'nothing'}.` };
     }
-    if (inFlight) { sessions.delete(t >>> 0); try { closeWidget(t, WIDGET_ID); } catch (e) { /* offline */ } cleared.push('a prayer in progress'); }
+    // The kneel goes with the cleared prayer (R-1005 review, 5 Oct: the player stayed kneeling)
+    if (inFlight) { rise(t >>> 0, sessions.get(t >>> 0)); sessions.delete(t >>> 0); try { closeWidget(t, WIDGET_ID); } catch (e) { /* offline */ } cleared.push('a prayer in progress'); }
     lastShrine.delete(t >>> 0); offered.delete(t >>> 0); offerReadySince.delete(t >>> 0); pickerNonce.delete(t >>> 0);
     const online = onlineNow(t);
     if (online) {
