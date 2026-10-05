@@ -1,5 +1,20 @@
 [
   {
+    "title": "A fed vampire passes for mortal",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Vampires",
+        "items": [
+          "A vampire who has fed recently looks mortal again: their own eyes and their own colour. The glowing eyes and the pallor only show from the third stage of thirst, and feeding takes them away again.",
+          "A vampire newly turned by the fever shows them until their first meal. The sun still burns every vampire, fed or not."
+        ]
+      }
+    ]
+  },
+  {
     "title": "No limit on Guards",
     "date": "2026-10-05",
     "version": "Server update",
