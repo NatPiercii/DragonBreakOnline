@@ -4,7 +4,7 @@ import { Settings } from "../settings";
 import { System, Log, SystemContext, Content, WORLD_LOADED_EVENT } from "./system";
 import { placeNpc, placeAtMe, NpcLocation, HOSTILE_PROP } from "./npcPlacement";
 import { toFormId } from "./formIdUtil";
-import { userOf, isAlive, isNear, hex, baseIdOf, destroyLeftovers, destroyRef } from "./actorUtil";
+import { userOf, isAlive, isNear, hex, baseIdOf, destroyLeftovers, destroyRef, isPlayerActor } from "./actorUtil";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -92,6 +92,17 @@ const OWNER_GONE_MS = 5000;
 // Vanilla: one commanded actor, two with Twin Souls
 const COMMAND_LIMIT = 1;
 const TWIN_SOULS_LIMIT = 2;
+// A player, or a companion fighting for one, is fair game for a companion only while that player and its owner are fighting
+// each other: one of the two struck the other, or the other's companion, within this window (overridable via
+// "companionPvpHostileSeconds"), and the gameplay's PvP rule agrees (PVP_RULE_HOOK: pvp config, party, safe ground, downed,
+// jailed). A companion's own blows never open or extend that window, so it never starts or keeps a fight with a player itself.
+const PVP_HOSTILE_MS = 60000;
+// globalThis function the gameplay provides: (ownerId, targetPlayerId) => true when the owner may fight that player now.
+// Missing, throwing or anything but true refuses, so a companion fights no player at all until the gameplay says it may.
+const PVP_RULE_HOOK = "__dboCompanionMayFight";
+// The kinds these rules cover: a player's summons and raised corpses. Other kinds (GM warbands, server/warband.js, and later
+// pets) target players as before, and are no player's side when another companion picks a target.
+const PVP_KINDS: ReadonlySet<CompanionKind> = new Set<CompanionKind>(["summon", "reanimated"]);
 
 // A container holds nothing worn: worn flags are dropped and stacks that become equal are merged, so every stack stays takeable
 const looseEntries = (inventory: any): Record<string, unknown>[] => {
@@ -127,12 +138,17 @@ export class CompanionSystem implements System {
   private dbName = "world";
   // Actor ids of the previous run still to destroy
   private leftovers: number[] = [];
+  // Two players' last blow on each other (or on the other's companion), keyed by the pair: the PvP window above
+  private pvpFought = new Map<string, number>();
+  private pvpHostileMs = PVP_HOSTILE_MS;
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
     const all = (await Settings.get()).allSettings as Record<string, unknown> | null;
     const corpseSec = Number(all?.["npcCorpseSeconds"]);
     if (Number.isFinite(corpseSec) && corpseSec > 0) this.corpseSec = corpseSec;
+    const pvpSec = Number(all?.["companionPvpHostileSeconds"]);
+    if (Number.isFinite(pvpSec) && pvpSec > 0) this.pvpHostileMs = pvpSec * 1000;
     this.ashPileDesc = this.containerDesc(all?.["reanimateAshPileBase"] ?? DEFAULT_ASH_PILE_BASE);
     this.dbDriver = String(all?.["databaseDriver"] ?? "file");
     this.dbName = String(all?.["databaseName"] ?? "world");
@@ -155,6 +171,7 @@ export class CompanionSystem implements System {
     if (!this.mp) return;
     const now = Date.now();
     this.removeCorpses(now);
+    for (const [k, at] of Array.from(this.pvpFought)) if (now - at >= this.pvpHostileMs) this.pvpFought.delete(k);
     for (const c of Array.from(this.companions.values())) {
       try {
         this.check(c, now);
@@ -270,7 +287,7 @@ export class CompanionSystem implements System {
 
   orderAttack(companionId: number, targetId: number): boolean {
     const c = this.companions.get(companionId >>> 0);
-    if (!c || !this.isValidTarget(c.ownerId, targetId >>> 0, COMMAND_RANGE)) return false;
+    if (!c || !this.mayTarget(c, targetId >>> 0, COMMAND_RANGE)) return false;
     if (c.targetId !== targetId >>> 0) {
       c.targetId = targetId >>> 0;
       c.lastRetargetAt = Date.now();
@@ -304,12 +321,16 @@ export class CompanionSystem implements System {
 
   // Every companion of the owner turns on the aggressor; one already fighting switches at most every few seconds
   defend(ownerId: number, aggressorId: number): void {
-    const mine = this.ownedBy(ownerId);
+    this.defendWith(ownerId, this.ownedBy(ownerId), aggressorId);
+  }
+
+  private defendWith(ownerId: number, mine: Companion[], aggressorId: number): void {
     if (!mine.length || !this.isValidTarget(ownerId, aggressorId, COMMAND_RANGE)) return;
     const now = Date.now();
     let changed = false;
     for (const c of mine) {
       if (c.targetId === aggressorId || (c.targetId && now - c.lastRetargetAt < DEFEND_RETARGET_MS)) continue;
+      if (!this.pvpAllows(c, aggressorId)) continue;
       c.targetId = aggressorId;
       c.lastRetargetAt = now;
       changed = true;
@@ -324,7 +345,7 @@ export class CompanionSystem implements System {
     const now = Date.now();
     let changed = false;
     for (const c of mine) {
-      if (c.targetId === targetId) continue;
+      if (c.targetId === targetId || !this.pvpAllows(c, targetId)) continue;
       c.targetId = targetId;
       c.lastRetargetAt = now;
       changed = true;
@@ -397,6 +418,57 @@ export class CompanionSystem implements System {
     return isAlive(this.mp, targetId) && isNear(this.mp, ownerId, targetId, range);
   }
 
+  private mayTarget(c: Companion, targetId: number, range: number): boolean {
+    return this.isValidTarget(c.ownerId, targetId, range) && this.pvpAllows(c, targetId);
+  }
+
+  // A summon or raised corpse fights another player, or what fights for one, only under the PvP rules
+  private pvpAllows(c: Companion, targetId: number): boolean {
+    if (!PVP_KINDS.has(c.kind)) return true;
+    const side = this.playerSideOf(targetId);
+    return !side || (side !== c.ownerId && this.mayFightPlayer(c.ownerId, side));
+  }
+
+  // The player an actor fights for: a player character itself, a player's summon or raised corpse its owner; 0 for
+  // everything else (NPCs, GM warbands)
+  playerSideOf(actorId: number): number {
+    const id = actorId >>> 0;
+    if (!id) return 0;
+    const c = this.companions.get(id);
+    if (c) return PVP_KINDS.has(c.kind) && isPlayerActor(this.mp, c.ownerId) ? c.ownerId : 0;
+    return isPlayerActor(this.mp, id) ? id : 0;
+  }
+
+  // Whether the owner's companions may fight this player (and what fights for them) now: online and standing, fighting the
+  // owner within the window, and the gameplay's rule agrees
+  mayFightPlayer(ownerId: number, playerId: number): boolean {
+    const owner = ownerId >>> 0, player = playerId >>> 0;
+    if (!owner || !player || owner === player) return false;
+    if (userOf(this.mp, player) < 0 || !isAlive(this.mp, player)) return false;
+    const at = this.pvpFought.get(CompanionSystem.pairKey(owner, player));
+    if (at === undefined || Date.now() - at >= this.pvpHostileMs) return false;
+    try {
+      const rule = (globalThis as any)[PVP_RULE_HOOK];
+      return typeof rule === "function" && rule(owner, player) === true;
+    } catch (e) {
+      this.log(`CompanionSystem: ${PVP_RULE_HOOK} failed: ${e}`);
+      return false;
+    }
+  }
+
+  private static pairKey(a: number, b: number): string {
+    return a < b ? `${a}:${b}` : `${b}:${a}`;
+  }
+
+  // A player's own blow that landed on another player or on that player's companion opens or extends the window between
+  // the two players. Blows by companions never do.
+  private notePvpHit(aggId: number, tgtId: number, damage: number): void {
+    if (!(damage > 0) || this.companions.has(aggId) || !isPlayerActor(this.mp, aggId)) return;
+    const side = this.playerSideOf(tgtId);
+    if (!side || side === aggId) return;
+    this.pvpFought.set(CompanionSystem.pairKey(aggId, side), Date.now());
+  }
+
   // The newest commanded actor replaces the oldest
   private makeRoom(ownerId: number): void {
     const limit = this.twinSouls.has(ownerId) ? TWIN_SOULS_LIMIT : COMMAND_LIMIT;
@@ -445,7 +517,7 @@ export class CompanionSystem implements System {
       mp.set(c.id, "locationalData", loc);
       mp.set(c.id, "spawnPoint", loc);
     }
-    if (c.targetId && !this.isValidTarget(c.ownerId, c.targetId, TARGET_KEEP_RANGE)) {
+    if (c.targetId && !this.mayTarget(c, c.targetId, TARGET_KEEP_RANGE)) {
       c.targetId = 0;
       this.sendState(c.ownerId);
     }
@@ -557,11 +629,14 @@ export class CompanionSystem implements System {
     const now = Date.now();
     const companions = this.ownedBy(ownerId).map((c) => ({
       id: c.id, target: c.targetId, kind: c.kind, staying: c.staying, leftMs: c.expiresAt ? Math.max(0, c.expiresAt - now) : 0,
+      // The target is a player or fights for one, and the rules allow the fight: the client fights no player without it
+      pvp: !!c.targetId && (isPlayerActor(this.mp, c.targetId) || this.playerSideOf(c.targetId) !== 0),
     }));
     try { this.mp.sendCustomPacket(user, JSON.stringify({ customPacketType: "companionState", companions })); } catch { }
   }
 
-  // Only the owner hosts a companion; companions never damage their owner or the owner's other companions; hits on an owner call defend
+  // Only the owner hosts a companion; companions never damage their owner or the owner's other companions, nor a player
+  // outside the PvP rules; hits on an owner call defend
   private installHooks(): void {
     const mp = this.mp;
     const chain = (previous: ((...args: unknown[]) => unknown) | null, args: unknown[]): boolean => {
@@ -588,10 +663,27 @@ export class CompanionSystem implements System {
       const targetOwner = this.companions.get(tgtId)?.ownerId ?? tgtId;
       if (aggressor && aggressor.ownerId === targetOwner) return false;
       try {
+        this.notePvpHit(aggId, tgtId, Number(damage) || 0);
+      } catch (e) {
+        this.log(`CompanionSystem: pvp note failed: ${e}`);
+      }
+      // A companion's blow on a player, or on what fights for one, lands only under the PvP rules, whoever chose the fight
+      if (aggressor) {
+        let allowed = true;
+        try { allowed = this.pvpAllows(aggressor, tgtId); } catch { allowed = false; }
+        if (!allowed) return false;
+      }
+      try {
         if (this.ownedBy(aggId).length > 0) {
           this.orderAttackAll(aggId, tgtId);
         }
         this.defend(tgtId, aggId);
+        // A player, or what fights for one, striking a summon or raised corpse is fought by the owner's summons and raised
+        // corpses under the PvP rules; an NPC's blow on a companion is left to its own AI as before
+        const struck = this.companions.get(tgtId);
+        if (struck && PVP_KINDS.has(struck.kind) && this.playerSideOf(aggId)) {
+          this.defendWith(struck.ownerId, this.ownedBy(struck.ownerId).filter((c) => PVP_KINDS.has(c.kind)), aggId);
+        }
       } catch (e) {
         this.log(`CompanionSystem: defend failed: ${e}`);
       }
