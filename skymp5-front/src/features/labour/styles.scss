@@ -397,22 +397,9 @@ $labour-haft: #8a5a32;
 
   // A marked spot: the same chalk ring on every one, so only the cue inside tells them apart
   &__spot {
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    margin: -20px 0 0 -20px;
-    border-radius: 50%;
-    border: 1.5px dashed rgba(232, 214, 160, 0.5);
-    background: radial-gradient(circle, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.28));
-    cursor: pointer;
-    transition: border-color $dbo-fast, background $dbo-fast, transform $dbo-fast;
-
-    &:hover {
-      border: 1.5px solid $dbo-gold-border-strong;
-      background: radial-gradient(circle, rgba(232, 214, 160, 0.14), rgba(0, 0, 0, 0.2));
-      transform: scale(1.06);
-    }
+    @include dbo-pick-spot(40px);
   }
+
 
   &__cue {
     position: absolute;
@@ -450,20 +437,9 @@ $labour-haft: #8a5a32;
   }
 
   &__key {
-    position: absolute;
-    right: -7px;
-    top: -8px;
-    min-width: 16px;
-    padding: 0 4px;
-    border: 1px solid $dbo-gold-border;
-    border-radius: 3px;
-    background: rgba(8, 25, 28, 0.85);
-    color: $dbo-gold;
-    font-family: $dbo-ui-font;
-    font-size: 12px;
-    line-height: 15px;
-    text-align: center;
+    @include dbo-pick-key;
   }
+
 
   // A blow in the pick round lands on its spot: the crack and the chips wait for the tool to strike
   &__mark--spot {

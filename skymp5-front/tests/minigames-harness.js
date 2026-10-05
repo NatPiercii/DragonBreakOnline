@@ -352,7 +352,8 @@ section('prayer', () => {
 
 // ---- lockpick -----------------------------------------------------------------------------------------------------
 section('lockpick', () => {
-  const Lockpick = load('features/lockpick/index.tsx').default;
+  // The timed lock; the default export picks between it and PickLock by the lock's mode
+  const Lockpick = load('features/lockpick/index.tsx').TimedLockpick;
   const base = { type: 'lockpick', id: 46, nonce: 'L0', title: 'Chest (Adept lock)', level: 'Adept', riseMs: 450, fallMs: 650, holds: [380, 420, 400], set: [false, false, false], picks: 5, notice: '', noticeKind: '', done: false };
   const primaryDisabled = (w) => !!w.byClass('lockpick__button--primary')[0].p.disabled;
   let w = mount(Lockpick, base);
@@ -408,6 +409,40 @@ section('lockpick', () => {
   w = mount(Lockpick, Object.assign({}, local, { nonce: 'L5', judge: undefined }));
   w.advance(100); w.key(' '); w.advance(600); w.key(' ');
   check('lockpick: snaps without judge client stay on the per-try path', count('dbo:lockpickTry') === 1 && count('dbo:lockpickResult') === 0);
+});
+
+// ---- pick locks ("find where the pins give": no timing) -----------------------------------------------------------
+section('lockpick pick', () => {
+  const { PickLock } = load('features/lockpick/index.tsx');
+  const steps = [[[20, 50, 0.3], [50, 50, 0.9], [80, 50, 0.2]], [[25, 50, 0.2], [55, 50, 0.1], [85, 50, 0.8]], [[15, 50, 0.85], [45, 50, 0.3], [75, 50, 0.1]], [[30, 50, 0.7], [60, 50, 0.2], [90, 50, 0.1]]];
+  const base = { type: 'lockpick', id: 46, nonce: 'K1', title: 'Chest (Apprentice lock)', level: 'Apprentice', set: [false, false], picks: 2, notice: '', noticeKind: '', done: false, judge: 'client', snaps: [0, 1, 0, 0], maxTries: 4, mode: 'pick', steps, totalMs: 180000, minPickMs: 150 };
+  let w = mount(PickLock, base);
+  check('lockpick pick: no push or set, the positions of the first try keyed 1-3', w.byClass('lockpick__spot').length === 3 && !w.text().includes('Push') && w.text().includes('press 1-3'), w.text());
+  w.advance(100); w.key('2', 'Digit2');
+  check('lockpick pick: a pick before the positions have shown is not taken', w.byClass('lockpick__slot--set').length === 0);
+  w.advance(200); w.key('2', 'Digit2');
+  check('lockpick pick: the clearest position sets the loose tumbler', w.byClass('lockpick__slot--set').length === 1 && w.hasClass('lockpick__stroke--hit'));
+  w.advance(300); w.key('1', 'Digit1');
+  check('lockpick pick: a wrong position on a try whose snap was rolled snaps a pick and drops the tumblers', w.byClass('lockpick__slot--set').length === 0 && w.text().includes('The pick snaps.') && w.text().includes('One lockpick left.'), w.text());
+  w.advance(300); w.key('1', 'Digit1'); w.advance(300); w.key('1', 'Digit1');
+  const r = last('dbo:lockpickResult');
+  check('lockpick pick: the win reports [[index, ms], ...] once, from 0 to the last pick', r && r[1] === 'K1' && r[2] === 'win' && r[3] === '[[1,300],[0,600],[0,900],[0,1200]]' && r[4] === 0 && r[5] === 1200 && w.text().includes('The Apprentice lock gives way.'), r);
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K2', picks: 1, snaps: [1, 1, 1, 1] }));
+  w.advance(300); w.key('3', 'Digit3');
+  check('lockpick pick: a snapped last pick fails the lock', last('dbo:lockpickResult')[2] === 'fail' && w.text().includes('it was your last'));
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K3', snaps: [0, 0, 0, 0] }));
+  for (const k of ['1', '1', '2', '2']) { w.advance(300); w.key(k, 'Digit' + k); }
+  const tired = last('dbo:lockpickResult');
+  check('lockpick pick: the last try the server allowed ends the lock', tired && tired[2] === 'fail' && JSON.parse(tired[3]).length === 4 && w.text().includes('Your hands are tired'), tired);
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K4' }));
+  w.advance(300); w.key('2', 'Digit2'); w.advance(181000);
+  const idle = last('dbo:lockpickResult');
+  check('lockpick pick: an idle lock is set down at its limit, its tries reported as a cancel', idle && idle[2] === 'cancel' && idle[5] === 180000 && w.text().includes('set the picks down'), idle);
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K5' }));
+  w.advance(300); w.key('Escape');
+  check('lockpick pick: Escape leaves it with a cancel', last('dbo:lockpickResult')[2] === 'cancel' && count('dbo:lockpickCancel') === 0);
+  w.key('Escape');
+  check('lockpick pick: ...and the next one closes', count('dbo:lockpickCancel') === 1);
 });
 
 // ---- rite ---------------------------------------------------------------------------------------------------------

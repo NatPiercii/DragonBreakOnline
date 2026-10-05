@@ -285,22 +285,9 @@ $skin-steel: #dfe6e7;
 
   // A point to cut: the same ring on every one, so only how the hide lifts there tells them apart
   &__spot {
-    position: absolute;
-    width: 36px;
-    height: 36px;
-    margin: -18px 0 0 -18px;
-    border-radius: 50%;
-    border: 1.5px dashed rgba(232, 214, 160, 0.5);
-    background: radial-gradient(circle, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.24));
-    cursor: pointer;
-    transition: border-color $dbo-fast, background $dbo-fast, transform $dbo-fast;
-
-    &:hover {
-      border: 1.5px solid $dbo-gold-border-strong;
-      background: radial-gradient(circle, rgba(232, 214, 160, 0.14), rgba(0, 0, 0, 0.2));
-      transform: scale(1.06);
-    }
+    @include dbo-pick-spot(36px);
   }
+
 
   &__lift {
     position: absolute;
@@ -326,20 +313,9 @@ $skin-steel: #dfe6e7;
   }
 
   &__key {
-    position: absolute;
-    right: -7px;
-    top: -8px;
-    min-width: 16px;
-    padding: 0 4px;
-    border: 1px solid $dbo-gold-border;
-    border-radius: 3px;
-    background: rgba(8, 25, 28, 0.85);
-    color: $dbo-gold;
-    font-family: $dbo-ui-font;
-    font-size: 12px;
-    line-height: 15px;
-    text-align: center;
+    @include dbo-pick-key;
   }
+
 
   // A cut in the pick attempt opens at its point when the knife gets there
   &__mark--spot {
