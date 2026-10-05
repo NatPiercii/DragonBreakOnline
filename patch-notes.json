@@ -1,5 +1,19 @@
 [
   {
+    "title": "Study after an early tome",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Reading a spell tome early no longer closes the study shelves. Priest Studies and Study Magic keep teaching until the skill reaches 25, even if you already learned a spell from a tome; from 25 your skill grows by casting, in prayer and in class as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Less coin from fighting",
     "date": "2026-10-04",
     "version": "Server update",
