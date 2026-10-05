@@ -1,5 +1,19 @@
 [
   {
+    "title": "No limit on Guards",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Holds and strongholds",
+        "items": [
+          "A ruler, Guard Captain or Chieftain can now appoint as many Guards or Stronghold Guards as their hold needs. Before, each hold stopped at 20."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Great Houses of Morrowind",
     "date": "2026-10-05",
     "version": "Server update",

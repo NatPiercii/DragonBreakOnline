@@ -154,7 +154,7 @@ module.exports = (api) => {
     const top = (z.officials || [])[0];
     if (rank === top) return 1;
     const n = Number(((APPOINT_RULES || {})[top] || {})[rank]);
-    return n > 0 ? n : null;
+    return n > 0 && Number.isFinite(n) ? n : null; // null: no limit (guards)
   };
   const holderView = (pid) => {
     const on = onlineOf(pid);
