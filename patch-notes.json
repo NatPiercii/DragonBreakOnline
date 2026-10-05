@@ -488,6 +488,23 @@
     ]
   },
   {
+    "title": "A character slot for 150 hours",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Character slots",
+        "items": [
+          "Play 150 hours on DragonBreak Online and you earn an extra character slot, yours to keep. The hours of all your characters count together.",
+          "Your hours count from the opening of the alpha on 1 October, so the time you have already played counts too.",
+          "The slot comes on top of any slots your Patreon tier or roles give you. You are told when you earn it, and it appears on the character screen the next time you log in.",
+          "Type /playtime to see your hours so far."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Held gold counts in the launcher",
     "date": "2026-10-04",
     "version": "Server update",

@@ -851,6 +851,12 @@
   "mult": 2,
   "roleId": "1549556017665409034"
  },
+ "playtimeSlot": {
+  "_comment": "An extra character slot for 150 hours played (playtime.js, Nate 4 Oct 2026). Hours are per account, summed over all its characters, in the world only (character creation left out; idle time counts until the AFK kick); the first load seeds them from the Character Journal's play time, counted since 1 Oct. At hours an account earns slots for good, on top of its Patreon tier and role bonuses (fork patronTiers.ts; spawn.ts caps the total at 10). Off stops the counting and new grants, never an earned slot. Records in playtime-slots.json. /playtime shows your hours; staff /playtime <player> or /playtime profile <id>.",
+  "enabled": true,
+  "hours": 150,
+  "slots": 1
+ },
  "racial": {
   "_comment": "One passive gift per race (racial.js; Nate approved all ten and the rules, 3 Oct 2026). Resistances, damage and the Orc's low-health rage go through the hit path; reductionCap caps Defense x blessing x race together (0.75 = never more than 75% off a hit). Regeneration is added server-side like a blessing's: alwaysRegenCap bounds an always-on factor, conditionalRegenCap a conditional one; for combatSeconds after a landed blow the extra is slowed by the game's own combat regen GMSTs (argonian.inCombat true keeps Hist-Blooded's full extra in a fight). Off in beast forms, players only. Imperial goldBonus counts lease chests and bodies, camp chests and contract pay only. altmer.elementalWeakness is Nate's optional price (0 = off). nord.coldAreas: the Jerall Mountains around Bruma and the Pale Pass road.",
   "enabled": true,
