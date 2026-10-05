@@ -3459,6 +3459,7 @@ onUi('reading', (a, args) => {
   const reads = readsOf(a);
   const results = [];
   const gained = []; // names of the items handed over, announced like the game's own "added" notices
+  const capNotes = []; // a day's find caps reached, told once a day
   if (win) {
     const tier = ses.tier;
     // 'read', not 'activate': a finished reading round is worth 1.0 units against 0.5 for opening a
@@ -3496,6 +3497,16 @@ onUi('reading', (a, args) => {
       const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
+    // The day's caps are silent rolls, so a reader who reached one is told once that day (#bugs 1556458497909194802)
+    const dayCount = (k) => { try { const v = mp.get(a, k); return v && v.day === today ? Number(v.n) || 0 : 0; } catch (e) { return 0; } };
+    let told = null; try { told = mp.get(a, 'private.scholarCapTold'); } catch (e) { told = null; }
+    const toldKinds = told && told.day === today && Array.isArray(told.kinds) ? told.kinds : [];
+    const reached = [['copies', 'private.scholarCopies', READ.bookDailyCap, 'books copied'], ['scrolls', 'private.scholarScrolls', READ.scrollDailyCap, 'scrolls'], ['tomes', 'private.scholarTomes', READ.tomeDailyCap, 'spell tomes']]
+      .filter(([kind, k, cap]) => !toldKinds.includes(kind) && dayCount(k) >= (Number(cap) || 0));
+    if (reached.length) {
+      try { mp.set(a, 'private.scholarCapTold', { day: today, kinds: toldKinds.concat(reached.map(([kind]) => kind)) }); } catch (e) { /* told again next read */ }
+      capNotes.push(`You have found all the ${reached.map((x) => x[3]).join(' and ')} you can today; more wait for the new day (midnight UTC). Reading still trains Scholar.`);
+    }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
     say('win');
     audit(`READ ${who(a)} read ${ses.title} (tier ${tier + 1}) ${results.length ? '-> ' + results.join('; ') : '-> nothing but the knowledge'}`);
@@ -3506,12 +3517,13 @@ onUi('reading', (a, args) => {
   // Keep the cooldown table small: drop entries already expired.
   for (const k of Object.keys(reads)) if (Number(reads[k]) < Date.now()) delete reads[k];
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
-  const text = win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.';
+  const text = (win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.') + (capNotes.length ? ' ' + capNotes.join(' ') : '');
   openWidget(a, readWidget(ses, { result: text, resultKind: win ? 'win' : 'lose', endsInMs: 0, answer: win ? undefined : ses.original.join(' ') }), false);
   // Items given by the server raise no "added" notice of the game's own, and the text above goes when the window closes
   // (#bugs 1553205828058615839): each find gets a notice and a chat line.
   for (const name of gained) { try { notify(a, `${name} added`); } catch (e) { /* offline */ } }
   if (gained.length) personal(a, `From your reading: ${gained.join(', ')}.`);
+  for (const line of capNotes) personal(a, line);
   readSessions.delete(a);
 });
 log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim, ${READ_LINES_CYRODIIL.length} Cyrodiil and ${READ_LINES_TAMRIEL.length} Tamriel lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);

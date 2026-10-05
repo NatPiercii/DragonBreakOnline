@@ -8,7 +8,8 @@
       {
         "heading": "Fixes",
         "items": [
-          "Fighting in werewolf or Vampire Lord form no longer trains Martial Arts: beast claws are not fists."
+          "Fighting in werewolf or Vampire Lord form no longer trains Martial Arts: beast claws are not fists.",
+          "Reading tells you when you have found all the books, scrolls or spell tomes you can for the day (6 copies, 6 scrolls and 2 tomes); finds come back at midnight UTC, and reading still trains Scholar."
         ]
       }
     ]
