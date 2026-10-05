@@ -109,6 +109,7 @@ import { MenuMediaService } from "./services/services/menuMediaService";
 import { CharacterProgressService } from "./services/services/characterProgressService";
 import { StaticRefsService } from "./services/services/staticRefsService";
 import { LipSyncService } from "./services/services/lipSyncService";
+import { RacemenuPresetService } from "./services/services/racemenuPresetService";
 import { FavoritesService } from "./services/services/favoritesService";
 import { FovService } from "./services/services/fovService";
 import { LearnedEnchantmentsService } from "./services/services/learnedEnchantmentsService";
@@ -215,6 +216,7 @@ const main = () => {
       new SearchService(sp, controller),
       new VoiceService(sp, controller),
       new LipSyncService(sp, controller),
+      new RacemenuPresetService(sp, controller),
       new StaticRefsService(sp, controller),
       new AdminMenuService(sp, controller),
       new PersonalMenuService(sp, controller),

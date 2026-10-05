@@ -18,7 +18,7 @@ import { holdsRelayedRagdoll, niNodeWaitsForRagdoll } from "./ragdollHold";
 import { ragdolledAtOf } from "./npcLifetimeRuntime";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
-import { queueCopyNiNodeUpdate } from "./niNodeQueue";
+import { dropCopyNiNodeWork, queueCopyNiNodeUpdate } from "./niNodeQueue";
 import { lastTryHost, tryHost } from "./hostAttempts";
 import { GHOST_ALPHA, GHOST_SHADER_ID } from "../lib/ghostLook";
 import { AdminView, keepNoCopy, nextHiddenAt } from "./adminCopyPolicy";
@@ -357,6 +357,7 @@ export class FormView {
     this.dealtWithRef = false;
     const refrId = this.refrId;
     const remoteRefrId = this.remoteRefrId;
+    if (refrId >= 0xff000000) dropCopyNiNodeWork(refrId);
     if (remoteRefrId) {
       const rawAll = storage["allCompanionIds"];
       if (Array.isArray(rawAll) && rawAll.includes(remoteRefrId)) {
@@ -1214,6 +1215,10 @@ export class FormView {
   // Player characters carry an appearance; server-spawned NPCs are placed from a base and never do
   isPlayerCharacter(): boolean {
     return !!this.appearanceState.appearance;
+  }
+
+  getAppearance(): Appearance | null {
+    return this.appearanceState.appearance;
   }
 
   private refrId = 0;
