@@ -259,7 +259,7 @@ bool CraftService::EvaluateCraftRecipeConditions(
     "HasSpell",       "SpellHasKeyword",   "WornHasKeyword",
     "WornApparelHasKeywordCount",          "SkympWornHasKeywordCount",
     "SkympGetDamageSourceHasKeyword",      "SkympGetIsDamageSource",
-    "GetGlobalValue", "GetPCIsRace"
+    "GetGlobalValue", "GetPCIsRace",      "#448"
   };
   std::vector<Condition> conditions;
   std::transform(
@@ -306,9 +306,20 @@ bool CraftService::EvaluateCraftRecipeConditions(
   const ConditionFunctionMap& conditionFunctionMap =
     worldState ? worldState->conditionFunctionMap : kEmptyMap;
 
+  // The gamemode returns false to let the crafter's skill stand in for a perk
+  ConditionEvaluatorContext context;
+  if (worldState) {
+    context.craftPerkHeld = [worldState](const MpActor& actor,
+                                         uint32_t perkId) {
+      CustomEvent required(actor.GetFormId(), "onCraftPerkRequired",
+                           nlohmann::json::array({ perkId }).dump());
+      return !required.Fire(worldState);
+    };
+  }
+
   ConditionsEvaluator::EvaluateConditions(
     conditionFunctionMap, settings, ConditionsEvaluatorCaller::kCraft,
-    conditions, aggressor, target, callback);
+    conditions, aggressor, target, callback, context);
 
   return evalRes_;
 }
