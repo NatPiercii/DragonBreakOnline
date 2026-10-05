@@ -31,7 +31,7 @@
 
 module.exports = (api) => {
   const { mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, skills, every, takeGold, treasuryHere,
-    isLeadStaff, findAnyByName, sendPacket, distanceMeters } = api;
+    isLeadStaff, findAnyByName, sendPacket, distanceMeters, hasUiCap } = api;
   // The shared rules for client-judged mini-games, beside this file (reloaded with it)
   const path = require('path');
   const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
@@ -73,6 +73,14 @@ module.exports = (api) => {
     replayCheck: 'log',
   }, cfg.prayer || {});
   const clientJudged = () => MG.clientJudged(CFG);
+  // "Speak the verses" (Nate, 4-5 Oct: no timing mini-games; "praying minigame scuffed with holding spacebar"): a UI that
+  // names MG.PICK_CAP gets a prayer with no hold. Each verse offers `choices` lines: the one the server rolled for this
+  // god, and lines of other gods' prayers, never of this god's kind (a Divine's verse against the Princes' words, a
+  // Prince's against the Divines'). The worshipper speaks the verse that belongs; a wrong line falters and is chosen
+  // again, and the prayer slips away after `slips` of them. seconds bounds the whole prayer. Odds, rests, offerings and
+  // blessings are the held prayer's. enabled false: every client gets the held prayer.
+  const PICK = Object.assign({ enabled: true, seconds: 120, choices: 3, slips: 2, minPickMs: 300 }, CFG.pick || {});
+  const pickFor = (a) => PICK.enabled !== false && typeof hasUiCap === 'function' && hasUiCap(a, MG.PICK_CAP);
 
   const PRAY = Object.assign({}, skills.praying || {});
   const DEITIES = (skills.deities || {}).choices || [];
@@ -633,12 +641,43 @@ module.exports = (api) => {
     };
   };
 
+  // Gods whose words a worshipper of the other could fairly speak, so neither is used against the other: the Dragon Cult
+  // served Akatosh's children; Trinimac was Auri-El's champion and became Malacath (both in the deities' own spheres)
+  const AKIN = { dragoncult: ['akatosh', 'auriel'], trinimac: ['auriel', 'malacath'] };
+  const akin = (x, y) => (AKIN[x] || []).includes(y) || (AKIN[y] || []).includes(x);
+  // Lines of other gods' prayers that a verse to d is chosen against: never d's own, never from a god of d's kind or akin
+  const decoysFor = (d) => {
+    const kindOf = new Map(DEITIES.map((x) => [x.id, x.kind]));
+    const out = [];
+    for (const [id, lines] of Object.entries(OWN)) if (id !== d.id && kindOf.get(id) && kindOf.get(id) !== d.kind && !akin(id, d.id)) out.push(...lines);
+    return out;
+  };
+  // Verse i as `n` lines in an order from the seed, and where the true one sits
+  const pickVerse = (d, text, rand, n) => {
+    const pool = decoysFor(d).filter((l) => l !== text);
+    const lines = [text];
+    while (lines.length < n && pool.length) lines.push(pool.splice(Math.floor(rand() * pool.length), 1)[0]);
+    for (let i = lines.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [lines[i], lines[j]] = [lines[j], lines[i]]; }
+    return { lines, right: lines.indexOf(text) };
+  };
+
   const roundFor = (a, d, refId, shrineName) => {
     const seed = (Math.floor(Math.random() * 0xffffffff) >>> 0);
     const rand = rngOf(seed);
     const verses = [];
     for (let i = 0; i < VERSES; i++) {
       verses.push({ text: verseFor(d, i, rand), startMs: i * VERSE_MS, endMs: (i + 1) * VERSE_MS });
+    }
+    if (pickFor(a)) {
+      const steps = [], right = [];
+      for (const v of verses) { const p = pickVerse(d, v.text, rand, Math.max(2, Math.floor(Number(PICK.choices) || 3))); steps.push(p.lines); right.push(p.right); }
+      return {
+        nonce: `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
+        deityId: d.id, deityName: d.name, kind: d.kind, sphere: d.sphere || '', refId, shrineName, seed, verses, mode: 'pick', steps, right,
+        slips: Math.max(0, Math.floor(Number(PICK.slips) || 0)), minPickMs: Math.max(0, Number(PICK.minPickMs) || 0),
+        totalMs: Math.max(10000, Math.round((Number(PICK.seconds) || 120) * 1000)), minMs: MG.pickMinMs(VERSES, PICK.minPickMs),
+        startedAt: 0, openedAt: 0, begun: false,
+      };
     }
     return {
       nonce: `${a.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
@@ -653,6 +692,17 @@ module.exports = (api) => {
 
   // Everything the widget needs to draw the prayer, and nothing it could use to judge it
   const packetFor = (round, result, resultKind) => {
+    if (round.mode === 'pick') {
+      const p = {
+        type: 'prayer', id: WIDGET_ID, nonce: round.nonce, mode: 'pick',
+        deity: round.deityName, kind: round.kind, shrine: round.shrineName, sphere: round.sphere,
+        verses: round.steps.map((lines) => ({ lines })), right: round.right, slips: round.slips, totalMs: round.totalMs, minPickMs: round.minPickMs,
+        startOnPress: true,
+      };
+      if (clientJudged()) p.judge = 'client';
+      if (result) { p.result = result; p.resultKind = resultKind; }
+      return p;
+    }
     const w = {
       type: 'prayer', id: WIDGET_ID, nonce: round.nonce,
       deity: round.deityName, kind: round.kind, shrine: round.shrineName,
@@ -677,9 +727,17 @@ module.exports = (api) => {
     sessions.set(a, round);
     round.openedAt = round.startedAt = nowMs();
     // Every round issued is logged, so one that never comes back (cancelled, hidden, lost) can be counted
-    log(`prayer issue ${display(a)} ${round.deityName} total=${round.totalMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
+    log(`prayer issue ${display(a)} ${round.deityName}${round.mode === 'pick' ? ` pick choices=${round.steps[0].length} slips=${round.slips}` : ''} total=${round.totalMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
     if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
+    // The worshipper kneels while the prayer is open (idles.js 'pray'), and rises when it ends
+    else try { round.idle = typeof globalThis.__dboHoldIdle === 'function' ? globalThis.__dboHoldIdle(a, 'pray') : null; } catch (e) { /* no idle */ }
     return true;
+  };
+  const rise = (a, round) => {
+    if (!round || !round.idle) return;
+    const held = round.idle;
+    round.idle = null;
+    try { globalThis.__dboStopIdle(a, held); } catch (e) { /* offline */ }
   };
 
   // How long a round lives on the server's clock. Client-judged: the verses plus minutes, from the first press if it
@@ -693,6 +751,7 @@ module.exports = (api) => {
     if (!r) return null;
     if (nowMs() <= limitOf(r)) return r;
     sessions.delete(a);
+    rise(a, r);
     // No rest: an expired round costs no more than walking away (DESIGN.md section 2)
     if (clientJudged()) log(`prayer expired ${display(a)} ${r.deityName} after ${Math.round(nowMs() - r.openedAt)} ms, no report`);
     return null;
@@ -704,6 +763,7 @@ module.exports = (api) => {
   // show: 'widget' re-sends the panel with the verdict (the default), 'say' tells it in chat (the panel is gone), 'none'
   // says nothing (a provisional end that a report still on its way replaces)
   const finish = (a, round, win, text, kind, rest, show) => {
+    rise(a, round);
     if (rest !== false) {
       const rests = restsOf(a);
       // restUntil: the rest this round wrote itself, so its own report can tell it from one another round wrote since
@@ -910,6 +970,21 @@ module.exports = (api) => {
     return r;
   };
 
+  // A pick prayer's report, '[[index, ms], ...]' on the widget's clock from when the panel opened: each verse is tried
+  // until a true line is spoken (minigames.js judgePicks with retry), in judge()'s fields. Too many faltered lines is the
+  // ordinary loss 'faltered'.
+  const judgePick = (round, raw, at, elapsed) => {
+    const p = MG.judgePicks(raw, { need: round.steps.length, allowed: round.slips, steps: round.steps, right: round.right, retry: true, totalMs: round.totalMs, minPickMs: round.minPickMs });
+    const r = { spans: p.count, held: p.hits, covered: 0, worst: p.misses, late: 0, at, lag: Math.round(elapsed - at), bad: p.bad, sus: p.sus, hits: p.hits, misses: p.misses };
+    if (r.bad) return r;
+    if (p.last > at) { r.bad = 'submit'; return r; }
+    if (clientJudged()) r.sus.push(...MG.lagFlags(r.lag, CFG.clockSlackMs, CFG.slowFlagMs));
+    else if (r.lag < -CFG.clockSlackMs) { r.bad = 'future'; return r; }
+    else if (r.lag > CFG.lagGraceMs) { r.bad = 'late'; return r; }
+    if (p.hits < round.steps.length) r.bad = 'faltered';
+    return r;
+  };
+
   onUi('prayerCancel', (a, args) => {
     const round = sessions.get(a);
     // After the verdict the round is already gone: Rise only closes the window
@@ -946,6 +1021,7 @@ module.exports = (api) => {
       // to leave sessions with no rest while its report could still be paid, so touch, F2, touch, F2... stacked rounds
       // at one shrine and every one of them paid: mastery, a blessing roll and the fever cure (review F1, 2026-10-01).
       round.hidden = true;
+      rise(a, round);
       log(`prayer hidden ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms: the round stays live, no rest`);
       return;
     }
@@ -955,6 +1031,7 @@ module.exports = (api) => {
       log(`prayer abandon(close) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, before the first press: no rest`);
       return finish(a, round, false, 'You rise without praying. Kneel again when you are ready.', 'lose', false, 'say');
     }
+    rise(a, round);
     log(`prayer abandon(${hidden ? 'hidden' : 'close'}) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms${hidden ? ', no rest' : ''}`);
     if (hidden) sessions.delete(a);
     else finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose', true, 'say');
@@ -965,6 +1042,7 @@ module.exports = (api) => {
     const round = sessions.get(a);
     if (!round) return;
     sessions.delete(a);
+    rise(a, round);
     log(`prayer abandon(logout) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, no rest`);
   };
   // Rounds nobody reports are cleared on the minute scale, logged, so a lost round can be counted
@@ -980,7 +1058,8 @@ module.exports = (api) => {
     if (!round || String(args[0]) !== round.nonce || round.begun) return;
     if (!clientJudged() && nowMs() - round.openedAt > CFG.waitSeconds * 1000) return;
     round.begun = true;
-    round.startedAt = nowMs();
+    // A pick prayer is timed from the panel's arrival, the widget's own clock too; the first line only marks it begun
+    if (round.mode !== 'pick') round.startedAt = nowMs();
     const wait = MG.ms(args[1]);
     if (Number.isFinite(wait) && wait >= 0) round.waitMs = wait;
   });
@@ -994,7 +1073,7 @@ module.exports = (api) => {
   };
   const ignored = MG.limiter(5000);
   // What the replay says when the spans are well formed: held, or the ordinary losses (slow to start, a lapse)
-  const ORDINARY = new Set(['slow', 'released']);
+  const ORDINARY = new Set(['slow', 'released', 'faltered']);
 
   onUi('prayer', (a, args) => {
     const nonce = String(args[0]);
@@ -1015,7 +1094,7 @@ module.exports = (api) => {
     const sinceSent = now - round.openedAt;
     const cj = clientJudged();
     const at = Math.max(0, Math.floor(Number(args[2]) || 0));
-    const v = judge(round, args[1], at, elapsed);
+    const v = round.mode === 'pick' ? judgePick(round, args[1], at, elapsed) : judge(round, args[1], at, elapsed);
     const claim = cj ? claimOf(args[3]) : null;
     const replayHeld = !v.bad;
     let win = !v.bad;
@@ -1051,7 +1130,9 @@ module.exports = (api) => {
       // Humanly possible: a held prayer took the whole of its verses, on the widget's own clock and on the server's,
       // counted from when it SENT the round (lag only lengthens that)
       const own = claim && Number.isFinite(claim.durMs) ? claim.durMs : at;
-      if (win && (own < round.totalMs - MG.floorAllowance(round.totalMs, CFG.clockSlackMs) || MG.serverTooSoon(sinceSent, round.totalMs, CFG.clockSlackMs))) { v.bad = 'fast'; win = false; }
+      // A pick prayer has no verses to sit through: its floor is the fastest three lines can be chosen by hand
+      const floor = round.mode === 'pick' ? round.minMs : round.totalMs;
+      if (win && (own < floor - MG.floorAllowance(floor, CFG.clockSlackMs) || MG.serverTooSoon(sinceSent, floor, CFG.clockSlackMs))) { v.bad = 'fast'; win = false; }
       // One paid prayer per shrine per rest: a rest at this shrine that this round did not write itself means another
       // round here was judged first, so this one pays nothing and leaves that rest as it is (review F1, 2026-10-01)
       const until = Number(restsOf(a)[round.refId.toString(16)]) || 0;
@@ -1065,8 +1146,8 @@ module.exports = (api) => {
     // widget's claim and its own figures, the distance to the shrine and any review flags. lag= decides nothing when
     // the widget judges.
     const extra = cj ? ` sinceOpen=${Math.round(sinceSent)}${claim ? ` dur=${Number.isFinite(claim.durMs) ? claim.durMs : '-'} wait=${Number.isFinite(claim.waitMs) ? claim.waitMs : Number.isFinite(round.waitMs) ? round.waitMs : '-'} blurs=${Number.isFinite(claim.blurs) ? claim.blurs : '-'} agree=${claim.win === replayHeld ? 'yes' : 'no'}` : ''}` : '';
-    log(`prayer ${v.bad ? 'refused(' + v.bad + ')' : 'held'} ${display(a)} ${round.deityName} spans=${v.spans} held=${v.held}/${round.totalMs} worst=${v.worst} at=${v.at} lag=${v.lag} ${round.begun ? `started=${round.startedAt - round.openedAt}` : 'legacy'} seed=${round.seed.toString(16)}`
-      + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: cj ? round.totalMs : undefined, near: near !== undefined ? near : undefined, claim: cj ? (claim ? (claim.win ? 'held' : `lose${claim.why ? ':' + claim.why : ''}`) : null) : undefined, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
+    log(`prayer ${v.bad ? 'refused(' + v.bad + ')' : 'held'} ${display(a)} ${round.deityName}${round.mode === 'pick' ? ` pick verses=${v.hits}/${round.steps.length} faltered=${v.misses}/${round.slips}` : ''} spans=${v.spans} held=${v.held}/${round.totalMs} worst=${v.worst} at=${v.at} lag=${v.lag} ${round.begun ? `started=${round.startedAt - round.openedAt}` : 'legacy'} seed=${round.seed.toString(16)}`
+      + MG.tail({ judge: !cj ? 'server' : claim ? 'client' : 'legacy', min: cj ? (round.mode === 'pick' ? round.minMs : round.totalMs) : undefined, near: near !== undefined ? near : undefined, claim: cj ? (claim ? (claim.win ? 'held' : `lose${claim.why ? ':' + claim.why : ''}`) : null) : undefined, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
       + extra);
     // A verdict that lands after the panel was closed is told in chat; one after Stand up re-draws the open panel
     const show = closed === 'close' || closed === 'hidden' || round.hidden ? 'say' : 'widget';
@@ -1101,7 +1182,7 @@ module.exports = (api) => {
     const offering = offeringOf(a);
     const favour = offering && offering.deityId === d.id ? 1 + Math.min(offering.gold, OFFER.fullGold) / OFFER.fullGold : 1;
     if (offering) { try { mp.set(a, 'private.dboOffering', null); } catch (e) { /* not an actor */ } }
-    let text = `You hold the three verses. ${d.name} takes note, and no more.`;
+    let text = `${round.mode === 'pick' ? 'You speak the three verses' : 'You hold the three verses'}. ${d.name} takes note, and no more.`;
     if (Math.random() < chance * favour) {
       if (grantBlessing(a, d, hours)) {
         text = `${d.name} answers. The blessing rests on you for ${hours} hours.`;

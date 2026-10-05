@@ -3117,6 +3117,11 @@ const READ = Object.assign({
   bookDailyCap: 6,
   scrollExcludePattern: '^DLC\\d(Exp|dun)|^MGR|^dun|^TG|Empty|Quest|ENEMY',
 }, cfg.reading || {});
+// "Read by candle stubs" (Nate, 4-5 Oct: no timing mini-games): a UI that names MG.PICK_CAP reads with no clock. The candle
+// is stubs instead of seconds: as many as stubShare of the wrong readings today's candle would bear (candle over
+// wrongPenaltySeconds), at least minStubs; a wrong reading burns one, and the words already right still lock in. minutes
+// bounds the whole round so an idle one ends. Lines, cooldowns, finds and daily caps are the timed reading's.
+const READ_PICK = Object.assign({ enabled: true, minutes: 10, stubShare: 0.5, minStubs: 2 }, READ.pick || {});
 // A random scroll a reader of this Scholar tier may find: within the tier's value cap, quest and empty ones left out
 const scrollFor = (tier) => {
   const max = Number((READ.scrollMaxValueByTier || [])[Math.min(tier, 4)]) || 0;
@@ -3330,11 +3335,15 @@ const readLine = (tier, cyrodiil) => {
   return from[Math.floor(Math.random() * from.length)];
 };
 // The widget as the server sees the round: the candle length for the picture, and what is left of it.
-const readWidget = (ses, extra) => Object.assign({
+const readWidget = (ses, extra) => (ses.mode === 'pick' ? Object.assign({
+  type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]),
+  mode: 'pick', stubs: ses.stubs, totalMs: ses.candleMs, locked: ses.locked, attempt: ses.attempts,
+  judge: MG.clientJudged(READ) ? 'client' : undefined,
+}, extra || {}) : Object.assign({
   type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]),
   seconds: Math.round(ses.candleMs / 1000), endsInMs: Math.max(0, ses.deadline - Date.now()), locked: ses.locked, attempt: ses.attempts,
   judge: MG.clientJudged(READ) ? 'client' : undefined, candleMs: ses.candleMs, penaltyMs: Number(READ.wrongPenaltySeconds) * 1000,
-}, extra || {});
+}, extra || {}));
 // How far past the server's deadline a reading from a widget without timings (0.3.71) still counts: the old widget stops
 // itself when its own candle gutters, so this bounds only a modified one. Rollback: graceMs, as before.
 const readLateMs = () => (MG.clientJudged(READ) ? Math.max(Number(READ.graceMs), Number(READ.legacyGraceMs)) : Number(READ.graceMs));
@@ -3364,6 +3373,7 @@ globalThis.__dboReadBook = (targetId, casterId) => {
     return true;
   }
   if (open && MG.clientJudged(READ)) log(`reading expired ${display(casterId)} after ${Math.round((Date.now() - open.startedAt) / 1000)} s, no reading: a new round opens`);
+  readIdleStop(casterId, open);
   readSessions.delete(casterId);
   const key = targetId.toString(16); const reads = readsOf(casterId);
   const until = Number(reads[key]) || 0;
@@ -3374,11 +3384,26 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   // Never hand out a sentence that already reads right, word for word (a repeated word can do that too).
   for (let tries = 0; tries < 10 && shuffled.every((v, i) => original[v] === original[i]); tries++) shuffled = shuffleIdx(original.length);
   const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-  const ms = candleMs(original.length);
+  let ms = candleMs(original.length);
   const ses = { nonce, refId: targetId, baseId, copyable, title, original, shuffled, startedAt: Date.now(), deadline: Date.now() + ms, candleMs: ms, tier, locked: [], attempts: 0 };
+  if (READ_PICK.enabled !== false && hasUiCap(casterId, MG.PICK_CAP)) {
+    ses.mode = 'pick';
+    ses.stubs = Math.max(Math.floor(Number(READ_PICK.minStubs) || 0), Math.floor(ms / (Number(READ.wrongPenaltySeconds) * 1000) * (Number(READ_PICK.stubShare) || 0)));
+    ms = Math.max(60000, Math.round((Number(READ_PICK.minutes) || 10) * 60000));
+    ses.candleMs = ms;
+    ses.deadline = ses.startedAt + ms;
+  }
   readSessions.set(casterId, ses);
   if (!openWidget(casterId, readWidget(ses), true)) readSessions.delete(casterId);
+  // The reader turns the pages while the book is open (idles.js 'read'), and stops when the round ends
+  else try { ses.idle = typeof globalThis.__dboHoldIdle === 'function' ? globalThis.__dboHoldIdle(casterId, 'read') : null; } catch (e) { /* no idle */ }
   return true;
+};
+const readIdleStop = (a, ses) => {
+  if (!ses || !ses.idle) return;
+  const held = ses.idle;
+  ses.idle = null;
+  try { globalThis.__dboStopIdle(a, held); } catch (e) { /* offline */ }
 };
 // A round walked away from takes the lost round's cooldown on that book: cancelling cost nothing, so a reader could
 // cancel until an easy sentence came up (loot review, 2026-09-29)
@@ -3386,6 +3411,7 @@ const abandonRead = (a) => {
   const ses = readSessions.get(a);
   readSessions.delete(a);
   if (!ses) return;
+  readIdleStop(a, ses);
   const reads = readsOf(a);
   reads[ses.refId.toString(16)] = Math.max(Number(reads[ses.refId.toString(16)]) || 0, Date.now() + READ.loseCooldownMinutes * 60000);
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
@@ -3395,7 +3421,7 @@ const endRead = (a) => { abandonRead(a); closeWidget(a, READ_WIDGET_ID); };
 if (typeof every === 'function') every('readingSweep', 60000, () => { const now = Date.now(); for (const [a, ses] of [...readSessions]) if (readExpired(ses, now)) { log(`reading expired ${display(a)} after ${Math.round((now - ses.startedAt) / 1000)} s, no reading`); abandonRead(a); } });
 onUi('readingCancel', (a) => endRead(a));
 // F2 hides the interface by closing the focused widget (args ['hidden']): the round ends without the lost round's cooldown
-onUi('close', (a, args, widgetId) => { if (widgetId !== READ_WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') readSessions.delete(a); else abandonRead(a); });
+onUi('close', (a, args, widgetId) => { if (widgetId !== READ_WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') { readIdleStop(a, readSessions.get(a)); readSessions.delete(a); } else abandonRead(a); });
 onUi('reading', (a, args) => {
   const ses = readSessions.get(a);
   if (!ses || String(args[0]) !== ses.nonce) {
@@ -3415,7 +3441,9 @@ onUi('reading', (a, args) => {
   // what is left, guttered. Anything unreadable is an old widget, judged by the server's deadline relaxed to readLateMs.
   const cj = MG.clientJudged(READ);
   const t = cj ? MG.verdictOf(args[2]) : null;
-  const own = !!t && Number(t.v) === 2;
+  // A pick round's own report is v 3 ({ mode: 'pick', elapsedMs, attempts, guttered }); a timed one's v 2
+  const pick = ses.mode === 'pick';
+  const own = !!t && Number(t.v) === (pick ? 3 : 2);
   // A second send of a reading already judged (the widget's double Enter) is dropped, not held against the reader
   if (own && Math.floor(Number(t.attempts) || 0) < ses.attempts) { log(`reading dup ${display(a)} att=${ses.attempts}`); return; }
   const now = Date.now(), penalty = Number(READ.wrongPenaltySeconds) * 1000, srv = now - ses.startedAt;
@@ -3430,31 +3458,35 @@ onUi('reading', (a, args) => {
     if (readExpired(ses, now)) bad = 'expired';
     else if (right && (MG.serverTooSoon(srv, minMs, 50) || (own && el < minMs))) bad = 'fast';
     else if (own && Math.floor(Number(t.attempts) || 0) > ses.attempts) bad = 'attempts';
-    else if (own && el + ses.attempts * penalty > ses.candleMs + Number(READ.clockSlackMs)) bad = 'clock';
+    else if (own && !pick && el + ses.attempts * penalty > ses.candleMs + Number(READ.clockSlackMs)) bad = 'clock';
   }
   // In time: the widget's own candle (client), the server's deadline relaxed to readLateMs (an old widget), or the
   // deadline plus graceMs (rollback, as before)
-  const out = own ? (!!t.guttered || left <= 0) : now > ses.deadline + readLateMs();
+  const out = pick ? (own ? !!t.guttered || el > ses.candleMs + Number(READ.clockSlackMs) : now > ses.deadline + readLateMs())
+    : own ? (!!t.guttered || left <= 0) : now > ses.deadline + readLateMs();
   const inTime = !bad && !out;
   const lag = own ? srv - el - paused : NaN;
   // One line for every verdict, wins, losses and refusals alike (reading logged only its wins before)
-  const say = (kind) => log(`reading ${kind} ${display(a)} t${ses.tier + 1} n=${n} att=${ses.attempts} v=${own ? 2 : 1} el=${el} left=${left} paused=${paused} srv=${srv} lag=${own ? lag : '-'} late=${now - ses.deadline}`
+  const say = (kind) => log(`reading ${kind} ${display(a)} t${ses.tier + 1} n=${n} att=${ses.attempts}${pick ? `/${ses.stubs} pick` : ''} v=${own ? 2 : 1} el=${el} left=${left} paused=${paused} srv=${srv} lag=${own ? lag : '-'} late=${now - ses.deadline}`
     + MG.tail({ judge: !cj ? 'server' : own ? 'client' : 'legacy', min: cj ? minMs : undefined, sus: own ? MG.lagFlags(lag, READ.clockSlackMs, MG.SLOW_FLAG_MS) : [] }));
   if (inTime && valid && !right && order.length) {
     // A wrong reading costs candle, not the round. What is right from the start stays put.
     let k = 0; while (k < words.length && words[k] === ses.original[k]) k++;
     ses.locked = order.slice(0, k);
     ses.attempts++;
-    ses.deadline -= penalty;
+    if (!pick) ses.deadline -= penalty;
     // The widget's own candle says whether the penalty leaves any; for a widget without timings the lag is forgiven (graceMs)
-    const goesOn = own ? left - penalty > 0 && ses.attempts <= Math.ceil(ses.candleMs / penalty)
+    // A stub per wrong reading in a pick round; the timed candle burns its penalty
+    const goesOn = pick ? ses.attempts <= ses.stubs
+      : own ? left - penalty > 0 && ses.attempts <= Math.ceil(ses.candleMs / penalty)
       : cj ? now < ses.deadline + Number(READ.graceMs) && ses.attempts <= Math.ceil(ses.candleMs / penalty)
       : now < ses.deadline;
     if (goesOn) {
       say('wrong');
+      const burns = pick ? 'A stub of the candle burns away.' : 'The candle burns lower.';
       const feedback = k
-        ? `Not quite. The first ${k === 1 ? 'word is' : `${k} words are`} right. The candle burns lower.`
-        : 'Not quite. Even the first word is wrong. The candle burns lower.';
+        ? `Not quite. The first ${k === 1 ? 'word is' : `${k} words are`} right. ${burns}`
+        : `Not quite. Even the first word is wrong. ${burns}`;
       openWidget(a, readWidget(ses, { feedback, endsInMs: Math.max(cj ? 1000 : 0, ses.deadline - now) }), true);
       return;
     }
@@ -3521,13 +3553,15 @@ onUi('reading', (a, args) => {
   // Keep the cooldown table small: drop entries already expired.
   for (const k of Object.keys(reads)) if (Number(reads[k]) < Date.now()) delete reads[k];
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
-  const text = (win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.') + (capNotes.length ? ' ' + capNotes.join(' ') : '');
+  const text = (win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.')
+    : pick ? 'The last of the candle gutters. The words swim on the page.' : 'The candle gutters before you finish. The words swim on the page.') + (capNotes.length ? ' ' + capNotes.join(' ') : '');
   openWidget(a, readWidget(ses, { result: text, resultKind: win ? 'win' : 'lose', endsInMs: 0, answer: win ? undefined : ses.original.join(' ') }), false);
   // Items given by the server raise no "added" notice of the game's own, and the text above goes when the window closes
   // (#bugs 1553205828058615839): each find gets a notice and a chat line.
   for (const name of gained) { try { notify(a, `${name} added`); } catch (e) { /* offline */ } }
   if (gained.length) personal(a, `From your reading: ${gained.join(', ')}.`);
   for (const line of capNotes) personal(a, line);
+  readIdleStop(a, ses);
   readSessions.delete(a);
 });
 log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim, ${READ_LINES_CYRODIIL.length} Cyrodiil and ${READ_LINES_TAMRIEL.length} Tamriel lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
@@ -3957,6 +3991,11 @@ const SKIN = Object.assign({
   // 'refuse' refuses it (DESIGN.md section 12, item 1)
   replayCheck: 'log',
 }, cfg.skinning || {});
+// "Read the hide" (Nate, 4 Oct): a UI that names MG.PICK_CAP gets an attempt with no timing (minigames.js). Each cut
+// shows spotsByTier points along the hide, one on the seam line, the decoys off it by seamGapByTier and more; a pick off
+// the seam is a slip. Cuts, slips allowed, the tier cap and the pelts are the timing attempt's; seconds bounds the whole
+// attempt so an idle one ends. enabled false: every client gets the timing attempt.
+const SKIN_PICK = MG.pickCfg(SKIN, { seamGapByTier: [8, 10, 12, 15, 18] });
 // Rounds and judged nonces outlive a reload, or every save would strand an attempt in flight
 const skinSessions = globalThis.__dboSkinRounds || (globalThis.__dboSkinRounds = new Map()); // actorId -> round
 const skinSpent = globalThis.__dboSkinSpent || (globalThis.__dboSkinSpent = new Map()); // nonce -> when judged
@@ -4024,11 +4063,23 @@ const skinRound = (casterId, tier, corpse, name) => {
     corpse, tier, seed, name, cuts, allowed, width, seams, sweepMs,
     totalMs: Math.max(1000, Math.round((Number(SKIN.seconds) || 15) * 1000)), startedAt: performance.now(),
   };
+  if (SKIN_PICK.enabled !== false && hasUiCap(casterId, MG.PICK_CAP)) {
+    const p = MG.pickSteps(rand, cuts + allowed, MG.byTier(SKIN_PICK.spotsByTier, tier, 4), MG.byTier(SKIN_PICK.cueByTier, tier, 0.7), MG.byTier(SKIN_PICK.decoyByTier, tier, 0.35), 'seam', MG.byTier(SKIN_PICK.seamGapByTier, tier, 10));
+    Object.assign(round, { mode: 'pick', steps: p.steps, right: p.right, totalMs: Math.max(10000, Math.round((Number(SKIN_PICK.seconds) || 90) * 1000)), minPickMs: Math.max(0, Number(SKIN_PICK.minPickMs) || 0) });
+    round.minMs = MG.pickMinMs(cuts, round.minPickMs);
+    return round;
+  }
   round.minMs = skinMinMs(round);
   return round;
 };
 // Everything the widget needs to draw the round, and nothing it could use to judge it
 const skinPacket = (round, result, resultKind) => {
+  if (round.mode === 'pick') {
+    const p = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, mode: 'pick', cuts: round.cuts, misses: round.allowed, steps: round.steps, totalMs: round.totalMs, minPickMs: round.minPickMs };
+    if (MG.clientJudged(SKIN)) p.judge = 'client';
+    if (result) { p.result = result; p.resultKind = resultKind; }
+    return p;
+  }
   const w = { type: 'skinning', id: SKIN_WIDGET_ID, nonce: round.nonce, name: round.name, cuts: round.cuts, misses: round.allowed, seam: round.width, seams: round.seams, sweepMs: round.sweepMs, totalMs: round.totalMs };
   // The widget shows its own verdict at once when it is the judge; an older one ignores the field
   if (MG.clientJudged(SKIN)) w.judge = 'client';
@@ -4175,11 +4226,12 @@ globalThis.__dboSkin = (targetId, casterId) => {
       if (round.issueDist > Number(SKIN.issueUnits)) { skinSay(casterId, 'You are too far from the body.'); return false; }
     }
     const old = skinSessions.get(casterId);
-    if (old) { skinKeepClosing(casterId, old, 'superseded'); log(`skinning superseded ${display(casterId)} ${old.name} after ${Math.round(performance.now() - old.startedAt)} ms by a new attempt`); }
-    log(`skinning issue ${display(casterId)} ${round.name} t${tier + 1} cuts=${round.cuts} min=${round.minMs} judge=client seed=${round.seed.toString(16)}`);
+    if (old) { skinIdleStop(casterId, old); skinKeepClosing(casterId, old, 'superseded'); log(`skinning superseded ${display(casterId)} ${old.name} after ${Math.round(performance.now() - old.startedAt)} ms by a new attempt`); }
+    log(`skinning issue ${display(casterId)} ${round.name} t${tier + 1} cuts=${round.cuts}${round.mode === 'pick' ? ` pick spots=${round.steps[0].length}` : ''} min=${round.minMs} judge=client seed=${round.seed.toString(16)}`);
   }
   skinSessions.set(casterId, round);
   openWidget(casterId, skinPacket(round), true);
+  skinIdleStart(casterId, round);
   return false;
 };
 // Replay the attempt against the report. The widget sends the millisecond of every cut it took; the
@@ -4216,6 +4268,27 @@ const judgeSkin = (round, raw, at, elapsed) => {
   }
   if (r.lag < -SKIN.clockSlackMs) r.bad = 'future';      // more time on its clock than the server watched pass
   else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';      // drawn out in real time, or a report from minutes ago
+  return r;
+};
+// The skinner crouches at the body while the attempt is open (idles.js 'skin', held), and stands when it ends
+const skinIdleStart = (a, round) => {
+  try { round.idle = typeof globalThis.__dboHoldIdle === 'function' ? globalThis.__dboHoldIdle(a, 'skin') : null; } catch (e) { log('skinning idle failed', e.message); }
+};
+const skinIdleStop = (a, round) => {
+  if (!round || !round.idle) return;
+  const held = round.idle;
+  round.idle = null;
+  try { globalThis.__dboStopIdle(a, held); } catch (e) { /* offline */ }
+};
+// A pick attempt's report: '[[index, ms], ...]' replayed against the points the server rolled, in judgeSkin's fields
+const judgeSkinPick = (round, raw, at, elapsed) => {
+  const p = MG.judgePicks(raw, { need: round.cuts, allowed: round.allowed, steps: round.steps, right: round.right, totalMs: round.totalMs, minPickMs: round.minPickMs });
+  const r = { cuts: p.hits, slips: p.misses, count: p.count, last: p.last, at, lag: Math.round(elapsed - at), err: 0, bad: p.bad, sus: p.sus };
+  if (r.bad) return r;
+  if (r.last > at) { r.bad = 'submit'; return r; }
+  if (MG.clientJudged(SKIN)) { r.sus.push(...MG.lagFlags(r.lag, SKIN.clockSlackMs, SKIN.slowFlagMs)); return r; }
+  if (r.lag < -SKIN.clockSlackMs) r.bad = 'future';
+  else if (r.lag > SKIN.lagGraceMs) r.bad = 'late';
   return r;
 };
 // Where the skinner is against the body when the report lands: { near, d, moved } in units. Rollback: under 400 units
@@ -4266,6 +4339,7 @@ const skinReport = (a, args) => {
   }
   skinClosing.delete(nonce);
   if (skinSessions.get(a) === ses) skinSessions.delete(a);
+  skinIdleStop(a, ses);
   skinSpent.set(ses.nonce, Date.now());
   while (skinSpent.size > 200) skinSpent.delete(skinSpent.keys().next().value);
   const elapsed = performance.now() - ses.startedAt;
@@ -4276,7 +4350,7 @@ const skinReport = (a, args) => {
   }
   const cj = MG.clientJudged(SKIN);
   const at = Math.max(0, Math.floor(Number(args[2]) || 0));
-  const v = judgeSkin(ses, args[1], at, elapsed);
+  const v = ses.mode === 'pick' ? judgeSkinPick(ses, args[1], at, elapsed) : judgeSkin(ses, args[1], at, elapsed);
   const claim = cj ? skinClaimOf(args[3]) : null;
   let pelts = []; try { pelts = mp.get(ses.corpse, 'private.dboPelts') || []; } catch (e) { /* corpse gone */ }
   let skinned = true; try { skinned = mp.get(ses.corpse, 'private.dboSkinned') === true; } catch (e) { /* corpse gone */ }
@@ -4320,7 +4394,7 @@ const skinReport = (a, args) => {
   // the clean cuts were (0 dead centre, 1 at the seam's edge); then who judged, the fastest the attempt could be won,
   // the widget's claim, review flags, and the distance figures (d: to the body now, moved: since the attempt began).
   const n0 = (x) => (Number.isFinite(x) ? Math.round(x) : '-');
-  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`
+  log(`skinning ${v.bad ? 'refused(' + v.bad + ')' : win ? 'win' : 'lose'} ${display(a)} ${ses.name} t${ses.tier + 1} ${v.cuts}/${ses.cuts} cuts ${v.slips} slips of ${v.count}${ses.mode === 'pick' ? ' pick' : ''} last=${v.last} at=${v.at} lag=${v.lag} err=${v.err.toFixed(2)} seed=${ses.seed.toString(16)}${skinned ? ' already-skinned' : ''}${near ? '' : ' too-far'}${got.length ? ' -> ' + got.join(', ') : ''}`
     + (cj ? MG.tail({ judge: claim ? 'client' : 'legacy', min: ses.minMs, claim: claim ? `${claim.win ? 'win' : 'lose'}/${claim.hits}/${claim.slips}` : null, sus: v.sus.concat(closed ? [`after-${closed}`] : []) })
       + ` d=${n0(where.d)} moved=${n0(where.moved)}${claim ? ` fr=${n0(claim.frames)} maxFrame=${n0(claim.maxFrameMs)}` : ''}` : ''));
   // A verdict for an attempt whose window is gone (stopped, hidden or replaced) is told in chat
@@ -4336,7 +4410,7 @@ const skinCancel = (a, args) => {
     if (skinIgnored(a, performance.now())) log(`skinning ignored ${display(a)}: a Stop for ${nonce.slice(0, 40)}, not the live attempt`);
     return;
   }
-  if (ses) { skinKeepClosing(a, ses, 'cancel'); if (MG.clientJudged(SKIN)) log(`skinning abandon(cancel) ${display(a)} ${ses.name} after ${Math.round(performance.now() - ses.startedAt)} ms`); }
+  if (ses) { skinIdleStop(a, ses); skinKeepClosing(a, ses, 'cancel'); if (MG.clientJudged(SKIN)) log(`skinning abandon(cancel) ${display(a)} ${ses.name} after ${Math.round(performance.now() - ses.startedAt)} ms`); }
   skinSessions.delete(a);
   closeWidget(a, SKIN_WIDGET_ID);
 };
@@ -4345,7 +4419,7 @@ onUi('skinningCancel', skinCancel);
 every('skinSweep', 30000, () => {
   if (!MG.clientJudged(SKIN)) return;
   const now = performance.now();
-  for (const [a, ses] of [...skinSessions]) if (now - ses.startedAt > skinLimit(ses)) { skinSessions.delete(a); log(`skinning expired ${display(a)} ${ses.name} after ${Math.round(now - ses.startedAt)} ms, no report`); }
+  for (const [a, ses] of [...skinSessions]) if (now - ses.startedAt > skinLimit(ses)) { skinSessions.delete(a); skinIdleStop(a, ses); log(`skinning expired ${display(a)} ${ses.name} after ${Math.round(now - ses.startedAt)} ms, no report`); }
   for (const [n, c] of skinClosing) if (now - c.round.startedAt > skinLimit(c.round)) skinClosing.delete(n);
 });
 globalThis.__dboSkinLeave = (a) => { const ses = skinSessions.get(a); if (!ses) return; skinSessions.delete(a); log(`skinning abandon(logout) ${display(a)} ${ses.name}`); };
@@ -5766,7 +5840,7 @@ try {
 try {
   const LABOUR_JS = path.resolve('labour.js');
   delete require.cache[LABOUR_JS];
-  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, distanceMeters, sendPacket, onlineActors });
+  require(LABOUR_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, giveItem, skills: SKILLS_DEF, distanceMeters, sendPacket, onlineActors, hasUiCap });
 } catch (e) {
   log('labour.js failed to load:', e.stack || e.message);
   // Fail closed: with labour.js down, a seam's vanilla ore script and its pickaxe markers paid out with no round, no
@@ -5791,7 +5865,7 @@ try {
   const PRAYER_JS = path.resolve('prayer.js');
   delete require.cache[PRAYER_JS];
   require(PRAYER_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, every, skills: SKILLS_DEF,
-    isLeadStaff, findAnyByName, sendPacket, distanceMeters,
+    isLeadStaff, findAnyByName, sendPacket, distanceMeters, hasUiCap,
     takeGold, treasuryHere: (a, gold) => { const z = zoneOfActor(a); return depositToTreasury(z && typeof z === 'object' ? z.id : z, gold); } });
 } catch (e) { log('prayer.js failed to load:', e.stack || e.message); globalThis.__dboPrayerActivate = null; globalThis.__dboPrayerLogin = null; }
 
@@ -5984,7 +6058,7 @@ try {
 try {
   const STRUGGLE_JS = path.resolve('struggle.js');
   delete require.cache[STRUGGLE_JS];
-  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, isLeadStaff, distanceMeters, sendPacket });
+  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, isLeadStaff, distanceMeters, sendPacket, hasUiCap });
 } catch (e) { log('struggle.js failed to load:', e.stack || e.message); globalThis.__dboOnRestrained = null; globalThis.__dboStruggling = null; }
 
 // ---- rope: tying someone up without authority, left unattended, cut free (server\rope.js, config "rope") ----

@@ -74,11 +74,14 @@ const sandbox = {
   SKIN: { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50, clientJudged: false },
   performance: { now: () => virtual },
   Math: seededMath, JSON, Number, Array, String, Object, Date, MG,
+  // A UI that names MG.PICK_CAP; off until the pick cases at the end
+  hasUiCap: (a, cap) => sandbox.pickUi === true && cap === MG.PICK_CAP,
+  pickUi: false,
   out: {},
 };
-const names = ['skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin'];
+const names = ['SKIN_PICK', 'skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick'];
 vm.runInNewContext(names.map(declOf).join('\n') + `\nout = { ${names.join(', ')} };`, sandbox);
-const { skinRng, bladeAt, skinRound, skinPacket, judgeSkin } = sandbox.out;
+const { skinRng, bladeAt, skinRound, skinPacket, judgeSkin, judgeSkinPick } = sandbox.out;
 
 // ---- a player, behaving exactly as the widget does ----------------------------------------------
 // aim 1 cuts anywhere in the seam, 0.2 waits for the middle of it, sloppy cuts at random. A hand
@@ -240,7 +243,7 @@ console.log('client-judged:');
 const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
 const A = 0x14, B = 0x15, CORPSE = 0xff001234, PELT = 0x3ad6f;
 const props = new Map();
-const cj = { logs: [], audits: [], said: [], widgets: [], closed: 0, given: [], events: [] };
+const cj = { logs: [], audits: [], said: [], widgets: [], closed: 0, given: [], events: [], idles: [], packets: [] };
 const SK = { cuts: 3, misses: 2, seconds: 15, lagGraceMs: 2500, clockSlackMs: 50, bonusByTier: [0, 0, 0, 0, 0],
   clientJudged: true, roundTimeoutMs: 120000, firstCutMs: 150, cutGapMs: 80, nearUnits: 400, movedUnits: 200, issueUnits: 1500, slowFlagMs: 5000, replayCheck: 'log' };
 const sb = {
@@ -254,10 +257,13 @@ const sb = {
   mp: { get: (id, k) => props.get(id + '|' + k), set: (id, k, v) => props.set(id + '|' + k, v) },
   giveItem: (a, id, n) => { cj.given.push([id, n]); return true; },
   recordOf: () => ({ record: { editorId: 'WolfPelt' } }), edidWords: (e, f) => e || f, peltsWorth: () => 5,
-  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k) },
+  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k), __dboHoldIdle: (a, key) => { cj.idles.push(key); return key === 'skin' ? { anim: 'IdleWarmHandsCrouched' } : null; }, __dboStopIdle: (a, held) => cj.packets.push({ customPacketType: 'dboIdleStop', anim: held.anim }) },
+  sendPacket: (a, p) => cj.packets.push(p),
+  hasUiCap: (a, cap) => sb.pickUi === true && cap === MG.PICK_CAP,
+  pickUi: false,
   out: {},
 };
-const cjNames = ['skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
+const cjNames = ['SKIN_PICK', 'skinIdleStart', 'skinIdleStop', 'skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
 vm.runInNewContext(cjNames.map(declOf).join('\n') + `\nout = { ${cjNames.join(', ')} };`, sb);
 const S = sb.out;
 const pos = (id, p) => props.set(id + '|pos', p);
@@ -435,6 +441,83 @@ rs = reportS(cr, cp.times, cp.at, 400, claimS(cp));
 check('...and the stale body position loses again (too far)', vOf(rs.log) === 'lose' && /too-far/.test(rs.log), rs.log);
 check('...and the widget is not told it judges', S.skinPacket(cr).judge === undefined);
 SK.clientJudged = true;
+
+// ---- "Read the hide": a UI that names MG.PICK_CAP gets a pick attempt, every other UI today's timing attempt ----------
+console.log('');
+console.log('pick attempts:');
+{
+  const TIMING_KEYS = 'type,id,nonce,name,cuts,misses,seam,seams,sweepMs,totalMs,judge';
+  sb.pickUi = false;
+  let r0 = issue();
+  check('a UI without the capability gets exactly the timing attempt', Object.keys(S.skinPacket(r0)).join(',') === TIMING_KEYS && r0.mode === undefined, Object.keys(S.skinPacket(r0)).join(','));
+  sb.pickUi = true;
+  const pr = issue({ tier: 0 });
+  const pk = S.skinPacket(pr);
+  check('a UI with it gets a pick attempt: one set of points per cut and slip, no blade, no seam list', pk.mode === 'pick' && pk.steps.length === pk.cuts + pk.misses && pk.seams === undefined && pk.sweepMs === undefined && pk.totalMs === 90000, JSON.stringify(Object.keys(pk)));
+  check('four points at Novice, three at Expert', pk.steps.every((st) => st.length === 4) && issue({ tier: 3 }).steps.every((st) => st.length === 3));
+  check('the right point lies on the seam and carries the clearest cue', pr.steps.every((st, k) => st[pr.right[k]][1] === 50 && MG.rightOf(st) === pr.right[k] && st.every((q, j) => j === pr.right[k] || Math.abs(q[1] - 50) >= 8)));
+  const picks = (r, wrong) => { const out = []; let t = 0; let k = 0; for (const w of wrong) { for (let i = 0; i < w; i++) { t += 400; out.push([(r.right[k] + 1) % r.steps[k].length, t]); k++; } t += 400; out.push([r.right[k], t]); k++; } return out; };
+  const claimP = (win, hits, slips) => JSON.stringify({ v: 2, mode: 'pick', win, hits, slips, frames: 600, maxFrameMs: 34 });
+  let r1 = issue({ tier: 0 }), l1 = picks(r1, [0, 0, 0]);
+  rs = reportS(r1, l1, l1[l1.length - 1][1], 200, claimP(true, 3, 0));
+  check('three right picks win and give the same pelt as the timing attempt', vOf(rs.log) === 'win' && rs.given.length === 1 && rs.given[0][0] === PELT && rs.given[0][1] === 1 && / pick/.test(rs.log), rs.log);
+  r1 = issue({ tier: 0 }); l1 = picks(r1, [1, 1, 0]);
+  rs = reportS(r1, l1, l1[l1.length - 1][1], 200, claimP(true, 3, 2));
+  check('two slips are borne (misses 2)', vOf(rs.log) === 'win' && / 2 slips /.test(rs.log), rs.log);
+  r1 = issue({ tier: 0 }); l1 = picks(r1, [1, 2]).slice(0, 4);
+  rs = reportS(r1, l1, l1[l1.length - 1][1], 200, claimP(false, 1, 3));
+  check('a third slip tears the hide: a loss, nothing given', vOf(rs.log) === 'lose' && rs.given.length === 0, rs.log);
+  r1 = issue({ tier: 0 }); l1 = picks(r1, [0, 0, 0]).concat([[0, 5000]]);
+  rs = reportS(r1, l1, 5000, 200, claimP(true, 3, 0));
+  check('a pick after the last cut is refused(extra)', vOf(rs.log) === 'refused(extra)' && rs.given.length === 0, rs.log);
+  r1 = issue({ tier: 0 }); l1 = [[r1.right[0], 50], [r1.right[1], 100], [r1.right[2], 150]];
+  rs = reportS(r1, l1, 150, 200, claimP(true, 3, 0));
+  check('picks faster than a hand (under minPickMs) are refused(fast)', vOf(rs.log) === 'refused(fast)' && rs.given.length === 0, rs.log);
+  r1 = issue({ tier: 0 });
+  rs = reportS(r1, [[7, 500]], 500, 200, claimP(false, 0, 1));
+  check('a point that was never drawn is refused(range)', vOf(rs.log) === 'refused(range)', rs.log);
+  r1 = issue({ tier: 0 });
+  rs = reportS(r1, [[r1.right[0], 4000]], 90000, 200, claimP(false, 1, 0));
+  check('an idle attempt ends at its 90 s limit as a loss', vOf(rs.log) === 'lose' && rs.given.length === 0, rs.log);
+  r1 = issue({ tier: 0 });
+  rs = reportS(r1, [[r1.right[0], 4000], [r1.right[1], 91000]], 91000, 200, claimP(false, 1, 0));
+  check('a pick past the limit is refused(range)', vOf(rs.log) === 'refused(range)', rs.log);
+  r1 = issue({ tier: 0 }); l1 = [[(r1.right[0] + 1) % 4, 400], [(r1.right[1] + 1) % 4, 800], [(r1.right[2] + 1) % 4, 1200]];
+  rs = reportS(r1, l1, 1200, 200, claimP(true, 3, 0));
+  check("a claimed win its picks do not bear out is audited (replayCheck 'log')", rs.audits.some((t) => /^SKINNING-MISMATCH /.test(t)) && /mismatch/.test(sOf(rs.log)), rs.log);
+  SK.replayCheck = 'refuse';
+  r1 = issue({ tier: 0 });
+  rs = reportS(r1, l1.map((e, k) => [(r1.right[k] + 1) % 4, e[1]]), 1200, 200, claimP(true, 3, 0));
+  check("...and refused under 'refuse'", vOf(rs.log) === 'refused(mismatch)' && rs.given.length === 0, rs.log);
+  SK.replayCheck = 'log';
+  // Every honest pick sequence agrees with the widget's own count, 200 random hands
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    const r = issue({ tier: i % 5 });
+    const list = []; let hits = 0, slips = 0, t = 0;
+    for (let k = 0; hits < r.cuts && slips <= r.allowed; k++) {
+      t += 200 + Math.floor(random() * 900);
+      const pick = random() < 0.7 ? MG.rightOf(r.steps[k]) : Math.floor(random() * r.steps[k].length);
+      list.push([pick, t]);
+      if (pick === MG.rightOf(r.steps[k])) hits++; else slips++;
+    }
+    const res = reportS(r, list, t, 150, claimP(hits >= r.cuts, hits, slips));
+    if (vOf(res.log) === (hits >= r.cuts ? 'win' : 'lose') && !/mismatch/.test(sOf(res.log))) agree++;
+  }
+  check('the widget and the server agree on 200 random pick attempts', agree === 200, `${agree}/200`);
+  check('the pick switch off (skinning.pick.enabled false) gives the timing attempt again', (() => { S.SKIN_PICK.enabled = false; const r = issue(); S.SKIN_PICK.enabled = true; return r.mode === undefined && Array.isArray(r.seams); })());
+  // The skinner crouches while the attempt is open and stands when it ends, by report or by Stop
+  cj.idles.length = 0; cj.packets.length = 0;
+  r1 = issue({ tier: 0 }); S.skinIdleStart(A, r1);
+  l1 = picks(r1, [0, 0, 0]);
+  rs = reportS(r1, l1, l1[l1.length - 1][1], 200, claimP(true, 3, 0));
+  check('the skinner crouches for the attempt (idles.js skin) and stands when it is judged', cj.idles[0] === 'skin' && cj.packets.some((q) => q.customPacketType === 'dboIdleStop' && q.anim === 'IdleWarmHandsCrouched'), JSON.stringify(cj.packets));
+  cj.packets.length = 0;
+  r1 = issue({ tier: 0 }); S.skinIdleStart(A, r1);
+  S.skinCancel(A, [r1.nonce]);
+  check('...and when the attempt is stopped', cj.packets.filter((q) => q.customPacketType === 'dboIdleStop').length === 1, JSON.stringify(cj.packets));
+  sb.pickUi = false;
+}
 
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

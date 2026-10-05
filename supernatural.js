@@ -109,6 +109,12 @@ module.exports = (api) => {
   // Merged key by key, as C.feed is below: a partial override such as {"rite":{"clientJudged":false}} used to replace the
   // whole block and wipe rounds, need and leadMs (DESIGN.md section 4.6)
   C.rite = Object.assign({}, RITE_DEFAULTS, (cfg.supernatural || {}).rite || {});
+  // "Read the rite" (Nate, 4-5 Oct: no timing mini-games): a rite for a UI that names riteJudge and MG.PICK_CAP has no
+  // marker. Each round shows spotsByRound marks on the strip, a pulse of the slowing heart or a track of the prey, one
+  // clearest (cueByRound) and the others fainter (decoyByRound); the later rounds have more marks and closer decoys, as
+  // the zone narrows today. A pick of the clearest is a hit. A round unpicked for roundSeconds is a miss; a rite never
+  // touched is abandoned as before. Rounds, needs, deaths, permadeath odds and cooldowns are today's.
+  C.rite.pick = Object.assign({ enabled: true, roundSeconds: 90, spotsByRound: [3, 3, 4, 4, 5], cueByRound: [0.95, 0.88, 0.8, 0.72, 0.65], decoyByRound: [0.25, 0.32, 0.38, 0.44, 0.5], minPickMs: 300 }, C.rite.pick || {});
   // Feeding takes time. A vampire's seconds come from their blood rank (bloodranks.js), `seconds` without it; from
   // the rank bloodranks names, a vampire can also feed deeply: longMult as long, a longer thirst hold, faster
   // recovery for longSatedHours game hours, longBloodMult the rank blood, and a standing captive blacks out.
@@ -617,7 +623,8 @@ module.exports = (api) => {
     return { period: Math.round(1700 - i * 150 + Math.random() * 200), center: 0.2 + Math.random() * 0.6, width: Math.max(0.1, 0.24 - i * 0.03), startsAt: Date.now() + C.rite.leadMs,
       // One per round, for a client that judges itself: its report names it, so a round is reported once (the rite's own
       // nonce covers the whole rite). sentAt: the server's monotonic clock when the round went out, for the lower bound.
-      rnonce: Math.floor(Math.random() * 0x7fffffff).toString(36), sentAt: performance.now() };
+      rnonce: Math.floor(Math.random() * 0x7fffffff).toString(36), sentAt: performance.now(),
+      ...(r.pick ? MG.pickStep(Math.random, MG.byTier(C.rite.pick.spotsByRound, i, 4), MG.byTier(C.rite.pick.cueByRound, i, 0.8), MG.byTier(C.rite.pick.decoyByRound, i, 0.4), 'line') : {}) };
   };
   const riteClientJudged = () => MG.clientJudged(C.rite);
   // A client whose strikes can only be judged by arrival, under legacyDeadly 'safe' (RITE_DEFAULTS above): no voluntary
@@ -635,11 +642,17 @@ module.exports = (api) => {
     };
     // A widget that judges itself: the round's own nonce, its grace and how long it may wait for a strike
     if (r.client && rd) Object.assign(w, { judge: 'client', rnonce: rd.rnonce, graceMs: C.rite.graceMs, limitMs: C.rite.timeoutMs });
+    // A pick rite: this round's marks instead of a marker, and what they are drawn as
+    if (r.pick && rd) {
+      for (const k of ['period', 'zone', 'startsIn', 'graceMs', 'limitMs']) delete w[k];
+      Object.assign(w, { mode: 'pick', spots: rd.spots, cue: r.type === 'fever_werewolf' || r.type === 'hunt' ? 'trail' : 'pulse', minPickMs: C.rite.pick.minPickMs, limitMs: Math.round(C.rite.pick.roundSeconds * 1000) });
+    }
     openWidget(a, w, true);
   };
   // The round's timer. Client: no deadline on the server's clock, only a cleanup after silentMs for a widget that never
   // reports (a miss). Old widget: the arrival timer, legacyExtraMs longer when client-judged. Rollback: as before.
   const armTimer = (a, r) => {
+    if (r.pick) { r.timer = setTimeout(() => judge(a, r, false, 'left unread'), Math.max(10000, Number(C.rite.pick.roundSeconds) * 1000)); return; }
     const wait = r.client ? C.rite.leadMs + C.rite.timeoutMs + Math.max(60000, Number(C.rite.silentMs) || 120000)
       : C.rite.leadMs + C.rite.timeoutMs + (riteClientJudged() ? Math.max(0, Number(C.rite.legacyExtraMs) || 0) : 0);
     r.timer = setTimeout(() => judge(a, r, false, r.client ? 'silent' : 'too late'), wait);
@@ -659,13 +672,14 @@ module.exports = (api) => {
     const r = { type, nonce: `${a.toString(16)}-${Date.now().toString(36)}`, round: 0, hits: 0, misses: 0, current: null, timer: null };
     // Decided at the start: a client rite round is played without an arrival timer, which an old widget would not survive
     r.client = riteClientJudged() && typeof hasUiCap === 'function' && hasUiCap(a, 'riteJudge');
+    r.pick = r.client && C.rite.pick.enabled !== false && hasUiCap(a, MG.PICK_CAP);
     // A fever rite judged by arrival under legacyDeadly 'safe': lag may cost it, so losing it does not kill (finishRite)
     r.legacySafe = !r.client && riteLegacySafe(a);
     rites.set(a, r);
     r.current = newRound(r);
     armTimer(a, r);
     showRite(a, r);
-    log(`supernatural: ${display(a)} began ${RITES[type].title} judge=${r.client ? 'client' : riteClientJudged() ? 'legacy' : 'server'}${r.legacySafe ? ', a loss does not kill' : ''}`);
+    log(`supernatural: ${display(a)} began ${RITES[type].title} judge=${r.client ? 'client' : riteClientJudged() ? 'legacy' : 'server'}${r.pick ? ' pick' : ''}${r.legacySafe ? ', a loss does not kill' : ''}`);
   };
   // A rite the player never touched has not been failed, it has not been played. Dying to a cursor that never
   // appeared (swag, 2026-09-27: the Blood Fever opened a second after joining, no mouse, no space, dead) is a
@@ -764,7 +778,25 @@ module.exports = (api) => {
     if (riteIgnored(a, performance.now())) log(`supernatural: rite ${display(a)} report for round ${String(args[1]).slice(0, 4)} ignored (${n <= r.round ? 'already judged' : 'not that round'})`);
     return false;
   };
+  // A pick rite's choice: [nonce, round, rnonce, 'pick', index, atMs], atMs since the round's packet arrived. A hit is the
+  // clearest mark; no pick faster than minPickMs after the round arrived, by the widget's clock or the server's.
+  const pickStrike = (a, r, args) => {
+    if (!clientRound(a, r, args)) return;
+    r.acted = true;
+    const rd = r.current;
+    const index = MG.ms(args[4]), at = MG.ms(args[5]);
+    const sinceSent = performance.now() - rd.sentAt;
+    const lag = Number.isFinite(at) ? Math.round(sinceSent - at) : NaN;
+    const sus = MG.lagFlags(lag, 50, MG.SLOW_FLAG_MS);
+    const floor = Number(C.rite.pick.minPickMs) || 0;
+    let why = 'the wrong mark';
+    if (args[3] !== 'pick' || !Number.isFinite(index) || index < 0 || index >= rd.spots.length || !Number.isFinite(at)) why = 'malformed';
+    else if (at < floor || MG.serverTooSoon(sinceSent, floor, 50)) why = 'too fast';
+    const hit = why === 'the wrong mark' && index === rd.right;
+    judge(a, r, hit, why, `pick=${Number.isFinite(index) ? index : '-'} right=${rd.right} of ${rd.spots.length} at=${Number.isFinite(at) ? at : '-'}` + MG.tail({ judge: 'client', own: at, lag, sus }));
+  };
   const clientStrike = (a, r, args) => {
+    if (r.pick) return pickStrike(a, r, args);
     if (!clientRound(a, r, args)) return;
     r.acted = true;
     const rd = r.current;

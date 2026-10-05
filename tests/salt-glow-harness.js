@@ -107,7 +107,7 @@ ok(timers[0].ms === 10000, 'the tick follows seconds');
 
 // gamemode.js passes what the glow needs and lights it at login
 const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
-ok(/require\(LABOUR_JS\)\(\{[^}]*sendPacket, onlineActors \}\)/.test(gm), 'gamemode.js hands labour.js sendPacket and onlineActors');
+ok(/require\(LABOUR_JS\)\(\{[^}]*sendPacket, onlineActors(, [^}]*)? \}\)/.test(gm), 'gamemode.js hands labour.js sendPacket and onlineActors');
 ok(/__dboSaltGlow\(a\)/.test(gm), 'gamemode.js lights the glow at login');
 
 console.log(fails ? `${fails} FAILED` : 'all checks passed');
