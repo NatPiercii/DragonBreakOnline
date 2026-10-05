@@ -245,6 +245,11 @@ module.exports = (api) => {
     save();
   };
   const contractById = (id) => state.contracts.find((c) => c.id === id) || null;
+  // One notice can be held by several hunters, and the first to finish it is paid (5 Oct: three took the same 2 trolls;
+  // the others' kills then counted for nothing and nobody told them). A holder whose notice is gone, finished by another
+  // or run out, is released with word of it, wherever they next look: a kill, the board, /contract
+  const GONE_TEXT = 'Your contract is closed: its notice is no longer posted. Another hunter finished it first, or it ran out. Take new work at the board.';
+  const releaseGone = (a) => { setTaken(a, null); personal(a, GONE_TEXT); };
 
   const describe = (c, progress) => {
     const zone = zoneById(c.zone);
@@ -270,17 +275,25 @@ module.exports = (api) => {
     const held = takenBy(killerId);
     if (!held) return;
     const c = contractById(held.id);
-    if (!c) { setTaken(killerId, null); return; }
+    if (!c) { releaseGone(killerId); return; }
     let tag = ''; try { tag = String(mp.get(npcId, 'private.npcSpawner') || ''); } catch (e) { return; }
     const m = /^wild:([^:]+):/.exec(tag);
     if (!m) return;
     // The body's own record says what fell; the spot's name only when that cannot be read (kindOfBase above)
     let base = ''; try { base = String(mp.get(npcId, 'baseDesc') || ''); } catch (e) { base = ''; }
     const own = kindOfBase(base);
-    if ((own === undefined ? m[1] : own) !== c.kind) return;
+    if ((own === undefined ? m[1] : own) !== c.kind) {
+      // A spot named for the quarry that put down something else (a rat at a "wolf" spot) is said, not silently skipped
+      if (m[1] === c.kind) personal(killerId, `That was ${own ? `a ${own}` : 'some other creature'}, not one of your ${plural(c.kind)}: it does not count for the contract.`);
+      return;
+    }
     // The hold pays for its own ground: a wolf felled in another hold is not this notice's work
     const where = zoneOf(npcId);
-    if (!where || where.id !== c.zone) return;
+    if (!where || where.id !== c.zone) {
+      const z = zoneById(c.zone);
+      personal(killerId, `Only ${plural(c.kind)} felled in ${z ? z.name : c.zone}'s wilds count for your contract.`);
+      return;
+    }
     let worth = 1;
     try { if (mp.get(npcId, 'private.dboChampion') === true) worth = Math.max(1, Number(CFG.championWorth) || 1); } catch (e) { /* plain beast */ }
     held.progress = (Number(held.progress) || 0) + worth;
@@ -331,7 +344,7 @@ module.exports = (api) => {
     const zone = playerZone(a);
     const held = takenBy(a);
     let hc = held ? contractById(held.id) : null;
-    if (held && !hc) { setTaken(a, null); hc = null; }
+    if (held && !hc) { releaseGone(a); hc = null; }
     const list = zone ? zoneContracts(zone.id) : [];
     const hours = (c) => Math.max(0, Math.ceil((c.expiresAt - Date.now()) / 3600000));
     const zoneName = (id) => { const z = zoneById(id); return z ? z.name : id; };
@@ -383,7 +396,7 @@ module.exports = (api) => {
     if (!verb) {
       if (held) {
         const c = contractById(held.id);
-        if (!c) setTaken(a, null);
+        if (!c) releaseGone(a);
         else personal(a, `You hold: ${describe(c, Number(held.progress) || 0)}.`);
       }
       return listContracts(a);

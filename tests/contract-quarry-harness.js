@@ -104,6 +104,8 @@ check('the hunter holds it', !!stored().taken['13'], JSON.stringify(stored().tak
 kill('wild:wolf:2874', '60242a:BSAssets.esm');
 check('a rat from a wolf spot is not a wolf (the report)', progress() === 0, `progress ${progress()}`);
 kill('wild:wolf:2674', '5f056:BSHeartland.esm');
+check('...and the hunter is told an ogre from a wolf spot does not count (5 Oct: "not tracking my contracts")', out.personal.some((p) => p.a === HUNTER && /not one of your wolves: it does not count/.test(p.t)), out.personal.map((p) => p.t).slice(-1).join(''));
+kill('wild:wolf:2674', '5f056:BSHeartland.esm');
 check('an ogre from a wolf spot is not a wolf', progress() === 0, `progress ${progress()}`);
 kill('wild:wolf:2874', 'werewolf:Test.esp');
 check('a werewolf is not a wolf', progress() === 0, `progress ${progress()}`);

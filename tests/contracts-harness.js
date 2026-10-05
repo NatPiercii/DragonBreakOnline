@@ -166,6 +166,29 @@ check('finishing pays the hunter out of what the notice held', goldOf(GUARD) ===
 check('...and the treasury is not touched a second time', goldOf(CHEST) === 40, `${goldOf(CHEST)} left`);
 check('...and the notice is gone', posted().length === 0, `${posted().length} posted`);
 
+// 5 Oct (#bug-tracker 1556560650292039732): three hunters took the same 2 trolls; the first was paid and the others'
+// kills counted for nothing, silently. The next holder is now told and released at the next kill, board or /contract
+inv(CHEST, 100);
+run(COUNT, 'post wolf 2 24');
+run(GUARD, 'take 1'); run(HUNTER, 'take 1');
+check('two hunters may hold one notice', stored().taken['12'] && stored().taken['13'] && stored().taken['12'].id === stored().taken['13'].id);
+beast(0x905, 'wolf');
+for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x905, GUARD);
+const otherBefore = goldOf(HUNTER);
+out.personal.length = 0;
+globalThis.__dboContractKill(0x905, HUNTER);
+check('the other holder\'s next kill tells them the notice was finished and releases them',
+  out.personal.some((p) => p.a === HUNTER && /no longer posted/.test(p.t)) && !stored().taken['13'] && goldOf(HUNTER) === otherBefore, out.personal.map((p) => p.t).join(' | '));
+run(COUNT, 'post wolf 2 24'); run(GUARD, 'take 1'); run(HUNTER, 'take 1');
+for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x905, GUARD);
+check('...and /contract tells them too', said(run(HUNTER, ''), /no longer posted/) && !stored().taken['13']);
+run(COUNT, 'post wolf 2 24'); run(HUNTER, 'take 1');
+beast(0x907, 'wolf', 'Skyrim.esm:Tamriel');
+out.personal.length = 0;
+globalThis.__dboContractKill(0x907, HUNTER);
+check('a kill in another hold says only Bruma\'s wilds count', out.personal.some((p) => /felled in Bruma's wilds/.test(p.t)), out.personal.map((p) => p.t).join(' | '));
+run(HUNTER, 'abandon');
+
 // an expired notice hands its gold back
 clear();
 inv(CHEST, 200);
