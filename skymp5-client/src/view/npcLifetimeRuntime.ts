@@ -1,7 +1,7 @@
 // The game side of npcLifetime.ts: deferred deletes, spread HostStart re-seats, and the trail of actor-changing calls
-import { Actor, Game, ObjectReference, on } from "skyrimPlatform";
+import { Actor, Game, ObjectReference, Ui, on } from "skyrimPlatform";
 import * as sp from "skyrimPlatform";
-import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, RecentDeletes, deleteDecision, deletePlan, dropRelayedRagdoll, reseatDecision, trailLine } from "./npcLifetime";
+import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, PendingDelete, RecentDeletes, deleteDecision, deletePlan, dropRelayedRagdoll, newPendingDelete, reseatDecision, trailLine } from "./npcLifetime";
 
 // The file the launcher collects (report.js DIAG_LOG_REL); writeLogs ends every line with a flush, so a line written before a crash is kept
 const LOG_NAME = "dbo-diag";
@@ -9,8 +9,10 @@ const trail = new ActorTrail();
 const budget = new LineBudget(100, 20000);
 const ragdolledAt = new Map<number, number>();
 const bornAt = new Map<number, number>();
-const pendingDeletes = new Map<number, number>(); // local id -> frames since it was disabled
+const pendingDeletes = new Map<number, PendingDelete>(); // local id -> its wait since it was disabled
 const recentDeletes = new RecentDeletes(); // local ids already handed to Delete()
+const recentDisables = new RecentDeletes(); // plugin-placed actors disableOnly disabled a moment ago (isDisabled may lag)
+let lastUpdateAt = 0;
 const reseats: Array<{ id: number; askedAt: number }> = [];
 
 export const hostBackoff = new HostAttemptBackoff();
@@ -31,6 +33,11 @@ export const noteActorCall = (kind: string, refrId: number, extra?: string): voi
 (globalThis as any).__dboNpcTrail = () => trail.all();
 
 const read = (get: () => boolean): boolean => { try { return get(); } catch (e) { return false; } };
+
+// A Loading Menu or Fader Menu is open (the fade after every load and door). Unreadable counts as open: a delete can wait
+const isLoadingScreen = (): boolean => {
+  try { return Ui.isMenuOpen("Loading Menu") || Ui.isMenuOpen("Fader Menu"); } catch (e) { return true; }
+};
 
 export const stateOf = (ac: Actor | null, id: number): CopyState => ({
   is3DLoaded: !!ac && read(() => ac.is3DLoaded()),
@@ -71,6 +78,7 @@ export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): v
     is3DLoaded: read(() => refr.is3DLoaded()),
     state: ac ? stateOf(ac, id) : null,
     defer: !!(opts && opts.defer),
+    loadingScreen: isLoadingScreen(),
   }, now);
   if (plan === "skip") { noteActorCall("delete-skipped", id); return; }
   if (plan === "delete") {
@@ -81,12 +89,28 @@ export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): v
     return;
   }
   try { refr.disableNoWait(false); } catch (e) { /* already gone */ }
-  pendingDeletes.set(id, 0);
+  pendingDeletes.set(id, newPendingDelete());
   noteActorCall("delete-deferred", id);
 };
 
-// True while Delete() was called on this local id a moment ago, or safeDelete is waiting to call it: touch nothing on it
-export const isHandedToDelete = (id: number): boolean => pendingDeletes.has(id) || recentDeletes.has(id, Date.now());
+// A plugin-placed actor (not 0xff) the world cleaner removes is only disabled, never deleted: disabled it is the
+// Initially Disabled state the plugin passes give, it is never swept again (the cleaner skips disabled actors), and the
+// client never saves. Its Delete() added nothing but the risk of the 4 Oct 07:35Z crash in the fade after a load
+export const disableOnly = (refr: ObjectReference): void => {
+  const id = refr.getFormID();
+  const now = Date.now();
+  if (recentDisables.has(id, now) || recentDeletes.has(id, now) || pendingDeletes.has(id) || read(() => refr.isDeleted())) return;
+  recentDisables.note(id, now);
+  noteActorCall("disable", id);
+  try { refr.disableNoWait(false); } catch (e) { /* already gone */ }
+};
+
+// True while Delete() was called on this local id a moment ago, safeDelete is waiting to call it, or disableOnly has just
+// disabled it: touch nothing on it
+export const isHandedToDelete = (id: number): boolean => {
+  const now = Date.now();
+  return pendingDeletes.has(id) || recentDeletes.has(id, now) || recentDisables.has(id, now);
+};
 
 // A new copy placed under an id the engine has reused is not the one that was deleted
 export const noteCopyPlaced = (id: number): void => { recentDeletes.forget(id); };
@@ -97,12 +121,20 @@ export const queueReseat = (id: number): void => {
 
 const onUpdate = (): void => {
   const now = Date.now();
-  for (const [id, frames] of Array.from(pendingDeletes)) {
+  const stepMs = lastUpdateAt ? now - lastUpdateAt : 0;
+  lastUpdateAt = now;
+  const loadingScreen = pendingDeletes.size > 0 && isLoadingScreen();
+  for (const [id, pending] of Array.from(pendingDeletes)) {
     const refr = ObjectReference.from(Game.getFormEx(id));
     if (!refr || read(() => refr.isDeleted())) { pendingDeletes.delete(id); forget(id); continue; }
-    if (deleteDecision(frames + 1, read(() => refr.is3DLoaded())) === "wait") { pendingDeletes.set(id, frames + 1); continue; }
+    // A ref that cannot be read counts as loaded: it waits, and at worst is left disabled
+    let loaded = true;
+    try { loaded = refr.is3DLoaded(); } catch (e) { /* unreadable */ }
+    const { decision, next } = deleteDecision(pending, loaded, loadingScreen, stepMs);
+    if (decision === "wait") { pendingDeletes.set(id, next); continue; }
     pendingDeletes.delete(id);
-    noteActorCall("delete", id, `after ${frames + 1} frames`);
+    if (decision === "give-up") { noteActorCall("delete-abandoned", id, `3D still loaded after ${next.waitedMs} ms; left disabled`); forget(id); continue; }
+    noteActorCall("delete", id, `after ${next.waitedMs} ms`);
     recentDeletes.note(id, now);
     try { refr.delete(); } catch (e) { /* already gone */ }
     forget(id);

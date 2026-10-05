@@ -6,7 +6,7 @@ import { logTrace } from "../../logging";
 import { isOwnCompanion, isAnyCompanion } from "../../sync/ownCompanions";
 import { localIdToRemoteId } from "../../view/worldViewMisc";
 import { WcPluginDeletes } from "./wcPluginDeletes";
-import { isHandedToDelete, safeDelete } from "../../view/npcLifetimeRuntime";
+import { disableOnly, isHandedToDelete, safeDelete } from "../../view/npcLifetimeRuntime";
 
 export class WorldCleanerService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
@@ -140,8 +140,13 @@ export class WorldCleanerService extends ClientListener {
       this.countPluginDelete(actor, actorId);
     }
 
-    // Disabled now and deleted once its 3D is gone, never in the frame the engine may still animate it
-    // (npcLifetime.ts; the Niryastare crash above stepped a swept actor's graph through a freed pointer)
+    // A plugin-placed actor is only disabled (npcLifetimeRuntime disableOnly; Baan Malur crash, 4 Oct 07:35Z, in the fade
+    // after a load). A server spawn is disabled now and deleted once its 3D is gone, never in the frame the engine may
+    // still animate it, nor during a loading screen (npcLifetime.ts; the Niryastare crash above)
+    if (actorId < 0xff000000) {
+      disableOnly(actor);
+      return;
+    }
     safeDelete(actor, { defer: true });
   }
 
