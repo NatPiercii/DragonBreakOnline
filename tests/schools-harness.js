@@ -277,6 +277,13 @@ check('after 4 hours it opens again', globalThis.__dboSchoolsState.studying.has(
 ui('studyStop', NOVICE, [lastWidget(NOVICE, 'studyMagic').nonce]);
 check('Stop ends it and leaves the panel open to study again', !globalThis.__dboSchoolsState.studying.has(NOVICE) && lastWidget(NOVICE, 'studyMagic').mode === 'idle' && lastWidget(NOVICE, 'studyMagic').events.start === 'dbo:studyStart');
 put(NOVICE, 'private.dboStudied', { arcane: [T.boundSword[1]] });
+// Nate, 5 Oct (Choom): a spell read from a tome before the school's first-spell level leaves the shelves open until then
+setLevel(NOVICE, rec(NOVICE).primary, 10);
+activate(BOOKCASE, NOVICE);
+check('a school spell read early (school 10, under firstSpellAt 25) leaves the shelves open', globalThis.__dboSchoolsState.studying.has(NOVICE), lastWidget(NOVICE, 'studyMagic'));
+ui('studyStop', NOVICE, [lastWidget(NOVICE, 'studyMagic').nonce]);
+setLevel(NOVICE, rec(NOVICE).primary, 25);
+{ const r = rec(NOVICE); r.picks = Object.assign({}, r.picks, { [r.primary]: { spell: T.boundSword[1], how: 'chose', at: 0 } }); put(NOVICE, 'private.dboSchools', r); }
 activate(BOOKCASE, NOVICE);
 check('once a school spell is in the spellbook, studying is closed for good: the shelf says so over its magic menu (change school, leave)', !globalThis.__dboSchoolsState.studying.has(NOVICE) && /You have learned Bound Sword; the shelves have nothing more to teach you/.test(lastWidget(NOVICE, 'contextMenu').targetName)
   && lastWidget(NOVICE, 'contextMenu').id === 77 && lastWidget(NOVICE, 'contextMenu').actions.map((x) => x.label).join() === 'Change your school of magic,Leave', lastWidget(NOVICE, 'contextMenu'));
@@ -560,6 +567,12 @@ check('/schools reset clears them to choose again', !rec(ILLUSIONIST).primary &&
   check('nor does Restoration studied through Arcane Arts', sitting(DEVOUT));
   ui('priestStudyClose', DEVOUT);
   put(DEVOUT, 'private.dboStudied', { priest: [HEALING] });
+  // Nate, 5 Oct (Choom read the Tome of Healing at Priest 6): open until Priest firstSpellAt, closed from there
+  priestOf(DEVOUT, 6);
+  activate(PSTUDY, DEVOUT);
+  check('a Restoration tome read at Priest 6 leaves Priest Studies open', sitting(DEVOUT), ps(DEVOUT));
+  ui('priestStudyClose', DEVOUT);
+  priestOf(DEVOUT, 25);
   activate(PSTUDY, DEVOUT);
   check('once a Restoration spell studied through Priest is in the spellbook, Priest Studies is closed for good', !sitting(DEVOUT) && /You have learned Healing; the shelves have nothing more to teach you\. Priest grows now by casting and in prayer\./.test(ps(DEVOUT).whyNot), ps(DEVOUT));
   // G's review P1: two sittings at once through the panels' Study buttons, both ways
