@@ -174,6 +174,18 @@ ok('no config: x1, guard off', r.rateFor(A, 'miner', 'mine', {}) === 1 && craft(
 r = load({ enabled: true, rates: { blacksmith: { craftByTier: 'fast' } }, materialTiers: { IngotSteel: 'two' } });
 ok('a broken craftByTier or tier table: x1, no throw', craft(r, SWORD) === 1);
 
+// ---- beast form: claws train no weapon skill (beastHitRate, #bugs 1556456325079244860) --------------------------------
+ok('gamemode passes inBeastForm, read from private.beast.form', /const inBeastForm = \(a\) => \{ try \{ const b = mp\.get\(a, 'private\.beast'\); return !!\(b && b\.form\);/.test(GAMEMODE) && /require\(SKILLRATES_JS\)\(\{[^}]*inBeastForm[^}]*\}\)/.test(GAMEMODE));
+const beasts = new Set([A >>> 0]);
+const loadBeast = (skillRates) => { delete require.cache[MODULE]; return require(MODULE)({ log: () => {}, cfg: { skillRates }, recordOf, fieldsOf, inBeastForm: (a) => beasts.has(a >>> 0) }); };
+r = loadBeast(R);
+ok('beast: a hit in beast form trains nothing', r.rateFor(A, 'unarmed', 'hit', {}) === 0);
+ok('beast: ...even with skill rates off', loadBeast(Object.assign({}, R, { enabled: false })).rateFor(A, 'unarmed', 'hit', {}) === 0);
+ok('beast: a mortal\'s fist still trains Martial Arts', r.rateFor(B, 'unarmed', 'hit', {}) === 1);
+ok('beast: other work in beast form keeps its rate (a kill, the Skinner x1.5)', r.rateFor(A, 'skinner', 'kill', {}) === 1.5);
+ok('beast: a configured beastHitRate applies', loadBeast(Object.assign({}, R, { beastHitRate: 0.5 })).rateFor(A, 'unarmed', 'hit', {}) === 0.5);
+ok('beast: without the hook a hit keeps its rate', load(R).rateFor(A, 'unarmed', 'hit', {}) === 1);
+
 Date.now = realNow;
 console.log(`${checks - fails}/${checks} checks passed`);
 process.exit(fails ? 1 : 0);

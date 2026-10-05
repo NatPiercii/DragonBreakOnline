@@ -8,6 +8,7 @@
 //
 // rates.<skill> is a number (every activity), or { default, <kind>: n, craftByTier: [t1..t5] }. Kinds are the
 // masterySystem event kinds: craft, mine, chop, skin, kill, hit, hurt, cast, read, lock, prayer, eat, activate, award.
+// A hit landed in beast form is worth beastHitRate (0): claws train no weapon skill.
 // craftByTier rates a craft by the recipe's tier: the recipe's own DBO_Skill_<skill>_T<n> gate when it carries one,
 // otherwise the highest materialTiers entry among its ingredients (editor ids; anything not listed is tier 1: iron,
 // copper, bronze, leather, hide, wood). salvageLoop rates a craft of a product the same character broke down at a
@@ -15,8 +16,9 @@
 'use strict';
 
 module.exports = (api) => {
-  const { log, cfg, recordOf, fieldsOf } = api;
-  const C = Object.assign({ enabled: true, rates: {}, materialTiers: {}, salvageLoop: {} }, cfg.skillRates || {});
+  const { log, cfg, recordOf, fieldsOf, inBeastForm } = api;
+  // beastHitRate: a werewolf's or Vampire Lord's claws arrive as fists (source 0x1f4), and beast claws are not Martial Arts
+  const C = Object.assign({ enabled: true, rates: {}, materialTiers: {}, salvageLoop: {}, beastHitRate: 0 }, cfg.skillRates || {});
   const LOOP = Object.assign({ enabled: false, windowMinutes: 60, rate: 0 }, C.salvageLoop || {});
   const TIERS = {};
   for (const [k, v] of Object.entries(C.materialTiers || {})) if (!k.startsWith('_') && Number(v) >= 1) TIERS[k.toLowerCase()] = Math.min(5, Math.floor(Number(v)));
@@ -58,6 +60,7 @@ module.exports = (api) => {
   };
 
   const rateFor = (actorId, skillId, kind, detail) => {
+    if (kind === 'hit' && typeof inBeastForm === 'function' && inBeastForm(actorId >>> 0)) return num(C.beastHitRate) ?? 0;
     if (!C.enabled) return 1;
     const spec = (C.rates || {})[skillId];
     let rate = 1;
