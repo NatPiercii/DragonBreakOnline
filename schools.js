@@ -758,8 +758,10 @@ module.exports = (api) => {
   // Why `a` cannot study now, or ''
   const studyRefusal = (a, s) => {
     if (!C.enabled || !C.study.enabled) return 'Study is closed.';
+    // A tome read early does not close the shelves before the school's first spell level (Nate, 5 Oct: Choom read the
+    // Tome of Healing at Priest 6 and lost the shelves up to 25): only a known spell AND the school at firstSpellAt do
     const first = firstSpell(a, s && s.primary);
-    if (first) return `You have learned ${first.name}; the shelves have nothing more to teach you. Your schools grow now by casting and in class.`;
+    if (first && (!(s && s.primary) || levelOf(s, s.primary) >= PICK_AT)) return `You have learned ${first.name}; the shelves have nothing more to teach you. Your schools grow now by casting and in class.`;
     const b = studyBudget(s);
     if (b.leftMs <= 0) return `You've done enough studying for the day. Come back in ${inWords(b.resetsIn || windowMs())}.`;
     return '';
@@ -896,7 +898,7 @@ module.exports = (api) => {
     if (S.studying.has(a >>> 0)) return openStudy(a, ref);
     // A first spell waiting to be chosen opens here; with the books closed to them, a mage may change school here
     if (firstCheck(a, 'shelf', ref)) return;
-    if (s.primary && firstSpell(a, s.primary) && C.swap.enabled) return openSchoolMenu(a, ref, 'shelf', studyRefusal(a, s));
+    if (s.primary && firstSpell(a, s.primary) && C.swap.enabled) { const why = studyRefusal(a, s); if (why) return openSchoolMenu(a, ref, 'shelf', why); }
     startStudy(a, ref);
   };
   // One set of books at a time; the new panel opens before the other closes, so the cursor stays (panel handoff)
@@ -1049,8 +1051,9 @@ module.exports = (api) => {
   const firstPriestSpell = (a) => bookOf(a).find((sp) => sp && sp.school === PS.school && sp.book === PS.skill) || null;
   const priestRefusal = (a, s) => {
     if (!C.enabled || !PS.enabled) return 'Study is closed.';
+    // As for the schools: a Restoration tome read before Priest firstSpellAt leaves the shelves open until then (Nate, 5 Oct)
     const first = firstPriestSpell(a);
-    if (first) return `You have learned ${first.name}; the shelves have nothing more to teach you. Priest grows now by casting and in prayer.`;
+    if (first && priestOf(a).level >= PICK_AT) return `You have learned ${first.name}; the shelves have nothing more to teach you. Priest grows now by casting and in prayer.`;
     const b = studyBudget(s, PS, 'priestStudy');
     if (b.leftMs <= 0) return `You've done enough studying for the day. Come back in ${inWords(b.resetsIn || windowMs(PS))}.`;
     return '';

@@ -3,7 +3,8 @@
 // trip alone could not name the cause. This replays that case on a fake clock: the watcher near the Lord for minutes,
 // going still (the crash) after a Gargoyle summon and a drain, dropped by the server a minute later. The drop must log
 // the time near, the last move, the Lord's casts around it and the watcher's other drops; a drop near a Lord with the
-// remote body off is logged too (the control); a menu quit and a drop far away are not logged as near.
+// remote body off is logged too (the control); a menu quit and a drop far away are not logged as near. Since 5 Oct one
+// drop no longer trips anything: it is drop 1 of the 2 that turn that one Lord's body off (wwwatch-harness.js has the rest).
 //   node tests/vlwatch-harness.js   (from server/)
 'use strict';
 const path = require('path');
@@ -36,9 +37,10 @@ const api = {
   display: (a) => `P${a.toString(16)}`, who: (a) => `P${a.toString(16)}`, sendPacket: () => true,
   registerChatCommand: (n, fn) => commands.set(n, fn), onlineActors: () => [...online],
   every: (n, ms, fn) => timers.set(n, fn), findByName: () => 0, redress: () => undefined, isAdmin: () => false, cfg: {},
+  hasUiCap: (a, c) => c === 'beastBody' && a === ONNY,   // Onny is on 0.3.77; FAR is not
 };
 const load = () => { delete require.cache[BEASTFORM]; require(BEASTFORM)(api); };
-for (const k of ['__dboVampireLordRemote', '__dboVlSeen', '__dboVlRemoteSetBy', '__dboVlNear', '__dboVlCasts', '__dboVlDrops']) delete globalThis[k];
+for (const k of ['__dboVampireLordRemote', '__dboVlRemoteSetBy', '__dboBeastBody', '__dboBeastNear', '__dboBeastCasts', '__dboBeastDrops', '__dboBeastDropLog']) delete globalThis[k];
 load();
 
 let fail = 0;
@@ -58,7 +60,7 @@ ok(vlwatch().length === 0, 'a drop with no Vampire Lord near logs no vlwatch lin
 
 // A menu quit is not a crash: nothing is recorded
 globalThis.__dboVlBreakerDrop(FAR, true);
-ok(!(globalThis.__dboVlDrops.get(FAR) || []).length, 'a menu quit is not recorded as a drop');
+ok(!(globalThis.__dboBeastDropLog.get(FAR) || []).length, 'a menu quit is not recorded as a drop');
 
 // The Lord rises; Onny walks about beside it for five minutes
 clock += 3600 * 1000;
@@ -72,36 +74,39 @@ step(1);                                       // the last move is seen on this 
 globalThis.__dboBeastCast(VL, DRAIN);
 step(2);
 globalThis.__dboBeastCast(VL, DRAIN);
-ok(globalThis.__dboVlCasts.get(VL).length === 3, 'the Lord\'s casts are kept', globalThis.__dboVlCasts.get(VL));
+ok(globalThis.__dboBeastCasts.get(VL).length === 3, 'the Lord\'s casts are kept', globalThis.__dboBeastCasts.get(VL));
 globalThis.__dboBeastCast(ONNY, DRAIN);
-ok(!globalThis.__dboVlCasts.has(ONNY), 'a mortal\'s casts are not');
+ok(!globalThis.__dboBeastCasts.has(ONNY), 'a mortal\'s casts are not');
 
 // A minute later the server drops the frozen client
 step(60);
 const tripped = globalThis.__dboVlBreakerDrop(ONNY, false);
 const line = vlwatch()[0] || '';
 console.log('      ' + line);
-ok(tripped === true && globalThis.__dboVampireLordRemote === false, 'the breaker still trips, as before');
-ok(/^vlwatch: P3f4 dropped near P2f6, remote body ON: /.test(line), 'the drop near the Lord is logged, with the body ON', line);
+ok(tripped === false && globalThis.__dboVampireLordRemote === true && !props.get(VL + '|private.vlBodyOff'), 'one drop trips nothing now: the body stays on for everyone and for this Lord');
+ok(/^vlwatch: P3f4 dropped near P2f6, drop 1 of 2 in 600 s: /.test(line), 'the drop near the Lord is logged as drop 1 of 2', line);
 ok(/400 units away/.test(line), 'with the distance', line);
 ok(/near it 38\d s/.test(line), 'how long they had been near it', line);
 ok(/last moved 6[0-3] s before the drop/.test(line), 'when they went still', line);
 ok(/it rose 32[01] s before that/.test(line), 'how long after the Lord rose', line);
 ok(/DLC1ConjureGargoyleLeftHand -\d+, DLC1VampireDrain05Alt \+[0-3], DLC1VampireDrain05Alt \+[1-4]/.test(line), 'and its casts around then, by name and time from the last move', line);
-ok(/their other drops in 24 h: 1 \(1 with no Vampire Lord near\)/.test(line), 'and their other drops, the baseline', line);
+ok(/shown its body 38\d s/.test(line), 'how long they were shown its body', line);
+ok(/their other drops in 24 h: 1 \(1 with no beast near\)/.test(line), 'and their other drops, the baseline', line);
 
-// The control: with the body off, a drop beside the Lord is still logged, and nothing trips
+// The control: a watcher never shown the body (an old client), whose drop beside the Lord is logged and not counted
 place(FAR, [84100, 196000, -2500]);
 step(20, (i) => place(FAR, [84100 + 5 * (i % 2), 196000, -2500]));
 const before = audits.length;
 globalThis.__dboVlBreakerDrop(FAR, false);
 const control = vlwatch()[1] || '';
-ok(/^vlwatch: P3f5 dropped near P2f6, remote body off: /.test(control), 'a drop near the Lord with the body off is logged as the control', control);
-ok(audits.length === before, 'and trips nothing');
+ok(/^vlwatch: P3f5 dropped near P2f6, not counted: .*body not shown to them \(old client\)/.test(control), 'a drop near the Lord by a watcher not shown the body is logged as the control', control);
+ok(audits.length === before && (globalThis.__dboBeastDrops.get(VL) || []).length === 1, 'and is not counted');
 
 // A hot reload keeps what was watched
 load();
-ok(globalThis.__dboVlDrops.get(ONNY).length === 2 && globalThis.__dboVlNear.has(FAR), 'a gamemode reload keeps the drops and the watch');
+step(1);
+ok(globalThis.__dboBeastDropLog.get(ONNY).length === 2 && (globalThis.__dboBeastDrops.get(VL) || []).length === 1 &&
+  [...globalThis.__dboBeastNear.keys()].some((k) => k.startsWith(`${FAR}:`)), 'a gamemode reload keeps the drops, the count and the watch');
 
 // Far away is not near
 place(FAR, [30000, 30000, 0]);

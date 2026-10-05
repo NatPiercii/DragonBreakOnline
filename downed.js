@@ -892,6 +892,36 @@ module.exports = (api) => {
   // The revive potion (alchemy) calls this when it is used on a fallen player
   globalThis.__dboReviveWith = (target, by, how) => revive(Number(target) >>> 0, Number(by) >>> 0, how);
   globalThis.__dboIsDowned = (a) => S.downed.has(Number(a) >>> 0) && isDead(Number(a) >>> 0);
+  // A player's companion (a summon, a raised corpse) fights another player only under the PvP rules (Nate, 5 Oct: "yes in
+  // pvp"). The fork's companionSystem asks this before every order, defence and blow on a player or on what fights for one,
+  // after its own part: the two players struck each other (or each other's companion) within 60 s, the target is online
+  // and standing. This is the gameplay's part; anything it cannot read refuses.
+  globalThis.__dboCompanionMayFight = (ownerId, targetId) => {
+    try {
+      const o = Number(ownerId) >>> 0, t = Number(targetId) >>> 0;
+      if (!o || !t || o === t || !isPlayer(o) || !isPlayer(t)) return false;
+      // gamemode-config pvp.companions: false keeps every companion out of PvP
+      if ((cfg.pvp || {}).companions === false) return false;
+      // One side or one party: friendly fire is for the players' own blows, never a companion's
+      if (friendly(o, t)) return false;
+      // A downed player is never attacked; neither side fights while down or kneeling after a revive
+      if (S.downed.has(t) || S.downed.has(o) || isDead(t) || isDead(o)) return false;
+      if (S.recovering instanceof Map && (S.recovering.has(t) || S.recovering.has(o))) return false;
+      for (const a of [o, t]) {
+        // A jail sentence still to serve (jail.js), bound, carried or held (captureSystem, rope.js)
+        let s = null; try { s = mp.get(a, 'private.dboSentence'); } catch (e) { s = null; }
+        if (s && Number(s.totalMs) > 0) return false;
+        let r = null; try { r = mp.get(a, 'private.restrained'); } catch (e) { r = null; }
+        if (r && (r.boundHands || r.carried || r.captorActorId)) return false;
+      }
+      // A logged-out body (gamemode.js), an ethereal beast form (beastform.js)
+      if (typeof globalThis.__dboOfflineBodyProtected === 'function' && globalThis.__dboOfflineBodyProtected(t)) return false;
+      if (typeof globalThis.__dboBeastEthereal === 'function' && globalThis.__dboBeastEthereal(t)) return false;
+      // Safe ground: no PvP-free area exists in the gameplay yet; a module that adds one provides this
+      if (typeof globalThis.__dboPvpSafeGround === 'function' && globalThis.__dboPvpSafeGround(o, t)) return false;
+      return true;
+    } catch (e) { return false; }
+  };
   // Who brought a downed player down (robbery.js: only the robber who did it takes the goods), or 0
   globalThis.__dboDownedBy = (a) => { const d = S.downed.get(Number(a) >>> 0); return d && isDead(Number(a) >>> 0) ? Number(d.by) >>> 0 : 0; };
   // alchemy.js asks this before an ordinary brew: the Draught for a known recipe at tier, a hint below it, else null

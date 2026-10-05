@@ -18,7 +18,8 @@ const ok = (label, cond, got) => { checks++; if (!cond) { fails++; console.log(`
 const R = CONFIG.skillRates || {};
 const NOTES = JSON.parse(fs.readFileSync(path.join(SERVER, 'patch-notes.json'), 'utf8'));
 ok('config: skillRates is on', R.enabled === true, R.enabled);
-ok('config: miner x2, skinner x1.5, priest x1.25', R.rates.miner === 2 && R.rates.skinner === 1.5 && R.rates.priest === 1.25, R.rates);
+ok('config: miner x2, skinner x1.5 (a kill x0, Nate 5 Oct), priest x1.25', R.rates.miner === 2 && R.rates.skinner.default === 1.5 && R.rates.skinner.kill === 0 && R.rates.priest === 1.25, R.rates);
+ok('config: beast form trains nothing (beastRate 0)', R.beastRate === 0, R.beastRate);
 ok('config: blacksmith x2.5 at tier 1 (iron), x1 above', R.rates.blacksmith.default === 1 && JSON.stringify(R.rates.blacksmith.craftByTier) === '[2.5,1,1,1,1]', R.rates.blacksmith);
 ok('config: the salvage loop guard is on, x0 for 60 min', R.salvageLoop && R.salvageLoop.enabled === true && R.salvageLoop.rate === 0 && R.salvageLoop.windowMinutes === 60, R.salvageLoop);
 const NOTE = NOTES.find((n) => n.title === 'Faster Mining, Smithing, Skinning and Priest');
@@ -93,7 +94,7 @@ ok('shipped: smelting orichalcum ore x1 (Miner tier 3)', craft(r, SMELT_ORICHALC
 ok('shipped: a skinned wolf x1.5', r.rateFor(A, 'skinner', 'skin', { refrId: 2, value: 10 }) === 1.5);
 ok('shipped: a skill with no entry x1', r.rateFor(A, 'blade', 'hit', { targetId: 3 }) === 1);
 ok('shipped: the hook is published', globalThis.__dboSkillRate === r.rateFor && globalThis.__dboSkillRateBrokeDown === r.noteBreakdown);
-ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner x1.5, priest x1.25, blacksmith .*; 28 material tiers; salvage loop x0 for 60 min/.test(logs[logs.length - 1]), logs[logs.length - 1]);
+ok('shipped: one load line with the rates and the guard', /skillRates on: miner x2, skinner \{"default":1\.5,"kill":0\}, priest x1\.25, blacksmith .*; 28 material tiers; salvage loop x0 for 60 min; beast form x0/.test(logs[logs.length - 1]), logs[logs.length - 1]);
 r.noteBreakdown(A, ITEM.IronDagger);
 ok('shipped: a breakdown then the same craft is worth nothing', craft(r, DAGGER) === 0);
 globalThis.__dboSkillRates = undefined;
@@ -173,6 +174,22 @@ r = load(undefined);
 ok('no config: x1, guard off', r.rateFor(A, 'miner', 'mine', {}) === 1 && craft(r, DAGGER) === 1);
 r = load({ enabled: true, rates: { blacksmith: { craftByTier: 'fast' } }, materialTiers: { IngotSteel: 'two' } });
 ok('a broken craftByTier or tier table: x1, no throw', craft(r, SWORD) === 1);
+
+// ---- beast form trains no skill (beastRate, Nate 5 Oct; #bugs 1556456325079244860) --------------------------------
+ok('gamemode passes inBeastForm, read from private.beast.form', /const inBeastForm = \(a\) => \{ try \{ const b = mp\.get\(a, 'private\.beast'\); return !!\(b && b\.form\);/.test(GAMEMODE) && /require\(SKILLRATES_JS\)\(\{[^}]*inBeastForm[^}]*\}\)/.test(GAMEMODE));
+ok('gamemode: a beast\'s cast trains no school (schools.js is not asked)', /beastCaster = !!\(b && b\.form\);[^\n]*\n\s*if \(verdict !== false && !beastCaster && globalThis\.__dboSchoolsCast\)/.test(GAMEMODE));
+const beasts = new Set([A >>> 0]);
+const loadBeast = (skillRates) => { delete require.cache[MODULE]; return require(MODULE)({ log: () => {}, cfg: { skillRates }, recordOf, fieldsOf, inBeastForm: (a) => beasts.has(a >>> 0) }); };
+r = loadBeast(R);
+ok('beast: a hit in beast form trains nothing', r.rateFor(A, 'unarmed', 'hit', {}) === 0);
+ok('beast: ...even with skill rates off', loadBeast(Object.assign({}, R, { enabled: false })).rateFor(A, 'unarmed', 'hit', {}) === 0);
+ok('beast: a mortal\'s fist still trains Martial Arts', r.rateFor(B, 'unarmed', 'hit', {}) === 1);
+ok('beast: every other kind trains nothing either (hurt, kill, cast, skin, prayer)', ['hurt', 'kill', 'cast', 'skin', 'prayer', 'mine', 'craft'].every((k) => r.rateFor(A, 'defense', k, { recipeId: DAGGER }) === 0));
+ok('a kill credits no Skinner (x0), skinning keeps x1.5', r.rateFor(B, 'skinner', 'kill', {}) === 0 && r.rateFor(B, 'skinner', 'skin', {}) === 1.5);
+ok('beast: a staff award still counts', r.rateFor(A, 'unarmed', 'award', {}) === 1);
+ok('beast: the mortal\'s own rates are kept (Skinner skin x1.5)', r.rateFor(B, 'skinner', 'skin', {}) === 1.5);
+ok('beast: a configured beastRate applies', loadBeast(Object.assign({}, R, { beastRate: 0.5 })).rateFor(A, 'unarmed', 'hit', {}) === 0.5);
+ok('beast: without the hook a hit keeps its rate', load(R).rateFor(A, 'unarmed', 'hit', {}) === 1);
 
 Date.now = realNow;
 console.log(`${checks - fails}/${checks} checks passed`);

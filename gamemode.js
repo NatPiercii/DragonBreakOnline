@@ -538,6 +538,9 @@ const watchPlayers = () => {
     const now = { name: nameOf(a), tier: tierOf(a), roles: rolesOf(a).sort().join(',') };
     const prev = seen.get(p);
     try { if ((mp.get(a, ADMIN_PROP) === true) !== (now.tier !== null)) mp.set(a, ADMIN_PROP, now.tier !== null); } catch (e) { /* ignore */ }
+    // A beast form's name (beastform.js) is not a rename; seen keeps the real one until the revert
+    let beastNamed = false; try { const b = mp.get(a, 'private.beast'); beastNamed = !!(b && b.form); } catch (e) { /* not ready */ }
+    if (beastNamed) { if (!prev) continue; now.name = prev.name; }
     if (!prev) { seen.set(p, now); continue; }
     if (prev.name !== now.name && now.name !== 'Stranger') audit(`NAME profile ${p} renamed "${prev.name}" -> "${now.name}"`);
     if (prev.tier !== now.tier) audit(`PERM ${who(a)} admin tier ${prev.tier || 'none'} -> ${now.tier || 'none'}`);
@@ -1987,6 +1990,7 @@ const onCharacterReady = (userId, a) => {
     try { mp.set(a, ADMIN_PROP, isAdmin(a)); } catch (e) { /* ignore */ }
     if (cfg.welcome) system(a, cfg.welcome);
     audit(`JOIN ${who(a)}${tierOf(a) ? ' as ' + tierOf(a) : ''}`);
+    startLoginGrace(a);
     sendDriftConfig(a);
     sendConsoleRights(a, true);
     if (creationPending(a)) startCreationInHub(a);
@@ -3459,6 +3463,7 @@ onUi('reading', (a, args) => {
   const reads = readsOf(a);
   const results = [];
   const gained = []; // names of the items handed over, announced like the game's own "added" notices
+  const capNotes = []; // a day's find caps reached, told once a day
   if (win) {
     const tier = ses.tier;
     // 'read', not 'activate': a finished reading round is worth 1.0 units against 0.5 for opening a
@@ -3496,6 +3501,16 @@ onUi('reading', (a, args) => {
       const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
+    // The day's caps are silent rolls, so a reader who reached one is told once that day (#bugs 1556458497909194802)
+    const dayCount = (k) => { try { const v = mp.get(a, k); return v && v.day === today ? Number(v.n) || 0 : 0; } catch (e) { return 0; } };
+    let told = null; try { told = mp.get(a, 'private.scholarCapTold'); } catch (e) { told = null; }
+    const toldKinds = told && told.day === today && Array.isArray(told.kinds) ? told.kinds : [];
+    const reached = [['copies', 'private.scholarCopies', READ.bookDailyCap, 'books copied'], ['scrolls', 'private.scholarScrolls', READ.scrollDailyCap, 'scrolls'], ['tomes', 'private.scholarTomes', READ.tomeDailyCap, 'spell tomes']]
+      .filter(([kind, k, cap]) => !toldKinds.includes(kind) && dayCount(k) >= (Number(cap) || 0));
+    if (reached.length) {
+      try { mp.set(a, 'private.scholarCapTold', { day: today, kinds: toldKinds.concat(reached.map(([kind]) => kind)) }); } catch (e) { /* told again next read */ }
+      capNotes.push(`You have found all the ${reached.map((x) => x[3]).join(' and ')} you can today; more wait for the new day (midnight UTC). Reading still trains Scholar.`);
+    }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
     say('win');
     audit(`READ ${who(a)} read ${ses.title} (tier ${tier + 1}) ${results.length ? '-> ' + results.join('; ') : '-> nothing but the knowledge'}`);
@@ -3506,12 +3521,13 @@ onUi('reading', (a, args) => {
   // Keep the cooldown table small: drop entries already expired.
   for (const k of Object.keys(reads)) if (Number(reads[k]) < Date.now()) delete reads[k];
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
-  const text = win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.';
+  const text = (win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.') + (capNotes.length ? ' ' + capNotes.join(' ') : '');
   openWidget(a, readWidget(ses, { result: text, resultKind: win ? 'win' : 'lose', endsInMs: 0, answer: win ? undefined : ses.original.join(' ') }), false);
   // Items given by the server raise no "added" notice of the game's own, and the text above goes when the window closes
   // (#bugs 1553205828058615839): each find gets a notice and a chat line.
   for (const name of gained) { try { notify(a, `${name} added`); } catch (e) { /* offline */ } }
   if (gained.length) personal(a, `From your reading: ${gained.join(', ')}.`);
+  for (const line of capNotes) personal(a, line);
   readSessions.delete(a);
 });
 log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim, ${READ_LINES_CYRODIIL.length} Cyrodiil and ${READ_LINES_TAMRIEL.length} Tamriel lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
@@ -3813,6 +3829,19 @@ const refuseOfflineBody = (agg, tgt) => {
   offlineSaid.set(agg, Date.now());
   personal(agg, 'They have stepped out of the world. Their body cannot be harmed.');
   log(`offline body: ${display(agg)} -> ${display(tgt)} refused (logged out)`);
+};
+// A player just in cannot be harmed by creatures for loginGrace.seconds after the JOIN (Nate, 5 Oct: wolves downed one
+// 12 s after it while the world was still loading in); the player's own attack or cast ends it at once. Players still can.
+const LOGIN_GRACE = Object.assign({ seconds: 20 }, cfg.loginGrace || {});
+const loginGrace = globalThis.__dboLoginGrace instanceof Map ? globalThis.__dboLoginGrace : (globalThis.__dboLoginGrace = new Map());
+const startLoginGrace = (a) => { const s = Number(LOGIN_GRACE.seconds) || 0; if (s > 0) loginGrace.set(a >>> 0, Date.now() + s * 1000); };
+const endLoginGrace = (a) => { if (loginGrace.delete(a >>> 0)) log(`login grace: ${display(a)} ended it early`); };
+const inLoginGrace = (a) => {
+  const until = loginGrace.get(a >>> 0);
+  if (!until) return false;
+  if (Date.now() < until) return true;
+  loginGrace.delete(a >>> 0);
+  return false;
 };
 registerChatCommand('unstuck', (a) => {
   const admin = isAdmin(a);
@@ -4584,7 +4613,10 @@ const castHook = (casterId, spellId, ...rest) => {
   let verdict;
   if (prev) { try { verdict = prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
   // A cast the chain let through counts toward its school of magic (schools.js)
-  if (verdict !== false && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
+  if (verdict !== false && loginGrace.has(Number(casterId) >>> 0)) endLoginGrace(Number(casterId) >>> 0);
+  // A beast's casts train no school (Nate, 5 Oct: beast form trains no skill)
+  let beastCaster = false; try { const b = mp.get(Number(casterId) >>> 0, 'private.beast'); beastCaster = !!(b && b.form); } catch (e) { /* not an actor */ }
+  if (verdict !== false && !beastCaster && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
   // A Flesh spell's armour counts on the server while it lasts (fleshCast, below; called at the cast, defined by then)
   if (verdict !== false && typeof globalThis.__dboFleshCast === 'function') { try { globalThis.__dboFleshCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('flesh cast failed', e.message); } }
   return verdict;
@@ -5479,6 +5511,12 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   // 0b. A logged-out player's body cannot be harmed, by players or creatures, unless they left mid-fight
   if (agg !== tgt && offlineBodyProtected(tgt)) { refuseOfflineBody(agg, tgt); return false; }
 
+  // 0c. Just logged in: no creature harms the player yet; their own attack ends the grace
+  if (agg !== tgt) {
+    if (profileOf(agg) >= 0) { if (loginGrace.has(agg)) endLoginGrace(agg); }
+    else if (profileOf(tgt) >= 0 && inLoginGrace(tgt)) return false;
+  }
+
   // 1. Refuse attack if aggressor has bound hands or is being carried, or while a rune or scroll paralysis holds them:
   // those hold only on the victim's own client, so a modified one kept swinging (combat review, 2026-09-29)
   try {
@@ -5798,7 +5836,8 @@ try {
 try {
   const SKILLRATES_JS = path.resolve('skillrates.js');
   delete require.cache[SKILLRATES_JS];
-  require(SKILLRATES_JS)({ log, cfg, recordOf, fieldsOf });
+  const inBeastForm = (a) => { try { const b = mp.get(a, 'private.beast'); return !!(b && b.form); } catch (e) { return false; } };
+  require(SKILLRATES_JS)({ log, cfg, recordOf, fieldsOf, inBeastForm });
 } catch (e) { log('skillrates.js failed to load:', e.stack || e.message); globalThis.__dboSkillRate = null; globalThis.__dboSkillRateBrokeDown = null; }
 // ---- breaking gear and books down into materials at the trade's station (server\salvage.js, salvage.json, config "salvage") ----
 try {
@@ -6116,7 +6155,7 @@ try {
 try {
   const BEASTFORM_JS = path.resolve('beastform.js');
   delete require.cache[BEASTFORM_JS];
-  require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors, cfg, isAdmin });
+  require(BEASTFORM_JS)({ mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, onlineActors, cfg, isAdmin, hasUiCap });
 } catch (e) { log('beastform.js failed to load:', e.stack || e.message); for (const k of ['__dboBeastCast', '__dboBeastRevert', '__dboBeastOriginalRace', '__dboBeastTransform', '__dboBeastRequest', '__dboBeastAdmin', '__dboBeastHolds']) globalThis[k] = null; }
 
 // ---- the Great Hunt: werewolf ranks from feeding, hunting and changing (server\greathunt.js) ----------------------

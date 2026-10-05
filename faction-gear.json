@@ -2310,6 +2310,17 @@
     "2e0e:Cloaks&Capes.esp"
    ]
   },
+  "2df7:Cloaks&Capes.esp": {
+   "name": "Windhelm Guard Cloak",
+   "set": "Windhelm Guard",
+   "factions": [
+    "hold-windhelm"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "2e0f:Cloaks&Capes.esp"
+   ]
+  },
   "2150d:Skyrim.esm": {
    "name": "Whiterun Guard's Armor",
    "set": "Whiterun Guard",

@@ -1,5 +1,55 @@
 [
   {
+    "title": "Fixes",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Werewolf and Vampire Lord forms train no skills: claws are not fists, and nothing a beast does counts toward a skill or a school of magic.",
+          "Reading tells you when you have found all the books, scrolls or spell tomes you can for the day (6 copies, 6 scrolls and 2 tomes); finds come back at midnight UTC, and reading still trains Scholar.",
+          "Killing animals no longer trains Skinner. Skinning and tanning still do.",
+          "For 20 seconds after you log in, creatures cannot hurt you while the world loads in around you. Attacking or casting ends it early.",
+          "When the beast takes a werewolf without asking (hunger or the full moon), you are warned 12 seconds before the change.",
+          "Other players see a werewolf's beast body again, and anyone in werewolf or Vampire Lord form goes only by Werewolf or Vampire Lord, never their own name.",
+          "The Bloodscale Bone Helmet no longer drops as loot: for now it only fits Argonians and Khajiit.",
+          "Enchantments a few characters learned at the arcane enchanter before the 4 October update come back at their next login."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "College and Synod robes",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "College robes (Winterhold and Whispers), the Archmage's robes and the Synod's robes and hood no longer turn up in dungeons, on bodies or in camp chests. They are given by the colleges and the Synod in roleplay. Robes you already have are yours to keep.",
+          "Ordinary mage robes still drop as before."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Study after an early tome",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Reading a spell tome early no longer closes the study shelves. Priest Studies and Study Magic keep teaching until the skill reaches 25, even if you already learned a spell from a tome; from 25 your skill grows by casting, in prayer and in class as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Less coin from fighting",
     "date": "2026-10-04",
     "version": "Server update",

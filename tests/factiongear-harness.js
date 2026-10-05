@@ -68,6 +68,23 @@ check("the Legion Smith makes it", craft(A.LEG_SMITH, IMP_HELM) === true);
 check('so does the General (leader)', craft(A.LEG_BOSS, IMP_HELM) === true);
 check('Thalmor Robes are loom work: the Thalmor tailor makes them', gear[descs.get(THALMOR)].role === 'tailor' && craft(A.TH_TAILOR, THALMOR) === true);
 check('...the Thalmor smith does not, and is sent to the loom', craft(A.TH_SMITH, THALMOR) === false && /leave the loom/.test(lastTo(A.TH_SMITH)), lastTo(A.TH_SMITH));
+// The Thalmor loom sets (Nate, 5 Oct: "Thalmor gear should only be crafted by the Thalmor player faction"; the PC pass
+// strips the recipes' quest and High Elf conditions, so this gate is the whole rule)
+const thalmor = Object.entries(gear).filter(([, v]) => v.set === 'Thalmor');
+check('the five Thalmor pieces belong to the Thalmor faction alone, loom work, one MoreCraftableEquipment recipe each',
+  thalmor.length === 5 && thalmor.every(([, v]) => JSON.stringify(v.factions) === '["thalmor"]' && v.role === 'tailor') &&
+  JSON.stringify(thalmor.map(([, v]) => v.recipes[0]).sort()) === JSON.stringify(['9ca', '9cb', '9cc', '9cd', '9ce'].map((r) => `${r}:MoreCraftableEquipment.esp`)), thalmor.map(([k, v]) => [k, v.name, v.recipes]));
+check('the faction is guild-defs.json\'s "thalmor", with a tailor rank (Robe-Maker) and a leader', (() => { const f = defs.find((x) => x.id === 'thalmor'); return !!f && f.name === 'Thalmor' && f.ranks.some((r) => r.role === 'tailor' && r.title === 'Robe-Maker') && f.ranks.some((r) => r.role === 'leader'); })());
+ranks[20] = [{ id: 'thalmor', role: 'member' }]; ranks[21] = [{ id: 'thalmor', role: 'leader' }];
+fresh();
+for (const [desc, v] of thalmor) {
+  const id = idOf(desc);
+  fresh();
+  const out = craft(A.OUT, id) === false && lastTo(A.OUT) === `${v.name} is made only by the Thalmor's tailors. Your materials return when you leave the loom.`;
+  fresh();
+  check(`${v.name}: an outsider is refused and told only the Thalmor's tailors make it; the Robe-Maker and the First Emissary make it; a Thalmor Soldier is told the rank`,
+    out && craft(A.TH_TAILOR, id) === true && craft(21, id) === true && craft(20, id) === false && /You are one of them, but it takes their Tailor rank or their leader/.test(lastTo(20)), [lastTo(A.OUT), lastTo(20)]);
+}
 check("Orcish Armor: any stronghold's smith", craft(A.ORC_SMITH, ORC) === true);
 fresh();
 check("...no one else, and the line names the strongholds", craft(A.OUT, ORC) === false && /made only by the strongholds' smiths/.test(lastTo(A.OUT)), lastTo(A.OUT));
