@@ -1,0 +1,212 @@
+# Written by faction_recipes.py tsv from faction-gear.json - edit that, never this file.
+# origin plugin	local form id	item	set	factions	role
+BSAssets.esm	601A87	Orcish Longsword	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+BSAssets.esm	601A92	Imperial Ebony Sword	Imperial Legion	imperial-legion	blacksmith
+BSHeartland.esm	0CC28D	Blades Sword	Blades	blades	blacksmith
+Cloaks&Capes.esp	002E08	Pale Guard Cloak	Pale Guard	hold-dawnstar	tailor
+Cloaks&Capes.esp	002E09	Falkreath Guard Cloak	Falkreath Guard	hold-falkreath	tailor
+Cloaks&Capes.esp	002E0A	Hjaalmarch Guard Cloak	Hjaalmarch Guard	hold-morthal	tailor
+Cloaks&Capes.esp	002E0B	Markarth Guard Cloak	Markarth Guard	hold-markarth	tailor
+Cloaks&Capes.esp	002E0C	Riften Guard Cloak	Riften Guard	hold-riften	tailor
+Cloaks&Capes.esp	002E0D	Solitude Guard Cloak	Solitude Guard	hold-solitude	tailor
+Cloaks&Capes.esp	002E0E	Whiterun Guard Cloak	Whiterun Guard	hold-whiterun	tailor
+Cloaks&Capes.esp	002E0F	Stormcloak Cloak	Stormcloaks	stormcloaks	tailor
+Cloaks&Capes.esp	002E10	Winterhold Guard Cloak	Winterhold Guard	hold-winterhold	tailor
+Cloaks&Capes.esp	0055AC	Dawngaurd Cloak	Dawnguard	dawnguard	tailor
+Cloaks&Capes.esp	0055AD	College of Winterhold Cloak	College of Winterhold	college-of-winterhold	tailor
+Cloaks&Capes.esp	0055AE	Dark Brotherhood Cloak	Dark Brotherhood	dark-brotherhood	tailor
+DIS_Heavy_Legion.esp	0053C7	Imperial Chainmail	Imperial Legion	imperial-legion	blacksmith
+DIS_Heavy_Legion.esp	005939	Imperial Bracer	Imperial Legion	imperial-legion	blacksmith
+DIS_Heavy_Legion.esp	005941	Imperial Helmet Medium	Imperial Legion	imperial-legion	blacksmith
+DragonBreak.esp	021721	Imperial Bow	Imperial Legion	imperial-legion	blacksmith
+DragonBreak.esp	0272C2	Imperial Sword	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	004F25	Akaviri Samurai Boots	Blades	blades	blacksmith
+Hothtrooper44_ArmorCompilation.esp	004F26	Akaviri Samurai Armor	Blades	blades	blacksmith
+Hothtrooper44_ArmorCompilation.esp	004F27	Akaviri Samurai Gauntlets	Blades	blades	blacksmith
+Hothtrooper44_ArmorCompilation.esp	004F28	Akaviri Samurai Helmet	Blades	blades	blacksmith
+Hothtrooper44_ArmorCompilation.esp	005A1C	Heroic Imperial Boots	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	005A1D	Heroic Imperial Armor	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	005A1E	Heroic Imperial Bracers	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	00AB72	Heroic Stormcloak Helmet	Stormcloaks	stormcloaks	blacksmith
+Hothtrooper44_ArmorCompilation.esp	00AB73	Heroic Stormcloak Gauntlets	Stormcloaks	stormcloaks	blacksmith
+Hothtrooper44_ArmorCompilation.esp	00AB74	Heroic Stormcloak Armor	Stormcloaks	stormcloaks	blacksmith
+Hothtrooper44_ArmorCompilation.esp	00AB75	Heroic Stormcloak Boots	Stormcloaks	stormcloaks	blacksmith
+Hothtrooper44_ArmorCompilation.esp	021476	Imperial Buckler	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	021478	Orcish Buckler	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Hothtrooper44_ArmorCompilation.esp	0214A8	Light Skyforge Shield	Companions	companions	blacksmith
+Hothtrooper44_ArmorCompilation.esp	0214A9	Heavy Skyforge Shield	Companions	companions	blacksmith
+Hothtrooper44_ArmorCompilation.esp	0214AA	Wolf Shield	Companions	companions	blacksmith
+Hothtrooper44_ArmorCompilation.esp	021F7F	Orcish Masked Helmet	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Hothtrooper44_ArmorCompilation.esp	02854B	Mantle of the Silver Hand	Silver Hand	silver-hand	blacksmith
+Hothtrooper44_ArmorCompilation.esp	02854C	Mantle of the Silver Hand	Silver Hand	silver-hand	blacksmith
+Hothtrooper44_ArmorCompilation.esp	06AA09	Imperial Knight Cape	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	06AA0A	Imperial Knight Cuirass	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	06AA0B	Imperial Knight Greaves	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	06AA0C	Imperial Knight Helmet	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	06AA0D	Imperial Knight Vambraces	Imperial Legion	imperial-legion	blacksmith
+Hothtrooper44_ArmorCompilation.esp	08C651	Heroic Imperial Helmet	Imperial Legion	imperial-legion	blacksmith
+Immersive Weapons.esp	002857	Orcish Crippler Spear	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Immersive Weapons.esp	009406	Orcish Quarterstaff	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Immersive Weapons.esp	00B9D9	Silver Hawk Bow	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	020D64	Orcish Saber	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Immersive Weapons.esp	0216C2	Antique Honed Silver Sword	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	0216C3	Antique Silver Sword	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	025D24	Dragonguard Katana	Blades	blades	blacksmith
+Immersive Weapons.esp	0478E4	Nightingale Blade	Nightingales	cult-nocturnal	blacksmith
+Immersive Weapons.esp	0478E7	Nightingale Bow	Nightingales	cult-nocturnal	blacksmith
+Immersive Weapons.esp	C74704	Honed Silver Longsword	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74705	Orcish Longsword	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Immersive Weapons.esp	C7470A	Honed Silver Battle Staff	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74714	Honed Silver War Axe	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74715	Honed Silver Battleaxe	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C7471B	Honed Silver Scimitar	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C7472D	Imperial Ebony Sword	Imperial Legion	imperial-legion	blacksmith
+Immersive Weapons.esp	C74734	Silver Longsword	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74735	Silver Battle Staff	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74736	Silver War Axe	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74737	Silver Battleaxe	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74738	Silver Scimitar	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C74739	Silver Nodachi	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C7473A	Silver Katana	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C7473B	Silver Wakizashi	Silver Hand	silver-hand	blacksmith
+Immersive Weapons.esp	C7473C	Silver Tanto	Silver Hand	silver-hand	blacksmith
+MoreCraftableEquipment.esp	00084F	Blades Boots	Blades	blades	blacksmith
+MoreCraftableEquipment.esp	000850	Blades Armor	Blades	blades	blacksmith
+MoreCraftableEquipment.esp	000851	Blades Gauntlets	Blades	blades	blacksmith
+MoreCraftableEquipment.esp	000852	Blades Helmet	Blades	blades	blacksmith
+MoreCraftableEquipment.esp	000853	Blades Shield	Blades	blades	blacksmith
+MoreCraftableEquipment.esp	000855	Wolf Boots	Companions	companions	blacksmith
+MoreCraftableEquipment.esp	000856	Wolf Armor	Companions	companions	blacksmith
+MoreCraftableEquipment.esp	000857	Wolf Gauntlets	Companions	companions	blacksmith
+MoreCraftableEquipment.esp	000858	Wolf Helmet	Companions	companions	blacksmith
+MoreCraftableEquipment.esp	000859	Shrouded Boots	Dark Brotherhood	dark-brotherhood	blacksmith
+MoreCraftableEquipment.esp	00085A	Shrouded Armor	Dark Brotherhood	dark-brotherhood	blacksmith
+MoreCraftableEquipment.esp	00085B	Shrouded Short-Sleeved Armor	Dark Brotherhood	dark-brotherhood	blacksmith
+MoreCraftableEquipment.esp	00085C	Shrouded Gloves	Dark Brotherhood	dark-brotherhood	blacksmith
+MoreCraftableEquipment.esp	00085D	Shrouded Cowl	Dark Brotherhood	dark-brotherhood	blacksmith
+MoreCraftableEquipment.esp	00085E	Shrouded Masked Cowl	Dark Brotherhood	dark-brotherhood	blacksmith
+MoreCraftableEquipment.esp	00085F	Dawnguard Heavy Boots	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000860	Dawnguard Boots	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000861	Dawnguard Heavy Armor	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000862	Dawnguard Heavy Armor	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000863	Dawnguard Armor	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000864	Dawnguard Armor	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000865	Dawnguard Armor	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000866	Dawnguard Heavy Gauntlets	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000867	Dawnguard Gauntlets	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000868	Dawnguard Full Helmet	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	000869	Dawnguard Shield	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	00086A	Vampire Armor	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	blacksmith
+MoreCraftableEquipment.esp	00086B	Vampire Armor	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	blacksmith
+MoreCraftableEquipment.esp	00086C	Vampire Armor	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	blacksmith
+MoreCraftableEquipment.esp	00086D	Vampire Royal Armor	Vampire clans (royal)	clan-volkihar	blacksmith
+MoreCraftableEquipment.esp	00086E	Vampire Boots	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	blacksmith
+MoreCraftableEquipment.esp	00086F	Vampire Gauntlets	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	blacksmith
+MoreCraftableEquipment.esp	0008B1	Falkreath Guard's Armor	Falkreath Guard	hold-falkreath	blacksmith
+MoreCraftableEquipment.esp	0008B2	Hjaalmarch Guard's Armor	Hjaalmarch Guard	hold-morthal	blacksmith
+MoreCraftableEquipment.esp	0008B3	Markarth Guard's Armor	Markarth Guard	hold-markarth	blacksmith
+MoreCraftableEquipment.esp	0008B4	Riften Guard's Armor	Riften Guard	hold-riften	blacksmith
+MoreCraftableEquipment.esp	0008B5	Solitude Guard's Armor	Solitude Guard	hold-solitude	blacksmith
+MoreCraftableEquipment.esp	0008B6	Pale Guard's Armor	Pale Guard	hold-dawnstar	blacksmith
+MoreCraftableEquipment.esp	0008B7	Whiterun Guard's Armor	Whiterun Guard	hold-whiterun	blacksmith
+MoreCraftableEquipment.esp	0008B8	Winterhold Guard's Armor	Winterhold Guard	hold-winterhold	blacksmith
+MoreCraftableEquipment.esp	0008B9	Falkreath Guard's Helmet	Falkreath Guard	hold-falkreath	blacksmith
+MoreCraftableEquipment.esp	0008BA	Solitude Guard's Helmet	Solitude Guard	hold-solitude	blacksmith
+MoreCraftableEquipment.esp	0008BB	Hjaalmarch Guard's Helmet	Hjaalmarch Guard	hold-morthal	blacksmith
+MoreCraftableEquipment.esp	0008BC	Pale Guard's Helmet	Pale Guard	hold-dawnstar	blacksmith
+MoreCraftableEquipment.esp	0008BD	Markarth Guard's Helmet	Markarth Guard	hold-markarth	blacksmith
+MoreCraftableEquipment.esp	0008BE	Riften Guard's Helmet	Riften Guard	hold-riften	blacksmith
+MoreCraftableEquipment.esp	0008BF	Whiterun Guard's Helmet	Whiterun Guard	hold-whiterun	blacksmith
+MoreCraftableEquipment.esp	0008C0	Winterhold Guard's Helmet	Winterhold Guard	hold-winterhold	blacksmith
+MoreCraftableEquipment.esp	0008C1	Falkreath Guard's Shield	Falkreath Guard	hold-falkreath	blacksmith
+MoreCraftableEquipment.esp	0008C2	Hjaalmarch Guard's Shield	Hjaalmarch Guard	hold-morthal	blacksmith
+MoreCraftableEquipment.esp	0008C3	Markarth Guard's Shield	Markarth Guard	hold-markarth	blacksmith
+MoreCraftableEquipment.esp	0008C4	Pale Guard's Shield	Pale Guard	hold-dawnstar	blacksmith
+MoreCraftableEquipment.esp	0008C5	Riften Guard's Shield	Riften Guard	hold-riften	blacksmith
+MoreCraftableEquipment.esp	0008C6	Solitude Guard's Shield	Solitude Guard	hold-solitude	blacksmith
+MoreCraftableEquipment.esp	0008C7	Whiterun Guard's Shield	Whiterun Guard	hold-whiterun	blacksmith
+MoreCraftableEquipment.esp	0008C8	Winterhold Guard's Shield	Winterhold Guard	hold-winterhold	blacksmith
+MoreCraftableEquipment.esp	0008C9	Imperial Chainmail	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008CA	Imperial Legate Helmet	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008CB	Imperial Captain's Helmet	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008D0	Penitus Oculatus Boots	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008D1	Penitus Oculatus Armor	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008D2	Penitus Oculatus Bracers	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008D3	Penitus Oculatus Helmet	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008D4	Stormcloak Officer Boots	Stormcloaks	stormcloaks	blacksmith
+MoreCraftableEquipment.esp	0008D5	Stormcloak Officer Armor	Stormcloaks	stormcloaks	blacksmith
+MoreCraftableEquipment.esp	0008D6	Stormcloak Officer Bracers	Stormcloaks	stormcloaks	blacksmith
+MoreCraftableEquipment.esp	0008D7	Stormcloak Officer Helmet	Stormcloaks	stormcloaks	blacksmith
+MoreCraftableEquipment.esp	0008D9	Stormcloak Cuirass	Stormcloaks	stormcloaks	blacksmith
+MoreCraftableEquipment.esp	0008DB	Stormcloak Helmet	Stormcloaks	stormcloaks	blacksmith
+MoreCraftableEquipment.esp	0008DC	Thieves Guild Boots	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008DD	Thieves Guild Armor	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008DE	Thieves Guild Gloves	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008DF	Thieves Guild Hood	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008E0	Karliah's Boots	Nightingales	cult-nocturnal	blacksmith
+MoreCraftableEquipment.esp	0008E1	Karliah's Armor	Nightingales	cult-nocturnal	blacksmith
+MoreCraftableEquipment.esp	0008E2	Karliah's Gloves	Nightingales	cult-nocturnal	blacksmith
+MoreCraftableEquipment.esp	0008E3	Karliah's Hood	Nightingales	cult-nocturnal	blacksmith
+MoreCraftableEquipment.esp	0008E4	Guild Master's Boots	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008E5	Guild Master's Armor	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008E6	Guild Master's Gloves	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008E7	Guild Master's Hood	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008E8	Thieves Guild Cowl	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008E9	Thieves Guild Gray Boots	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008EA	Thieves Guild Gray Sleeveless Armor	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008EB	Thieves Guild Gray Gloves	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008EC	Thieves Guild Gray Cowl	Thieves Guild	thieves-guild	blacksmith
+MoreCraftableEquipment.esp	0008F3	Blades Sword	Blades	blades	blacksmith
+MoreCraftableEquipment.esp	0008F4	Dawnguard War Axe	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	0008F5	Dawnguard Warhammer	Dawnguard	dawnguard	blacksmith
+MoreCraftableEquipment.esp	0008FD	Imperial Bow	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0008FE	Imperial Sword	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	000936	College Boots	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	000937	College Boots	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	000940	Shrouded Hand Wraps	Dark Brotherhood	dark-brotherhood	tailor
+MoreCraftableEquipment.esp	000941	Shrouded Hood	Dark Brotherhood	dark-brotherhood	tailor
+MoreCraftableEquipment.esp	000949	Shrouded Robes	Dark Brotherhood	dark-brotherhood	tailor
+MoreCraftableEquipment.esp	00094A	Shrouded Shoes	Dark Brotherhood	dark-brotherhood	tailor
+MoreCraftableEquipment.esp	00094B	Vampire Robes	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	tailor
+MoreCraftableEquipment.esp	00094C	Vampire Boots	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	tailor
+MoreCraftableEquipment.esp	00094D	Vampire Gloves	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	tailor
+MoreCraftableEquipment.esp	00094E	Vampire Hood	Vampire clans	clan-volkihar,cyrodiil-vampyrum-order,crimson-scars,bloodmist-clan	tailor
+MoreCraftableEquipment.esp	000993	College Boots	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	000994	Arch-Mage's Boots	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	000995	Arch-Mage's Hood	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	000996	Arch-Mage's Robes	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	000997	Hooded Arch-Mage's Robes	College of Winterhold	college-of-winterhold	tailor
+MoreCraftableEquipment.esp	0009CA	Thalmor Boots	Thalmor	thalmor	tailor
+MoreCraftableEquipment.esp	0009CB	Thalmor Gloves	Thalmor	thalmor	tailor
+MoreCraftableEquipment.esp	0009CC	Thalmor Hood	Thalmor	thalmor	tailor
+MoreCraftableEquipment.esp	0009CD	Thalmor Robes	Thalmor	thalmor	tailor
+MoreCraftableEquipment.esp	0009CE	Hooded Thalmor Robes	Thalmor	thalmor	tailor
+MoreCraftableEquipment.esp	0009DD	General Tullius' Armor	Imperial Legion	imperial-legion	blacksmith
+MoreCraftableEquipment.esp	0009DE	Ulfric's Clothes	Stormcloaks	stormcloaks	tailor
+MoreCraftableEquipment.esp	0009DF	Ulfric's Armguards	Stormcloaks	stormcloaks	tailor
+MoreCraftableEquipment.esp	0009E0	Ulfric's Boots	Stormcloaks	stormcloaks	tailor
+MoreCraftableEquipment.esp	0009EE	Windhelm Guard's Shield	Windhelm Guard	hold-windhelm	blacksmith
+Skyrim.esm	0DB899	Orcish Battleaxe	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DB89A	Orcish Greatsword	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DB89C	Orcish Dagger	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DB89D	Orcish Mace	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DB89F	Orcish Sword	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DB8A0	Orcish War Axe	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DB8A1	Orcish Warhammer	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DC9F5	Imperial Boots	Imperial Legion	imperial-legion	blacksmith
+Skyrim.esm	0DC9F6	Imperial Soldier's Armor	Imperial Legion	imperial-legion	blacksmith
+Skyrim.esm	0DC9F7	Imperial Bracers	Imperial Legion	imperial-legion	blacksmith
+Skyrim.esm	0DC9F8	Imperial Helmet	Imperial Legion	imperial-legion	blacksmith
+Skyrim.esm	0DC9F9	Imperial Heavy Shield	Imperial Legion	imperial-legion	blacksmith
+Skyrim.esm	0DD983	Orcish Boots	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DD984	Orcish Armor	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DD985	Orcish Gauntlets	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DD986	Orcish Helmet	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0DD987	Orcish Shield	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Skyrim.esm	0F6F2E	Steel Imperial Gauntlets	Imperial Legion	imperial-legion	blacksmith
+Skyrim.esm	108CFC	Orcish Bow	Orcish	clan-gol-kharzum,clan-mor-khazgur,clan-dushnikh-yal,clan-largashbur,clan-narzulbur,clan-cracked-tusk	blacksmith
+Update.esm	0009CF	Imperial Light Armor	Imperial Legion	imperial-legion	blacksmith
+Update.esm	0009D0	Imperial Light Boots	Imperial Legion	imperial-legion	blacksmith
+Update.esm	0009D1	Imperial Light Bracers	Imperial Legion	imperial-legion	blacksmith
+Update.esm	0009D2	Imperial Light Helmet	Imperial Legion	imperial-legion	blacksmith
+Update.esm	0009D3	Imperial Light Shield	Imperial Legion	imperial-legion	blacksmith

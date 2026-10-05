@@ -15,7 +15,14 @@ ladder (`tools/materials/BLACKSMITH_LADDER_README.md`):
    lets you work the metal, the manual shows you its recipes. 17 manuals (`manuals.tsv`), each an inert marker SPEL and a
    BOOK created in DragonBreak Online Edits.esp. Reading a book gives its marker for good: the gameplay side (Worker G,
    manuals.js), keyed on the book.
-3. **Tier 5 out-stats tier 4.** `t4_below_t5.py` finds the tier 4 gear (glass, ebony, stalhrim, amber) above the tier 4
+3. **Faction gear without the old quests** (Nate, 5 Oct: "make sure this applies for other factions"). Every recipe of a
+   `faction-gear.json` item (210: the Legion, the six strongholds, Stormcloaks, Dawnguard, Thieves Guild, Blades, Dark
+   Brotherhood, the vampire orders, the College, Companions, Nightingales, Thalmor, Silver Hand, the hold guards; forge
+   and tailor) loses each OR group holding a condition that names a quest, a faction or a race: `GetQuestCompleted CWFinale`,
+   `GetStageDone Favor258`, `GetInFaction CWImperialFaction` or `IAGNoQuestCrafting`, the vampire races. `factiongear.js`
+   already refuses the craft to anyone outside the faction or its role, so those locks only hid the recipes. Mod settings
+   (`CCO_*`, `IACT*`, all 1 on the server) and "owns a Nightingale blade" stay. The forge ones also get their tier gates.
+4. **Tier 5 out-stats tier 4.** `t4_below_t5.py` finds the tier 4 gear (glass, ebony, stalhrim, amber) above the tier 4
    ceiling and the tier 5 gear (Daedric, dragon, madness) below the tier 5 floor, per slot and weight class, in what the
    server counts. 49 records move (27 down, 22 up); `stat_clamps.tsv`. Three `weaponMaterials` lines in
    gamemode-config.json give Madness, Amber and Immersive Weapons' Dragonsteel their material's damage bonus.
@@ -29,6 +36,8 @@ ladder (`tools/materials/BLACKSMITH_LADDER_README.md`):
 | `forge_rules.tsv` | material keyword / editor id / perk -> tier and manual, on the approved ladder | yes, then `propose` |
 | `manuals.tsv`, `manuals/*.txt` | the manuals: marker, book, title, value, canon source; the book texts | yes: titles and texts are drafts |
 | `recipe_tiers.tsv` | what the PC script reads: origin, local id, recipe, tier marker, manual marker | **no**: `make_tables.py tsv` |
+| `faction_recipes.tsv` | what the PC script reads: the faction gear recipes | **no**: `faction_recipes.py tsv` |
+| `faction_recipes.py` | `tsv` from faction-gear.json; `check` prints, per recipe, what goes and what stays, from the server's plugins (also the gate after the run: no lock may stay) | |
 | `stat_clamps.tsv` | the tier 4 / tier 5 moves | **no**: `t4_below_t5.py --write` |
 | `recipe_census.py` | every recipe at those stations, decoded, from the server's load order | |
 | `make_tables.py` | `propose <census>` refreshes the CSVs (keeps hand edits); `tsv` builds recipe_tiers.tsv | |
@@ -67,6 +76,7 @@ Copy into xEdit's `Edit Scripts` folder, keeping `manuals\` as a folder:
 tools/materials/DBO_BlacksmithTiers.pas   tools/materials/ladder.tsv
 tools/recipes/stat_clamps.tsv             tools/recipes/recipe_tiers.tsv
 tools/recipes/manuals.tsv                 tools/recipes/manuals/*.txt  -> Edit Scripts\manuals\
+tools/recipes/faction_recipes.tsv
 ```
 
 Then as the ladder README says: `DRY_RUN` first, read `DBO_BlacksmithTiers_result.txt`, then the real run. The dry run
@@ -75,6 +85,9 @@ should say, besides the ladder's own numbers:
 - recipes that would get their tier gates: **1,695** (none are gated today); refused: **0** (no recipe has a HasPerk
   ORed with another condition); rows that matched no recipe: **0**
 - manuals: **17**, all `(new)`
+- faction gear recipes that would lose their locks: as `faction_recipes.py check` lists (run it on CT 115 first), and no
+  row of faction_recipes.tsv unmatched. In a dry run the tier step may still list a faction recipe as refused (its
+  HasPerk shares an OR group with a quest lock); the real run strips the locks first, so it is gated normally
 - tier 4 / tier 5 clamps among the ARMO/WEAP changes: **49**
 
 **The recipe and manual writes have never run.** The dry run exercises the reading half only. The writes use xEdit's

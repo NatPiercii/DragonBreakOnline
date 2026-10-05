@@ -16,6 +16,9 @@
     - recipe_tiers.tsv  every Cook and Blacksmith recipe loses its vanilla HasPerk conditions and gains HasSpell(tier
                         marker) == 1 and, for a forge recipe of a material with a manual, HasSpell(manual marker) == 1.
                         A recipe whose HasPerk sits in an OR group with another condition is listed, never edited.
+    - faction_recipes.tsv  every recipe of faction-gear.json's items (forge and tailor) loses each OR group holding a
+                        condition that names a quest, a faction or a race: the server's factiongear.js decides by faction
+                        and role instead. Runs before the tier gates. Every copy into a target adds the masters it needs.
 
   Vanilla, DLC and USSEP records are overridden into DragonBreak Online Edits.esp; everything third-party, Creation
   Club included, into DragonBreak Nexus Patches.esp. A mod's own file is never edited.
@@ -48,6 +51,7 @@ const
   CLAMP_FILE  = 'stat_clamps.tsv';
   MANUAL_FILE = 'manuals.tsv';
   RECIPE_FILE = 'recipe_tiers.tsv';
+  FACTION_FILE = 'faction_recipes.tsv';
   MANUAL_DIR  = 'manuals\';
   MARKER_TEMPLATE = 'DBO_Skill_cook_T1';        // an inert marker SPEL in DragonBreak Online Edits
   BOOK_TEMPLATE   = 'DBO_RecipeRevivePotion';   // the Draught of Revival's recipe book: no skill, no script
@@ -57,9 +61,11 @@ const
 var
   slKeys, slVals, slReport, slScripted, slUnmatched, slSeen: TStringList;
   slClampKeys, slClampVals, slRecKeys, slRecVals, slRecUsed, slRefused, slManReport: TStringList;
+  slFacKeys, slFacVals, slFacUsed, slFacReport: TStringList;
   fDLE, fNEX: IInterface;
   nEdited, nSameAlready, nScripted, nNoTarget, nClamped: Integer;
   nRecEdited, nRecSame, nRecScripted, nManMade, nManSame: Integer;
+  nFacEdited, nFacSame, nFacScripted: Integer;
   nexNeedsDLE: Boolean;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -558,7 +564,10 @@ begin
           Continue;
         end;
         if Equals(GetFile(rec), target) then ovr := rec
-        else ovr := wbCopyElementToFile(rec, target, False, True);
+        else begin
+          AddRequiredElementMasters(rec, target, False);
+          ovr := wbCopyElementToFile(rec, target, False, True);
+        end;
         if not Assigned(ovr) then begin
           slUnmatched.Add('could not override into ' + targetName + ': ' + parts[2]);
           Continue;
@@ -591,6 +600,117 @@ begin
     end;
   finally
     parts.Free;
+  end;
+end;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Faction gear (faction_recipes.tsv, from faction-gear.json): factiongear.js decides on the server who makes it, by
+// faction and role, so the vanilla locks go. A lock is a condition naming a quest, a faction or a race (quest stages,
+// the civil war side, a vampire race); its whole OR group goes with it, so an "or this mod setting" beside it goes too.
+// Every other condition stays: mod settings, "owns a Nightingale blade".
+function LockCondition(c: IInterface): Boolean;
+var
+  r: IInterface;
+  s: string;
+begin
+  Result := False;
+  r := LinksTo(ElementByPath(c, 'CTDA\Parameter #1'));
+  if not Assigned(r) then Exit;
+  s := Signature(r);
+  Result := (s = 'QUST') or (s = 'FACT') or (s = 'RACE');
+end;
+
+// The indices (ascending) of every condition in an OR group that holds a lock
+procedure LockedGroups(conds: IInterface; drop: TStringList);
+var
+  j, k, gs: Integer;
+  c: IInterface;
+  lock: Boolean;
+begin
+  drop.Clear;
+  if not Assigned(conds) then Exit;
+  gs := 0;
+  lock := False;
+  for k := 0 to Pred(ElementCount(conds)) do begin
+    c := ElementByIndex(conds, k);
+    if LockCondition(c) then lock := True;
+    if (GetElementNativeValues(c, 'CTDA\Type') and 1) = 0 then begin
+      if lock then for j := gs to k do drop.Add(IntToStr(j));
+      gs := k + 1;
+      lock := False;
+    end;
+  end;
+  if lock then for j := gs to Pred(ElementCount(conds)) do drop.Add(IntToStr(j));
+end;
+
+procedure DoFactionRecipes;
+var
+  i, j, k: Integer;
+  f, grp, rec, ovr, conds, c, target: IInterface;
+  drop: TStringList;
+  key, originName, targetName, what: string;
+begin
+  drop := TStringList.Create;
+  try
+    for i := 0 to Pred(FileCount) do begin
+      f := FileByIndex(i);
+      grp := GroupBySignature(f, 'COBJ');
+      if not Assigned(grp) then Continue;
+      for j := 0 to Pred(ElementCount(grp)) do begin
+        rec := ElementByIndex(grp, j);
+        if Signature(rec) <> 'COBJ' then Continue;
+        if not IsWinningOverride(rec) then Continue;
+        key := RecKey(rec);
+        if slFacKeys.IndexOf(key) < 0 then Continue;
+        slFacUsed.Add(key);
+        if ElementExists(rec, 'VMAD') then begin
+          Inc(nFacScripted);
+          slScripted.Add('COBJ  ' + IntToHex(GetLoadOrderFormID(rec), 8) + '  ' + EditorID(rec) + '  (faction gear)');
+          Continue;
+        end;
+        conds := ElementByPath(rec, 'Conditions');
+        LockedGroups(conds, drop);
+        if drop.Count = 0 then begin
+          Inc(nFacSame);
+          Continue;
+        end;
+        what := '';
+        for k := 0 to Pred(drop.Count) do begin
+          c := ElementByIndex(conds, StrToInt(drop[k]));
+          what := what + ' ' + GetElementEditValues(c, 'CTDA\Function') + '(' + ParamEdid(c) + ')';
+        end;
+        originName := GetFileName(GetFile(MasterOrSelf(rec)));
+        if SameText(originName, DLE_NAME) then targetName := DLE_NAME
+        else if SameText(originName, NEX_NAME) then targetName := NEX_NAME
+        else if IsVanillaOrigin(originName) then targetName := DLE_NAME
+        else targetName := NEX_NAME;
+        slFacReport.Add(Format('COBJ %-9s %-40s %d out:%s  %s', [IntToHex(GetLoadOrderFormID(rec), 8), Copy(EditorID(rec), 1, 40), drop.Count, what, targetName]));
+        Inc(nFacEdited);
+        if DRY_RUN then Continue;
+        if targetName = DLE_NAME then target := fDLE else target := fNEX;
+        if Equals(GetFile(rec), target) then ovr := rec
+        else begin
+          AddRequiredElementMasters(rec, target, False);
+          ovr := wbCopyElementToFile(rec, target, False, True);
+        end;
+        if not Assigned(ovr) then begin
+          slUnmatched.Add('could not override into ' + targetName + ': ' + EditorID(rec) + ' (faction gear)');
+          Continue;
+        end;
+        conds := ElementByPath(ovr, 'Conditions');
+        for k := Pred(drop.Count) downto 0 do Remove(ElementByIndex(conds, StrToInt(drop[k])));
+        // read back
+        conds := ElementByPath(ovr, 'Conditions');
+        if Assigned(conds) then
+          for k := 0 to Pred(ElementCount(conds)) do
+            if LockCondition(ElementByIndex(conds, k)) then begin
+              slUnmatched.Add('a faction lock did not go: ' + EditorID(rec));
+              Break;
+            end;
+      end;
+    end;
+  finally
+    drop.Free;
   end;
 end;
 
@@ -635,6 +755,9 @@ begin
   slClampKeys := TStringList.Create; slClampVals := TStringList.Create;
   slRecKeys := TStringList.Create; slRecVals := TStringList.Create; slRecUsed := TStringList.Create;
   slRefused := TStringList.Create; slManReport := TStringList.Create;
+  slFacKeys := TStringList.Create; slFacVals := TStringList.Create; slFacUsed := TStringList.Create;
+  slFacReport := TStringList.Create;
+  nFacEdited := 0; nFacSame := 0; nFacScripted := 0;
   nEdited := 0; nSameAlready := 0; nScripted := 0; nNoTarget := 0; nClamped := 0;
   nRecEdited := 0; nRecSame := 0; nRecScripted := 0; nManMade := 0; nManSame := 0;
   nexNeedsDLE := False;
@@ -642,6 +765,7 @@ begin
   LoadLadder;
   LoadKeyed(CLAMP_FILE, 1, slClampKeys, slClampVals);
   LoadKeyed(RECIPE_FILE, 0, slRecKeys, slRecVals);
+  LoadKeyed(FACTION_FILE, 0, slFacKeys, slFacVals);
   fDLE := FileByName(DLE_NAME);
   fNEX := FileByName(NEX_NAME);
   if not Assigned(fDLE) then raise Exception.Create(DLE_NAME + ' is not in the load order');
@@ -723,6 +847,7 @@ begin
           if usedClamp then Inc(nClamped);
 
           if not DRY_RUN then begin
+            AddRequiredElementMasters(rec, target, False);
             ovr := wbCopyElementToFile(rec, target, False, True);
             if not Assigned(ovr) then begin
               Inc(nNoTarget);
@@ -750,6 +875,9 @@ begin
   // The manuals first: the recipes refer to their markers
   if not DRY_RUN then AddMasterIfMissing(fNEX, DLE_NAME);
   DoManuals;
+  // Faction locks first: a recipe whose HasPerk shares an OR group with a quest lock is then a plain one for DoRecipes
+  // (in a dry run DoRecipes still sees the lock and may list it as refused)
+  DoFactionRecipes;
   DoRecipes;
 end;
 
@@ -772,11 +900,30 @@ begin
   slReport.Add(Format('recipes already gated as the table says, left alone: %d', [nRecSame]));
   slReport.Add(Format('recipes carrying a script, listed not edited: %d', [nRecScripted]));
   slReport.Add(Format('recipes refused (a HasPerk in an OR group with another condition): %d', [slRefused.Count]));
+  slReport.Add('');
+  if DRY_RUN then slReport.Add(Format('faction gear recipes that would lose their quest, faction or race locks: %d', [nFacEdited]))
+  else slReport.Add(Format('faction gear recipes that lost their quest, faction or race locks: %d', [nFacEdited]));
+  slReport.Add(Format('faction gear recipes with no lock, left alone: %d', [nFacSame]));
+  slReport.Add(Format('faction gear recipes carrying a script, listed not edited: %d', [nFacScripted]));
 
   slReport.Add('');
   slReport.Add('--- manuals (manuals.tsv) ---');
   if slManReport.Count = 0 then slReport.Add(Format('(none to make: all %d already as the table says)', [nManSame]))
   else for i := 0 to Pred(slManReport.Count) do slReport.Add('  ' + slManReport[i]);
+
+  slReport.Add('');
+  slReport.Add('--- faction gear recipes (faction_recipes.tsv): the conditions that go ---');
+  if slFacReport.Count = 0 then slReport.Add('(none)')
+  else for i := 0 to Pred(slFacReport.Count) do slReport.Add('  ' + slFacReport[i]);
+  slReport.Add('');
+  slReport.Add('--- rows of faction_recipes.tsv that matched no recipe ---');
+  j := 0;
+  for i := 0 to Pred(slFacKeys.Count) do
+    if slFacUsed.IndexOf(slFacKeys[i]) < 0 then begin
+      slReport.Add('  ' + slFacVals[i]);
+      Inc(j);
+    end;
+  if j = 0 then slReport.Add('(none)');
 
   slReport.Add('');
   slReport.Add('--- recipes refused, for a decision by hand ---');
@@ -820,8 +967,10 @@ begin
   if slSeen.Count > 0 then AddMessage('WARNING: ' + IntToStr(slSeen.Count) + ' ladder selector(s) matched nothing');
   AddMessage(Format('recipes: %d to gate, %d already right, %d refused; manuals: %d to make or update',
     [nRecEdited, nRecSame, slRefused.Count, nManMade]));
+  AddMessage(Format('faction gear recipes: %d to unlock, %d without a lock', [nFacEdited, nFacSame]));
 
   slClampKeys.Free; slClampVals.Free; slRecKeys.Free; slRecVals.Free; slRecUsed.Free; slRefused.Free; slManReport.Free;
+  slFacKeys.Free; slFacVals.Free; slFacUsed.Free; slFacReport.Free;
   slKeys.Free; slVals.Free; slReport.Free; slScripted.Free; slUnmatched.Free; slSeen.Free;
 end;
 
