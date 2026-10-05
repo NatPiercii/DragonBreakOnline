@@ -55,7 +55,11 @@ const stubs = {
   closeWidget: () => { out.closed++; return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
   giveItem: (a, id) => { out.given.push(id >>> 0); return true; },
+  // A UI that names 'pickRound'; off until the pick cases at the end
+  hasUiCap: (a, cap) => pickUi && cap === 'pickRound',
+  notify: () => {},
 };
+let pickUi = false;
 out.given = [];
 globalThis.__alduinakMasteryEvent = (kind, a) => out.events.push(kind);
 // eslint-disable-next-line no-new-func
@@ -376,6 +380,65 @@ console.log('client-judged:');
   globalThis.__dboReadBook(SKYRIM_BOOK, READER);
   check('touching a book while a round is open draws the same round again', out.widgets.length === 1 && last().nonce === r.nonce, out.widgets.length);
   ui('readingCancel', [r.nonce]);
+  Math.random = realRandom;
+  for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads']) props.delete(READER + '|private.' + k);
+}
+// ---- "Read by candle stubs": a UI that names 'pickRound' reads with no clock, every other UI today's candle ----------
+{
+  READ.clientJudged = true;
+  const realRandom = Math.random; Math.random = () => 0;
+  const TIMED_KEYS = 'type,id,nonce,title,words,seconds,endsInMs,locked,attempt,judge,candleMs,penaltyMs';
+  pickUi = false;
+  wallClock += 31 * 60000;
+  let r = open(SKYRIM_BOOK);
+  check('pick: a UI without the capability gets exactly the timed candle', Object.keys(r).join(',') === TIMED_KEYS, Object.keys(r).join(','));
+  ui('readingCancel', [r.nonce]);
+  pickUi = true;
+  const fresh = () => { wallClock += 31 * 60000; return open(SKYRIM_BOOK); };
+  r = fresh();
+  const n = r.words.length;
+  const stubs = Math.max(2, Math.floor((30 + 6 * n) / 8 * 0.5));
+  check('pick: a UI with it gets candle stubs and no seconds, the round bounded by 10 minutes', r.mode === 'pick' && r.stubs === stubs && r.seconds === undefined && r.endsInMs === undefined && r.totalMs === 600000, Object.keys(r).join(',') + ' stubs=' + r.stubs);
+  const p = (o) => JSON.stringify(Object.assign({ v: 3, mode: 'pick', elapsedMs: 9000, attempts: 0, guttered: false }, o));
+  // The sentence: read it out wrong once to have the server say it (a lost round shows the answer)
+  ui('reading', [r.nonce, JSON.stringify([...Array(n).keys()].reverse()), p({})]);
+  wallClock += 9000;
+  const wrongs = [];
+  for (let i = 0; i < stubs + 1 && !last().result; i++) {
+    const w2 = last();
+    wrongs.push(w2.attempt);
+    ui('reading', [r.nonce, JSON.stringify([...Array(n).keys()].reverse()), p({ attempts: w2.attempt, elapsedMs: 9000 + 9000 * i })]);
+  }
+  check('pick: a wrong reading burns a stub, not seconds, and the round goes on until the stubs are gone', last().resultKind === 'lose' && wrongs.length === stubs && /A stub of the candle burns away/.test(out.widgets[out.widgets.length - 2].w.feedback || '') && /The last of the candle gutters/.test(last().result), { wrongs, res: last().result });
+  const answer = last().answer.split(' ');
+  r = fresh();
+  out.events.length = 0;
+  wallClock += 300000;
+  ui('reading', [r.nonce, JSON.stringify(solve(r, answer)), p({ elapsedMs: 300000 })]);
+  check('pick: a right reading after five minutes of thought still wins (no candle burning by the second)', last().resultKind === 'win' && out.events.includes('read'), last().result);
+  r = fresh();
+  ui('reading', [r.nonce, JSON.stringify(solve(r, answer)), p({ elapsedMs: 50 })]);
+  check('pick: a reading faster than a hand puts the words in order is refused(fast)', last().resultKind === 'lose' && /refused\(fast\)/.test(out.logs.join(' | ')), out.logs.slice(-1)[0]);
+  r = fresh();
+  ui('reading', [r.nonce, JSON.stringify(solve(r, answer)), p({ elapsedMs: 600000, guttered: true })]);
+  check('pick: an idle reading ends at its limit as a loss', last().resultKind === 'lose', last().result);
+  r = fresh(); wallClock += 9000;
+  ui('reading', [r.nonce, JSON.stringify(solve(r, answer)), JSON.stringify({ v: 2, elapsedMs: 9000, pausedMs: 0, leftMs: 40000, attempts: 0, guttered: false })]);
+  check('pick: a timed candle\'s report for a pick round is not its own: judged by the server\'s 10-minute bound', last().resultKind === 'win', last().result);
+  // 200 random readers: some wrong readings, then the answer or the stubs run out
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    r = fresh();
+    const wrong = Math.floor(realRandom() * (r.stubs + 2));
+    let att = 0;
+    for (let k = 0; k < wrong && !last().result; k++) { wallClock += 5000; ui('reading', [r.nonce, JSON.stringify([...Array(n).keys()].reverse()), p({ attempts: att, elapsedMs: 5000 + 5000 * k })]); att = last().attempt || att + 1; }
+    wallClock += 5000;
+    if (!last().result) ui('reading', [r.nonce, JSON.stringify(solve(last(), answer)), p({ attempts: last().attempt, elapsedMs: 5000 + 5000 * wrong })]);
+    const want = wrong <= r.stubs ? 'win' : 'lose';
+    if (last().resultKind === want) agree++;
+  }
+  check('pick: the widget and the server agree on 200 random readings (a stub a wrong reading, then the answer)', agree === 200, agree);
+  pickUi = false;
   Math.random = realRandom;
   for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads']) props.delete(READER + '|private.' + k);
 }

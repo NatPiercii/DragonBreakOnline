@@ -339,6 +339,8 @@
   "loseCooldownMinutes": 2,
   "_clientJudged": "Jake, 2026-09-30: the widget keeps the candle on the reader's own clock and reports it with each reading; the server still checks the words, so the answer never reaches the reader's machine, and accepts the widget's in time or guttered without measuring when the packet arrived. Kept: the nonce, the order's shape, the words, the cooldowns and daily caps, no right reading faster than minMsPerWord a word. An old widget (no timings) is judged by the server's deadline plus legacyGraceMs instead of graceMs. roundTimeoutMinutes sweeps a round nobody answered, with the lost round's cooldown. ROLLBACK: commit clientJudged false to this file on origin/server and ship it (a release, or dev-server.sh deploy-gameplay --hotfix); the server's deadline plus graceMs decides again for every client. Not as a live-only edit: every release and hotfix copies this file over the live one and keeps only admins, so a live edit lasts only until the next deploy.",
   "clientJudged": true,
+  "_pick": "Read by candle stubs (Nate, 4-5 Oct: no timing mini-games). A UI that says dbo:uiCaps pickRound (front 0.3.77+) reads with no clock: the candle is stubs, stubShare of the wrong readings today's candle would bear (its seconds over wrongPenaltySeconds), at least minStubs; a wrong reading burns one and the words already right lock in as today; when the stubs are gone the round is lost. minutes bounds the whole round so an idle one ends. Lines, cooldowns, finds and daily caps are unchanged. Every other UI keeps the timed candle. ROLLBACK: pick.enabled false. Hot reload.",
+  "pick": { "enabled": true, "minutes": 10, "stubShare": 0.5, "minStubs": 2 },
   "legacyGraceMs": 30000,
   "roundTimeoutMinutes": 5
  },

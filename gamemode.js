@@ -3109,6 +3109,11 @@ const READ = Object.assign({
   bookDailyCap: 6,
   scrollExcludePattern: '^DLC\\d(Exp|dun)|^MGR|^dun|^TG|Empty|Quest|ENEMY',
 }, cfg.reading || {});
+// "Read by candle stubs" (Nate, 4-5 Oct: no timing mini-games): a UI that names MG.PICK_CAP reads with no clock. The candle
+// is stubs instead of seconds: as many as stubShare of the wrong readings today's candle would bear (candle over
+// wrongPenaltySeconds), at least minStubs; a wrong reading burns one, and the words already right still lock in. minutes
+// bounds the whole round so an idle one ends. Lines, cooldowns, finds and daily caps are the timed reading's.
+const READ_PICK = Object.assign({ enabled: true, minutes: 10, stubShare: 0.5, minStubs: 2 }, READ.pick || {});
 // A random scroll a reader of this Scholar tier may find: within the tier's value cap, quest and empty ones left out
 const scrollFor = (tier) => {
   const max = Number((READ.scrollMaxValueByTier || [])[Math.min(tier, 4)]) || 0;
@@ -3322,11 +3327,15 @@ const readLine = (tier, cyrodiil) => {
   return from[Math.floor(Math.random() * from.length)];
 };
 // The widget as the server sees the round: the candle length for the picture, and what is left of it.
-const readWidget = (ses, extra) => Object.assign({
+const readWidget = (ses, extra) => (ses.mode === 'pick' ? Object.assign({
+  type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]),
+  mode: 'pick', stubs: ses.stubs, totalMs: ses.candleMs, locked: ses.locked, attempt: ses.attempts,
+  judge: MG.clientJudged(READ) ? 'client' : undefined,
+}, extra || {}) : Object.assign({
   type: 'reading', id: READ_WIDGET_ID, nonce: ses.nonce, title: ses.title, words: ses.shuffled.map((i) => ses.original[i]),
   seconds: Math.round(ses.candleMs / 1000), endsInMs: Math.max(0, ses.deadline - Date.now()), locked: ses.locked, attempt: ses.attempts,
   judge: MG.clientJudged(READ) ? 'client' : undefined, candleMs: ses.candleMs, penaltyMs: Number(READ.wrongPenaltySeconds) * 1000,
-}, extra || {});
+}, extra || {}));
 // How far past the server's deadline a reading from a widget without timings (0.3.71) still counts: the old widget stops
 // itself when its own candle gutters, so this bounds only a modified one. Rollback: graceMs, as before.
 const readLateMs = () => (MG.clientJudged(READ) ? Math.max(Number(READ.graceMs), Number(READ.legacyGraceMs)) : Number(READ.graceMs));
@@ -3366,8 +3375,15 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   // Never hand out a sentence that already reads right, word for word (a repeated word can do that too).
   for (let tries = 0; tries < 10 && shuffled.every((v, i) => original[v] === original[i]); tries++) shuffled = shuffleIdx(original.length);
   const nonce = `${casterId.toString(16)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
-  const ms = candleMs(original.length);
+  let ms = candleMs(original.length);
   const ses = { nonce, refId: targetId, baseId, copyable, title, original, shuffled, startedAt: Date.now(), deadline: Date.now() + ms, candleMs: ms, tier, locked: [], attempts: 0 };
+  if (READ_PICK.enabled !== false && hasUiCap(casterId, MG.PICK_CAP)) {
+    ses.mode = 'pick';
+    ses.stubs = Math.max(Math.floor(Number(READ_PICK.minStubs) || 0), Math.floor(ms / (Number(READ.wrongPenaltySeconds) * 1000) * (Number(READ_PICK.stubShare) || 0)));
+    ms = Math.max(60000, Math.round((Number(READ_PICK.minutes) || 10) * 60000));
+    ses.candleMs = ms;
+    ses.deadline = ses.startedAt + ms;
+  }
   readSessions.set(casterId, ses);
   if (!openWidget(casterId, readWidget(ses), true)) readSessions.delete(casterId);
   return true;
@@ -3407,7 +3423,9 @@ onUi('reading', (a, args) => {
   // what is left, guttered. Anything unreadable is an old widget, judged by the server's deadline relaxed to readLateMs.
   const cj = MG.clientJudged(READ);
   const t = cj ? MG.verdictOf(args[2]) : null;
-  const own = !!t && Number(t.v) === 2;
+  // A pick round's own report is v 3 ({ mode: 'pick', elapsedMs, attempts, guttered }); a timed one's v 2
+  const pick = ses.mode === 'pick';
+  const own = !!t && Number(t.v) === (pick ? 3 : 2);
   // A second send of a reading already judged (the widget's double Enter) is dropped, not held against the reader
   if (own && Math.floor(Number(t.attempts) || 0) < ses.attempts) { log(`reading dup ${display(a)} att=${ses.attempts}`); return; }
   const now = Date.now(), penalty = Number(READ.wrongPenaltySeconds) * 1000, srv = now - ses.startedAt;
@@ -3422,31 +3440,35 @@ onUi('reading', (a, args) => {
     if (readExpired(ses, now)) bad = 'expired';
     else if (right && (MG.serverTooSoon(srv, minMs, 50) || (own && el < minMs))) bad = 'fast';
     else if (own && Math.floor(Number(t.attempts) || 0) > ses.attempts) bad = 'attempts';
-    else if (own && el + ses.attempts * penalty > ses.candleMs + Number(READ.clockSlackMs)) bad = 'clock';
+    else if (own && !pick && el + ses.attempts * penalty > ses.candleMs + Number(READ.clockSlackMs)) bad = 'clock';
   }
   // In time: the widget's own candle (client), the server's deadline relaxed to readLateMs (an old widget), or the
   // deadline plus graceMs (rollback, as before)
-  const out = own ? (!!t.guttered || left <= 0) : now > ses.deadline + readLateMs();
+  const out = pick ? (own ? !!t.guttered || el > ses.candleMs + Number(READ.clockSlackMs) : now > ses.deadline + readLateMs())
+    : own ? (!!t.guttered || left <= 0) : now > ses.deadline + readLateMs();
   const inTime = !bad && !out;
   const lag = own ? srv - el - paused : NaN;
   // One line for every verdict, wins, losses and refusals alike (reading logged only its wins before)
-  const say = (kind) => log(`reading ${kind} ${display(a)} t${ses.tier + 1} n=${n} att=${ses.attempts} v=${own ? 2 : 1} el=${el} left=${left} paused=${paused} srv=${srv} lag=${own ? lag : '-'} late=${now - ses.deadline}`
+  const say = (kind) => log(`reading ${kind} ${display(a)} t${ses.tier + 1} n=${n} att=${ses.attempts}${pick ? `/${ses.stubs} pick` : ''} v=${own ? 2 : 1} el=${el} left=${left} paused=${paused} srv=${srv} lag=${own ? lag : '-'} late=${now - ses.deadline}`
     + MG.tail({ judge: !cj ? 'server' : own ? 'client' : 'legacy', min: cj ? minMs : undefined, sus: own ? MG.lagFlags(lag, READ.clockSlackMs, MG.SLOW_FLAG_MS) : [] }));
   if (inTime && valid && !right && order.length) {
     // A wrong reading costs candle, not the round. What is right from the start stays put.
     let k = 0; while (k < words.length && words[k] === ses.original[k]) k++;
     ses.locked = order.slice(0, k);
     ses.attempts++;
-    ses.deadline -= penalty;
+    if (!pick) ses.deadline -= penalty;
     // The widget's own candle says whether the penalty leaves any; for a widget without timings the lag is forgiven (graceMs)
-    const goesOn = own ? left - penalty > 0 && ses.attempts <= Math.ceil(ses.candleMs / penalty)
+    // A stub per wrong reading in a pick round; the timed candle burns its penalty
+    const goesOn = pick ? ses.attempts <= ses.stubs
+      : own ? left - penalty > 0 && ses.attempts <= Math.ceil(ses.candleMs / penalty)
       : cj ? now < ses.deadline + Number(READ.graceMs) && ses.attempts <= Math.ceil(ses.candleMs / penalty)
       : now < ses.deadline;
     if (goesOn) {
       say('wrong');
+      const burns = pick ? 'A stub of the candle burns away.' : 'The candle burns lower.';
       const feedback = k
-        ? `Not quite. The first ${k === 1 ? 'word is' : `${k} words are`} right. The candle burns lower.`
-        : 'Not quite. Even the first word is wrong. The candle burns lower.';
+        ? `Not quite. The first ${k === 1 ? 'word is' : `${k} words are`} right. ${burns}`
+        : `Not quite. Even the first word is wrong. ${burns}`;
       openWidget(a, readWidget(ses, { feedback, endsInMs: Math.max(cj ? 1000 : 0, ses.deadline - now) }), true);
       return;
     }
@@ -3502,7 +3524,8 @@ onUi('reading', (a, args) => {
   // Keep the cooldown table small: drop entries already expired.
   for (const k of Object.keys(reads)) if (Number(reads[k]) < Date.now()) delete reads[k];
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
-  const text = win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.') : 'The candle gutters before you finish. The words swim on the page.';
+  const text = win ? (results.length ? 'You read it through. ' + results.map((r) => r[0].toUpperCase() + r.slice(1)).join('. ') + '.' : 'You read it through. The words stay with you.')
+    : pick ? 'The last of the candle gutters. The words swim on the page.' : 'The candle gutters before you finish. The words swim on the page.';
   openWidget(a, readWidget(ses, { result: text, resultKind: win ? 'win' : 'lose', endsInMs: 0, answer: win ? undefined : ses.original.join(' ') }), false);
   // Items given by the server raise no "added" notice of the game's own, and the text above goes when the window closes
   // (#bugs 1553205828058615839): each find gets a notice and a chat line.
