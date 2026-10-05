@@ -2,8 +2,8 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, notifyNextUpdate, parseCustomPacket } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
 import { buttonKeyCode } from "./mouseKeys";
-import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
-import { isRemotePlayerCharacter, localIdToRemoteId } from "../../view/worldViewMisc";
+import { Actor, ObjectReference, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
+import { isRemotePlayerCharacter, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
 import { logTrace } from "../../logging";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -18,6 +18,10 @@ const WIDGET_ID = 10;
 // Data\Platform\Logs\dbo-diag-logs.txt, which Report a Problem sends
 const DIAG_LOG = "dbo-diag";
 const MASK_TOGGLE_COOLDOWN_MS = 1500;
+// The open menu closes once its player is out of reach or gone: a little past the gamemode's playerMenu.maxDistance (400),
+// which refuses any choice made from further away. Checked twice a second.
+const MENU_CLOSE_DISTANCE = 450;
+const RANGE_CHECK_MS = 500;
 
 interface PlayerAction {
   id: string;
@@ -67,6 +71,24 @@ export class PlayerActionService extends ClientListener {
     this.controller.emitter.on("customPacketMessage", (e) => this.onMenuPacket(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
+    this.controller.on("update", () => this.onRangeCheck());
+  }
+
+  // A player who walks or runs off takes the menu with them (Nate, 4 Oct: a robbed player ran away and the robber's
+  // menu stayed up). Gone covers a target that logged out or streamed out of this client's world.
+  private onRangeCheck(): void {
+    if (!this.menuOpen || !this.playerTarget) return;
+    const now = Date.now();
+    if (now - this.lastRangeCheck < RANGE_CHECK_MS) return;
+    this.lastRangeCheck = now;
+    try {
+      const localId = remoteIdToLocalId(this.playerTarget);
+      const ref = localId ? ObjectReference.from(this.sp.Game.getFormEx(localId)) : null;
+      const player = this.sp.Game.getPlayer();
+      if (!ref || !player || player.getDistance(ref) > MENU_CLOSE_DISTANCE) this.closeMenu();
+    } catch {
+      // A ref unloading mid-check: the next check decides
+    }
   }
 
   private interactKey: number = DxScanCode.X;
@@ -252,4 +274,5 @@ export class PlayerActionService extends ClientListener {
   private menuOpen = false;
   private playerTarget = 0;
   private lastMaskToggle = 0;
+  private lastRangeCheck = 0;
 }
