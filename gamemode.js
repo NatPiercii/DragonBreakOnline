@@ -1987,6 +1987,7 @@ const onCharacterReady = (userId, a) => {
     try { mp.set(a, ADMIN_PROP, isAdmin(a)); } catch (e) { /* ignore */ }
     if (cfg.welcome) system(a, cfg.welcome);
     audit(`JOIN ${who(a)}${tierOf(a) ? ' as ' + tierOf(a) : ''}`);
+    startLoginGrace(a);
     sendDriftConfig(a);
     sendConsoleRights(a, true);
     if (creationPending(a)) startCreationInHub(a);
@@ -3826,6 +3827,19 @@ const refuseOfflineBody = (agg, tgt) => {
   personal(agg, 'They have stepped out of the world. Their body cannot be harmed.');
   log(`offline body: ${display(agg)} -> ${display(tgt)} refused (logged out)`);
 };
+// A player just in cannot be harmed by creatures for loginGrace.seconds after the JOIN (Nate, 5 Oct: wolves downed one
+// 12 s after it while the world was still loading in); the player's own attack or cast ends it at once. Players still can.
+const LOGIN_GRACE = Object.assign({ seconds: 20 }, cfg.loginGrace || {});
+const loginGrace = globalThis.__dboLoginGrace instanceof Map ? globalThis.__dboLoginGrace : (globalThis.__dboLoginGrace = new Map());
+const startLoginGrace = (a) => { const s = Number(LOGIN_GRACE.seconds) || 0; if (s > 0) loginGrace.set(a >>> 0, Date.now() + s * 1000); };
+const endLoginGrace = (a) => { if (loginGrace.delete(a >>> 0)) log(`login grace: ${display(a)} ended it early`); };
+const inLoginGrace = (a) => {
+  const until = loginGrace.get(a >>> 0);
+  if (!until) return false;
+  if (Date.now() < until) return true;
+  loginGrace.delete(a >>> 0);
+  return false;
+};
 registerChatCommand('unstuck', (a) => {
   const admin = isAdmin(a);
   try { if (mp.get(a, 'isDead')) return personal(a, 'You cannot use /unstuck while dead.'); } catch (e) { /* alive */ }
@@ -4596,7 +4610,10 @@ const castHook = (casterId, spellId, ...rest) => {
   let verdict;
   if (prev) { try { verdict = prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
   // A cast the chain let through counts toward its school of magic (schools.js)
-  if (verdict !== false && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
+  if (verdict !== false && loginGrace.has(Number(casterId) >>> 0)) endLoginGrace(Number(casterId) >>> 0);
+  // A beast's casts train no school (Nate, 5 Oct: beast form trains no skill)
+  let beastCaster = false; try { const b = mp.get(Number(casterId) >>> 0, 'private.beast'); beastCaster = !!(b && b.form); } catch (e) { /* not an actor */ }
+  if (verdict !== false && !beastCaster && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
   // A Flesh spell's armour counts on the server while it lasts (fleshCast, below; called at the cast, defined by then)
   if (verdict !== false && typeof globalThis.__dboFleshCast === 'function') { try { globalThis.__dboFleshCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('flesh cast failed', e.message); } }
   return verdict;
@@ -5490,6 +5507,12 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
 
   // 0b. A logged-out player's body cannot be harmed, by players or creatures, unless they left mid-fight
   if (agg !== tgt && offlineBodyProtected(tgt)) { refuseOfflineBody(agg, tgt); return false; }
+
+  // 0c. Just logged in: no creature harms the player yet; their own attack ends the grace
+  if (agg !== tgt) {
+    if (profileOf(agg) >= 0) { if (loginGrace.has(agg)) endLoginGrace(agg); }
+    else if (profileOf(tgt) >= 0 && inLoginGrace(tgt)) return false;
+  }
 
   // 1. Refuse attack if aggressor has bound hands or is being carried, or while a rune or scroll paralysis holds them:
   // those hold only on the victim's own client, so a modified one kept swinging (combat review, 2026-09-29)
