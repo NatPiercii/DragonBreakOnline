@@ -18,10 +18,20 @@ check('a calm copy is not risky to touch', !L.isRiskyToTouch(calm(), T));
 for (const k of ['dead', 'bleedingOut', 'unconscious', 'inKillMove']) check(`a copy that is ${k} is risky`, L.isRiskyToTouch(calm({ [k]: true }), T));
 check('a copy ragdolled a second ago is risky', L.isRiskyToTouch(calm({ ragdolledAt: T - 1000 }), T));
 check('...and no longer after the ragdoll hold', !L.isRiskyToTouch(calm({ ragdolledAt: T - L.RAGDOLL_HOLD_MS - 1 }), T));
-check('a disabled copy waits at least the minimum frames, even unloaded', L.deleteDecision(1, false) === 'wait' && L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES - 1, false) === 'wait');
-check('...is deleted once its 3D is gone after the minimum', L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES, false) === 'delete');
-check('...waits while its 3D is still loaded', L.deleteDecision(10, true) === 'wait');
-check('...and is deleted at the maximum whatever its 3D', L.deleteDecision(L.SAFE_DELETE_MAX_FRAMES, true) === 'delete');
+if (L.SAFE_DELETE_MAX_FRAMES !== undefined) {
+  // 0.3.76 and older: a frame cap that deletes whatever the 3D (client-safedelete-loadwait replaces it)
+  check('a disabled copy waits at least the minimum frames, even unloaded', L.deleteDecision(1, false) === 'wait' && L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES - 1, false) === 'wait');
+  check('...is deleted once its 3D is gone after the minimum', L.deleteDecision(L.SAFE_DELETE_MIN_FRAMES, false) === 'delete');
+  check('...waits while its 3D is still loaded', L.deleteDecision(10, true) === 'wait');
+  check('...and is deleted at the maximum whatever its 3D', L.deleteDecision(L.SAFE_DELETE_MAX_FRAMES, true) === 'delete');
+} else {
+  // client-safedelete-loadwait: unloaded for the min updates and the settle time, never forced; tests/safedelete-loadwait-harness.js
+  const run = (n, loaded, screen, step) => { let p = L.newPendingDelete(), d = 'wait'; for (let i = 0; i < n && d === 'wait'; i++) ({ decision: d, next: p } = L.deleteDecision(p, loaded, screen, step)); return d; };
+  check('a disabled copy waits at least the minimum updates, even unloaded', run(L.SAFE_DELETE_MIN_FRAMES - 1, false, false, 1000) === 'wait');
+  check('...is deleted once its 3D is gone after the minimum and the settle time', run(L.SAFE_DELETE_MIN_FRAMES + Math.ceil(L.SAFE_DELETE_SETTLE_MS / 16), false, false, 16) === 'delete');
+  check('...waits while its 3D is still loaded', run(10, true, false, 16) === 'wait');
+  check('...and is never deleted while loaded: at the give-up time it is left disabled', run(Math.ceil(L.SAFE_DELETE_GIVE_UP_MS / 16) + 1, true, false, 16) === 'give-up');
+}
 
 // ---- (b) the HostStart re-seat ----
 check('a loaded, calm copy born long ago is re-seated now', L.reseatDecision(calm(), T - 10000, T, T) === 'now');

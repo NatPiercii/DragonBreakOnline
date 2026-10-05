@@ -72,6 +72,7 @@ declare -A NEEDS=(
   [npc-lifetime-plan]=client:skymp5-client/src/view/npcLifetime.ts
   [flyer-guard]=client:skymp5-client/src/view/flyerGuard.ts
   [wc-safe-delete]=client:skymp5-client/src/view/npcLifetime.ts
+  [safedelete-loadwait]=client:skymp5-client/src/view/npcLifetime.ts
   [voice-echo-gate]=client:skymp5-front/src/utils/voiceEchoGate.js
   [client-calendar]=client:skymp5-client/src/services/services/calendar.ts
   [input-diag-request]=client:skymp5-client/src/services/services/inputDiagRequest.ts
