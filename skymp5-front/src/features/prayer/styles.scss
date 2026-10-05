@@ -153,4 +153,159 @@
     border-color: rgba(201, 138, 58, 0.85);
     box-shadow: 0 0 18px rgba(201, 138, 58, 0.3);
   }
+
+  // ---- the pick prayer: the god's sphere, the verses spoken, and the lines of the verse to speak ----
+  &__sphere {
+    margin: -8px 0 0;
+    color: $dbo-text-dim;
+    font-family: $dbo-book-font;
+    font-size: 14px;
+    text-align: center;
+  }
+
+  &__hint--falter {
+    color: #e8907f;
+  }
+
+  &--pick &__verses {
+    gap: 4px;
+  }
+
+  &--pick &__verse {
+    padding: 4px 14px;
+    font-size: 16px;
+  }
+
+  // The true line rises into the prayer when it is spoken (under 400 ms)
+  &__verse--spoken {
+    animation: prayer-spoken 360ms ease-out;
+  }
+
+  &__choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: prayer-lines-in 200ms ease-out 160ms both;
+  }
+
+  &__line {
+    position: relative;
+    padding: 9px 14px 9px 40px;
+    border: 1px solid $dbo-stone-dark;
+    background: rgba(0, 0, 0, 0.28);
+    color: $dbo-text;
+    font-family: $dbo-book-font;
+    font-size: 17px;
+    font-style: italic;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color $dbo-fast, background $dbo-fast, color $dbo-fast;
+
+    &:hover {
+      border-color: $dbo-border-strong;
+      background: dbo-accent(0.1);
+      color: $dbo-silver;
+    }
+
+    // A line of another god's prayer: it falters and fades
+    &--falter {
+      border-color: rgba(201, 70, 58, 0.8);
+      color: rgba(232, 144, 127, 0.7);
+      animation: prayer-falter 360ms ease-out;
+    }
+  }
+
+  &__line-key {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    min-width: 18px;
+    margin-top: -9px;
+    padding: 0 4px;
+    border: 1px solid $dbo-gold-border;
+    border-radius: 3px;
+    color: $dbo-gold;
+    font-family: $dbo-ui-font;
+    font-size: 12px;
+    font-style: normal;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  // Beads: a lit one for every verse spoken, then the faltered lines the prayer can still bear
+  &__bearing {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__bead {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 1px solid $dbo-stone;
+    background: rgba(0, 0, 0, 0.35);
+
+    &--spoken {
+      background: dbo-accent(0.85);
+      border-color: $dbo-border-strong;
+      box-shadow: $dbo-glow;
+    }
+
+    &--falter {
+      width: 8px;
+      height: 8px;
+      background: rgba(232, 214, 160, 0.5);
+      border-color: $dbo-gold-border;
+    }
+
+    &--spent {
+      background: rgba(201, 70, 58, 0.85);
+      border-color: rgba(232, 110, 96, 0.95);
+    }
+  }
+
+  &__bearing-gap {
+    width: 14px;
+  }
+
+  &--daedric &__line:hover {
+    border-color: rgba(201, 138, 58, 0.85);
+    background: rgba(201, 138, 58, 0.1);
+  }
+
+  &--daedric &__bead--spoken {
+    background: rgba(201, 138, 58, 0.85);
+    border-color: rgba(201, 138, 58, 0.95);
+  }
+
+  &--pick &__actions {
+    align-items: center;
+  }
+
+  &__keys {
+    flex: 1;
+    color: $dbo-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+}
+
+@keyframes prayer-spoken {
+  0% { opacity: 0.2; transform: translateY(26px); color: $dbo-silver; }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes prayer-lines-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes prayer-falter {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  45% { transform: translateX(5px); }
+  70% { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
 }

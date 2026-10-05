@@ -314,7 +314,7 @@ section('reading', () => {
 
 // ---- prayer -------------------------------------------------------------------------------------------------------
 section('prayer', () => {
-  const Prayer = load('features/prayer/index.tsx').default;
+  const Prayer = load('features/prayer/index.tsx').TimedPrayer;
   const verses = [{ text: 'a', startMs: 0, endMs: 6000 }, { text: 'b', startMs: 6000, endMs: 12000 }, { text: 'c', startMs: 12000, endMs: 18000 }];
   const round = { id: 35, nonce: 'p1', deity: 'Arkay', verses, totalMs: 18000, startOnPress: true, judge: 'client', slackMs: 500, startGraceMs: 1500, waitMs: 60000 };
   let w = mount(Prayer, round);
@@ -348,6 +348,38 @@ section('prayer', () => {
   const s = last('dbo:prayer');
   check('prayer: a server-judged round still sends the verdict argument', s && json(s[4]).win === true);
   check('prayer: but shows no verdict of its own', !w.text().includes('You hold the three verses.') && !w.hasClass('prayer__hold--win'));
+});
+
+// ---- pick prayers ("speak the verses": no hold) --------------------------------------------------------------------
+section('prayer pick', () => {
+  const { PrayerPick } = load('features/prayer/index.tsx');
+  const verses = [{ lines: ['Let me be the one who stays', 'Hear me, for I have walked far to stand here', 'Kneel early and it is over sooner'] },
+    { lines: ['Time turns, and I turn with it', 'The scorned do not beg', 'Every thread pulls another'] },
+    { lines: ['Take by strength what deceit could not hold', 'What is said in the dark is still said', 'Keep my name where you can find it again'] }];
+  const round = { id: 35, nonce: 'q1', deity: 'Akatosh', kind: 'divine', shrine: 'Shrine of Akatosh', mode: 'pick', sphere: 'Time.', verses, right: [1, 0, 2], slips: 2, totalMs: 120000, minPickMs: 300, startOnPress: true, judge: 'client' };
+  let w = mount(PrayerPick, round);
+  check('prayer pick: the sphere, three lines of the first verse keyed 1-3, no hold bar', w.text().includes('Akatosh: Time.') && w.byClass('prayer__line').length === 3 && !w.hasClass('prayer__hold') && w.text().includes('press 1-3'), w.text());
+  w.advance(200); w.key('2', 'Digit2');
+  check('prayer pick: a line before the lines have shown is not taken', count('dbo:prayerStart') === 0);
+  w.advance(200); w.key('1', 'Digit1');
+  check('prayer pick: the first line marks the prayer begun', count('dbo:prayerStart') === 1 && last('dbo:prayerStart')[2] === 0);
+  check('prayer pick: a line of another god falters, and the verse is offered again', w.text().includes("another god's prayer") && w.text().includes('bear one more') && w.byClass('prayer__line--falter').length === 1 && w.byClass('prayer__verse--past').length === 0, w.text());
+  w.advance(400); w.key('2', 'Digit2');
+  check('prayer pick: the true line is spoken into the prayer', w.byClass('prayer__verse--past').length === 1 && w.text().includes('Hear me, for I have walked far'), w.text());
+  w.advance(400); w.key('1', 'Digit1'); w.advance(400); w.key('3', 'Digit3');
+  const r = last('dbo:prayer');
+  check('prayer pick: three verses spoken report [[index, ms], ...] once with {v:2, mode:pick}', r && r[2] === '[[0,400],[1,800],[0,1200],[2,1600]]' && r[3] === 1600 && json(r[4]).win === true && json(r[4]).hits === 3 && json(r[4]).slips === 1 && w.text().includes('You speak the three verses.') && w.text().includes('Rise'), r);
+  w = mount(PrayerPick, Object.assign({}, round, { nonce: 'q2' }));
+  for (const k of ['1', '3', '1']) { w.advance(400); w.key(k, 'Digit' + k); }
+  const l = last('dbo:prayer');
+  check('prayer pick: a third faltered line slips the prayer away', l && json(l[4]).win === false && json(l[4]).slips === 3 && w.text().includes('The verses slip away'), l);
+  w = mount(PrayerPick, Object.assign({}, round, { nonce: 'q3' }));
+  w.advance(121000);
+  const a = last('dbo:prayer');
+  check('prayer pick: an unspoken prayer ends at its limit', a && json(a[4]).win === false && a[3] === 120000 && w.text().includes('The moment passes'), a);
+  w = mount(PrayerPick, Object.assign({}, round, { nonce: 'q4' }));
+  w.key('Escape');
+  check('prayer pick: Escape stands up', count('dbo:prayerCancel') === 1);
 });
 
 // ---- lockpick -----------------------------------------------------------------------------------------------------
