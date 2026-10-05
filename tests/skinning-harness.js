@@ -79,7 +79,7 @@ const sandbox = {
   pickUi: false,
   out: {},
 };
-const names = ['SKIN_PICK', 'skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick'];
+const names = ['SKIN_PICK', 'skinRng', 'bladeAt', 'bladeOff', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick'];
 vm.runInNewContext(names.map(declOf).join('\n') + `\nout = { ${names.join(', ')} };`, sandbox);
 const { skinRng, bladeAt, skinRound, skinPacket, judgeSkin, judgeSkinPick } = sandbox.out;
 
@@ -263,7 +263,7 @@ const sb = {
   pickUi: false,
   out: {},
 };
-const cjNames = ['SKIN_PICK', 'skinIdleStart', 'skinIdleStop', 'skinRng', 'bladeAt', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
+const cjNames = ['SKIN_PICK', 'skinIdleStart', 'skinIdleStop', 'skinRng', 'bladeAt', 'bladeOff', 'skinMinMs', 'skinRound', 'skinPacket', 'judgeSkin', 'judgeSkinPick', 'skinNear', 'skinLimit', 'skinKeepClosing', 'skinIgnored', 'skinClaimOf', 'skinReport', 'skinCancel'];
 vm.runInNewContext(cjNames.map(declOf).join('\n') + `\nout = { ${cjNames.join(', ')} };`, sb);
 const S = sb.out;
 const pos = (id, p) => props.set(id + '|pos', p);
@@ -446,7 +446,7 @@ SK.clientJudged = true;
 console.log('');
 console.log('pick attempts:');
 {
-  const TIMING_KEYS = 'type,id,nonce,name,cuts,misses,seam,seams,sweepMs,totalMs,judge';
+  const TIMING_KEYS = 'type,id,nonce,name,cuts,misses,seam,seams,sweepMs,reachMs,totalMs,judge';
   sb.pickUi = false;
   let r0 = issue();
   check('a UI without the capability gets exactly the timing attempt', Object.keys(S.skinPacket(r0)).join(',') === TIMING_KEYS && r0.mode === undefined, Object.keys(S.skinPacket(r0)).join(','));
@@ -517,6 +517,63 @@ console.log('pick attempts:');
   S.skinCancel(A, [r1.nonce]);
   check('...and when the attempt is stopped', cj.packets.filter((q) => q.customPacketType === 'dboIdleStop').length === 1, JSON.stringify(cj.packets));
   sb.pickUi = false;
+}
+
+// Input grace (reachMs): a press that reaches the widget a little after the blade left the seam still counts
+{
+  // The first millisecond after the blade leaves cut 1's seam, at or after the given time
+  const leaves = (w, from) => { let t = from; while (Math.abs(bladeAt(t, w.sweepMs) - w.seams[0]) > w.width / 2) t++; while (Math.abs(bladeAt(t, w.sweepMs) - w.seams[0]) <= w.width / 2) t++; return t; };
+  SK.reachMs = 0;
+  cr = issue({ tier: 0 });
+  check('grace off: the round carries reachMs 0 and the packet says so', cr.reachMs === 0 && S.skinPacket(cr).reachMs === 0);
+  let late = leaves(cr, 300) + 100;
+  check('grace off: a cut 100 ms after the blade left the seam slips', S.judgeSkin(cr, JSON.stringify([late]), late, late + 200).slips === 1);
+  SK.reachMs = 150;
+  cr = issue({ tier: 0 });
+  check('grace 150: the round and the packet carry it', cr.reachMs === 150 && S.skinPacket(cr).reachMs === 150);
+  late = leaves(cr, 300) + 100;
+  let v = S.judgeSkin(cr, JSON.stringify([late]), late, late + 200);
+  check('grace 150: the same late cut is clean', v.cuts === 1 && v.slips === 0, JSON.stringify(v));
+  late = leaves(cr, 300) + 160;
+  // unless the blade swings back into the seam within that span
+  const back = (() => { for (let s = late - 150; s <= late; s++) if (Math.abs(bladeAt(s, cr.sweepMs) - cr.seams[0]) <= cr.width / 2) return true; return false; })();
+  v = S.judgeSkin(cr, JSON.stringify([late]), late, late + 200);
+  check('grace 150: a cut 160 ms after it left still slips', back || v.slips === 1, JSON.stringify(v));
+  check('grace 150: the fastest possible win is no sooner', cr.minMs === S.skinMinMs(Object.assign({}, cr, { reachMs: 0 })));
+  // A whole attempt by a hand that lands every press 120 ms late: lost without grace, won with it
+  const lateHand = (w, delay) => { const p = playHuman(Object.assign({}, w, { reachMs: 0 }), { aim: 0.5 }); return p.times.map((t) => Math.min(w.totalMs, t + delay)); };
+  SK.reachMs = 0; cr = issue({ tier: 0 });
+  let times = lateHand(cr, 120);
+  v = S.judgeSkin(cr, JSON.stringify(times), times[times.length - 1], times[times.length - 1] + 200);
+  check('a lagging hand (every press 120 ms late) loses without grace', v.cuts < cr.cuts, JSON.stringify(v));
+  SK.reachMs = 150; cr = issue({ tier: 0 });
+  times = lateHand(cr, 120);
+  v = S.judgeSkin(cr, JSON.stringify(times), times[times.length - 1], times[times.length - 1] + 200);
+  check('...and wins with reachMs 150', v.cuts === cr.cuts && !v.bad, JSON.stringify(v));
+  SK.reachMs = 2000; cr = issue({ tier: 0 });
+  check('reachMs is capped at 400', cr.reachMs === 400);
+  delete SK.reachMs;
+}
+
+// The widget's bladeOff must agree with the server's to the bit: the widget's loss stands, the server replays its wins.
+// FORK points at a fork checkout (run-all sets it); skipped when that widget predates reachMs.
+{
+  const fs = require('fs');
+  const tsx = path.join(process.env.FORK || path.resolve(__dirname, '..', '..', 'fork'), 'skymp5-front', 'src', 'features', 'skinning', 'index.tsx');
+  const src = fs.existsSync(tsx) ? fs.readFileSync(tsx, 'utf8') : '';
+  const m = /const bladeOff = \(t: number, sweepMs: number, reachMs: number, seam: number\): number => \{[\s\S]*?\n\};/.exec(src);
+  if (!m) console.log(`SKIP  widget parity: no bladeOff in ${tsx}`);
+  else {
+    const js = m[0].replace(/\(t: number, sweepMs: number, reachMs: number, seam: number\): number/, '(t, sweepMs, reachMs, seam)');
+    const front = vm.runInNewContext(`${declOf('bladeAt')}\n${js}\nbladeOff`, { Math });
+    let same = true;
+    for (let i = 0; i < 2000 && same; i++) {
+      const w = { sweepMs: 400 + Math.floor(random() * 1500), reachMs: Math.floor(random() * 401) };
+      const t = Math.floor(random() * 15000), seam = random();
+      same = front(t, w.sweepMs, w.reachMs, seam) === sb.out.bladeOff(t, w, seam);
+    }
+    check('the widget and the server measure a cut the same way (2000 random cuts)', same);
+  }
 }
 
 console.log('');
