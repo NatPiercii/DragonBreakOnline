@@ -58,6 +58,7 @@ const facDesc = Object.keys(FACTION.items)[0];
 ok(T.classOf(facDesc).kind === 'uniform' || T.classOf(facDesc).kind === 'never' || T.classOf(facDesc).kind === 'unknown', 'every item faction-gear.json names is not loot', [facDesc, T.classOf(facDesc)]);
 ok(cls('ClothesMonkRobes').kind === 'trinket' || cls('JewelryRingGold').kind === 'trinket', 'clothing and jewellery are trinkets, with their own roll');
 ok(T.classOf('abcdef:Nowhere.esp').kind === 'unknown' && !T.lootable('abcdef:Nowhere.esp'), 'an item the material map does not know is not loot');
+ok(cls('CYRBloodscaleHelmet').kind === 'never' && /Argonians and Khajiit/.test(cls('CYRBloodscaleHelmet').why || ''), 'CYRBloodscaleHelmet is never loot (loot-overrides.json: addons for two races only)', cls('CYRBloodscaleHelmet'));
 // loot-overrides.json: CYRIronFalchion's Beyond Skyrim model is untextured (#bugs "Iron Falchion Missing Textures")
 ok(MATERIALS.items['81dfc:bsheartland.esm'] === 'iron' && cls('CYRIronFalchion').kind === 'never' && /untextured/.test(cls('CYRIronFalchion').why || ''), 'CYRIronFalchion is never loot (loot-overrides.json, "untextured BS model"), though its map entry still says iron', cls('CYRIronFalchion'));
 {
@@ -236,6 +237,7 @@ for (const diff of DIFFS) {
   ok(st[0] < 0.05 && st[2] > 0.4 && st[2] < 0.7 && st[3] > 0.35 && st[3] < 0.65, `chest weapons that are the high Elven stand-ins: ${st.map((x) => Math.round(x * 100)).join('/')}% (Novice/Adept/Expert/Master)`, st);
 }
 ok(!seen.some((s) => s.name === 'CYRIronFalchion'), 'CYRIronFalchion never comes out of any path', seen.filter((s) => s.name === 'CYRIronFalchion').map((s) => s.path).slice(0, 5));
+ok(!seen.some((s) => s.name === 'CYRBloodscaleHelmet'), 'CYRBloodscaleHelmet never comes out of any path (bald on every race but two; Nate, 5 Oct)', seen.filter((s) => s.name === 'CYRBloodscaleHelmet').map((s) => s.path).slice(0, 5));
 ok(seen.some((s) => s.path === 'chest' && s.diff === 'hard' && ['ArmorSteelPlateCuirass', 'ArmorScaledCuirass', 'ArmorElvenGildedCuirass'].some((n) => s.name.startsWith(n.slice(0, -7)))), 'Steel plate, Scaled and Elven gilded drop in Bruma (Nate\'s option 1)');
 ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) => s.path === 'creature corpse').every((s) => s.kind === 'gear' || s.kind === 'trinket'), 'bodies hand over gear within their tiers, and a creature\'s corpse keeps none of what it may not');
 {

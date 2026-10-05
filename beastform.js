@@ -137,6 +137,10 @@ module.exports = (api) => {
   const beastAppearance = (original, race) => Object.assign({}, original, {
     raceId: race, headpartIds: [], tints: [], options: [], presets: [], headTextureSetId: 0,
   });
+  // While in a beast form a player goes by the beast's name, never their own (Nate, 5 Oct): the appearance name is what
+  // chat, the X menu and other clients read, and the revert puts the kept appearance (and name) back. beastform.names
+  const NAMES = Object.assign({ werewolf: 'Werewolf', vampirelord: 'Vampire Lord' }, CFG.names || {});
+  globalThis.__dboBeastName = (a) => { const s = stateOf(Number(a) >>> 0); return s ? String(NAMES[s.form] || FORMS[s.form].name) : ''; };
   const byPower = new Map(Object.entries(FORMS).filter(([, f]) => f.power && f.race).map(([k, f]) => [f.power, k]));
 
   const self = (a) => ({ type: 'form', desc: mp.getDescFromId(a) });
@@ -176,7 +180,7 @@ module.exports = (api) => {
     // beastform.werewolfRemoteRace or /wwremote (on unless turned off).
     const remoteRace = key === 'vampirelord' ? globalThis.__dboVampireLordRemote === true
       : key === 'werewolf' ? globalThis.__dboWerewolfRemote !== false : true;
-    if (remoteRace) mp.set(a, 'appearance', beastAppearance(original, f.race));
+    mp.set(a, 'appearance', Object.assign(remoteRace ? beastAppearance(original, f.race) : Object.assign({}, original), { name: String(NAMES[key] || f.name) }));
     if (remoteRace && key === 'vampirelord') noteVlShown(a);
     learn(a, key, true);
     sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });

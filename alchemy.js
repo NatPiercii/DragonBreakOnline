@@ -415,10 +415,30 @@ module.exports = (api) => {
     while (list.length > max) list.shift();
     try { mp.set(a, LEARNED_PROP, list); } catch (e) { log(`disenchant: learned enchantments write failed for ${display(a)}: ${e.message}`); }
   };
+  // One-off (Nate, 5 Oct): enchantments learned before the server recorded them, proven by its own disenchant log lines,
+  // are added once at the character's next login (ench-restore-1005.json, beside this file; the marker makes it once)
+  const RESTORE = readJson('ench-restore-1005.json', { actors: {} });
+  const RESTORE_PROP = 'private.dboEnchRestore';
+  const restoreOnce = (a) => {
+    const entry = RESTORE && RESTORE.actors ? RESTORE.actors[(a >>> 0).toString(16)] : null;
+    if (!entry || !Array.isArray(entry.effects)) return;
+    const marker = String(RESTORE.marker || '');
+    let done = null; try { done = mp.get(a, RESTORE_PROP); } catch (e) { done = null; }
+    if (!marker || done === marker) return;
+    let profile = -1; try { profile = Number(mp.get(a, 'profileId')); } catch (e) { return; }
+    if (profile !== Number(entry.profileId)) return log(`disenchant: restore for ${display(a)} skipped: profile ${profile}, the list names ${entry.profileId}`);
+    const list = learnedOf(a);
+    const added = entry.effects.map((x) => Number(x) >>> 0).filter((x) => x && !list.includes(x));
+    const max = Math.max(1, Number(LEARN.max) || 256);
+    const next = list.concat(added).slice(-max);
+    try { mp.set(a, LEARNED_PROP, next); mp.set(a, RESTORE_PROP, marker); } catch (e) { return log(`disenchant: restore for ${display(a)} failed: ${e.message}`); }
+    audit(`ENCH-RESTORE ${who(a)} given back ${added.length} learned enchantment effect(s) [${added.map((x) => x.toString(16)).join(', ')}] (pre-recording disenchants, marker ${marker})`);
+  };
   globalThis.__dboEnchLearnedLogin = (a) => {
     // A new session: the client learned nothing at the table yet (the restore below is not counted, so a client that
     // ignores it can still have its disenchants taken)
     SESSION.delete(a >>> 0);
+    try { restoreOnce(a >>> 0); } catch (e) { log(`disenchant: restore failed: ${e.message}`); }
     if (!LEARN.enabled || typeof api.sendPacket !== 'function') return false;
     const effects = learnedOf(a >>> 0);
     if (!effects.length) return false;

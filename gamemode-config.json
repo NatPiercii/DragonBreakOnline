@@ -814,7 +814,9 @@
  "beastform": {
   "_comment": "vampireLordRemoteRace: whether other players see the Vampire Lord body. Off since the 2026-09-29 crash breaker trip; /vlremote on|off changes it and beastform-state.json keeps that choice across restarts and deploys. werewolfRemoteRace: the same for a werewolf (on; /wwremote on|off, kept in the same file). Off stops the watcher crashes from a werewolf's relayed howls until the client guard (0.3.72+) is live, at the cost of watchers seeing a human play the werewolf's animations.",
   "vampireLordRemoteRace": false,
-  "werewolfRemoteRace": false
+  "werewolfRemoteRace": true,
+  "_werewolfRemoteRace": "On again (Nate, 5 Oct): watchers see the werewolf body, now that the client 0.3.72+ guard against relayed humanoid animation snapshots is live (no crash near any howl since 30 Sep). /wwremote off turns it off at once. The Vampire Lord body stays off.",
+  "_names": "While in a beast form a player is named after it (beastform.js NAMES: Werewolf, Vampire Lord), in chat, menus and on other clients; the revert, death, login and logout put the real name back."
  },
  "offlineBody": {
   "_comment": "A logged-out player's body cannot be harmed (Nate, 2026-09-30), unless a blow landed on or by them in the last combatLogSeconds before the logout (combat logging). 0 = every logged-out body is safe.",
@@ -847,6 +849,10 @@
   "orc": { "lowHealth": 0.3, "meleeDamage": 0.2, "damageTaken": 0.2 },
   "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 }
  },
+ "loginGrace": {
+  "_comment": "A player just in cannot be harmed by creatures for this many seconds after the JOIN (gamemode.js; Nate, 5 Oct: wolves downed one 12 s after it); the player's own attack or cast ends it, players can still hit them. 0 turns it off. Hot reload.",
+  "seconds": 20
+ },
  "learnedEnchantments": {
   "_comment": "Enchantments learned by disenchanting, kept across relogs (server\\alchemy.js, #bugs thread 7): each disenchant writes the enchantment's effects on the character (private.dboEnchLearned, newest last, at most max); at login they go back to the client as dboEnchLearned, which marks them known. Recorded always; sent only when enabled. On since the client that reads the packet (0.3.76) is live (Nate, 4 Oct).",
   "enabled": true,
@@ -866,9 +872,11 @@
  "skillRates": {
   "_comment": "What a skill's metered work is worth, per skill and per activity (skillrates.js; QoL feedback 4 Oct: mining, iron smithing and skinning too slow). The skill system meters each act through the repeat ring, the hourly bucket and the day's caps as before, then multiplies what it kept by the rate (0..5), as the playtesters' boost does: a rate moves a skill further for the same work, never lets more work through the bucket. rates.<skill> is a number, or { default, <kind>: n, craftByTier: [tier 1..5] } (kinds: craft, mine, chop, skin, kill, hit, hurt, cast, read, lock, prayer, eat, activate, award). A craft's tier is the recipe's DBO_Skill tier gate when it has one, else the highest materialTiers entry among its ingredients (editor ids); anything unlisted is tier 1 (iron, copper, leather, hide; iron, copper, corundum and tin ore). salvageLoop: a craft of a product the same character broke down at a station in the last windowMinutes is worth rate. Rates set by Nate 4 Oct (miner x2, skinner x1.5, iron-tier smithing x2.5, the loop guard on). Needs the fork's __dboSkillRate hook (masterySystem, fork mastery-skill-rates); hot reload.",
   "enabled": true,
+  "_beastRate": "Anything done in werewolf or Vampire Lord form trains no skill, a staff award excepted (Nate, 5 Oct); 0..5.",
+  "beastRate": 0,
   "rates": {
    "miner": 2,
-   "skinner": 1.5,
+   "skinner": { "default": 1.5, "kill": 0, "_kill": "Skinner trains from skinning (and tanning) only, never from killing an animal (Nate, 5 Oct; #bugs 1555559825541169253)" },
    "priest": 1.25,
    "blacksmith": { "default": 1, "craftByTier": [2.5, 1, 1, 1, 1] }
   },

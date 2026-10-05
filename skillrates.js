@@ -8,6 +8,7 @@
 //
 // rates.<skill> is a number (every activity), or { default, <kind>: n, craftByTier: [t1..t5] }. Kinds are the
 // masterySystem event kinds: craft, mine, chop, skin, kill, hit, hurt, cast, read, lock, prayer, eat, activate, award.
+// Anything done in beast form is worth beastRate (0), a staff award excepted: the beast trains no skill.
 // craftByTier rates a craft by the recipe's tier: the recipe's own DBO_Skill_<skill>_T<n> gate when it carries one,
 // otherwise the highest materialTiers entry among its ingredients (editor ids; anything not listed is tier 1: iron,
 // copper, bronze, leather, hide, wood). salvageLoop rates a craft of a product the same character broke down at a
@@ -15,8 +16,9 @@
 'use strict';
 
 module.exports = (api) => {
-  const { log, cfg, recordOf, fieldsOf } = api;
-  const C = Object.assign({ enabled: true, rates: {}, materialTiers: {}, salvageLoop: {} }, cfg.skillRates || {});
+  const { log, cfg, recordOf, fieldsOf, inBeastForm } = api;
+  // beastRate: work done in werewolf or Vampire Lord form trains no skill (Nate, 5 Oct): claws arrive as fists (0x1f4)
+  const C = Object.assign({ enabled: true, rates: {}, materialTiers: {}, salvageLoop: {}, beastRate: 0 }, cfg.skillRates || {});
   const LOOP = Object.assign({ enabled: false, windowMinutes: 60, rate: 0 }, C.salvageLoop || {});
   const TIERS = {};
   for (const [k, v] of Object.entries(C.materialTiers || {})) if (!k.startsWith('_') && Number(v) >= 1) TIERS[k.toLowerCase()] = Math.min(5, Math.floor(Number(v)));
@@ -58,6 +60,7 @@ module.exports = (api) => {
   };
 
   const rateFor = (actorId, skillId, kind, detail) => {
+    if (kind !== 'award' && typeof inBeastForm === 'function' && inBeastForm(actorId >>> 0)) return num(C.beastRate) ?? 0;
     if (!C.enabled) return 1;
     const spec = (C.rates || {})[skillId];
     let rate = 1;
@@ -100,7 +103,8 @@ module.exports = (api) => {
   globalThis.__dboSkillRate = rateFor;
   globalThis.__dboSkillRateBrokeDown = noteBreakdown;
 
-  const shown = Object.entries(C.rates || {}).filter(([k]) => !k.startsWith('_')).map(([k, v]) => `${k} ${typeof v === 'object' ? JSON.stringify(v) : 'x' + v}`);
-  log(`skillRates ${C.enabled ? 'on' : 'off'}: ${shown.join(', ') || 'every skill x1'}; ${Object.keys(TIERS).length} material tiers; salvage loop ${LOOP.enabled ? `x${LOOP.rate} for ${LOOP.windowMinutes} min` : 'off'}`);
+  const plain = (v) => Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')));
+  const shown = Object.entries(C.rates || {}).filter(([k]) => !k.startsWith('_')).map(([k, v]) => `${k} ${v && typeof v === 'object' ? JSON.stringify(plain(v)) : 'x' + v}`);
+  log(`skillRates ${C.enabled ? 'on' : 'off'}: ${shown.join(', ') || 'every skill x1'}; ${Object.keys(TIERS).length} material tiers; salvage loop ${LOOP.enabled ? `x${LOOP.rate} for ${LOOP.windowMinutes} min` : 'off'}; beast form x${num(C.beastRate) ?? 0}`);
   return { rateFor, noteBreakdown, recipeOf };
 };
