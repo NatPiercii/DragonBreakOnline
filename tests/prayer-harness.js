@@ -933,7 +933,10 @@ console.log('pick prayers:');
     return { log: out.logs.join(' | '), events: out.events.slice(), result: out.widgets[0] };
   };
   const trueList = (w) => w.right.map((r, k) => [r, 900 + 900 * k]);
+  // The blessing roll is real Math.random here; a landed blessing (about 1 in 50) changes the verdict text, so it is held off
+  const rollP = Math.random; Math.random = () => 0.999;
   res = playP(f, trueList(f.w), claimP(true, 3, 0, 2700));
+  Math.random = rollP;
   check('three true lines: held, the Priest credited, the shrine rested its hour', verdictOf(res.log) === 'held' && res.events.length === 1 && Math.abs(restOf(AKATOSH_SHRINE) - (wallClock + 3600000)) < 5000 && /You speak the three verses/.test((res.result || {}).result || '') && / pick verses=3\/3/.test(res.log), res.log);
   f = freshC();
   const wrong = (w, k) => (w.right[k] + 1) % w.verses[k].lines.length;
