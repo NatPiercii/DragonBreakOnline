@@ -566,7 +566,11 @@ export class BountyBoardSystem implements System {
   private baseIdOf(ctx: SystemContext, refrId: number): number {
     const cached = this.baseIdCache.get(refrId);
     if (cached !== undefined) return cached;
-    const baseId = espmRefrFieldId(ctx.svr as Mp, refrId, "NAME");
+    let baseId = espmRefrFieldId(ctx.svr as Mp, refrId, "NAME");
+    // A board placed in game has no ESM record; the server reference knows its base
+    if (!baseId) {
+      try { baseId = (ctx.svr as Mp).getIdFromDesc(String((ctx.svr as Mp).get(refrId, "baseDesc"))) >>> 0; } catch { baseId = 0; }
+    }
     if (this.baseIdCache.size >= MAX_ESPM_CACHE) this.baseIdCache.clear();
     this.baseIdCache.set(refrId, baseId);
     return baseId;
