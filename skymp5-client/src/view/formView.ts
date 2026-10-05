@@ -1,5 +1,6 @@
 import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
 import { isBeastRaceId } from "../sync/beastRaceIds";
+import { beastBodyAppearance, beastBodyOf } from "../sync/beastBody";
 import { TAKEOVER_RECHECK_SECONDS, isHostileTakeover, takeoverLine } from "./takeoverDiag";
 import { setDefaultAnimsDisabled, applyAnimation, restoreSitCollisionIfMoving, isInSitPose, clearSitPose, setRefrCollision } from "../sync/animation";
 import { isVampireLordRace, noteVampireLordAnim } from "../sync/vampireLordAnimDiag";
@@ -80,6 +81,10 @@ export class FormView {
   constructor(private remoteRefrId?: number) { }
 
   update(model: FormModel): void {
+    // A player the server lists as a beast body is shown in it (sync/beastBody.ts); everything below sees that race
+    const beastRace = beastBodyOf(this.remoteRefrId);
+    if (beastRace && model.appearance) model = this.withBeastBody(model, beastRace);
+
     // Other players mutate into PC clones when moving to another location
     if (model.movement) {
       if (!this.lastWorldOrCell)
@@ -137,7 +142,8 @@ export class FormView {
     if (model.appearance || (!model.appearance && this.appearanceState.appearance)) {
       if (
         !this.appearanceState.appearance ||
-        model.numAppearanceChanges !== this.appearanceState.lastNumChanges
+        model.numAppearanceChanges !== this.appearanceState.lastNumChanges ||
+        beastRace !== this.appearanceState.beastRace
       ) {
 
         // Both non-null
@@ -170,6 +176,7 @@ export class FormView {
 
         this.appearanceState.appearance = model.appearance || null;
         this.appearanceState.lastNumChanges = model.numAppearanceChanges as number;
+        this.appearanceState.beastRace = beastRace;
       }
     }
 
@@ -1202,8 +1209,19 @@ export class FormView {
   };
 
   private getDefaultAppearanceState() {
-    return { lastNumChanges: 0, appearance: null as (null | Appearance) };
+    return { lastNumChanges: 0, appearance: null as (null | Appearance), beastRace: 0 };
   };
+
+  // The same model with the beast's bare look; one copy per server appearance, not one a frame
+  private withBeastBody(model: FormModel, race: number): FormModel {
+    const cache = this.beastBodyCache;
+    if (!cache || cache.from !== model.appearance || cache.race !== race) {
+      this.beastBodyCache = { from: model.appearance, race, appearance: beastBodyAppearance(model.appearance as Appearance, race) };
+    }
+    return Object.assign({}, model, { appearance: (this.beastBodyCache as { appearance: Appearance }).appearance });
+  }
+
+  private beastBodyCache: { from: unknown; race: number; appearance: Appearance } | undefined = undefined;
 
   private getDefaultAnimState() {
     return { lastNumChanges: 0, useAnimOverrides: true };
