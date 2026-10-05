@@ -39,7 +39,7 @@ const api = (cfg) => ({
 });
 const reload = (cfg) => { props = props || new Map(); timers = new Map(); commands = new Map(); logs = []; delete require.cache[BEASTFORM]; require(BEASTFORM)(api(cfg)); };
 const restart = (cfg) => {
-  for (const k of ['__dboVampireLordRemote', '__dboVlRemoteSetBy', '__dboWerewolfRemote', '__dboWwRemoteSetBy', '__dboVlSeen', '__dboVlNear', '__dboVlCasts', '__dboVlDrops', '__dboWwBody', '__dboWwNear', '__dboWwCasts', '__dboWwDrops']) delete globalThis[k];
+  for (const k of ['__dboVampireLordRemote', '__dboVlRemoteSetBy', '__dboWerewolfRemote', '__dboWwRemoteSetBy', '__dboVlSeen', '__dboVlNear', '__dboVlCasts', '__dboVlDrops', '__dboBeastBody', '__dboBeastNear', '__dboBeastCasts', '__dboBeastDrops', '__dboBeastDropLog']) delete globalThis[k];
   props = new Map(); reload(cfg);
 };
 const fresh = () => {
@@ -61,7 +61,7 @@ const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c |
 
 // ---- defaults: the tracked config shows the werewolf body again (Nate, 5 Oct; off from 30 Sep as the crash mitigation) ----
 ok(TRACKED.beastform && TRACKED.beastform.werewolfRemoteRace === true, 'the tracked gamemode-config.json has beastform.werewolfRemoteRace true (Nate, 5 Oct)', TRACKED.beastform);
-ok(TRACKED.beastform.vampireLordRemoteRace === false, '...and the Vampire Lord body stays off');
+ok(TRACKED.beastform.vampireLordRemoteRace === true, '...and the Vampire Lord body is on too (Nate, 5 Oct: both bodies on)');
 restart(TRACKED);
 ok(on(), 'a fresh process with no state file starts with the werewolf body on');
 ok(logs.some((l) => /werewolf remote body ON/.test(l)), 'and says so in the boot line', logs.filter((l) => /beastform on/.test(l)));
@@ -88,7 +88,8 @@ ok(saved().vampireLordRemote === true && saved().setBy === 'admin', 'and keeps /
 ok(!listedTo(WATCHER), '/wwremote off takes a werewolf already changed off the list at once', listTo(WATCHER));
 ok(change('werewolf') === true && raceShown() === HUMAN && !listedTo(WATCHER), 'off: a werewolf keeps its human appearance for other players', raceShown().toString(16));
 ok(props.get(WOLF + '|private.beast') && props.get(WOLF + '|private.beast').form === 'werewolf', '...while the change itself still happens (the server state says werewolf)');
-ok(change('vampirelord') === true && raceShown() === VL_RACE && (props.get(WOLF + '|appearance') || {}).name === 'Vampire Lord', 'the werewolf switch does not touch the Vampire Lord body; a Vampire Lord is named so', props.get(WOLF + '|appearance'));
+ok(change('vampirelord') === true && raceShown() === HUMAN && (listTo(WATCHER) || []).some((b) => b.id === WOLF && b.race === VL_RACE) &&
+  (props.get(WOLF + '|appearance') || {}).name === 'Vampire Lord', 'the werewolf switch does not touch the Vampire Lord body (listed as one); a Vampire Lord is named so', [listTo(WATCHER), props.get(WOLF + '|appearance')]);
 reload(TRACKED);
 ok(!on(), 'a hot reload keeps it off');
 restart(TRACKED);

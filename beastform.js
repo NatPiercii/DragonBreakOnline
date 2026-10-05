@@ -13,21 +13,18 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, registerChatCommand, sendPacket, display, who, audit, findByName, every, redress, cfg, isAdmin } = api;
-  // Whose UI said it can (gamemode.js dbo:uiCaps); without it nobody is sent the werewolf body
+  // Whose UI said it can (gamemode.js dbo:uiCaps); without it nobody is sent a beast body
   const hasUiCap = typeof api.hasUiCap === 'function' ? api.hasUiCap : () => false;
-  // Config "beastform": vampireLordRemoteRace decides whether other clients build the Vampire Lord body.
-  // The comment below promised this flag for weeks while nothing read it, so only /vlremote worked and its value
-  // died with the process. A deliberate off - the breaker tripping, or an admin saying /vlremote - must survive a
-  // hot reload; a value merely seeded from config must not, or an old seed outlives the config that set it.
-  // werewolfRemoteRace the same for a werewolf (2026-09-30: a werewolf's howls crashed three watchers; every relayed cast or
-  // stop of a beast writes a humanoid animation-variable snapshot into the watcher's beast-race copy, which a client
-  // 0.3.72+ guard stops). Off, watchers see a human playing werewolf animations, as for the Vampire Lord. On, the body
-  // goes only to clients that build it themselves ('beastBody', client 0.3.77; see the werewolf body below).
+  // Config "beastform": vampireLordRemoteRace and werewolfRemoteRace switch each form's body for everyone (/vlremote,
+  // /wwremote). On, the body goes only to clients that build it themselves ('beastBody', client 0.3.77; see the beast
+  // bodies below): every relayed cast or stop of a beast wrote a humanoid animation-variable snapshot into the watcher's
+  // beast-race copy (crashes 28-30 Sep). Off, or on an older client, watchers see a human playing the beast's animations.
+  // An admin's off must survive a hot reload; a value merely seeded from config must not, or an old seed outlives the
+  // config that set it.
   const CFG = Object.assign({ vampireLordRemoteRace: true, werewolfRemoteRace: true, breakerUnits: 6000, breakerSeconds: 120,
-    wwBreakerDrops: 2, wwBreakerWindowSeconds: 600 }, (cfg && cfg.beastform) || {});
-  // It must survive a restart too (2026-09-29: the breaker tripped at 15:03, the 17:15 restart read the config
-  // again and showed the body to everyone for the rest of the day). A trip or /vlremote writes beastform-state.json
-  // beside the gamemode; a fresh process reads it before the config, so only the config's own default is a seed.
+    breakerDrops: 2, breakerWindowSeconds: 600 }, (cfg && cfg.beastform) || {});
+  // It must survive a restart too (2026-09-29: the 17:15 restart read the config again and undid an off). /vlremote and
+  // /wwremote write beastform-state.json beside the gamemode; a fresh process reads it before the config.
   const STATE_PATH = path.resolve('beastform-state.json');
   const readState = () => { try { const v = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } };
   // One file holds both switches: each write keeps the other's keys
@@ -38,7 +35,8 @@ module.exports = (api) => {
   const saveWerewolfRemote = (on, by) => writeState({ werewolfRemote: on === true, werewolfSetBy: by, werewolfAt: new Date().toISOString() });
   if (globalThis.__dboVlRemoteSetBy === undefined) {
     const saved = readState();
-    if (saved && typeof saved.vampireLordRemote === 'boolean') {
+    // The old blanket breaker (before 5 Oct) saved its trips here too; a trip is now per Lord, so only an admin's choice holds
+    if (saved && typeof saved.vampireLordRemote === 'boolean' && saved.setBy !== 'breaker') {
       globalThis.__dboVampireLordRemote = saved.vampireLordRemote;
       globalThis.__dboVlRemoteSetBy = String(saved.setBy || 'file');
     } else globalThis.__dboVampireLordRemote = CFG.vampireLordRemoteRace === true;
@@ -134,13 +132,6 @@ module.exports = (api) => {
       mp.set(a, 'inventory', Object.assign({}, inv, { entries }));
     } catch (e) { log(`beastform: inventory change failed on ${display(a)}: ${e.message}`); }
   };
-  // Remote clients build the beast from this appearance. The real head parts, tints, morphs and face texture belong
-  // to a head the beast body does not have, and every one of them was being attached to it on other players'
-  // clients (two crashed on the first Vampire Lord, 2026-09-23). The beast gets a bare appearance; the real one is
-  // kept in private.beast and put back on the revert.
-  const beastAppearance = (original, race) => Object.assign({}, original, {
-    raceId: race, headpartIds: [], tints: [], options: [], presets: [], headTextureSetId: 0,
-  });
   // While in a beast form a player goes by the beast's name, never their own (Nate, 5 Oct): the appearance name is what
   // chat, the X menu and other clients read, and the revert puts the kept appearance (and name) back. beastform.names
   const NAMES = Object.assign({ werewolf: 'Werewolf', vampirelord: 'Vampire Lord' }, CFG.names || {});
@@ -176,24 +167,17 @@ module.exports = (api) => {
     // (only the abPreventRemoval robes survived). The client unequips before it swaps race.
     const wear = WEAR[key] || [];
     for (const id of wear) setCount(a, id, 1);
-    // Off by default: other clients were thought to crash building a remote actor of the Vampire Lord race
-    // (xXPussy and Flo'Riahn looped on joining near one, 2026-09-23 20:58), but that was never confirmed with a
-    // crash log and 20:58 also carries Havok crashes on near-full RAM (CHECKLIST). While it is off, watchers see
-    // a stripped human playing Vampire Lord animations, which is the naked skating in #bugs 1552425534028251227.
-    // beastform.vampireLordRemoteRace: true, or /vlremote on, turns the remote body back on. A werewolf's is
-    // beastform.werewolfRemoteRace or /wwremote (on unless turned off).
-    // A werewolf's appearance keeps the mortal race for every client: a client that can show the body is sent it by
-    // dboBeastBody instead (sendBeastBodies), so an older one keeps the human fallback
-    const remoteRace = key === 'vampirelord' ? globalThis.__dboVampireLordRemote === true : key !== 'werewolf';
-    mp.set(a, 'appearance', Object.assign(remoteRace ? beastAppearance(original, f.race) : Object.assign({}, original), { name: String(NAMES[key] || f.name) }));
-    if (remoteRace && key === 'vampirelord') noteVlShown(a);
+    // The appearance keeps the mortal race for every client, named after the form: a client that can show the beast
+    // body safely is sent it by dboBeastBody instead (sendBeastBodies), and an older one keeps this human fallback
+    // (a stripped human playing the beast's animations, the naked skating of #bugs 1552425534028251227)
+    mp.set(a, 'appearance', Object.assign({}, original, { name: String(NAMES[key] || f.name) }));
     learn(a, key, true);
     sendPacket(a, { customPacketType: 'dboBeast', race: f.race, beast: true, form: key, wear, abilities: packetAbilities(key) });
     personal(a, key === 'werewolf' ? `The beast takes you for ${seconds} seconds.` : 'You take the form of a Vampire Lord. Press 9, then your Shout key, to revert.');
     for (const line of legend(key)) personal(a, line);
     audit(`BEAST ${who(a)} took ${f.name}`);
     witness(a, key === 'werewolf' ? 'twist into a beast' : 'rise into a Vampire Lord');
-    if (key === 'werewolf') sendBeastBodies();
+    sendBeastBodies();
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, key, true); } catch (e) { log('beast change hook failed', e.message); }
     return '';
   };
@@ -240,7 +224,7 @@ module.exports = (api) => {
     setTimeout(() => { try { if (!stateOf(a)) redress(a); } catch (e) { log('beastform re-dress failed', e.message); } }, 1500);
     log(`${display(a)} left ${FORMS[s.form] ? FORMS[s.form].name : s.form} (${why})`);
     witness(a, s.form === 'werewolf' ? 'shed the beast and stand as a mortal again' : 'sink back into mortal form');
-    if (s.form === 'werewolf') sendBeastBodies();
+    sendBeastBodies();
     try { if (globalThis.__dboBeastChanged) globalThis.__dboBeastChanged(a, s.form, false); } catch (e) { log('beast change hook failed', e.message); }
     return true;
   };
@@ -248,8 +232,7 @@ module.exports = (api) => {
   // gamemode castHook, deathHook, disconnect and onCharacterReady call these
   globalThis.__dboBeastCast = (casterId, spellId) => {
     const a = Number(casterId) >>> 0, id = Number(spellId) >>> 0;
-    noteVlCast(a, id);
-    noteWwCast(a, id);
+    noteBeastCast(a, id);
     if (id === REVERT_POWER && stateOf(a)) { revert(a, 'revert power'); return true; }
     const key = byPower.get(id);
     if (!key) return false;
@@ -305,7 +288,7 @@ module.exports = (api) => {
     // Revert Form chosen on the Shout key arrives here like any power; it ends the form (Exsenus, 2026-10-01: stuck)
     if (spellId === REVERT_POWER) { if (stateOf(a)) revert(a, 'revert power'); return; }
     const pw = POWERS.get(spellId), s = stateOf(a);
-    noteWwCast(a, spellId);
+    noteBeastCast(a, spellId);
     if (!pw || !s || s.form !== pw.form) return;
     const key = `${a}:${spellId}`, now = Date.now(), ready = ST.cooldown.get(key) || 0;
     if (now < ready) {
@@ -344,178 +327,79 @@ module.exports = (api) => {
     for (const a of api.onlineActors()) {
       const s = stateOf(a);
       if (s && s.until && Date.now() >= s.until) revert(a, 'time up');
-      // A Vampire Lord walks, so the sighting the breaker measures against has to follow them
-      else if (s && s.form === 'vampirelord' && globalThis.__dboVampireLordRemote === true) noteVlShown(a);
     }
-    watchVampireLords();
-    watchWerewolves();
+    watchBeasts();
     sendBeastBodies();
   });
 
-  // ── the Vampire Lord crash breaker ──────────────────────────────────────────────────────────────
-  // The remote Vampire Lord body is on by default, and a suspected crash beside one is the only reason it was
-  // ever off. Rather than hide the form from everyone forever on unproven evidence, it is shown and watched: a
-  // player who drops without the Journal open (a menu quit has it open, a crash does not) close to a Vampire
-  // Lord seen recently turns the remote body off by itself, puts every shown Vampire Lord back to the bare real
-  // appearance so a rejoin cannot loop, and tells the staff. It stays off until an admin says /vlremote on.
-  const BREAKER_UNITS = Number(CFG.breakerUnits) || 6000;
-  const BREAKER_MS = (Number(CFG.breakerSeconds) || 120) * 1000;
-  const vlSeen = globalThis.__dboVlSeen = globalThis.__dboVlSeen || new Map(); // vl actor -> { cell, pos, at }
-  const noteVlShown = (a) => {
-    try { vlSeen.set(a >>> 0, { cell: mp.get(a, 'worldOrCellDesc'), pos: mp.get(a, 'pos'), at: Date.now() }); } catch (e) { /* gone */ }
-  };
-  const shownVampireLords = () => api.onlineActors().filter((o) => { const s = stateOf(o); return !!s && s.form === 'vampirelord'; });
-  // Exposed so the harness can drive the breaker without a live server
-  const tripBreaker = globalThis.__dboVlBreakerTrip = (dropped, vl, cell) => {
-    globalThis.__dboVampireLordRemote = false;
-    globalThis.__dboVlRemoteSetBy = 'breaker';
-    saveRemote(false, 'breaker');
-    let restored = 0;
-    for (const o of shownVampireLords()) {
-      const s = stateOf(o);
-      if (!s || !s.original) continue;
-      try { mp.set(o, 'appearance', s.original); restored++; } catch (e) { log(`vlbreaker: fallback failed for ${display(o)}: ${e.message}`); }
-    }
-    vlSeen.clear();
-    audit(`VLBREAKER tripped: ${dropped} dropped near ${vl} at ${cell}`);
-    log(`vlbreaker: tripped by ${dropped} near ${vl} at ${cell}; remote Vampire Lord body OFF, ${restored} restored to the fallback, /vlremote on to try again`);
-    for (const o of api.onlineActors()) {
-      try { if (typeof isAdmin === 'function' && isAdmin(o)) personal(o, `The Vampire Lord remote body turned itself off: ${dropped} dropped beside one. Ask them for their crash log, then /vlremote on to try again.`); } catch (e) { /* offline */ }
-    }
-  };
-  // ── what a drop near a Vampire Lord tells us (2026-09-29) ──
-  // The one trip so far (Onny beside Jake's Lord) came 5 min 26 s into the watcher's time near it, and the same
-  // watcher crashed twice that day with no Vampire Lord anywhere, so "dropped near one" alone cannot name the body as
-  // the cause. Each drop near a Lord now logs what would tell the causes apart: how long the watcher had been near,
-  // when they last moved (a crashed client goes still a minute before the server drops it), what the Lord cast around
-  // then, and the watcher's other drops. It is logged with the remote body off as well, as the control.
-  const WATCH_GAP_MS = 10000;
-  const vlNear = globalThis.__dboVlNear = globalThis.__dboVlNear || new Map();   // watcher -> { vl, since, last, dist, pos, movedAt }
-  const vlCasts = globalThis.__dboVlCasts = globalThis.__dboVlCasts || new Map(); // Vampire Lord -> [{ id, at }]
-  const drops = globalThis.__dboVlDrops = globalThis.__dboVlDrops || new Map();   // actor -> [{ at, near }], the last day
-  const watchVampireLords = () => {
-    const now = Date.now();
-    for (const vl of shownVampireLords()) {
-      let cell = null, pos = null;
-      try { cell = mp.get(vl, 'worldOrCellDesc'); pos = mp.get(vl, 'pos'); } catch (e) { continue; }
-      if (!pos) continue;
-      for (const o of api.onlineActors()) {
-        if (o === vl) continue;
-        try {
-          if (mp.get(o, 'worldOrCellDesc') !== cell) continue;
-          const p = mp.get(o, 'pos'); if (!p) continue;
-          const dist = Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]);
-          if (dist > BREAKER_UNITS) continue;
-          const w = vlNear.get(o);
-          if (!w || w.vl !== vl || now - w.last > WATCH_GAP_MS) { vlNear.set(o, { vl, since: now, last: now, dist, pos: p.slice(), movedAt: now }); continue; }
-          if (Math.hypot(p[0] - w.pos[0], p[1] - w.pos[1], p[2] - w.pos[2]) > 1) { w.pos = p.slice(); w.movedAt = now; }
-          w.last = now; w.dist = dist;
-        } catch (e) { /* gone */ }
-      }
-    }
-    for (const [o, w] of [...vlNear]) if (now - w.last > BREAKER_MS) vlNear.delete(o);
-  };
-  const noteVlCast = (a, id) => {
-    const s = stateOf(a); if (!s || s.form !== 'vampirelord') return;
-    const now = Date.now();
-    vlCasts.set(a, (vlCasts.get(a) || []).filter((c) => now - c.at <= BREAKER_MS).concat([{ id, at: now }]).slice(-12));
-  };
-  const spellName = (id) => { try { const x = mp.lookupEspmRecordById(id >>> 0); if (x && x.record && x.record.editorId) return x.record.editorId; } catch (e) { /* none */ } return (id >>> 0).toString(16); };
-  const secs = (ms) => Math.round(ms / 1000);
-  const signed = (ms) => (ms >= 0 ? `+${secs(ms)}` : `${secs(ms)}`);
-  const dropEvidence = (a, w, now) => {
-    const parts = [`${Math.round(w.dist)} units away`, `near it ${secs(w.last - w.since)} s`, `last moved ${secs(now - w.movedAt)} s before the drop`];
-    const s = stateOf(w.vl);
-    if (s && s.at) parts.push(`it rose ${secs(w.movedAt - s.at)} s before that`);
-    const around = (vlCasts.get(w.vl) || []).filter((c) => c.at >= w.movedAt - 60000 && c.at <= w.movedAt + 10000);
-    parts.push(around.length ? `its casts around then (s from the last move): ${around.map((c) => `${spellName(c.id)} ${signed(c.at - w.movedAt)}`).join(', ')}` : 'no casts by it in the minute before');
-    const mine = (drops.get(a) || []).filter((d) => d.at !== now);
-    parts.push(`their other drops in 24 h: ${mine.length} (${mine.filter((d) => !d.near).length} with no Vampire Lord near)`);
-    return parts.join('; ');
-  };
-
-  // gamemode's disconnect handler calls this for every leave; the werewolf watch hears it first
-  globalThis.__dboVlBreakerDrop = (a, journalOpen) => {
-    try { wwBreakerDrop(Number(a) >>> 0, journalOpen === true); } catch (e) { log(`wwwatch: failed on ${display(a)}: ${e.message}`); }
-    if (journalOpen === true) return false;                        // quit through the menu, not a crash
-    a = Number(a) >>> 0;
-    const now = Date.now();
-    const w = vlNear.get(a);
-    const near = !!w && w.vl !== a && now - w.last <= BREAKER_MS;
-    drops.set(a, (drops.get(a) || []).filter((d) => now - d.at <= 24 * 3600 * 1000).concat([{ at: now, near }]));
-    if (near) log(`vlwatch: ${display(a)} dropped near ${display(w.vl)}, remote body ${globalThis.__dboVampireLordRemote === true ? 'ON' : 'off'}: ${dropEvidence(a, w, now)}`);
-    if (globalThis.__dboVampireLordRemote !== true) return false;  // already off, nothing to trip
-    let cell = null, pos = null;
-    try { cell = mp.get(a, 'worldOrCellDesc'); pos = mp.get(a, 'pos'); } catch (e) { return false; }
-    for (const [vl, seen] of [...vlSeen]) {
-      if (now - seen.at > BREAKER_MS) { vlSeen.delete(vl); continue; }
-      if (vl === (a >>> 0)) continue;                              // the Vampire Lord's own drop is not evidence
-      if (!seen.pos || !pos || seen.cell !== cell) continue;
-      if (Math.hypot(pos[0] - seen.pos[0], pos[1] - seen.pos[1], pos[2] - seen.pos[2]) > BREAKER_UNITS) continue;
-      tripBreaker(display(a), display(vl), String(cell));
-      return true;
-    }
-    return false;
-  };
-
-  // ── the werewolf body (5 Oct) ───────────────────────────────────────────────────────────────────────────────────
+  // ── beast bodies (5 Oct: both on, Nate) ─────────────────────────────────────────────────────────────────────
   // Every watcher crash beside a shown beast body followed a relayed cast or stop: humanoid caster variables written into
-  // the copy's werewolf graph (30 Sep howls; the Vampire Lords of 28/29 Sep). Client 0.3.77 sends none from a beast and
-  // guards a listed copy (skymp5-client sync/beastBody.ts), and says so with the 'beastBody' UI capability. Only those
-  // clients are sent the list of werewolves to show in their body; every other one keeps the human fallback.
-  const WW_BODY = globalThis.__dboWwBody = globalThis.__dboWwBody || { sent: new Map(), sentAt: 0 };   // viewer -> last list sent
-  const WW_RESEND_MS = 30000;
-  const wwBodyTripped = (a) => { try { const t = mp.get(a, 'private.wwBodyOff'); return !!(t && t.at); } catch (e) { return false; } };
-  const wwBodyShown = (a) => { const s = stateOf(a); return !!s && s.form === 'werewolf' && globalThis.__dboWerewolfRemote !== false && !wwBodyTripped(a); };
-  const shownToViewer = (ww, viewer) => wwBodyShown(ww) && hasUiCap(viewer, 'beastBody');
-  // On a change only to a viewer whose list changed, and to every capable viewer every 30 s (a reconnect starts empty)
+  // the copy's beast graph (a werewolf's howls on 30 Sep; the Vampire Lords' spells on 28/29 Sep, both watchers having
+  // survived the rise and minutes of melee). Client 0.3.77 sends none from a beast and guards a listed copy
+  // (skymp5-client sync/beastBody.ts), and says so with the 'beastBody' UI capability. Only those clients are sent the
+  // list of beasts to show in their body; every other one keeps the human fallback named after the form.
+  // vampireLordRemoteRace (/vlremote) and werewolfRemoteRace (/wwremote) are each form's switch for everyone.
+  const BODY = {
+    werewolf: { tag: 'wwwatch', audit: 'WWBREAKER', name: 'werewolf', flag: 'private.wwBodyOff', cmd: 'wwremote', changed: 'changed',
+      on: () => globalThis.__dboWerewolfRemote !== false },
+    vampirelord: { tag: 'vlwatch', audit: 'VLBREAKER', name: 'Vampire Lord', flag: 'private.vlBodyOff', cmd: 'vlremote', changed: 'rose',
+      on: () => globalThis.__dboVampireLordRemote === true },
+  };
+  const WB = globalThis.__dboBeastBody = globalThis.__dboBeastBody || { sent: new Map(), sentAt: 0 };   // viewer -> last list sent
+  const RESEND_MS = 30000;
+  const formOf = (a) => { const s = stateOf(a); return s && BODY[s.form] ? s.form : ''; };
+  const bodyTripped = (a, form) => { try { const t = mp.get(a, BODY[form].flag); return !!(t && t.at); } catch (e) { return false; } };
+  const bodyShown = (a) => { const f = formOf(a); return !!f && BODY[f].on() && !bodyTripped(a, f); };
+  // On a change only to a viewer whose list changed, and to every capable viewer every 30 s while it is not empty
   const sendBeastBodies = () => {
     const now = Date.now();
     const all = api.onlineActors();
-    const bodies = all.filter(wwBodyShown).map((a) => ({ id: a >>> 0, race: FORMS.werewolf.race }));
-    const resend = now - WW_BODY.sentAt >= WW_RESEND_MS;
-    if (resend) WW_BODY.sentAt = now;
+    const bodies = all.filter(bodyShown).map((a) => ({ id: a >>> 0, race: FORMS[formOf(a)].race }));
+    const resend = now - WB.sentAt >= RESEND_MS;
+    if (resend) WB.sentAt = now;
     for (const o of all) {
-      if (!hasUiCap(o, 'beastBody')) { WW_BODY.sent.delete(o >>> 0); continue; }
+      if (!hasUiCap(o, 'beastBody')) { WB.sent.delete(o >>> 0); continue; }
       const mine = bodies.filter((b) => b.id !== (o >>> 0));
       const key = JSON.stringify(mine);
-      if (!(resend && mine.length) && WW_BODY.sent.get(o >>> 0) === key) continue;
-      WW_BODY.sent.set(o >>> 0, key);
+      if (!(resend && mine.length) && WB.sent.get(o >>> 0) === key) continue;
+      WB.sent.set(o >>> 0, key);
       sendPacket(o, { customPacketType: 'dboBeastBody', bodies: mine });
     }
   };
-  globalThis.__dboWwBodyShown = (a) => wwBodyShown(Number(a) >>> 0);
+  globalThis.__dboBeastBodyShown = (a) => bodyShown(Number(a) >>> 0);
 
-  // ── the werewolf breaker (wwwatch) ──
-  // A drop is not proof (a vlbreaker trip once named the body for a watcher who crashed twice more that day without
-  // one), so every drop near a werewolf is logged with its distance and timing, the body off included as the control.
-  // Only a werewolf that wwBreakerDrops watchers it was shown to dropped beside within wwBreakerWindowSeconds is
-  // turned off, and only for itself: private.wwBodyOff stays on the character through reloads and restarts until an
-  // admin says /wwremote clear.
-  const WW_UNITS = BREAKER_UNITS;
-  const WW_DROPS = Math.max(1, Number(CFG.wwBreakerDrops) || 2);
-  const WW_WINDOW_MS = (Number(CFG.wwBreakerWindowSeconds) || 600) * 1000;
-  const wwNear = globalThis.__dboWwNear = globalThis.__dboWwNear || new Map();    // `${watcher}:${ww}` -> { ww, since, last, dist, pos, movedAt, shownSince }
-  const wwCasts = globalThis.__dboWwCasts = globalThis.__dboWwCasts || new Map(); // werewolf -> [{ id, at }]
-  const wwDrops = globalThis.__dboWwDrops = globalThis.__dboWwDrops || new Map(); // werewolf -> [{ at, who }] counted drops
-  const werewolves = () => api.onlineActors().filter((o) => { const s = stateOf(o); return !!s && s.form === 'werewolf'; });
-  const watchWerewolves = () => {
+  // ── the per-beast breaker (wwwatch:, vlwatch:) ──
+  // A drop is not proof: the old Vampire Lord breaker tripped on Onny, who crashed twice more that day with no Lord near,
+  // and it hid every Lord from everyone. So every drop near a beast is logged with its distance and timing (the body off
+  // included, as the control), and only breakerDrops drops by watchers shown that beast's body, inside
+  // breakerWindowSeconds, turn its body off, for that character alone (private.wwBodyOff / private.vlBodyOff, through
+  // reloads and restarts) until an admin says /wwremote or /vlremote clear.
+  const UNITS = Number(CFG.breakerUnits) || 6000;
+  const NEAR_MS = (Number(CFG.breakerSeconds) || 120) * 1000;
+  const DROPS = Math.max(1, Number(CFG.breakerDrops) || 2);
+  const WINDOW_MS = (Number(CFG.breakerWindowSeconds) || 600) * 1000;
+  const WATCH_GAP_MS = 10000;
+  const near = globalThis.__dboBeastNear = globalThis.__dboBeastNear || new Map();      // `${watcher}:${beast}` -> { beast, form, since, last, dist, pos, movedAt, shownSince }
+  const casts = globalThis.__dboBeastCasts = globalThis.__dboBeastCasts || new Map();   // beast -> [{ id, at }]
+  const counted = globalThis.__dboBeastDrops = globalThis.__dboBeastDrops || new Map(); // beast -> [{ at, who }] counted drops
+  const dropLog = globalThis.__dboBeastDropLog = globalThis.__dboBeastDropLog || new Map(); // actor -> [{ at, near }], the last day
+  const watchBeasts = () => {
     const now = Date.now();
-    for (const ww of werewolves()) {
+    for (const b of api.onlineActors().filter((o) => !!formOf(o))) {
       let cell = null, pos = null;
-      try { cell = mp.get(ww, 'worldOrCellDesc'); pos = mp.get(ww, 'pos'); } catch (e) { continue; }
+      try { cell = mp.get(b, 'worldOrCellDesc'); pos = mp.get(b, 'pos'); } catch (e) { continue; }
       if (!pos) continue;
       for (const o of api.onlineActors()) {
-        if (o === ww) continue;
+        if (o === b) continue;
         try {
           if (mp.get(o, 'worldOrCellDesc') !== cell) continue;
           const p = mp.get(o, 'pos'); if (!p) continue;
           const dist = Math.hypot(p[0] - pos[0], p[1] - pos[1], p[2] - pos[2]);
-          if (dist > WW_UNITS) continue;
-          const key = `${o >>> 0}:${ww >>> 0}`;
-          const shown = shownToViewer(ww, o);
-          const w = wwNear.get(key);
-          if (!w || now - w.last > WATCH_GAP_MS) { wwNear.set(key, { ww, since: now, last: now, dist, pos: p.slice(), movedAt: now, shownSince: shown ? now : 0 }); continue; }
+          if (dist > UNITS) continue;
+          const key = `${o >>> 0}:${b >>> 0}`;
+          const shown = bodyShown(b) && hasUiCap(o, 'beastBody');
+          const w = near.get(key);
+          if (!w || now - w.last > WATCH_GAP_MS) { near.set(key, { beast: b, form: formOf(b), since: now, last: now, dist, pos: p.slice(), movedAt: now, shownSince: shown ? now : 0 }); continue; }
           if (Math.hypot(p[0] - w.pos[0], p[1] - w.pos[1], p[2] - w.pos[2]) > 1) { w.pos = p.slice(); w.movedAt = now; }
           if (shown && !w.shownSince) w.shownSince = now;
           if (!shown) w.shownSince = 0;
@@ -523,73 +407,87 @@ module.exports = (api) => {
         } catch (e) { /* gone */ }
       }
     }
-    for (const [k, w] of [...wwNear]) if (now - w.last > BREAKER_MS) wwNear.delete(k);
+    for (const [k, w] of [...near]) if (now - w.last > NEAR_MS) near.delete(k);
   };
-  const noteWwCast = (a, id) => {
-    const s = stateOf(a); if (!s || s.form !== 'werewolf') return;
+  const noteBeastCast = (a, id) => {
+    if (!formOf(a)) return;
     const now = Date.now();
-    wwCasts.set(a, (wwCasts.get(a) || []).filter((c) => now - c.at <= BREAKER_MS).concat([{ id, at: now }]).slice(-12));
+    casts.set(a, (casts.get(a) || []).filter((c) => now - c.at <= NEAR_MS).concat([{ id, at: now }]).slice(-12));
   };
-  const tripWerewolf = (ww, counted, cell) => {
-    try { mp.set(ww, 'private.wwBodyOff', { at: Date.now(), by: 'breaker', drops: counted.map((d) => d.who) }); } catch (e) { log(`wwwatch: could not mark ${display(ww)}: ${e.message}`); return; }
-    wwDrops.delete(ww >>> 0);
+  const spellName = (id) => { try { const x = mp.lookupEspmRecordById(id >>> 0); if (x && x.record && x.record.editorId) return x.record.editorId; } catch (e) { /* none */ } return (id >>> 0).toString(16); };
+  const secs = (ms) => Math.round(ms / 1000);
+  const signed = (ms) => (ms >= 0 ? `+${secs(ms)}` : `${secs(ms)}`);
+  const tellStaff = (text) => { for (const o of api.onlineActors()) { try { if (typeof isAdmin === 'function' && isAdmin(o)) personal(o, text); } catch (e) { /* offline */ } } };
+  const tripBody = (b, form, drops, cell) => {
+    const B = BODY[form];
+    try { mp.set(b, B.flag, { at: Date.now(), by: 'breaker', drops: drops.map((d) => d.who) }); } catch (e) { log(`${B.tag}: could not mark ${display(b)}: ${e.message}`); return false; }
+    counted.delete(b >>> 0);
     sendBeastBodies();
-    audit(`WWBREAKER tripped: ${counted.map((d) => d.who).join(', ')} dropped near ${display(ww)} at ${cell}`);
-    log(`wwwatch: tripped for ${display(ww)} at ${cell} by ${counted.length} drops (${counted.map((d) => d.who).join(', ')}); its werewolf body OFF until /wwremote clear`);
-    for (const o of api.onlineActors()) {
-      try { if (typeof isAdmin === 'function' && isAdmin(o)) personal(o, `The werewolf body of ${display(ww)} turned itself off: ${counted.length} players dropped beside it. Ask them for their crash logs, then /wwremote clear ${display(ww)} to show it again.`); } catch (e) { /* offline */ }
-    }
+    const names = drops.map((d) => d.who).join(', ');
+    audit(`${B.audit} tripped: ${names} dropped near ${display(b)} at ${cell}`);
+    log(`${B.tag}: tripped for ${display(b)} at ${cell} by ${drops.length} drops (${names}); its ${B.name} body OFF until /${B.cmd} clear`);
+    tellStaff(`The ${B.name} body of ${display(b)} turned itself off: ${drops.length} ${drops.length === 1 ? 'player' : 'players'} dropped beside it. Ask them for their crash logs, then /${B.cmd} clear ${display(b)} to show it again.`);
+    return true;
   };
-  const wwBreakerDrop = (a, journalOpen) => {
+  const beastDrop = (a, journalOpen) => {
     const now = Date.now();
-    WW_BODY.sent.delete(a);
-    const near = [...wwNear].filter(([k, w]) => k.startsWith(`${a}:`) && w.ww !== a && now - w.last <= BREAKER_MS).map(([, w]) => w);
-    for (const w of near) {
-      const ww = w.ww, s = stateOf(ww);
-      let cell = null; try { cell = mp.get(ww, 'worldOrCellDesc'); } catch (e) { /* gone */ }
+    WB.sent.delete(a);
+    const mine = [...near].filter(([k, w]) => k.startsWith(`${a}:`) && w.beast !== a && now - w.last <= NEAR_MS).map(([, w]) => w);
+    const before = (dropLog.get(a) || []).filter((d) => now - d.at <= 24 * 3600 * 1000);
+    if (!journalOpen) dropLog.set(a, before.concat([{ at: now, near: mine.length > 0 }]));
+    let tripped = false;
+    for (const w of mine) {
+      const b = w.beast, form = formOf(b) || w.form, B = BODY[form], s = stateOf(b);
+      if (!B) continue;
+      let cell = null; try { cell = mp.get(b, 'worldOrCellDesc'); } catch (e) { /* gone */ }
       const shown = w.shownSince > 0;
-      const casts = (wwCasts.get(ww) || []).filter((c) => c.at >= w.movedAt - 60000 && c.at <= w.movedAt + 10000);
+      const around = (casts.get(b) || []).filter((c) => c.at >= w.movedAt - 60000 && c.at <= w.movedAt + 10000);
+      const why = !B.on() ? 'off' : bodyTripped(b, form) ? 'breaker off' : hasUiCap(a, 'beastBody') ? 'not yet' : 'old client';
       const parts = [`${Math.round(w.dist)} units away`, `near it ${secs(w.last - w.since)} s`, `last moved ${secs(now - w.movedAt)} s before the drop`,
-        s && s.at ? `it changed ${secs(w.movedAt - s.at)} s before that` : 'it has reverted',
-        shown ? `shown its body ${secs(w.last - w.shownSince)} s` : `body not shown to them (${globalThis.__dboWerewolfRemote === false ? 'off' : wwBodyTripped(ww) ? 'breaker off' : hasUiCap(a, 'beastBody') ? 'not yet' : 'old client'})`,
-        casts.length ? `its casts around then (s from the last move): ${casts.map((c) => `${spellName(c.id)} ${signed(c.at - w.movedAt)}`).join(', ')}` : 'no casts by it in the minute before'];
-      if (journalOpen) { log(`wwwatch: ${display(a)} quit through the menu near ${display(ww)}, not counted: ${parts.join('; ')}`); continue; }
-      if (!shown || wwBodyTripped(ww)) { log(`wwwatch: ${display(a)} dropped near ${display(ww)}, not counted: ${parts.join('; ')}`); continue; }
-      const counted = (wwDrops.get(ww >>> 0) || []).filter((d) => now - d.at <= WW_WINDOW_MS).concat([{ at: now, who: display(a) }]);
-      wwDrops.set(ww >>> 0, counted);
-      log(`wwwatch: ${display(a)} dropped near ${display(ww)}, drop ${counted.length} of ${WW_DROPS} in ${secs(WW_WINDOW_MS)} s: ${parts.join('; ')}`);
-      if (counted.length >= WW_DROPS) tripWerewolf(ww, counted, String(cell));
+        s && s.at ? `it ${B.changed} ${secs(w.movedAt - s.at)} s before that` : 'it has reverted',
+        shown ? `shown its body ${secs(w.last - w.shownSince)} s` : `body not shown to them (${why})`,
+        around.length ? `its casts around then (s from the last move): ${around.map((c) => `${spellName(c.id)} ${signed(c.at - w.movedAt)}`).join(', ')}` : 'no casts by it in the minute before',
+        `their other drops in 24 h: ${before.length} (${before.filter((d) => !d.near).length} with no beast near)`];
+      if (journalOpen) { log(`${B.tag}: ${display(a)} quit through the menu near ${display(b)}, not counted: ${parts.join('; ')}`); continue; }
+      if (!shown || bodyTripped(b, form)) { log(`${B.tag}: ${display(a)} dropped near ${display(b)}, not counted: ${parts.join('; ')}`); continue; }
+      const drops = (counted.get(b >>> 0) || []).filter((d) => now - d.at <= WINDOW_MS).concat([{ at: now, who: display(a) }]);
+      counted.set(b >>> 0, drops);
+      log(`${B.tag}: ${display(a)} dropped near ${display(b)}, drop ${drops.length} of ${DROPS} in ${secs(WINDOW_MS)} s: ${parts.join('; ')}`);
+      if (drops.length >= DROPS && tripBody(b, form, drops, String(cell))) tripped = true;
     }
-    for (const k of [...wwNear.keys()]) if (k.startsWith(`${a}:`)) wwNear.delete(k);
+    for (const k of [...near.keys()]) if (k.startsWith(`${a}:`)) near.delete(k);
+    return tripped;
   };
+  // gamemode's disconnect handler calls this for every leave, before the logout revert clears the form; true when it tripped
+  globalThis.__dboVlBreakerDrop = (a, journalOpen) => beastDrop(Number(a) >>> 0, journalOpen === true);
 
-  // For a controlled crash test: with it on, other clients build the Vampire Lord body again (takes effect on the next change)
-  registerChatCommand('vlremote', (a, args) => {
-    const v = String(args || '').trim().toLowerCase();
-    if (v === 'on' || v === 'off') { globalThis.__dboVampireLordRemote = v === 'on'; globalThis.__dboVlRemoteSetBy = 'admin'; saveRemote(v === 'on', 'admin'); audit(`GM ${who(a)} set Vampire Lord remote body ${v}`); }
-    personal(a, `Other players ${globalThis.__dboVampireLordRemote === true ? 'see the Vampire Lord body' : 'see the real appearance of a Vampire Lord'} (applies on the next change).`);
-  }, { admin: true, help: '[on|off] whether other players see the Vampire Lord body (crash test)' });
-
-  // The same for a werewolf, at once: the next dboBeastBody list leaves every werewolf out, and their watchers rebuild them
-  // human. 'clear <player>' lets a werewolf the breaker turned off be shown again; with no word it says who is off.
-  registerChatCommand('wwremote', (a, args) => {
+  // /vlremote and /wwremote: on|off is that form's body for everyone, at once (the next list leaves every such beast
+  // out and their watchers rebuild them human); clear <player> shows one the breaker turned off again; nothing says who is off
+  const remoteCommand = (form, isOn, setOn) => (a, args) => {
+    const B = BODY[form];
     const [v0, ...rest] = String(args || '').trim().split(/\s+/);
     const v = String(v0 || '').toLowerCase();
-    if (v === 'on' || v === 'off') { globalThis.__dboWerewolfRemote = v === 'on'; globalThis.__dboWwRemoteSetBy = 'admin'; saveWerewolfRemote(v === 'on', 'admin'); audit(`GM ${who(a)} set werewolf remote body ${v}`); sendBeastBodies(); }
+    if (v === 'on' || v === 'off') { setOn(v === 'on'); audit(`GM ${who(a)} set ${B.name} remote body ${v}`); sendBeastBodies(); }
     if (v === 'clear') {
       const t = rest.length ? findByName(rest.join(' ')) : 0;
-      if (!t) return personal(a, 'Usage: /wwremote clear <player|#TAG>');
-      try { mp.set(t, 'private.wwBodyOff', null); } catch (e) { return personal(a, `That failed: ${e.message}`); }
-      wwDrops.delete(t >>> 0);
-      audit(`GM ${who(a)} cleared the werewolf body breaker for ${who(t)}`);
-      log(`wwwatch: ${display(t)}'s werewolf body cleared by ${display(a)}`);
+      if (!t) return personal(a, `Usage: /${B.cmd} clear <player|#TAG>`);
+      try { mp.set(t, B.flag, null); } catch (e) { return personal(a, `That failed: ${e.message}`); }
+      counted.delete(t >>> 0);
+      audit(`GM ${who(a)} cleared the ${B.name} body breaker for ${who(t)}`);
+      log(`${B.tag}: ${display(t)}'s ${B.name} body cleared by ${display(a)}`);
       sendBeastBodies();
-      return personal(a, `${display(t)}'s werewolf body may be shown again.`);
+      return personal(a, `${display(t)}'s ${B.name} body may be shown again.`);
     }
-    const off = api.onlineActors().filter((o) => wwBodyTripped(o)).map((o) => display(o));
-    personal(a, `Other players ${globalThis.__dboWerewolfRemote !== false ? 'with client 0.3.77 or later see the werewolf body; older clients see the real appearance' : 'see the real appearance of a werewolf'}.` +
-      (off.length ? ` Turned off by the breaker (online): ${off.join(', ')}; /wwremote clear <player> to show one again.` : ''));
-  }, { admin: true, help: '[on|off|clear <player>] whether other players see the werewolf body (crash mitigation)' });
+    const off = api.onlineActors().filter((o) => bodyTripped(o, form)).map((o) => display(o));
+    personal(a, `Other players ${isOn() ? `with client 0.3.77 or later see the ${B.name} body; older clients see the real appearance` : `see the real appearance of a ${B.name}`}.` +
+      (off.length ? ` Turned off by the breaker (online): ${off.join(', ')}; /${B.cmd} clear <player> to show one again.` : ''));
+  };
+  registerChatCommand('vlremote', remoteCommand('vampirelord', () => globalThis.__dboVampireLordRemote === true,
+    (on) => { globalThis.__dboVampireLordRemote = on; globalThis.__dboVlRemoteSetBy = 'admin'; saveRemote(on, 'admin'); }),
+  { admin: true, help: '[on|off|clear <player>] whether other players see the Vampire Lord body (crash mitigation)' });
+  registerChatCommand('wwremote', remoteCommand('werewolf', () => globalThis.__dboWerewolfRemote !== false,
+    (on) => { globalThis.__dboWerewolfRemote = on; globalThis.__dboWwRemoteSetBy = 'admin'; saveWerewolfRemote(on, 'admin'); }),
+  { admin: true, help: '[on|off|clear <player>] whether other players see the werewolf body (crash mitigation)' });
 
   registerChatCommand('forms', (a) => {
     const s = stateOf(a);

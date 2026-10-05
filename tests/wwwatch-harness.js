@@ -41,8 +41,8 @@ const api = (cfg) => ({
   every: (n, ms, fn) => timers.set(n, fn), findByName: (n) => (n === 'P10' ? DAR : 0), redress: () => undefined,
   isAdmin: (a) => a === ADMIN, cfg, hasUiCap: (a, c) => c === 'beastBody' && caps.has(a),
 });
-const GLOBALS = ['__dboVampireLordRemote', '__dboVlRemoteSetBy', '__dboWerewolfRemote', '__dboWwRemoteSetBy', '__dboVlSeen', '__dboVlNear',
-  '__dboVlCasts', '__dboVlDrops', '__dboWwBody', '__dboWwNear', '__dboWwCasts', '__dboWwDrops'];
+const GLOBALS = ['__dboVampireLordRemote', '__dboVlRemoteSetBy', '__dboWerewolfRemote', '__dboWwRemoteSetBy', '__dboBeastBody', '__dboBeastNear',
+  '__dboBeastCasts', '__dboBeastDrops', '__dboBeastDropLog'];
 const load = (cfg) => { timers = new Map(); commands = new Map(); delete require.cache[BEASTFORM]; require(BEASTFORM)(api(cfg || { beastform: { werewolfRemoteRace: true } })); };
 const restart = (cfg) => { for (const k of GLOBALS) delete globalThis[k]; load(cfg); };
 restart();
@@ -82,13 +82,13 @@ globalThis.__dboBeastPower(DAR, TERROR);
 step(10, (i) => place(ATHNY, [58505 + 111 - 5 * (i % 2), 205358, 7460]));
 globalThis.__dboBeastCast(DAR, TOTEM);
 step(1);
-ok((globalThis.__dboWwCasts.get(DAR) || []).length === 2, 'the werewolf\'s howls are kept, the power and the relayed cast', globalThis.__dboWwCasts.get(DAR));
+ok((globalThis.__dboBeastCasts.get(DAR) || []).length === 2, 'the werewolf\'s howls are kept, the power and the relayed cast', globalThis.__dboBeastCasts.get(DAR));
 globalThis.__dboBeastCast(ATHNY, TOTEM);
-ok(!globalThis.__dboWwCasts.has(ATHNY), 'a mortal\'s casts are not');
+ok(!globalThis.__dboBeastCasts.has(ATHNY), 'a mortal\'s casts are not');
 step(55);                                   // the server drops the frozen client a minute later
 ok(drop(ATHNY, false) === false, 'the drop returns what the Vampire Lord breaker says (nothing tripped there)');
 const first = lastWw();
-ok(/^wwwatch: P11 dropped near P10, drop 1 of 2 in 600 s: 1[01]\d units away; near it 8\d s; last moved 5\d s before the drop; it changed \d+ s before that; shown its body 8\d s; its casts around then \(s from the last move\): HowlWerewolfFear -\d+, HowlWerewolfDetectLife [+-]\d$/.test(first), 'Athny\'s drop is logged with distance, time near, last move, the change, the body shown and the howls', first);
+ok(/^wwwatch: P11 dropped near P10, drop 1 of 2 in 600 s: 1[01]\d units away; near it 8\d s; last moved 5\d s before the drop; it changed \d+ s before that; shown its body 8\d s; its casts around then \(s from the last move\): HowlWerewolfFear -\d+, HowlWerewolfDetectLife [+-]\d; their other drops in 24 h: 0 \(0 with no beast near\)$/.test(first), 'Athny\'s drop is logged with distance, time near, last move, the change, the body shown and the howls', first);
 ok(!props.get(DAR + '|private.wwBodyOff') && listed(ONNY), 'one drop is not proof: the body stays on');
 
 // ---- controls ---------------------------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ rejoin(FAR, [20000, 20000, 0]);
 step(2);
 drop(ONNY, true);
 ok(/^wwwatch: P12 quit through the menu near P10, not counted: 4441 units away/.test(lastWw()), 'a menu quit near him is logged, not counted', lastWw());
-ok((globalThis.__dboWwDrops.get(DAR) || []).length === 1, '...so the count is still 1');
+ok((globalThis.__dboBeastDrops.get(DAR) || []).length === 1, '...so the count is still 1');
 rejoin(ONNY, [58505 + 4441, 205358, 7460]);
 step(12);
 ok(!/P10 dropped/.test(wwwatch().join('\n')), 'nothing is said of his own drops yet');
@@ -120,10 +120,10 @@ ok(globalThis.__dboWerewolfRemote !== false, 'the switch for everyone else stays
 // ---- it persists ---------------------------------------------------------------------------------------------------------
 load();
 step(1);
-ok(!globalThis.__dboWwBodyShown(DAR), 'a hot reload keeps him off');
+ok(!globalThis.__dboBeastBodyShown(DAR), 'a hot reload keeps him off');
 restart();
 step(31);
-ok(!globalThis.__dboWwBodyShown(DAR) && !listed(FAR), 'a restart keeps him off (it is on the character, not in the process)', listTo(FAR));
+ok(!globalThis.__dboBeastBodyShown(DAR) && !listed(FAR), 'a restart keeps him off (it is on the character, not in the process)', listTo(FAR));
 globalThis.__dboBeastRevert(DAR, 'test');
 ok(change() === true && !listed(FAR), 'his next change is still not shown');
 rejoin(ONNY, [58505 + 200, 205358, 7460]);
@@ -155,13 +155,13 @@ const before = wwwatch().length;
 drop(DAR, false);
 ok(wwwatch().length === before, 'the werewolf\'s own drop is not evidence');
 online.add(DAR);
-restart({ beastform: { werewolfRemoteRace: true, wwBreakerDrops: 1 } });
+restart({ beastform: { werewolfRemoteRace: true, breakerDrops: 1 } });
 props.set(DAR + '|private.beast', null);
 change();
 rejoin(ATHNY, [58505 + 150, 205358, 7460]);
 step(5);
 drop(ATHNY, false);
-ok(/drop 1 of 1/.test(wwwatch().slice(-2)[0] || '') && props.get(DAR + '|private.wwBodyOff'), 'wwBreakerDrops 1 trips on the first counted drop', wwwatch().slice(-2));
+ok(/drop 1 of 1/.test(wwwatch().slice(-2)[0] || '') && props.get(DAR + '|private.wwBodyOff'), 'breakerDrops 1 trips on the first counted drop', wwwatch().slice(-2));
 
 // ---- /wwremote off hides every werewolf at once ---------------------------------------------------------------------------
 commands.get('wwremote')(ADMIN, 'clear P10');
@@ -173,7 +173,7 @@ commands.get('wwremote')(ADMIN, 'on');
 // ---- hot-reload safety ----------------------------------------------------------------------------------------------------
 const src = fs.readFileSync(BEASTFORM, 'utf8');
 ok(!/mp\.on\(/.test(src), 'beastform.js registers no mp.on listener');
-ok(/globalThis\.__dboWwNear = globalThis\.__dboWwNear \|\|/.test(src) && /globalThis\.__dboWwDrops = globalThis\.__dboWwDrops \|\|/.test(src), 'its watch state lives on globalThis');
+ok(/globalThis\.__dboBeastNear = globalThis\.__dboBeastNear \|\|/.test(src) && /globalThis\.__dboBeastDrops = globalThis\.__dboBeastDrops \|\|/.test(src), 'its watch state lives on globalThis');
 const gm = fs.readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
 ok(/require\(BEASTFORM_JS\)\(\{[^}]*hasUiCap \}\)/.test(gm), 'gamemode.js hands beastform.js hasUiCap');
 

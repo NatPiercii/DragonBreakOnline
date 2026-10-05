@@ -812,13 +812,13 @@
   "staffChannelId": "1554223778228211894"
  },
  "beastform": {
-  "_comment": "vampireLordRemoteRace: whether other players see the Vampire Lord body. Off since the 2026-09-29 crash breaker trip; /vlremote on|off changes it and beastform-state.json keeps that choice across restarts and deploys. werewolfRemoteRace: the same for a werewolf (on; /wwremote on|off, kept in the same file). Off stops the watcher crashes from a werewolf's relayed howls until the client guard (0.3.72+) is live, at the cost of watchers seeing a human play the werewolf's animations.",
-  "vampireLordRemoteRace": false,
+  "_comment": "vampireLordRemoteRace / werewolfRemoteRace: whether other players see that form's body, for everyone (/vlremote, /wwremote on|off; beastform-state.json keeps an admin's choice across restarts and deploys). On, a beast's appearance keeps its mortal race and only a client whose UI announced 'beastBody' (0.3.77+, which relays no animation snapshot from a beast and guards a listed copy) is sent dboBeastBody and builds the body; 0.3.76 keeps the human fallback named after the form.",
+  "vampireLordRemoteRace": true,
   "werewolfRemoteRace": true,
-  "_werewolfRemoteRace": "On again (Nate, 5 Oct), for clients that can show it safely: a werewolf's appearance keeps its mortal race, and only a client whose UI announced 'beastBody' (0.3.77+, which relays no animation snapshot from a beast and guards a listed copy) is sent dboBeastBody and builds the beast; 0.3.76 keeps the human fallback. /wwremote off turns it off at once. The Vampire Lord body stays off.",
-  "wwBreakerDrops": 2,
-  "wwBreakerWindowSeconds": 600,
-  "_wwBreaker": "wwwatch: every drop near a werewolf is logged with distance and timing. Drops by watchers shown its body, within breakerUnits of it in the last breakerSeconds, count; wwBreakerDrops of them inside wwBreakerWindowSeconds turn that werewolf's body off (private.wwBodyOff, kept through restarts) until /wwremote clear <player>.",
+  "_remoteRace": "Both on (Nate, 5 Oct: 'we need both vamp lord and werewolf bodies on'), for capable clients only.",
+  "breakerDrops": 2,
+  "breakerWindowSeconds": 600,
+  "_breaker": "wwwatch: / vlwatch: every drop near a beast is logged with distance and timing. Drops by watchers shown its body, within breakerUnits of it in the last breakerSeconds, count; breakerDrops of them inside breakerWindowSeconds turn that character's body off (private.wwBodyOff / private.vlBodyOff, kept through restarts) until /wwremote or /vlremote clear <player>.",
   "_names": "While in a beast form a player is named after it (beastform.js NAMES: Werewolf, Vampire Lord), in chat, menus and on other clients; the revert, death, login and logout put the real name back."
  },
  "offlineBody": {
