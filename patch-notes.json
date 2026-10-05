@@ -1,7 +1,7 @@
 [
   {
     "title": "A character slot for 150 hours",
-    "date": "SHIP_DATE",
+    "date": "2026-10-05",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -18,7 +18,7 @@
   },
   {
     "title": "Fixes",
-    "date": "SHIP_DATE",
+    "date": "2026-10-05",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -36,7 +36,7 @@
           "Enchantments a few characters learned at the arcane enchanter before the 4 October update come back at their next login.",
           "Weapons you enchant with Soul Trap yourself now trap souls: a kill while the effect lasts fills an empty soul gem, as weapons found with Soul Trap already did.",
           "Raise Zombie tells you when a body cannot rise: one too powerful for the spell, another adventurer's, or one already bound.",
-          "Inside a house, each chest and inner door now has its own key, cut at that chest or door. A key cut at a door in from the street opens the doors in from the street, and no longer the rooms and chests inside. The owner still opens them all.",
+          "Inside a house, each chest and inner door now has its own key, cut at that chest or door. A key cut at a door in from the street opens the doors in from the street; inner doors and chests use their own keys. The owner still opens them all.",
           "Gear you make, buy or trade is no longer swapped for steel when you log in, and chests inside a claimed home are left alone. The steel cap still holds for loot: dungeon chests, bodies and camps, and world chests as they are opened."
         ]
       },
@@ -50,7 +50,7 @@
   },
   {
     "title": "College and Synod robes",
-    "date": "SHIP_DATE",
+    "date": "2026-10-05",
     "version": "Server update",
     "tag": "Change",
     "sections": [
