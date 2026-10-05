@@ -86,6 +86,8 @@ const NOT_GRANTED = "Property here is granted by its ruler (Jarl, Baron or Count
 const MANAGER_RANKS = ["jarl", "baron", "steward", "chieftain", "bane", "count"];
 // Actions on any door or chest of a place that act on the whole place (its root)
 const PLACE_WIDE = ["abandon", "revoke", "rename", "createkey", "revokekeys", "transfer", "assign", "unassign", "share", "unshare"];
+// Keys of a place's inner doors and chests are their own (Nate, 5 Oct): only its exterior doors share the place's key
+const OWN_KEY_ACTIONS = ["createkey", "revokekeys"];
 // The owner's Rooms and chests panel lists at most this many of a place's inner doors and chests
 const MAX_ROOMS_LISTED = 48;
 // A place's cells: the interior behind its door and the rooms reachable only through it, at most this many
@@ -231,6 +233,13 @@ export class HousingSystem implements System {
       primaryOf: (ref: unknown) => primary(ref),
       recordOf: (ref: unknown) => { const p = primary(ref); return p ? this.read(ctx, p) : null; },
       holdOf: (ref: unknown) => { const p = primary(ref); return p ? this.holdOf(ctx, p) : ""; },
+      // Whether a claim is property: a building, never a chest or an inner door (Nate, 5 Oct); all claims before the place rules
+      isBuilding: (ref: unknown): boolean => {
+        if (!this.placesOn()) return true;
+        const p = this.primaryOf(ctx, Number(ref) >>> 0);
+        const r = p ? this.read(ctx, p) : null;
+        return !!p && !!r && r.owner !== 0 && this.isBuilding(ctx, p, { ...r, partner: r.partner || this.partnerOf(ctx, p) });
+      },
       // What a load door's prompt should call it, or "" to keep the destination's name (gamemode.js dboDoorName)
       doorName: (ref: unknown): string => { try { return this.doorName(ctx, Number(ref) >>> 0); } catch { return ""; } },
       isManager: (actorId: unknown, ref: unknown) => { const p = primary(ref); return !!p && this.isManager(ctx, Number(actorId) >>> 0, p); },
@@ -391,7 +400,8 @@ export class HousingSystem implements System {
     let rec = this.read(ctx, primary) || emptyRecord();
     // A whole place counts as one property (Nate, 3 Oct): handing over, giving up, naming and keys go to its root from any
     // of its doors or chests
-    if (this.placesOn() && rec.memberOf && rec.memberOf !== primary && PLACE_WIDE.indexOf(action) !== -1) {
+    const ownKey = OWN_KEY_ACTIONS.indexOf(action) !== -1 && !this.isEntrance(ctx, primary, { ...rec, partner: rec.partner || this.partnerOf(ctx, primary) });
+    if (this.placesOn() && rec.memberOf && rec.memberOf !== primary && PLACE_WIDE.indexOf(action) !== -1 && !ownKey) {
       const root = this.read(ctx, rec.memberOf);
       if (root && root.owner !== 0) { primary = rec.memberOf; rec = root; }
     }
@@ -399,8 +409,8 @@ export class HousingSystem implements System {
     // and a lock makes it a member, locked on its own
     if (this.placesOn() && rec.owner === 0) {
       const place = this.placeOfRef(ctx, primary);
-      if (place && PLACE_WIDE.indexOf(action) !== -1) { primary = place.root; rec = place.rec; }
-      else if (place && action === "lock") rec = this.adopted(ctx, primary, rec, place);
+      if (place && PLACE_WIDE.indexOf(action) !== -1 && !ownKey) { primary = place.root; rec = place.rec; }
+      else if (place && (action === "lock" || ownKey)) rec = this.adopted(ctx, primary, rec, place);
       else if (place && action === "unlock") { this.notice(ctx, userId, "That is not locked."); return; }
     }
     const isOwner = rec.owner !== 0 && rec.owner === this.profileOf(ctx, actorId);
@@ -835,6 +845,8 @@ export class HousingSystem implements System {
     const assigned = root.assigned && root.assigned[hex];
     if (assigned) return (!!v.profileId && assigned.profile === v.profileId) || this.ownsOrManages(ctx, rec.memberOf, root, v);
     if (this.isPlaceContainer(ctx, primary, rec) && !(root.shared || []).includes(hex)) return this.ownsOrManages(ctx, rec.memberOf, root, v);
+    // Only an exterior door answers to the place's key; an inner door or chest to its own (Nate, 5 Oct)
+    if (!this.isEntrance(ctx, primary, rec) && !this.isPlaceContainer(ctx, primary, rec)) return this.ownsOrManages(ctx, rec.memberOf, root, v);
     return this.hasAccessWith(ctx, rec.memberOf, root, v);
   }
 
