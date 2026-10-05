@@ -1,7 +1,7 @@
 [
   {
     "title": "Fixes",
-    "date": "2026-10-05",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -15,7 +15,10 @@
           "When the beast takes a werewolf without asking (hunger or the full moon), you are warned 12 seconds before the change.",
           "Other players see a werewolf's beast body again, and anyone in werewolf or Vampire Lord form goes only by Werewolf or Vampire Lord, never their own name.",
           "The Bloodscale Bone Helmet no longer drops as loot: for now it only fits Argonians and Khajiit.",
-          "Enchantments a few characters learned at the arcane enchanter before the 4 October update come back at their next login."
+          "Enchantments a few characters learned at the arcane enchanter before the 4 October update come back at their next login.",
+          "Weapons you enchant with Soul Trap yourself now trap souls: a kill while the effect lasts fills an empty soul gem, as weapons found with Soul Trap already did.",
+          "Raise Zombie tells you when a body cannot rise: one too powerful for the spell, another adventurer's, or one already bound.",
+          "Your summons and raised dead fight another player only where PvP allows it: while you and that player are fighting, never someone in your party, downed, jailed, held or logged out."
         ]
       }
     ]
