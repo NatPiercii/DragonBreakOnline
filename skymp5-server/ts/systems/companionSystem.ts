@@ -662,6 +662,10 @@ export class CompanionSystem implements System {
           this.orderAttackAll(aggId, tgtId);
         }
         this.defend(tgtId, aggId);
+        // A player, or what fights for one, striking a companion is fought by the owner's companions under the PvP rules
+        // (defend checks them); an NPC's blow on a companion is left to its own AI as before
+        const struck = this.companions.get(tgtId);
+        if (struck && this.playerSideOf(aggId)) this.defend(struck.ownerId, aggId);
       } catch (e) {
         this.log(`CompanionSystem: defend failed: ${e}`);
       }
