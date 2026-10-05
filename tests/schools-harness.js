@@ -254,8 +254,10 @@ check('...with the reading idle played', anims.some(([a, ev]) => a === NOVICE &&
 check('the panel the player opened takes focus', lastSent(NOVICE, 'studyMagic').focus === true);
 advance(35000); tick('schools.tick');
 check('the study tick redraws the panel in place, without taking focus, under the same nonce', lastSent(NOVICE, 'studyMagic').focus === false && lastSent(NOVICE, 'studyMagic').w.mode === 'studying' && lastSent(NOVICE, 'studyMagic').w.nonce === out.widgets.filter((x) => x.a === NOVICE && x.w.type === 'studyMagic' && x.focus).pop().w.nonce);
+check('the time left counts the open sitting: 20 min less the 30 s paid (it went back up every tick, 5 Oct)', lastWidget(NOVICE, 'studyMagic').leftSeconds === 1170, lastWidget(NOVICE, 'studyMagic').leftSeconds);
 check('three whole ticks in 35 s pay 3 units to Conjuration', Math.abs(rec(NOVICE).levels.Conjuration.level - 1 - 0.3) < 1e-9 || (rec(NOVICE).levels.Conjuration.level === 1 && Math.abs(rec(NOVICE).levels.Conjuration.xp - 30) < 1e-9), rec(NOVICE).levels.Conjuration);
 advance(30000); tick('schools.tick');
+check('...and keeps falling as the sitting goes on', lastWidget(NOVICE, 'studyMagic').leftSeconds === 1140, lastWidget(NOVICE, 'studyMagic').leftSeconds);
 check('a minute of study credits Arcane Arts once, with a Conjuration spell, through the cast credit', wheelEvents.filter((e) => e.a === NOVICE).length === 1 && wheelEvents[wheelEvents.length - 1].kind === 'cast' && wheelEvents[wheelEvents.length - 1].detail.spellId !== 0, wheelEvents.filter((e) => e.a === NOVICE));
 at(NOVICE, SYNOD, [300, 0, 0]);
 advance(10000); tick('schools.tick');
