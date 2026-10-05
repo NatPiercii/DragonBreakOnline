@@ -187,7 +187,7 @@ const cueLook = (cue: number) => ({ opacity: Math.max(0.1, Math.pow(Math.max(0, 
 const CUES: Record<Kind, string[]> = {
   mining: ['M-15 2 L-8 -1 L-3 2 L3 -2 L8 1 L15 -1', 'M-14 -1 L-8 2 L-2 -2 L4 1 L9 -2 L15 1', 'M-15 0 L-9 -2 L-4 1 L2 -1 L7 2 L14 0'],
   chopping: ['M-16 0 L16 0', 'M-16 1 L-2 0 L16 -1', 'M-16 -1 L3 0 L16 1'],
-  struggle: ['M-10 0 L10 0', 'M-10 0 L10 0', 'M-10 0 L10 0'],
+  struggle: ['M-7 -9 L-2 -1 L-6 9 M0 -10 L1 0 L-1 10 M7 -9 L2 -1 L6 9', 'M-6 -10 L-1 0 L-7 8 M1 -9 L0 1 L2 10 M8 -8 L2 0 L7 9', 'M-8 -8 L-2 0 L-5 10 M0 -10 L-1 0 L1 9 M6 -10 L1 1 L7 8'],
 };
 const PICK_LOCK_MS = 220;   // after a pick the next spots fade in; no pick lands before they show
 const IDLE_TEXT: Record<Kind, string> = {
@@ -233,7 +233,7 @@ const Labour = ({ data }: { data: LabourData }) => {
   const sentRef = useRef(false);
   const readyAt = useRef(0);
   // The pick round: [index, ms] per blow, the wasted ones, and the swing on screen
-  const pick = data.mode === 'pick' && kind !== 'struggle' && Array.isArray(data.steps) && data.steps.length > 0;
+  const pick = data.mode === 'pick' && Array.isArray(data.steps) && data.steps.length > 0;
   const steps = pick ? (data.steps as number[][][]) : [];
   const slipsAllowed = Math.max(0, Math.floor(num(data.slips, 3)));
   const pickLock = Math.max(PICK_LOCK_MS, Math.floor(num(data.minPickMs, 150)) + 1);
@@ -485,7 +485,7 @@ const Labour = ({ data }: { data: LabourData }) => {
           ) : (
             <>
               <span className="labour__keys">{pick
-                ? `Click a spot or press 1-${step ? step.length : 4} to strike. Escape to ${leaveLabel.toLowerCase()}.`
+                ? `Click a spot or press 1-${step ? step.length : 4} to ${strikeLabel.toLowerCase()}. Escape to ${leaveLabel.toLowerCase()}.`
                 : `Space, Enter or click to ${strikeLabel.toLowerCase()}. Escape to ${leaveLabel.toLowerCase()}.`}</span>
               {!pick && <button className="labour__button labour__button--primary" disabled={sent} onClick={strike}>{strikeLabel}</button>}
               <button className="labour__button" onClick={leave}>{leaveLabel}</button>

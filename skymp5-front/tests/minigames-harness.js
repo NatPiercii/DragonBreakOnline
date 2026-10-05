@@ -223,8 +223,14 @@ section('labour pick', () => {
   check('labour pick: Space strikes nothing in a pick round', count('dbo:labour') === 0 && w.byClass('labour__mark--hit').length === 0);
   w.click(w.byClass('labour__spot')[1]);
   check('labour pick: a click on a spot picks it', w.byClass('labour__mark--hit').length === 1);
-  w = mount(Labour, Object.assign({}, round, { nonce: 'p5', kind: 'struggle', event: 'struggle', bands: [50], band: 8, sweepMs: 1000 }));
-  check('labour pick: the struggle stays a timing round whatever it is sent', w.hasClass('labour__band') && !w.hasClass('labour__spot'));
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p5', kind: 'struggle', event: 'struggle', title: 'Bound Hands', slips: 0, strikeLabel: 'Pull', leaveLabel: 'Give up', hint: 'Pull where the rope gives; one wrong pull and the bonds hold.' }));
+  check('labour pick: the struggle draws the rope with its spots, the hint from the server', !w.hasClass('labour__band') && w.byClass('labour__spot').length === 3 && w.text().includes('where the rope gives') && w.text().includes('to pull. Escape to give up'), w.text());
+  w.advance(300); w.key('2', 'Digit2'); w.advance(300); w.key('2', 'Digit2');
+  const sg = last('dbo:struggle');
+  check('labour pick: one wrong pull ends the struggle on its own event as a loss', sg && sg[2] === '[[1,300],[1,600]]' && json(sg[4]).win === false && json(sg[4]).slips === 1 && w.text().includes('Your grip slips.'), sg);
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p6', kind: 'struggle', event: 'struggle', slips: 0 }));
+  w.advance(300); w.key('2', 'Digit2'); w.advance(300); w.key('1', 'Digit1');
+  check('labour pick: a clean struggle still waits on the knots', json(last('dbo:struggle')[4]).win === true && w.text().includes('Now the knots decide.') && !w.hasClass('labour__bar--win'), w.text());
 });
 
 // ---- skinning pick attempts --------------------------------------------------------------------------------------
