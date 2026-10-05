@@ -201,7 +201,11 @@ module.exports = (api) => {
   const isStaff = typeof api.isStaff === 'function' ? api.isStaff : () => false;
   // repeat (Nate, 4 Oct: "keep running script to remove glass and elven"): every login and every container opening swaps
   // again, not once per version; Glass or Elven a character or a chest has come by since goes too. false: once, as before.
-  const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], combatSeconds: 30, repeat: true }, (cfg && cfg.gearSwap) || {});
+  // characters / housing (Nate, 5 Oct: "the cap was only supposed to affect dungeon loot/loot pools"): the cap holds where loot
+  // comes from (dungeons.js, loottiers.js, bodies through lootCap, camps), so by default no character is swept at login and
+  // no chest inside a player's property is swept: what a player crafts, buys or trades is theirs. characters: true and
+  // housing: true bring the old sweeps back. The once-only restores at login and in containers still run.
+  const C = Object.assign({ mode: 'on', version: VERSION, exemptProfiles: [], combatSeconds: 30, repeat: true, characters: false, housing: false }, (cfg && cfg.gearSwap) || {});
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8')); } catch (e) { log(`gearswap: ${file} unreadable`, e.message); return fallback; } };
   const LOOT_TIERS_JS = path.join(__dirname, 'loottiers.js');
   delete require.cache[LOOT_TIERS_JS];
@@ -320,6 +324,10 @@ module.exports = (api) => {
   const sweepContainer = (ref) => {
     ref = ref >>> 0;
     if (C.mode === 'off' || C.containers === false) return;
+    // A chest inside a claimed property is the owner's, not a loot pool (housing: true sweeps it as before)
+    if (C.housing !== true) {
+      try { const h = globalThis.__dboHousing; const r = h && typeof h.recordOf === 'function' ? h.recordOf(ref) : null; if (r && r.owner) return; } catch (e) { /* no housing: a world chest */ }
+    }
     // The base form comes from 'baseDesc': the server has no 'baseId' property, and asking for one throws
     let base = 0; try { base = idOf(String(mp.get(ref, 'baseDesc') || '')) >>> 0; } catch (e) { return; }
     const r = base && recordOf(base);
@@ -524,7 +532,7 @@ module.exports = (api) => {
   // From gamemode.js's login path (onCharacterReady), when the character has loaded and no menu is open
   globalThis.__dboGearSwapLogin = (a) => {
     if (C.mode === 'off') return;
-    try { sweep(a); } catch (e) { log('gearswap failed for', (a >>> 0).toString(16), e.message); }
+    if (C.characters === true) try { sweep(a); } catch (e) { log('gearswap failed for', (a >>> 0).toString(16), e.message); }
     try { restoreAt(a); } catch (e) { log('gearswap restore failed for', (a >>> 0).toString(16), e.message); }
   };
 
@@ -537,7 +545,7 @@ module.exports = (api) => {
       personal(a, `${who(target)}: ${p.swaps.reduce((n, s) => n + s.count, 0)} item(s) to swap, ${p.skipped.artifact} artifact(s) kept, ${p.skipped.unmapped} without a replacement, ${p.skipped.enchanted} enchanted kept; mark ${JSON.stringify(mp.get(target, MARK) || null)}; restore ${JSON.stringify(mp.get(target, RESTORE_MARK) || null)}`);
     }, { admin: true, help: '[name]: what the steel-cap gear swap would take from a player' });
   }
-  log(`gearswap: mode ${C.mode}, ${C.repeat ? 'every login and container opening' : `once per version ${C.version}`}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}, enchantments kept`);
+  log(`gearswap: mode ${C.mode}, ${C.characters === true ? 'characters at login, ' : 'loot only (no login sweep), '}${C.housing === true ? 'property chests too, ' : 'property chests left alone, '}${C.repeat ? 'every login and container opening' : `once per version ${C.version}`}, ${Object.keys(SWAP.items || {}).length} items and ${Object.keys(SWAP.metals || {}).length} metals mapped, cap ${TIERS.cap}, enchantments kept`);
   restorePlanNow();
   return { plan, sweep, sweepContainer, bodyTake, lootCap, busy, restoreAt, restoreContainer, enchantOf };
 };
