@@ -1,5 +1,6 @@
 import { System, Log, SystemContext } from "./system";
 import { espmFieldFormIds, readFormIdField } from "./formIdUtil";
+import { InventoryEntry } from "./inventoryExtras";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -133,9 +134,10 @@ export class SoulTrapSystem implements System {
 
   private onHit(ctx: SystemContext, targetId: number, aggressor: unknown, source: unknown): void {
     const mp = ctx.svr as Mp;
-    const seconds = this.trapSeconds(ctx, this.idOf(mp, source));
-    if (!seconds) return;
+    const sourceId = this.idOf(mp, source);
     const casterId = this.idOf(mp, aggressor);
+    const seconds = Math.max(this.trapSeconds(ctx, sourceId), this.heldTrapSeconds(ctx, casterId, sourceId));
+    if (!seconds) return;
     if (!casterId || casterId === targetId) return;
     // Summons and reanimated corpses give no soul, so none can be farmed or taken twice
     if (this.companions?.isCompanionActor(targetId)) return;
@@ -301,6 +303,31 @@ export class SoulTrapSystem implements System {
       }
     }
     this.trapSecondsCache.set(sourceId, seconds);
+    return seconds;
+  }
+
+  // A weapon's own copy can carry soul trap the record lacks: a player-made enchantment or one kept as extra data
+  private heldTrapSeconds(ctx: SystemContext, casterId: number, weaponId: number): number {
+    if (!casterId || !weaponId) return 0;
+    const res = this.lookup(ctx, weaponId);
+    if (!res || res.record.type !== "WEAP") return 0;
+    let entries: InventoryEntry[];
+    try {
+      const inv = (ctx.svr as Mp).get(casterId, "inventory");
+      entries = (inv && Array.isArray(inv.entries) ? inv.entries : [])
+        .filter((e: InventoryEntry) => (Number(e.baseId) >>> 0) === weaponId && (Number(e.count) || 0) > 0);
+    } catch {
+      return 0;
+    }
+    const held = entries.filter((e) => e.worn || e.wornLeft);
+    let seconds = 0;
+    for (const e of held.length ? held : entries) {
+      for (const x of Array.isArray(e.enchantmentEffects) ? e.enchantmentEffects : []) {
+        if (this.isSoulTrapEffect(ctx, Number(x.effectId) >>> 0)) seconds = Math.max(seconds, Number(x.duration) || 0);
+      }
+      const ench = Number(e.enchantmentId) >>> 0;
+      if (ench && ench !== weaponId) seconds = Math.max(seconds, this.trapSeconds(ctx, ench));
+    }
     return seconds;
   }
 
