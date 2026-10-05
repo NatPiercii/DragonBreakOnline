@@ -67,6 +67,7 @@ import { LevelBonusService } from "./services/services/levelBonusService";
 import { InteractionPromptService } from "./services/services/interactionPromptService";
 import { BoardMailService } from "./services/services/boardMailService";
 import { BeastFormService } from "./services/services/beastFormService";
+import { CraftPerkService } from "./services/services/craftPerkService";
 import { VampireFeedService } from "./services/services/vampireFeedService";
 import { AutoMoveService } from "./services/services/autoMoveService";
 import { ParalysisService } from "./services/services/paralysisService";
@@ -203,6 +204,7 @@ const main = () => {
       new InteractionPromptService(sp, controller),
       new BoardMailService(sp, controller),
       new BeastFormService(sp, controller),
+      new CraftPerkService(sp, controller),
       new AutoMoveService(sp, controller),
       new VampireFeedService(sp, controller),
       new ParalysisService(sp, controller),
