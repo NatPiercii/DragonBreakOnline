@@ -36,6 +36,9 @@ struct ConditionEvaluatorContext
   // Set by EvaluateConditions for crafting: a condition function the server
   // does not implement fails instead of passing (see EvaluateCondition)
   bool unknownFunctionsFail = false;
+
+  // Crafting: whether the actor counts as holding a perk HasPerk (448) names
+  std::function<bool(const MpActor& actor, uint32_t perkId)> craftPerkHeld;
 };
 
 class ConditionsEvaluator

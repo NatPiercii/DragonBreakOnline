@@ -273,6 +273,12 @@ std::pair<bool, float> ConditionsEvaluator::EvaluateCondition(
     return { false, -108.f };
   }
 
+  if (!conditionFunction && condition.function == "#448" &&
+      context.craftPerkHeld && context.craftPerkHeld(*runsOn, parameter1)) {
+    return { CompareFloats(1.f, condition.value, condition.comparison),
+             1.f };
+  }
+
   if (!conditionFunction) {
     // Crafting: the answer is unknown, so the recipe stays locked, as the
     // player's own game shows it to a character without the perk, quest or

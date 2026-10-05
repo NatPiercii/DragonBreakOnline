@@ -212,15 +212,18 @@ Condition MakeCondition(const std::string& function, uint32_t parameter1,
   return c;
 }
 
-bool EvaluateAs(ConditionsEvaluatorCaller caller,
-                const std::vector<Condition>& conditions, const MpActor& actor)
+bool EvaluateAs(
+  ConditionsEvaluatorCaller caller, const std::vector<Condition>& conditions,
+  const MpActor& actor,
+  const ConditionEvaluatorContext& context = ConditionEvaluatorContext())
 {
   static const auto kFunctions =
     ConditionFunctionFactory::CreateConditionFunctions();
   bool result = false;
   ConditionsEvaluator::EvaluateConditions(
     kFunctions, ConditionsEvaluatorSettings(), caller, conditions, actor,
-    actor, [&](bool res, std::vector<std::string>&) { result = res; });
+    actor, [&](bool res, std::vector<std::string>&) { result = res; },
+    context);
   return result;
 }
 }
@@ -326,6 +329,127 @@ TEST_CASE("A recipe that needs a vanilla perk is refused", "[Craft][espm]")
   REQUIRE(ac.GetInventory().GetItemCount(EbonyDagger) == 0);
   REQUIRE(ac.GetInventory().GetItemCount(EbonyIngot) == 1);
 
+  p.DestroyActor(0xff000000);
+  DoDisconnect(p, 0);
+}
+
+TEST_CASE("A perk the craft context says the actor holds passes HasPerk, and "
+          "only that perk",
+          "[Craft]")
+{
+  MpActor actor(LocationalData(), FormCallbacks::DoNothing());
+  Appearance appearance;
+  appearance.raceId = 0x13746;
+  actor.SetAppearance(&appearance);
+
+  const uint32_t SteelSmithing = 0xcb40d, EbonySmithing = 0xcb412;
+  std::vector<uint32_t> asked;
+  ConditionEvaluatorContext context;
+  context.craftPerkHeld = [&](const MpActor&, uint32_t perkId) {
+    asked.push_back(perkId);
+    return perkId == SteelSmithing;
+  };
+
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", SteelSmithing) }, actor,
+                     context) == true);
+  REQUIRE(asked == std::vector<uint32_t>{ SteelSmithing });
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", EbonySmithing) }, actor,
+                     context) == false);
+
+  // A held perk compares as 1: a recipe for those without it stays shut
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", SteelSmithing, 0.f) }, actor,
+                     context) == false);
+
+  // The other conditions of the recipe still decide
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", SteelSmithing),
+                       MakeCondition("GetIsRace", 0x13745) },
+                     actor, context) == false);
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", SteelSmithing),
+                       MakeCondition("#59", 0x1caf1) },
+                     actor, context) == false);
+  REQUIRE(EvaluateAs(ConditionsEvaluatorCaller::kCraft,
+                     { MakeCondition("#448", SteelSmithing),
+                       MakeCondition("GetIsRace", 0x13746) },
+                     actor, context) == true);
+}
+
+namespace {
+class CraftPerkListener : public PartOneListener
+{
+public:
+  void OnConnect(Networking::UserId) override {}
+  void OnDisconnect(Networking::UserId) override {}
+  void OnCustomPacket(Networking::UserId,
+                      const simdjson::dom::element&) override
+  {
+  }
+  bool OnMpApiEvent(const GameModeEvent& event) override
+  {
+    if (event.GetName() != std::string("onCraftPerkRequired")) {
+      return true;
+    }
+    auto args = nlohmann::json::parse(event.GetArgumentsJsonArray());
+    asked.push_back(args);
+    return !(active && args.size() == 2 && args[1].get<uint32_t>() == waive);
+  }
+
+  bool active = true;
+  uint32_t waive = 0;
+  std::vector<nlohmann::json> asked;
+};
+}
+
+TEST_CASE("The gamemode can let a crafter make a recipe that needs a vanilla "
+          "perk",
+          "[Craft][espm]")
+{
+  // RecipeWeaponEbonyDagger (db8b9) needs HasPerk(EbonySmithing cb412)
+  const uint32_t EbonyIngot = 0x5ad9d, LeatherStrips = 0x800e4,
+                 EbonyDagger = 0x139ae, EbonySmithing = 0xcb412,
+                 SteelSmithing = 0xcb40d;
+  const Inventory inputs =
+    Inventory().AddItem(EbonyIngot, 1).AddItem(LeatherStrips, 1);
+
+  PartOne& p = GetPartOne();
+  auto listener = std::make_shared<CraftPerkListener>();
+  p.AddListener(listener);
+  const auto workbenchId = 0x1ad6e;
+  auto& refr = p.worldState.GetFormAt<MpObjectReference>(workbenchId);
+
+  DoConnect(p, 0);
+  p.CreateActor(0xff000000, refr.GetPos(), 0,
+                refr.GetCellOrWorld().ToFormId(p.worldState.espmFiles));
+  p.SetUserActor(0, 0xff000000);
+  auto& ac = p.worldState.GetFormAt<MpActor>(0xff000000);
+  for (auto entry : inputs.entries)
+    ac.AddItem(entry.baseId, entry.count);
+
+  RawMessageData msgData;
+  msgData.userId = 0;
+  CraftItemMessage msg;
+  msg.data.craftInputObjects = inputs;
+  msg.data.workbench = workbenchId;
+  msg.data.resultObjectId = EbonyDagger;
+
+  // Waiving another perk changes nothing
+  listener->waive = SteelSmithing;
+  p.GetActionListener().OnCraftItem(msgData, msg);
+  REQUIRE(ac.GetInventory().GetItemCount(EbonyDagger) == 0);
+  REQUIRE(listener->asked.size() == 1);
+  REQUIRE(listener->asked[0] ==
+          nlohmann::json::array({ 0xff000000, EbonySmithing }));
+
+  listener->waive = EbonySmithing;
+  p.GetActionListener().OnCraftItem(msgData, msg);
+  REQUIRE(ac.GetInventory().GetItemCount(EbonyDagger) == 1);
+  REQUIRE(ac.GetInventory().GetItemCount(EbonyIngot) == 0);
+
+  listener->active = false;
   p.DestroyActor(0xff000000);
   DoDisconnect(p, 0);
 }
