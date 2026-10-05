@@ -49,7 +49,7 @@ check('it holds the crash\'s race, draugr, atronachs and the beasts', ['BSKAylei
 check('...and no playable race', !['NordRace', 'ImperialRace', 'BretonRace', 'RedguardRace', 'HighElfRace', 'WoodElfRace', 'DarkElfRace', 'OrcRace', 'KhajiitRace', 'ArgonianRace'].some((e) => edids.has(e)));
 const rs = fs.readFileSync(file('skymp5-client/src/services/services/remoteServer.ts'), 'utf8');
 const br = fs.readFileSync(file('skymp5-client/src/sync/beastRaces.ts'), 'utf8');
-check('the spell relay, the sweep and the anim-variables update all ask guardedRaceOf, none beastRaceOf', (rs.match(/guardedRaceOf\(ac\)/g) || []).length === 3 && !/beastRaceOf\(/.test(rs), (rs.match(/guardedRaceOf\(ac\)/g) || []).length);
+check('the spell relay, the sweep and the anim-variables update all ask guardedRaceOf, none beastRaceOf', (rs.match(/guardedRaceOf\(ac(, [\w.]+)?\)/g) || []).length === 3 && !/beastRaceOf\(/.test(rs), (rs.match(/guardedRaceOf\(ac(, [\w.]+)?\)/g) || []).length);
 const stop = rs.slice(rs.indexOf('if (msg.data.interruptCast) {'), rs.indexOf('// Prefer the spell id in the message'));
 check('a stop for a copy whose 3D is not loaded is held for the sweep, not sent to the native', /if \(!ac\.is3DLoaded\(\)\) \{[^}]*this\.cloneCastWatch\.set\(key, \{[^}]*expiresAt: now/.test(stop) && stop.indexOf('is3DLoaded') < stop.indexOf('this.stopCloneCast('), stop.slice(0, 300));
 const relay = rs.slice(rs.indexOf('if (msg.data.interruptCast) {'), rs.indexOf('private stopCloneCast('));

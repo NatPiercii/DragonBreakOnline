@@ -106,7 +106,7 @@ svc.stopActiveEmote(false, 'movement key 17');
 frames();
 ok(notes.some((n) => /^emote stopped IdleLaugh after \d+ ms by movement key 17$/.test(n)), 'an emote ended within two seconds says what ended it', notes);
 const src = fs.readFileSync(FILE, 'utf8');
-ok(/this\.stopActiveEmote\(false, `movement key \$\{e\.code\}`\)/.test(src) && /this\.stopActiveEmote\(true, "the wheel's stop"\)/.test(src), '...a movement key and the wheel\'s stop each name themselves');
+ok(/this\.stopActiveEmote\(false, `movement key \$\{(e\.)?code\}`\)/.test(src) && /this\.stopActiveEmote\(true, "the wheel's stop"\)/.test(src), '...a movement key and the wheel\'s stop each name themselves');
 notes.length = 0;
 svc.diagSentAt = Date.now() - 5000; svc.activeEmote = 'IdleLaugh';
 svc.stopActiveEmote(true, 'late');

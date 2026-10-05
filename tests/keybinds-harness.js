@@ -120,7 +120,9 @@ const stubPlugin = {
   const bs = fs.readFileSync(path.join(path.dirname(SRC), 'browserService.ts'), 'utf8');
   check('the chat key replaces T among Enter and F6', /keybindOverride\(this\.sp, "chatKeyCode"\)/.test(bs) && /\[DxScanCode\.Enter, chatKey as DxScanCode, DxScanCode\.F6\]/.test(bs));
   const cs = fs.readFileSync(path.join(path.dirname(SRC), 'chatService.ts'), 'utf8');
-  check('the hide-chat key (H3b) reads hideChatKeyCode, none by default, and is ignored while the page has the keyboard', /readMenuKeyCode\(this\.sp, "hideChatKeyCode", 0\)/.test(cs) && /if \(this\.sp\.browser\.isFocused\(\) \|\| isMenuHotkeyBlocked\(this\.sp, this\.controller\)\) return;/.test(cs));
+  check('the hide-chat key (H3b) reads hideChatKeyCode, none by default, and is ignored while the page has the keyboard', /readMenuKeyCode\(this\.sp, "hideChatKeyCode", 0\)/.test(cs) && (/if \(this\.sp\.browser\.isFocused\(\) \|\| isMenuHotkeyBlocked\(this\.sp, this\.controller\)\) return;/.test(cs)
+    // client-ptt-mouse (0.3.77): a key press goes through isMenuHotkeyBlocked, which holds the browser focus; a mouse button types nothing
+    || (/if \(isMenuKeyPressBlocked\(this\.sp, this\.controller, e\)\) return;/.test(cs) && /if \(e\.device !== InputDeviceType\.Mouse\) return isMenuHotkeyBlocked\(sp, controller\);/.test(util))));
 
   console.log(failures ? `${failures} failure(s)` : 'all checks passed');
   process.exit(failures ? 1 : 0);
