@@ -66,7 +66,8 @@ ok(learned(A).length === 0, 'without the file nothing happens');
 // ---- the shipped list is the dry run, effects proven by the server's own log ----
 const DRY = path.join(os.homedir(), 'claude-nate-release', 'specs', 'bugs-1005-ench-restore.json');
 const actors = SHIPPED.actors || {};
-ok(SHIPPED.marker === '1005' && Object.keys(actors).length === 3, 'the shipped list: marker 1005, three characters', Object.keys(actors));
+ok(SHIPPED.marker === '1005' && Object.keys(actors).length === 4, 'the shipped list: marker 1005, four characters', Object.keys(actors));
+ok(JSON.stringify(actors.ff002e62.effects) === '[271586]' && actors.ff002e62.profileId === 4, 'Gron #9YT8: Fortify Unarmed Damage from the Ratway brawler gloves (Nate, 5 Oct)', actors.ff002e62);
 ok(JSON.stringify(actors.ff001ed0.effects) === '[373842,373841]' && actors.ff001ed0.profileId === 37, 'Old Grimbo #SB5X: Soul Trap and Fear', actors.ff001ed0);
 ok(JSON.stringify(actors.ff001602.effects) === '[499962,286812]' && actors.ff001602.profileId === 53, 'Lorian Karthold #US6N: Fortify Illusion and Shock Damage', actors.ff001602);
 ok(JSON.stringify(actors.ff000304.effects) === '[123741460,499969,499954,570972,499962]' && actors.ff000304.profileId === 40, 'Kagrethas Mzulft #TY94: Water Walking, Fortify Restoration, Alteration, Alchemy, Illusion', actors.ff000304);
