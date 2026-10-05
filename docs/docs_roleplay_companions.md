@@ -14,6 +14,7 @@ A companion is an NPC ally owned by one player. The server keeps the list; the o
 - Its hits go to the server like any hosted NPC's hits, and the server computes the damage. A companion never damages its owner or the owner's other companions (`onHitDamageAttempt`).
 - **Ordering an attack:** when the owner hits a living actor with a weapon or a hostile spell, the client sends `companionCommand` / `attack`. The server checks ownership and range (4096 units, same cell), then records the target.
 - **Defending the owner:** when anyone damages the owner, every companion of that owner targets the attacker. A companion that is already fighting switches target at most once every 3 s.
+- **Fighting players (PvP):** another player, or a companion fighting for one, is a valid target only while that player and the owner are fighting each other: one of the two players struck the other, or the other's companion, within 60 s (`companionPvpHostileSeconds`), and the gameplay's rule `globalThis.__dboCompanionMayFight(ownerId, playerId)` returns `true` (PvP config, party, safe ground, downed, jailed). Without that function no companion fights a player. A companion's own blows never open or extend the window, and a companion's hit on a player outside these rules is refused in `onHitDamageAttempt`, whoever picked the fight. The target is dropped as soon as the rules stop allowing it (checked every 0.5 s).
 - **Following across cells:** if the owner changes cell or gets more than 4096 units away, the companion is moved behind them.
 
 ## API (call on the `CompanionSystem` instance)
@@ -96,7 +97,7 @@ The C++ server fires `onSpellCast(caster, spell)` and `onSpellHit(aggressor, tar
 
 | Direction | Packet |
 |---|---|
-| server -> owner | `{ customPacketType: "companionState", companions: [{ id, target, kind }] }`, sent on every change and at login |
+| server -> owner | `{ customPacketType: "companionState", companions: [{ id, target, kind, staying, leftMs, pvp }] }` (`pvp`: the target is a player or fights for one, and the PvP rules allow the fight), sent on every change and at login |
 | owner -> server | `{ customPacketType: "companionCommand", action: "attack", targetId, companionId? }` |
 | owner -> server | `{ customPacketType: "companionCommand", action: "follow", companionId? }` |
 | owner -> server | `{ customPacketType: "companionCommand", action: "dismiss", companionId }` |
