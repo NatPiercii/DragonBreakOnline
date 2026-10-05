@@ -11,7 +11,9 @@
           "Spells cost their magicka again for High Elves and for anyone under a blessing or the Ayleid well's starlight. Their extra regeneration no longer handed back the magicka of a spell just cast.",
           "Hunting contracts: when another hunter finishes a notice you also hold, you are now told that your contract is closed, at your next kill, at the board or with /contract. Before, your kills simply stopped counting. A kill that does not count, because the creature is not your quarry or fell outside the hold's wilds, now says so.",
           "The time left in Study Magic and Priest Studies now counts down while you study. Before, it jumped back up every few seconds.",
-          "Faction armour and clothing: 88 new recipes for faction sets are in the game. Only the faction's own Armorer or Clothier can make them, and a Great House's sets once that House is claimed."
+          "Faction armour and clothing: 88 new recipes for faction sets are in the game. Only the faction's own Armorer or Clothier can make them, and a Great House's sets once that House is claimed.",
+          "A vampire who has fed recently looks mortal again: their own eyes and their own colour. The glowing eyes and the pallor only show from the third stage of thirst, and feeding takes them away again.",
+          "A vampire newly turned by the fever shows them until their first meal. The sun still burns every vampire, fed or not."
         ]
       }
     ]

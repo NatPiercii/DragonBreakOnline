@@ -90,6 +90,9 @@ module.exports = (api) => {
     feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] },
     // Share of the way from the character's own skin colour to a bloodless pallor (beast races fade less)
     vampirePallor: 0.55, vampirePallorBeast: 0.25,
+    // Nate, 5 Oct (ticket #0064): a fed vampire passes for mortal, as Cyrodiil's vampires do. The eyes and the pallor
+    // show from this stage of thirst; a vampire the fever turned shows them until the first meal. 1 = always
+    vampireTellsStage: 3,
     // Nat: covering up shields a vampire from the sun. Share of the burn each covered part takes away (sums to 1),
     // and how much of the burn full cover removes
     sunCover: { head: 0.35, body: 0.35, hands: 0.15, feet: 0.15 }, sunCoverMax: 0.8,
@@ -297,6 +300,21 @@ module.exports = (api) => {
     s.look = look; saveState(a, s);
     mp.set(a, 'appearance', next);
     log(`supernatural: ${display(a)} shows the ${s.kind}'s tells`);
+  };
+  // The tells by thirst: a werewolf always; a vampire from vampireTellsStage, or before the first meal
+  const tellsShown = (s) => s.kind !== 'vampire' || !!s.unfed || (Number(s.stage) || 1) >= (Number(C.vampireTellsStage) || 1);
+  const showTells = (a, s) => {
+    if (!s || !s.kind) return;
+    if (tellsShown(s)) {
+      const had = !!s.look;
+      ensureTells(a, s);
+      if (!had && s.look && s.kind === 'vampire' && !s.unfed) personal(a, 'Your thirst shows: your eyes and your colour give you away until you feed.');
+      return;
+    }
+    if (!s.look || beastForm(a)) return;
+    clearTells(a, s); saveState(a, s);
+    personal(a, 'Fed, you pass for mortal: your eyes and your colour are your own again.');
+    log(`supernatural: ${display(a)} has fed and passes for mortal (stage ${s.stage})`);
   };
   const clearTells = (a, s) => {
     const look = s && s.look; if (!look) return;
@@ -546,7 +564,7 @@ module.exports = (api) => {
     const s = stateOf(a);
     Object.assign(s, { kind: 'vampire', disease: null, stage: 1, lastFed: gameDays(), pure: !!pure, unfed: pure ? null : { played: 0, wither: 0 }, sated: null });
     saveState(a, s); removeSpell(a, SANGUINARE); setLookRace(a, true);
-    syncVampSpells(a, s); ensureTells(a, stateOf(a));
+    syncVampSpells(a, s); showTells(a, stateOf(a));
     personal(a, pure ? 'You rise from Molag Bal\'s embrace a pure-blood.' : 'The fever passes, and a cold hunger takes its place. You are a vampire.');
     if (!pure) personal(a, `Your gifts sleep until you have fed. Find blood within ${C.firstMealHours} hours, or your body begins to wither: a fresh body, or a captive who cannot fight you off.`);
     audit(`SUPERNATURAL ${who(a)} became a ${pure ? 'pure-blood ' : ''}vampire`);
@@ -1820,7 +1838,7 @@ module.exports = (api) => {
         if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
         else if (!sameSpells(s.spells, wantSpells(s))) syncVampSpells(a, s);
       }
-      if (s.kind) ensureTells(a, s);
+      if (s.kind) showTells(a, s);
     }
   });
   every('superSun', 10000, () => {

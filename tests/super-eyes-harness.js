@@ -73,7 +73,7 @@ ok(JSON.stringify(parts()) === JSON.stringify([HEAD, HAIR, BLIND_EYES, BLIND_OVE
 
 // A character turned before the fix: vampire eyes with the overlay still under them, look without prevExtras
 dress([HEAD, HAIR, VAMP_EYES, BLIND_OVERLAY, BROWS]);
-store.set(`${A}|private.supernatural`, { kind: 'vampire', stage: 1, lastFed: 0, pure: true, spells: [1], disease: null, look: { kind: 'vampire', eye: VAMP_EYES, prevEye: BLIND_EYES } });
+store.set(`${A}|private.supernatural`, { kind: 'vampire', stage: 4, lastFed: 1, pure: true, spells: [1], disease: null, look: { kind: 'vampire', eye: VAMP_EYES, prevEye: BLIND_EYES } });
 tick();
 ok(!parts().includes(BLIND_OVERLAY) && parts().includes(VAMP_EYES), 'an earlier vampire loses the stray overlay on the next tick', hex(parts()));
 ok(JSON.stringify(look().prevExtras) === JSON.stringify([BLIND_OVERLAY]), 'and it is kept for the cure', look());
@@ -91,6 +91,24 @@ ok(JSON.stringify(parts()) === JSON.stringify([HEAD, HAIR, VAMP_EYES, BROWS]), '
 ok(Array.isArray(look().prevExtras) && look().prevExtras.length === 0, 'with nothing kept aside', look());
 cmds.curse(A, 'me cure');
 ok(JSON.stringify(parts()) === JSON.stringify([HEAD, HAIR, PLAIN_EYES, BROWS]), 'and swap back', hex(parts()));
+
+// The tells by thirst (Nate, 5 Oct, ticket #0064): a fed vampire passes for mortal until stage 3 of thirst
+const DAY = () => Date.now() / 86400000 * 6;     // supernatural.js gameDays without a world clock
+const sup = () => store.get(`${A}|private.supernatural`);
+dress([HEAD, HAIR, PLAIN_EYES, BROWS]);
+store.set(`${A}|private.supernatural`, { kind: null, disease: null });
+cmds.curse(A, 'me vampire');
+ok(parts().includes(VAMP_EYES) && !!sup().unfed, 'a vampire the fever turned shows the eyes until the first meal', hex(parts()));
+Object.assign(sup(), { unfed: null, lastFed: DAY() - 0.1 }); tick();
+ok(parts().includes(PLAIN_EYES) && !parts().includes(VAMP_EYES) && app().skinColor === 0x806050 && !sup().look && sup().stage === 1, 'fed (stage 1): their own eyes and colour', [hex(parts()), app().skinColor.toString(16), sup().stage]);
+Object.assign(sup(), { lastFed: DAY() - 1.1 }); tick();
+ok(parts().includes(PLAIN_EYES) && sup().stage === 2, 'stage 2: still their own', [hex(parts()), sup().stage]);
+Object.assign(sup(), { lastFed: DAY() - 2.1 }); tick();
+ok(parts().includes(VAMP_EYES) && app().skinColor !== 0x806050 && sup().stage === 3, 'stage 3: the eyes and the pallor show', [hex(parts()), sup().stage]);
+Object.assign(sup(), { lastFed: DAY() - 0.05 }); tick();
+ok(parts().includes(PLAIN_EYES) && !parts().includes(VAMP_EYES) && app().skinColor === 0x806050, 'feeding again takes them away', hex(parts()));
+tick();
+ok(parts().includes(PLAIN_EYES) && !sup().look, 'and the next tick leaves them so', hex(parts()));
 
 console.log(fail ? `${fail} failed` : 'all checks passed');
 process.exit(fail ? 1 : 0);
