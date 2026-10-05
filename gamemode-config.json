@@ -815,7 +815,10 @@
   "_comment": "vampireLordRemoteRace: whether other players see the Vampire Lord body. Off since the 2026-09-29 crash breaker trip; /vlremote on|off changes it and beastform-state.json keeps that choice across restarts and deploys. werewolfRemoteRace: the same for a werewolf (on; /wwremote on|off, kept in the same file). Off stops the watcher crashes from a werewolf's relayed howls until the client guard (0.3.72+) is live, at the cost of watchers seeing a human play the werewolf's animations.",
   "vampireLordRemoteRace": false,
   "werewolfRemoteRace": true,
-  "_werewolfRemoteRace": "On again (Nate, 5 Oct): watchers see the werewolf body, now that the client 0.3.72+ guard against relayed humanoid animation snapshots is live (no crash near any howl since 30 Sep). /wwremote off turns it off at once. The Vampire Lord body stays off.",
+  "_werewolfRemoteRace": "On again (Nate, 5 Oct), for clients that can show it safely: a werewolf's appearance keeps its mortal race, and only a client whose UI announced 'beastBody' (0.3.77+, which relays no animation snapshot from a beast and guards a listed copy) is sent dboBeastBody and builds the beast; 0.3.76 keeps the human fallback. /wwremote off turns it off at once. The Vampire Lord body stays off.",
+  "wwBreakerDrops": 2,
+  "wwBreakerWindowSeconds": 600,
+  "_wwBreaker": "wwwatch: every drop near a werewolf is logged with distance and timing. Drops by watchers shown its body, within breakerUnits of it in the last breakerSeconds, count; wwBreakerDrops of them inside wwBreakerWindowSeconds turn that werewolf's body off (private.wwBodyOff, kept through restarts) until /wwremote clear <player>.",
   "_names": "While in a beast form a player is named after it (beastform.js NAMES: Werewolf, Vampire Lord), in chat, menus and on other clients; the revert, death, login and logout put the real name back."
  },
  "offlineBody": {
