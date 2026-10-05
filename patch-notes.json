@@ -39,6 +39,12 @@
           "Inside a house, each chest and inner door now has its own key, cut at that chest or door. A key cut at a door in from the street opens the doors in from the street, and no longer the rooms and chests inside. The owner still opens them all.",
           "Gear you make, buy or trade is no longer swapped for steel when you log in, and chests inside a claimed home are left alone. The steel cap still holds for loot: dungeon chests, bodies and camps, and world chests as they are opened."
         ]
+      },
+      {
+        "heading": "In the world",
+        "items": [
+          "You kneel while you pray at a shrine, turn the pages while you read a book, and crouch at the body while you skin it."
+        ]
       }
     ]
   },

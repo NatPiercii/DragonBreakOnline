@@ -1,0 +1,59 @@
+[
+  {
+    "title": "Game client 0.3.77",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.77",
+    "tag": "Update",
+    "sections": [
+      {
+        "heading": "No more timing mini-games",
+        "items": [
+          "Mining, woodcutting and skinning no longer ask you to hit a moving marker. Each blow or cut shows a few spots on the stone, the wood or the hide; one shows the clearest sign, and choosing it lands the blow. Higher ranks see the sign more clearly and fewer false ones.",
+          "The same goes for struggling against bound hands (pull where the rope gives), picking a lock (find where the pins give), prayer (choose the verse that belongs to your god), the vampire and werewolf rites (read the marks of the rite) and reading a book (a wrong reading burns a candle stub, not seconds).",
+          "Nothing depends on how fast your computer or your connection is any more."
+        ]
+      },
+      {
+        "heading": "Smithing",
+        "items": [
+          "Your Blacksmith rank now opens the forge recipes that asked for the old Smithing perks: Steel, Elven and Dwarven at Apprentice, Orcish and Advanced Armors at Adept, Glass and Ebony at Expert, Daedric and Dragon at Master. Improving enchanted gear (Arcane Blacksmith) is not part of it, and a few faction sets still wait for a plugin update."
+        ]
+      },
+      {
+        "heading": "Werewolves and Vampire Lords",
+        "items": [
+          "Other players see a werewolf's and a Vampire Lord's beast body again.",
+          "The screen shakes as a forced werewolf change comes near, three times in the 12 seconds after the warning."
+        ]
+      },
+      {
+        "heading": "Summons in a fight",
+        "items": [
+          "Your summons and raised dead fight another player only where PvP allows it: while you and that player are fighting, never someone in your party, downed, jailed, held or logged out.",
+          "A summon or raised body that stands still in a fight it is getting nowhere with tries again, then comes back to you."
+        ]
+      },
+      {
+        "heading": "Menus and keys",
+        "items": [
+          "Push-to-talk and the menu keys can be a mouse button: the middle button, Mouse 4 or Mouse 5. Set push-to-talk in the launcher, the others in your journal (F3, Settings).",
+          "Trading asks how many for any stack of two or more, so you can trade one item from a stack.",
+          "The player menu (X) closes when the player you opened it on walks away or leaves.",
+          "The hunger and voice panel fades with the health bars when you set the bars to fade.",
+          "The Place tool's preview no longer flickers while you aim."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fewer crashes and black screens while loading into a busy area: the game no longer removes another character's copy while it is still being drawn or while a loading screen is up.",
+          "A dropped enchanted weapon keeps the charge it really has.",
+          "A disenchant made just before you close the arcane enchanter is no longer lost.",
+          "Talking now carries as talking and shouting as shouting: each voice is at full volume over a fifth of its range.",
+          "Howl of Terror is taken away on every way out of werewolf form.",
+          "Two crashes when another player's character was thrown into a ragdoll as it appeared are fixed."
+        ]
+      }
+    ]
+  }
+]
