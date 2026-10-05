@@ -24,6 +24,7 @@ const check = (name, ok, got) => {
 
 const WEREWOLF = 0x000cdd84, VAMPIRE_LORD = 0x0200283a, NORD = 0x00013746, DRAUGR = 0x00000d53;
 const WOLF = 0xff000010, LORD = 0xff000020, OTHER = 0xff000030;
+const snap0 = () => ({ booleans: new Uint8Array(4), floats: new Uint8Array(8), integers: new Uint8Array(8) });
 
 // ---- the list ------------------------------------------------------------------------------------------------------
 setBeastBodies([{ id: WOLF, race: WEREWOLF }, { id: LORD, race: VAMPIRE_LORD }]);
@@ -37,6 +38,18 @@ setBeastBodies([{ id: WOLF, race: NORD }, { id: OTHER, race: DRAUGR }, { id: 0, 
 check('only the two beast races are taken: a list cannot give a player any other race', beastBodyOf(WOLF) === 0 && beastBodyOf(OTHER) === 0);
 setBeastBodies([]);
 check('an empty list (a new connection) shows nobody as a beast', beastBodyOf(LORD) === 0);
+
+// ---- a Vampire Lord the same way (Nate, 5 Oct: both bodies on) ---------------------------------------------------------
+setBeastBodies([{ id: WOLF, race: WEREWOLF }, { id: LORD, race: VAMPIRE_LORD }]);
+const lordLook = beastBodyAppearance({ raceId: NORD, headpartIds: [7], tints: [{}], options: [1], presets: [2], headTextureSetId: 3, name: 'Vampire Lord' }, beastBodyOf(LORD));
+check('a listed Lord is built as DLC1VampireBeastRace with the bare look, named Vampire Lord', lordLook.raceId === VAMPIRE_LORD &&
+  !lordLook.headpartIds.length && !lordLook.tints.length && lordLook.headTextureSetId === 0 && lordLook.name === 'Vampire Lord');
+check('a listed Lord\'s copy gets no caster variables (Drain, Raise Dead, Corpse Curse, the Gargoyle summon)',
+  casterVariablesFor(beastBodyOf(LORD), snap0()).floats.length === 0 && casterVariablesFor(VAMPIRE_LORD, snap0()).integers.length === 0);
+check('the Lord race the list takes is the one the cast guard and the non-humanoid list name (Dawnguard 00283A at index 02)',
+  /\["Dawnguard\.esm", 0x00283a, "DLC1VampireBeastRace"\]/.test(read('sync/nonHumanoidRaceList.ts')) && beastBodyOf(LORD) === 0x0200283a);
+check('the summoned Gargoyle is guarded as a non-humanoid caster too', /\["Dawnguard\.esm", 0x00a2c6, "DLC1GargoyleRace"\]/.test(read('sync/nonHumanoidRaceList.ts')));
+setBeastBodies([]);
 
 // ---- the packet ----------------------------------------------------------------------------------------------------
 const pkt = (bodies) => ({ customPacketType: 'dboBeastBody', bodies });
@@ -65,6 +78,14 @@ check('a change of listing counts as an appearance change (it respawns the copy 
 check('one beast look per server appearance, not one a frame', /cache\.from !== model\.appearance \|\| cache\.race !== race/.test(fv));
 check('the beast copy still settles for 1.5 s and hides its name tag (isBeastCopy reads the model\'s race)',
   /private isBeastCopy\(model: FormModel\): boolean \{\s*return !!model\.appearance && isBeastRaceId\(model\.appearance\.raceId\);/.test(fv));
+
+check('a beast copy\'s relayed animations (a Lord\'s LevitateStart/LandStart) wait for the settle and are not marked applied meanwhile',
+  /if \(refr\.is3DLoaded\(\) && !this\.isSettlingCopy\(model\) && !holdsRelayedRagdoll\(/.test(fv) && /private isSettlingBeast\(model: FormModel\): boolean \{\s*return this\.isBeastCopy\(model\)/.test(fv));
+check('the Lord\'s animation diag reads the listed race (it runs in applyAll, on the swapped model)',
+  /if \(model\.appearance && isVampireLordRace\(model\.appearance\.raceId\)\)/.test(fv) && /this\.applyAll\(refr, model\)/.test(fv));
+const bfs = read('services/services/beastFormService.ts');
+check('the Lord\'s own form is untouched: dboBeastBody returns before the dboBeast handling, which keeps the stance global',
+  bfs.indexOf('if (bodies) { setBeastBodies(bodies); return; }') < bfs.indexOf('content["customPacketType"] !== "dboBeast"') && /this\.setVampireStance\(beast \? VL_STATE_LEVITATING : VL_STATE_NONE\)/.test(bfs));
 
 // ---- the guard knows the listing -----------------------------------------------------------------------------------
 const races = read('sync/beastRaces.ts');

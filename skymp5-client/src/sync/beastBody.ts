@@ -1,6 +1,8 @@
-// Other players this client shows in a beast's own body, as the server lists them (dboBeastBody, server beastform.js).
-// The appearance every client is sent keeps a werewolf's mortal race, so a client that never announced the 'beastBody'
-// UI capability never builds a beast copy; this one swaps the race in itself. Only the two beast races are taken.
+// Other players this client shows in a beast's own body, as the server lists them (dboBeastBody, server beastform.js):
+// werewolves and Vampire Lords. The appearance every client is sent keeps the mortal race, so a client that never
+// announced the 'beastBody' UI capability never builds a beast copy; this one swaps the race in itself. Only the two beast
+// races are taken. A Lord's stance (hovering or on the ground) is its relayed LevitateStart/LandStart, which formView
+// applies once the copy has settled, like any beast copy's animations.
 // One import with no imports of its own, so tests/beastbody-harness.js can load it after a plain transpile.
 import { isBeastRaceId } from "./beastRaceIds";
 
