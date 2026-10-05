@@ -1,5 +1,5 @@
 {
- "_comment": "One-off (Nate, 5 Oct): enchantments these characters learned by disenchanting before the server recorded them (alchemy.js rememberLearned, live 4 Oct 04:27Z), proven by the server's own 'disenchant: ... taken' log lines of 2-3 Oct (dry run: claude-nate-release/specs/bugs-1005-ench-restore.json). alchemy.js adds the missing effects to private.dboEnchLearned at the character's next login, once (private.dboEnchRestore = marker), audits ENCH-RESTORE, and the login restore then sends them. Keys are actor ids; the profile must match.",
+ "_comment": "One-off (Nate, 5 Oct): enchantments these characters learned by disenchanting before the server recorded them (alchemy.js rememberLearned, live 4 Oct 04:27Z), proven by the server's own 'disenchant: ... taken' log lines of 2-3 Oct, and Gron #9YT8's gloves on Nate's word (5 Oct; the report reached the server at 18:17:47Z 2 Oct, before it took disenchants) (dry run: claude-nate-release/specs/bugs-1005-ench-restore.json). alchemy.js adds the missing effects to private.dboEnchLearned at the character's next login, once (private.dboEnchRestore = marker), audits ENCH-RESTORE, and the login restore then sends them. Keys are actor ids; the profile must match.",
  "marker": "1005",
  "actors": {
   "ff001ed0": {
@@ -42,6 +42,16 @@
     "Ayleid Amulet of Eminent Alteration (0x080d4abc CYREnchAmuletAlterationAyleid04, BSHeartland.esm) [EnchArmorFortifyAlteration04] -> EnchFortifyAlterationConstantSelf",
     "Ayleid Ring of Alchemy (0x080d4a94 CYREnchRingAlchemyAyleid02, BSHeartland.esm) [EnchArmorFortifyAlchemy02] -> EnchFortifyAlchemyConstantSelf",
     "Ayleid Ring of Illusion (0x080d4a90 CYREnchRingIllusionAyleid02, BSHeartland.esm) [EnchArmorFortifyIllusion02] -> EnchFortifyIllusionConstantSelf"
+   ]
+  },
+  "ff002e62": {
+   "name": "Gron #9YT8",
+   "profileId": 4,
+   "effects": [
+    271586
+   ],
+   "from": [
+    "dunRatwayBrawlerGloves [EnchArmorFortifyUnarmed01] -> AbFortifyUnarmedDamage (Nate, 5 Oct: restore; reported 2 Oct 18:17:47Z, before the server took disenchants)"
    ]
   }
  }
