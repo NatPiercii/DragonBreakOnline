@@ -131,7 +131,9 @@ const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 
   // for the crouch before it opens (gamemode.js chestHold)
   'dboIdle',
   // Not panels: the lockpick and rite widgets can play a round and judge it on their own clock (judge 'client')
-  'lockpickLocal', 'riteJudge'];
+  'lockpickLocal', 'riteJudge',
+  // Not a panel: the labour and skinning widgets draw a pick round (mode 'pick', "Read the stone"), no timing
+  'pickRound'];
 const useUiCaps = (): void => {
   useEffect(() => {
     const tell = () => {

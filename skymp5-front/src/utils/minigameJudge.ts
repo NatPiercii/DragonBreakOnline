@@ -44,3 +44,10 @@ export const riteHit = (period: number, center: number, width: number, pressMs: 
   for (let d = 1; d <= graceMs; d++) if (inZone(pressMs - d) || inZone(pressMs + d)) return true;
   return false;
 };
+
+// Mirrors rightOf() in server minigames.js: in a pick round the right spot is the one with the clearest cue (spot[2])
+export const pickRight = (spots: number[][]): number => {
+  let best = 0;
+  for (let i = 1; i < spots.length; i++) if (Number(spots[i][2]) > Number(spots[best][2])) best = i;
+  return best;
+};

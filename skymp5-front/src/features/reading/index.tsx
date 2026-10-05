@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
+import { countWord } from '../../utils/countWord';
 import './styles.scss';
 
 // Scholar reading mini-game, opened by the gamemode through the dbo relay
@@ -12,6 +13,9 @@ import './styles.scss';
 //
 //   Browser -> client -> server: sendMessage('dbo:reading', nonce, JSON order, JSON { v: 2, elapsedMs, pausedMs, leftMs, attempts, guttered })
 //   Escape / Give up:            sendMessage('dbo:readingCancel', nonce)
+//   mode 'pick' (a server with labour-pick, for a UI that says pickRound): no clock. The candle is `stubs`, one burnt by
+//   each wrong reading; totalMs bounds the round.
+//                                sendMessage('dbo:reading', nonce, JSON order, JSON { v: 3, mode: 'pick', elapsedMs, attempts, guttered })
 export interface ReadingData {
   id: number;
   nonce: string;
@@ -28,6 +32,9 @@ export interface ReadingData {
   judge?: 'client';     // the candle is this widget's to keep
   candleMs?: number;    // the whole candle, exact
   penaltyMs?: number;   // what a wrong reading burns
+  mode?: 'pick';
+  stubs?: number;       // a pick round: wrong readings the candle bears
+  totalMs?: number;     // a pick round: the whole round's bound
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -43,7 +50,9 @@ const send = (key: string, ...args: unknown[]): void => {
 const Reading = ({ data }: { data: ReadingData }) => {
   const words = data.words || [];
   const locked = data.locked || [];
-  const total = Math.max(1, (Number(data.seconds) || 30) * 1000);
+  const pick = data.mode === 'pick';
+  const stubs = Math.max(0, Math.floor(Number(data.stubs) || 0));
+  const total = pick ? Math.max(60000, Number(data.totalMs) || 600000) : Math.max(1, (Number(data.seconds) || 30) * 1000);
   const over = !!data.result;
   const [placed, setPlaced] = useState<number[]>([]);
   const [left, setLeft] = useState(total);
@@ -71,7 +80,7 @@ const Reading = ({ data }: { data: ReadingData }) => {
       const c = clock.current;
       if (c.nonce !== data.nonce) { clock.current = { nonce: data.nonce, burnt: 0, paused: 0, tick: now, sentAt: 0 }; }
       else { if (c.sentAt) c.paused += now - c.sentAt; c.sentAt = 0; c.tick = now; }
-      setLeft(ownLeft());
+      setLeft(pick ? total : ownLeft());
     } else {
       const ends = typeof data.endsInMs === 'number' ? data.endsInMs : total;
       deadline.current = Date.now() + ends;
@@ -92,6 +101,11 @@ const Reading = ({ data }: { data: ReadingData }) => {
     setSent(true);
     if (!own) { send('dbo:reading', data.nonce, JSON.stringify(order)); return; }
     const c = clock.current; const now = performance.now();
+    if (pick) {
+      c.burnt += now - c.tick; c.tick = now; c.sentAt = now;
+      send('dbo:reading', data.nonce, JSON.stringify(order), JSON.stringify({ v: 3, mode: 'pick', elapsedMs: Math.floor(c.burnt + c.paused), attempts: data.attempt || 0, guttered: !!guttered }));
+      return;
+    }
     c.burnt += now - c.tick; c.tick = now; c.sentAt = now;
     const leftMs = ownLeft();
     send('dbo:reading', data.nonce, JSON.stringify(order), JSON.stringify({
@@ -105,7 +119,12 @@ const Reading = ({ data }: { data: ReadingData }) => {
     if (sent || over) return undefined;
     const t = window.setInterval(() => {
       let remaining: number;
-      if (own) {
+      if (own && pick) {
+        // No candle burning by the second: only the round's bound, counted with the time spent on verdicts
+        const c = clock.current; const now = performance.now();
+        c.burnt += now - c.tick; c.tick = now;
+        remaining = total - c.burnt - c.paused;
+      } else if (own) {
         const c = clock.current; const now = performance.now();
         c.burnt += now - c.tick; c.tick = now;
         remaining = ownLeft();
@@ -154,9 +173,12 @@ const Reading = ({ data }: { data: ReadingData }) => {
 
   const pct = over ? 0 : Math.max(0, Math.min(100, (left / total) * 100));
   const secondsLeft = Math.ceil(Math.max(0, left) / 1000);
+  const stubsLeft = Math.max(0, stubs - (data.attempt || 0));
   const hint = over
     ? data.result
-    : data.feedback || 'The ink has run. Put the words back in order, then read it out before the candle gutters. A wrong reading burns the candle down.';
+    : data.feedback || (pick
+      ? 'The ink has run. Put the words back in order and read it out. A wrong reading burns a stub of the candle.'
+      : 'The ink has run. Put the words back in order, then read it out before the candle gutters. A wrong reading burns the candle down.');
 
   return (
     <div className="reading">
@@ -194,13 +216,24 @@ const Reading = ({ data }: { data: ReadingData }) => {
           </div>
         ) : null}
 
-        <div className="reading__candle-row">
-          <div className="reading__candle" title="The candle">
-            <div className="reading__wax" style={{ width: pct + '%' }} />
-            {!over ? <div className="reading__flame" style={{ left: pct + '%' }} /> : null}
+        {pick ? (
+          <div className="reading__candle-row">
+            <div className="reading__stubs" title="The candle">
+              {Array.from({ length: stubs + 1 }).map((_, i) => (
+                <span key={i} className={'reading__stub' + (i < (data.attempt || 0) ? ' reading__stub--burnt' : '') + (i === (data.attempt || 0) - 1 ? ' reading__stub--just' : '') + (i === Math.min(data.attempt || 0, stubs) && !over ? ' reading__stub--lit' : '')} />
+              ))}
+            </div>
+            <span className="reading__time">{over ? '' : stubsLeft ? `${countWord(stubsLeft)} stub${stubsLeft === 1 ? '' : 's'} to spare` : 'the last of the candle'}</span>
           </div>
-          <span className={'reading__time' + (!over && secondsLeft <= 10 ? ' reading__time--low' : '')}>{over ? '' : secondsLeft + 's'}</span>
-        </div>
+        ) : (
+          <div className="reading__candle-row">
+            <div className="reading__candle" title="The candle">
+              <div className="reading__wax" style={{ width: pct + '%' }} />
+              {!over ? <div className="reading__flame" style={{ left: pct + '%' }} /> : null}
+            </div>
+            <span className={'reading__time' + (!over && secondsLeft <= 10 ? ' reading__time--low' : '')}>{over ? '' : secondsLeft + 's'}</span>
+          </div>
+        )}
 
         <div className="reading__actions">
           {over ? (

@@ -1,6 +1,18 @@
-// Mining and woodcutting mini-game in the DragonBreak palette (src/dbo-theme.scss): a work bench
-// panel, a tally of the strikes left, the sweeping bar with its band, and the round's clock.
+// Mining, woodcutting and the bound-hands struggle in the DragonBreak palette (src/dbo-theme.scss): the house panel,
+// and inside it the work itself drawn in CSS: a rock face with its vein of ore, a log on the block, or the rope at the
+// wrists. The tool rides above the face on the marker; the lit band is the grain to strike.
 @import '../../dbo-theme.scss';
+
+// Materials of the work face; the panel itself keeps the theme
+$labour-rock-top: #3b4346;
+$labour-rock-low: #1d2224;
+$labour-wood: #5a3d24;
+$labour-wood-dark: #3e2916;
+$labour-bark: #24170c;
+$labour-hemp: #b39363;
+$labour-hemp-dark: #6e5432;
+$labour-iron: #c9d0d2;
+$labour-haft: #8a5a32;
 
 .labour {
   position: fixed;
@@ -26,8 +38,8 @@
     width: min(640px, calc(90 * var(--dbo-vw)));
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 26px 30px 22px;
+    gap: 10px;
+    padding: 22px 30px 18px;
     @include dbo-panel;
     @include dbo-panel-cap;
   }
@@ -41,25 +53,476 @@
 
   &__hint {
     margin: 0;
+    min-height: 20px;
     color: $dbo-text-dim;
     font-family: $dbo-book-font;
     font-size: 16px;
     font-style: italic;
     text-align: center;
+    transition: color $dbo-fast;
+
+    &--hit {
+      color: $dbo-text;
+    }
+
+    &--miss {
+      color: #e8907f;
+    }
   }
 
+  // ---- the work face: the marker's coordinate box, exactly as wide as the sweep ----
+  &__bar {
+    position: relative;
+    height: 46px;
+    margin-top: 36px;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.34);
+    border: 1px solid $dbo-border;
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7);
+    transition: border-color $dbo-fast, box-shadow $dbo-fast, opacity $dbo-fast;
+
+    &--hit {
+      border-color: $dbo-border-strong;
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7), $dbo-glow;
+    }
+
+    &--miss {
+      border-color: rgba(201, 70, 58, 0.85);
+    }
+
+    &--win {
+      border-color: $dbo-border-strong;
+      box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7), 0 0 22px dbo-accent(0.4);
+    }
+
+    &--lose {
+      border-color: rgba(201, 70, 58, 0.8);
+      opacity: 0.75;
+    }
+  }
+
+  &__face {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    // Rock: two sets of strata and a light from above
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 35%, rgba(0, 0, 0, 0.35)),
+      repeating-linear-gradient(173deg, transparent 0 9px, rgba(0, 0, 0, 0.22) 9px 10px, transparent 10px 22px),
+      repeating-linear-gradient(9deg, transparent 0 29px, rgba(255, 255, 255, 0.05) 29px 31px, transparent 31px 47px),
+      linear-gradient(180deg, $labour-rock-top, $labour-rock-low);
+  }
+
+  &__bar--lose &__face {
+    filter: saturate(0.6) brightness(0.8);
+  }
+
+  // The vein of ore through the rock, ragged at its edges and catching the light
+  &__vein {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 28%;
+    bottom: 26%;
+    opacity: 0.62;
+    background:
+      radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.55) 0 1px, transparent 1.6px) 0 0 / 23px 13px,
+      radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.35) 0 1px, transparent 1.6px) 0 0 / 37px 11px,
+      linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 40%, rgba(0, 0, 0, 0.4)),
+      var(--labour-ore, #9a6b4b);
+    clip-path: polygon(0 22%, 6% 8%, 13% 18%, 21% 2%, 30% 14%, 38% 4%, 47% 20%, 55% 6%, 63% 16%, 71% 0, 80% 12%, 88% 4%, 95% 16%, 100% 8%,
+      100% 84%, 94% 96%, 86% 80%, 78% 100%, 69% 86%, 60% 96%, 52% 82%, 43% 98%, 35% 84%, 26% 100%, 18% 86%, 10% 96%, 4% 82%, 0 90%);
+    transition: filter 400ms ease, opacity 400ms ease;
+  }
+
+  &__bar--win &__vein {
+    opacity: 0.9;
+    filter: brightness(1.35);
+  }
+
+  // A log on the block: bark above and below, the grain running its length
+  &__bench--chopping &__face {
+    background:
+      linear-gradient(180deg, $labour-bark 0 13%, $labour-wood-dark 13% 16%, transparent 16% 84%, $labour-wood-dark 84% 87%, $labour-bark 87%),
+      repeating-linear-gradient(178deg, transparent 0 5px, rgba(0, 0, 0, 0.24) 5px 6px, transparent 6px 11px, rgba(255, 220, 170, 0.07) 11px 12px),
+      repeating-linear-gradient(181deg, transparent 0 13px, rgba(0, 0, 0, 0.14) 13px 14px),
+      linear-gradient(180deg, $labour-wood-dark, $labour-wood 50%, $labour-wood-dark);
+  }
+
+  // The bonds at the wrists: a twisted rope in the dark
+  &__bench--struggle &__face {
+    background: linear-gradient(180deg, #1c1614, #120e0d);
+  }
+
+  &__rope {
+    position: absolute;
+    left: -4px;
+    right: -4px;
+    top: 30%;
+    bottom: 30%;
+    border-radius: 8px;
+    background: repeating-linear-gradient(62deg, $labour-hemp 0 6px, $labour-hemp-dark 6px 9px, #c9aa78 9px 12px);
+    box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.5), inset 0 2px 2px rgba(255, 240, 210, 0.2);
+  }
+
+  // ---- the grain to strike: brighter edges and a dark rim, so it reads on any vein ----
+  &__band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(180deg, dbo-accent(0.4), dbo-accent-deep(0.3));
+    border-left: 2px solid dbo-accent(0.95);
+    border-right: 2px solid dbo-accent(0.95);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 12px dbo-accent(0.35);
+  }
+
+  &__bench--chopping &__band {
+    background: linear-gradient(180deg, rgba(232, 170, 80, 0.4), rgba(150, 96, 36, 0.3));
+    border-color: rgba(255, 200, 120, 0.95);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 12px rgba(232, 170, 80, 0.35);
+  }
+
+  // The gap in the bonds is drawn in iron and blood
+  &__bench--struggle &__band {
+    background: linear-gradient(180deg, rgba(201, 70, 58, 0.42), rgba(110, 30, 26, 0.3));
+    border-color: rgba(232, 110, 96, 0.95);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 12px rgba(201, 70, 58, 0.35);
+  }
+
+  // The marker: centred on its left so its middle is the sweep's point
+  &__marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    z-index: 3;
+    width: 3px;
+    margin-left: -1.5px;
+    pointer-events: none;
+    background: $dbo-silver;
+    box-shadow: 0 0 10px rgba(230, 236, 236, 0.75);
+  }
+
+  // The tool above the face, its point on the marker; it never reaches into the face
+  &__tool {
+    position: absolute;
+    bottom: calc(100% + 1px);
+    left: 50%;
+    width: 38px;
+    height: 33px;
+    margin-left: -19px;
+    overflow: visible;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.8));
+  }
+
+  &__tool-iron {
+    fill: $labour-iron;
+    stroke: #2a3133;
+    stroke-width: 0.8;
+  }
+
+  &__tool-haft {
+    fill: $labour-haft;
+    stroke: #3a2412;
+    stroke-width: 0.6;
+  }
+
+  &__tool-rope {
+    fill: none;
+    stroke: $labour-hemp;
+    stroke-width: 2.4;
+    stroke-linejoin: round;
+  }
+
+  // ---- what each blow leaves on the face ----
+  &__mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 16px;
+    margin-left: -8px;
+    pointer-events: none;
+  }
+
+  &__crack {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    transform-origin: 50% 0;
+    animation: labour-crack 140ms ease-out;
+    filter: drop-shadow(1px 0 0 rgba(255, 255, 255, 0.2));
+
+    path {
+      fill: none;
+      stroke: rgba(8, 7, 6, 0.92);
+      stroke-width: 2.2;
+      stroke-linejoin: bevel;
+      vector-effect: non-scaling-stroke;
+    }
+  }
+
+  &__bench--chopping &__crack path {
+    fill: rgba(28, 16, 7, 0.88);
+    stroke: rgba(255, 214, 160, 0.25);
+    stroke-width: 1;
+  }
+
+  &__bench--struggle &__crack path {
+    stroke: #e3cc96;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+  }
+
+  // A glancing blow: a bright scratch that fades
+  &__scrape {
+    position: absolute;
+    left: 2px;
+    top: 44%;
+    width: 12px;
+    height: 2px;
+    background: rgba(255, 236, 200, 0.9);
+    box-shadow: 0 0 6px rgba(255, 200, 140, 0.8);
+    transform: rotate(-24deg);
+    animation: labour-fade 650ms ease-out forwards;
+  }
+
+  &__bench--struggle &__scrape {
+    background: rgba(232, 110, 96, 0.95);
+    box-shadow: 0 0 6px rgba(201, 70, 58, 0.9);
+  }
+
+  // Chips fly up from above the face, never across it
+  &__chips {
+    position: absolute;
+    left: 50%;
+    top: -5px;
+    width: 0;
+    height: 0;
+  }
+
+  &__chip {
+    position: absolute;
+    left: -4px;
+    top: -3px;
+    width: 8px;
+    height: 6px;
+    background: $dbo-stone-light;
+    clip-path: polygon(0 30%, 45% 0, 100% 35%, 80% 100%, 15% 85%);
+    opacity: 0;
+    animation: labour-chip 560ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+
+    &:nth-child(even) {
+      background: var(--labour-ore, #{$dbo-stone});
+    }
+  }
+
+  @for $i from 0 through 5 {
+    &__chip--#{$i} {
+      --dx: #{-34px + $i * 13.5px};
+      --dy: #{-14px - ($i % 3) * 9px};
+      --r: #{-140deg + $i * 61deg};
+    }
+  }
+
+  &__bench--chopping &__chip {
+    width: 3px;
+    height: 9px;
+    background: #d9b27a;
+    clip-path: polygon(30% 0, 100% 10%, 70% 100%, 0 90%);
+  }
+
+  &__bench--struggle &__chip {
+    width: 1.5px;
+    height: 8px;
+    background: #e3cc96;
+    clip-path: none;
+  }
+
+  // The seam split open where the last blow fell
+  &__split {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    z-index: 2;
+    width: 30px;
+    height: calc(100% + 6px);
+    margin-left: -15px;
+    overflow: visible;
+    pointer-events: none;
+    transform-origin: 50% 0;
+    animation: labour-crack 260ms ease-out;
+    filter: drop-shadow(0 0 5px var(--labour-ore, #{$dbo-bronze}));
+
+    path {
+      fill: none;
+      stroke: rgba(6, 5, 4, 0.95);
+      stroke-width: 3.5;
+      stroke-linejoin: bevel;
+      vector-effect: non-scaling-stroke;
+    }
+  }
+
+  &__bench--chopping &__split {
+    filter: drop-shadow(0 0 4px rgba(255, 200, 120, 0.7));
+  }
+
+  &__bench--struggle &__split {
+    filter: none;
+
+    path {
+      stroke: #e3cc96;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+    }
+  }
+
+  // ---- the pick round: a taller face with the marked spots of this blow ----
+  &__bar--pick {
+    height: 76px;
+    margin-top: 8px;
+    cursor: default;
+  }
+
+  &__spots {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    animation: labour-spots-in 200ms ease-out 160ms both;
+  }
+
+  // A marked spot: the same chalk ring on every one, so only the cue inside tells them apart
+  &__spot {
+    @include dbo-pick-spot(40px);
+  }
+
+
+  &__cue {
+    position: absolute;
+    inset: 2px;
+    width: calc(100% - 4px);
+    height: calc(100% - 4px);
+    overflow: visible;
+    pointer-events: none;
+    filter: drop-shadow(1px 1px 0 rgba(255, 255, 255, 0.22));
+
+    path {
+      fill: none;
+      stroke: rgba(8, 7, 6, 0.95);
+      stroke-width: 2.4;
+      stroke-linejoin: bevel;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+    }
+  }
+
+  // A pale lip along the crack, so a dark line reads on dark rock and dark wood alike
+  &__cue path.labour__cue-edge {
+    stroke: rgba(255, 228, 186, 0.55);
+    stroke-width: 4.6;
+  }
+
+  &__glint {
+    fill: #fff6dc;
+    filter: drop-shadow(0 0 3px rgba(255, 233, 176, 0.95));
+  }
+
+  &__bench--chopping &__cue path:not(.labour__cue-edge) {
+    stroke: rgba(22, 12, 5, 0.95);
+    stroke-width: 2.8;
+  }
+
+  &__key {
+    @include dbo-pick-key;
+  }
+
+
+  // A blow in the pick round lands on its spot: the crack and the chips wait for the tool to strike
+  &__mark--spot {
+    top: auto;
+    bottom: auto;
+    height: 40px;
+    margin-top: -20px;
+  }
+
+  &__mark--spot &__crack {
+    animation: labour-crack 140ms ease-out 190ms both;
+  }
+
+  &__mark--spot &__chip {
+    animation-delay: 190ms;
+  }
+
+  &__mark--spot &__scrape {
+    animation: labour-scrape 650ms ease-out 190ms both;
+  }
+
+  // The tool swings down onto the chosen spot from the haft, strikes and lifts away (under 400 ms)
+  &__swing {
+    position: absolute;
+    z-index: 4;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+
+    .labour__tool {
+      transform-origin: 96% 32%;
+      animation: labour-swing 360ms cubic-bezier(0.5, 0, 0.75, 0.4) forwards;
+    }
+  }
+
+  &__swing--miss .labour__tool {
+    animation-name: labour-glance;
+  }
+
+  &__strength {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  &__pip {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: dbo-accent(0.8);
+    border: 1px solid $dbo-border-strong;
+    box-shadow: $dbo-glow;
+
+    &--spent {
+      background: rgba(0, 0, 0, 0.4);
+      border-color: $dbo-stone;
+      box-shadow: none;
+    }
+  }
+
+  // ---- the blows landed, and the worker's strength running down ----
   &__tally {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 6px;
+    align-items: center;
+    gap: 12px;
+    min-height: 20px;
   }
 
+  &__notches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    padding: 0 10px 0 3px;
+  }
+
+  // Carved marks in the stone, lit as each blow lands
   &__notch {
-    width: 14px;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid $dbo-stone-dark;
+    width: 9px;
+    height: 9px;
+    transform: rotate(45deg);
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid $dbo-stone;
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
 
     &--done {
       background: $dbo-aqua;
@@ -68,71 +531,15 @@
     }
   }
 
-  &__bar {
-    position: relative;
-    height: 46px;
-    cursor: pointer;
-    background: rgba(0, 0, 0, 0.34);
-    border: 1px solid $dbo-border;
-    overflow: hidden;
-    transition: border-color $dbo-fast, box-shadow $dbo-fast;
-
-    &--hit {
-      border-color: $dbo-border-strong;
-      box-shadow: $dbo-glow;
-    }
-
-    &--miss {
-      border-color: rgba(201, 70, 58, 0.8);
-    }
-
-    &--win {
-      border-color: $dbo-border-strong;
-      box-shadow: 0 0 22px dbo-accent(0.4);
-    }
-
-    &--lose {
-      border-color: rgba(201, 70, 58, 0.8);
-      opacity: 0.7;
-    }
-  }
-
-  &__band {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    background: linear-gradient(180deg, dbo-accent(0.34), dbo-accent-deep(0.22));
-    border-left: 1px solid $dbo-border-strong;
-    border-right: 1px solid $dbo-border-strong;
-  }
-
-  &__marker {
-    position: absolute;
-    top: -2px;
-    bottom: -2px;
-    width: 3px;
-    margin-left: -1px;
-    background: $dbo-silver;
-    box-shadow: 0 0 10px rgba(230, 236, 236, 0.75);
-  }
-
-  // The seam is worked in stone, the block in wood
-  &--mining &__band {
-    background: linear-gradient(180deg, dbo-accent(0.34), dbo-accent-deep(0.22));
-  }
-
-  &--chopping &__band {
-    background: linear-gradient(180deg, rgba(201, 138, 58, 0.34), rgba(122, 79, 30, 0.22));
-    border-color: rgba(201, 138, 58, 0.8);
-  }
-
-  // The gap in the bonds is drawn in iron and blood
-  &__bench--struggle &__band {
-    background: linear-gradient(180deg, rgba(201, 70, 58, 0.36), rgba(110, 30, 26, 0.24));
-    border-color: rgba(201, 70, 58, 0.85);
+  &__clock-label {
+    color: $dbo-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   &__clock {
+    flex: 1;
     height: 6px;
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid $dbo-stone-dark;
@@ -146,8 +553,16 @@
 
   &__actions {
     display: flex;
+    align-items: center;
     justify-content: center;
     gap: 12px;
+  }
+
+  &__keys {
+    flex: 1;
+    color: $dbo-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.04em;
   }
 
   &__button {
@@ -158,4 +573,48 @@
       cursor: default;
     }
   }
+}
+
+@keyframes labour-crack {
+  from { transform: scaleY(0.2); opacity: 0.4; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes labour-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes labour-chip {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)); }
+}
+
+@keyframes labour-spots-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes labour-scrape {
+  0% { opacity: 0; }
+  1% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes labour-swing {
+  0% { opacity: 0; transform: rotate(-65deg); }
+  20% { opacity: 1; }
+  55% { transform: rotate(6deg); }
+  65% { transform: rotate(0deg); }
+  85% { opacity: 1; transform: rotate(-4deg); }
+  100% { opacity: 0; transform: rotate(-14deg); }
+}
+
+@keyframes labour-glance {
+  0% { opacity: 0; transform: rotate(-65deg); }
+  20% { opacity: 1; }
+  55% { transform: rotate(4deg) translateX(0); }
+  70% { transform: rotate(-6deg) translateX(9px); }
+  100% { opacity: 0; transform: rotate(-20deg) translateX(14px); }
 }

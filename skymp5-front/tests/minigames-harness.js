@@ -148,11 +148,20 @@ section('labour', () => {
   const r = last('dbo:labour');
   check('labour: a won round reports nonce, strike times, its own clock and the verdict', r && r[1] === 'm1' && JSON.stringify(json(r[2])) === '[496,1504]' && typeof r[3] === 'number', r);
   check('labour: the verdict argument is {v:1,win:true,hits:2}', r && JSON.stringify(json(r[4])) === '{"v":1,"win":true,"hits":2}', r && r[4]);
-  check('labour: judge client shows the win at once', w.text().includes('The seam gives way.') && w.hasClass('labour__bar--win'), w.text());
+  check('labour: judge client shows the win at once', w.text().includes('The seam gives up its ore.') && w.hasClass('labour__bar--win'), w.text());
   check('labour: and offers to stand up', w.text().includes('Stand up'));
   w.set(Object.assign({}, round, { result: 'You take 2 iron ore.', resultKind: 'win' }));
-  check('labour: the server text replaces the widget verdict when it lands', w.text().includes('You take 2 iron ore.') && !w.text().includes('The seam gives way.'));
+  check('labour: the server text replaces the widget verdict when it lands', w.text().includes('You take 2 iron ore.') && !w.text().includes('The seam gives up its ore.'));
   check('labour: one report only', count('dbo:labour') === 1, count('dbo:labour'));
+
+  w = mount(Labour, Object.assign({}, round, { nonce: 'm1b' }));
+  w.advance(500); w.key(' ');
+  const crack = w.byClass('labour__mark--hit')[0];
+  check('labour: a landed blow cracks the face where the marker stood', crack && Math.abs(parseFloat(crack.p.style.left) - 49.6) < 0.01, crack && crack.p.style);
+  w.advance(300); w.key(' ');
+  check('labour: a glancing blow only scrapes it, and says so', w.hasClass('labour__mark--miss') && w.text().includes('glances off'), w.text());
+  w.advance(708); w.key(' ');
+  check('labour: the band and the marker go when the seam splits', w.hasClass('labour__split') && !w.hasClass('labour__band') && !w.hasClass('labour__marker'));
 
   w = mount(Labour, Object.assign({}, round, { nonce: 'm2' }));
   w.advance(10100);
@@ -168,7 +177,7 @@ section('labour', () => {
   w.advance(500); w.key(' '); w.advance(1004); w.key(' ');
   const s = last('dbo:labour');
   check('labour: a server-judged round still sends the verdict argument (an old server reads three)', s && json(s[4]).win === true);
-  check('labour: but shows no verdict of its own', !w.text().includes('The seam gives way.') && !w.hasClass('labour__bar--win'), w.text());
+  check('labour: but shows no verdict of its own', !w.text().includes('The seam gives up its ore.') && !w.hasClass('labour__bar--win'), w.text());
 
   const strug = { id: 31, nonce: 's1', kind: 'struggle', event: 'struggle', title: 'Bound', strikes: 2, band: 8, bands: [50, 50], sweepMs: 1000, totalMs: 10000, hitMs: 0, missMs: 0, failOnMiss: true, judge: 'client' };
   w = mount(Labour, strug);
@@ -179,6 +188,71 @@ section('labour', () => {
   w = mount(Labour, Object.assign({}, strug, { nonce: 's2' }));
   w.advance(500); w.key(' '); w.advance(1004); w.key(' ');
   check('struggle: a clean round is not shown as freedom: the server still rolls', w.text().includes('Now the knots decide.') && !w.hasClass('labour__bar--win'), w.text());
+});
+
+// ---- labour pick rounds ("Read the stone": no timing) ---------------------------------------------------------------
+section('labour pick', () => {
+  const Labour = load('features/labour/index.tsx').default;
+  const steps = [[[20, 40, 0.3], [50, 55, 0.8], [80, 45, 0.2]], [[25, 60, 0.9], [55, 35, 0.4], [85, 50, 0.1]], [[15, 50, 0.2], [45, 50, 0.3], [75, 50, 0.85]]];
+  const round = { id: 31, nonce: 'p1', kind: 'mining', title: 'Iron Seam', mode: 'pick', strikes: 2, slips: 1, steps, totalMs: 90000, minPickMs: 150, judge: 'client' };
+  let w = mount(Labour, round);
+  check('labour pick: no band and no marker, one spot per entry of the blow, keyed 1-3', !w.hasClass('labour__band') && !w.hasClass('labour__marker') && w.byClass('labour__spot').length === 3 && w.text().includes('press 1-3'), w.text());
+  w.advance(100); w.key('2', 'Digit2');
+  check('labour pick: a pick before the spots have shown is not taken', count('dbo:labour') === 0 && w.byClass('labour__mark--hit').length === 0);
+  w.advance(200); w.key('2', 'Digit2');
+  check('labour pick: the clearest cue lands the blow where it was struck', w.byClass('labour__mark--hit').length === 1 && w.hasClass('labour__swing--hit') && w.byClass('labour__mark--hit')[0].p.style.top === '55%');
+  w.advance(100); w.key('1', 'Digit1');
+  check('labour pick: no second pick inside the lock', w.byClass('labour__mark--hit').length === 1);
+  w.advance(200); w.key('1', 'Digit1');
+  const r = last('dbo:labour');
+  check('labour pick: the win reports [[index, ms], ...], its clock and {v:2, mode:pick}', r && r[1] === 'p1' && r[2] === '[[1,300],[0,600]]' && r[3] === 600 && r[4] === '{"v":2,"mode":"pick","win":true,"hits":2,"slips":0}', r);
+  check('labour pick: the seam gives up its ore at once', w.text().includes('The seam gives up its ore.') && w.hasClass('labour__split'));
+
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p2' }));
+  w.advance(300); w.key('1', 'Digit1'); w.advance(300); w.key('2', 'Digit2');
+  const l = last('dbo:labour');
+  check('labour pick: a wasted blow past the allowance ends it as a loss', l && l[2] === '[[0,300],[1,600]]' && json(l[4]).win === false && json(l[4]).slips === 2 && w.text().includes('The seam holds.'), l);
+  check('labour pick: the strength pips are spent', w.byClass('labour__pip--spent').length === 2);
+
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p3' }));
+  w.advance(400); w.key('2', 'Digit2'); w.advance(90000);
+  const a = last('dbo:labour');
+  check('labour pick: an idle round ends at its limit as a loss, with its own words', a && json(a[4]).win === false && a[3] >= 90000 && w.text().includes('stand idle at the seam'), a);
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p4', kind: 'chopping', title: 'Chopping Block' }));
+  w.advance(300); w.key(' ');
+  check('labour pick: Space strikes nothing in a pick round', count('dbo:labour') === 0 && w.byClass('labour__mark--hit').length === 0);
+  w.click(w.byClass('labour__spot')[1]);
+  check('labour pick: a click on a spot picks it', w.byClass('labour__mark--hit').length === 1);
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p5', kind: 'struggle', event: 'struggle', title: 'Bound Hands', slips: 0, strikeLabel: 'Pull', leaveLabel: 'Give up', hint: 'Pull where the rope gives; one wrong pull and the bonds hold.' }));
+  check('labour pick: the struggle draws the rope with its spots, the hint from the server', !w.hasClass('labour__band') && w.byClass('labour__spot').length === 3 && w.text().includes('where the rope gives') && w.text().includes('to pull. Escape to give up'), w.text());
+  w.advance(300); w.key('2', 'Digit2'); w.advance(300); w.key('2', 'Digit2');
+  const sg = last('dbo:struggle');
+  check('labour pick: one wrong pull ends the struggle on its own event as a loss', sg && sg[2] === '[[1,300],[1,600]]' && json(sg[4]).win === false && json(sg[4]).slips === 1 && w.text().includes('Your grip slips.'), sg);
+  w = mount(Labour, Object.assign({}, round, { nonce: 'p6', kind: 'struggle', event: 'struggle', slips: 0 }));
+  w.advance(300); w.key('2', 'Digit2'); w.advance(300); w.key('1', 'Digit1');
+  check('labour pick: a clean struggle still waits on the knots', json(last('dbo:struggle')[4]).win === true && w.text().includes('Now the knots decide.') && !w.hasClass('labour__bar--win'), w.text());
+});
+
+// ---- skinning pick attempts --------------------------------------------------------------------------------------
+section('skinning pick', () => {
+  const Skinning = load('features/skinning/index.tsx').default;
+  const steps = [[[20, 40, 0.3], [50, 50, 0.8], [80, 62, 0.2]], [[25, 50, 0.9], [55, 35, 0.4], [85, 64, 0.1]], [[15, 66, 0.2], [45, 38, 0.3], [75, 50, 0.85]], [[30, 50, 0.7], [60, 30, 0.2], [90, 70, 0.1]]];
+  const round = { id: 33, nonce: 'q1', name: 'deer', mode: 'pick', cuts: 2, misses: 1, steps, totalMs: 90000, minPickMs: 150, judge: 'client' };
+  let w = mount(Skinning, round);
+  check('skinning pick: no blade and no seam band, points keyed 1-3', !w.hasClass('skinning__blade') && !w.hasClass('skinning__seam') && w.byClass('skinning__spot').length === 3 && !w.hasClass('skinning__timer'));
+  w.advance(300); w.key('2', 'Digit2'); w.advance(300); w.key('3', 'Digit3');
+  check('skinning pick: a pick off the seam is a slip and says so', w.hasClass('skinning__mark--slip') && w.text().includes('The blade snags.'), w.text());
+  w.advance(300); w.key('3', 'Digit3');
+  const r = last('dbo:skinning');
+  const v = r && json(r[4]);
+  check('skinning pick: the clean attempt reports [[index, ms], ...] and {v:2, mode:pick, win, hits, slips}', r && r[2] === '[[1,300],[2,600],[2,900]]' && r[3] === 900 && v.mode === 'pick' && v.win === true && v.hits === 2 && v.slips === 1, r);
+  check('skinning pick: the pelt comes away at once', w.text().includes('The hide comes away clean.') && w.hasClass('skinning__opened'));
+  w = mount(Skinning, Object.assign({}, round, { nonce: 'q2' }));
+  w.advance(300); w.key('1', 'Digit1'); w.advance(300); w.key('2', 'Digit2');
+  check('skinning pick: slips past the allowance tear the hide', json(last('dbo:skinning')[4]).win === false && w.text().includes('The knife slips') && w.hasClass('skinning__mark--rip'));
+  w = mount(Skinning, Object.assign({}, round, { nonce: 'q3' }));
+  w.advance(90100);
+  check('skinning pick: an idle attempt ends at its limit', json(last('dbo:skinning')[4]).win === false && w.text().includes('knife idle'), w.text());
 });
 
 // ---- skinning -----------------------------------------------------------------------------------------------------
@@ -194,12 +268,15 @@ section('skinning', () => {
   check('skinning: frame health rides along', v && v.frames > 50 && v.maxFrameMs >= 15 && v.maxFrameMs <= 17, v);
   check('skinning: judge client shows the clean hide at once', w.text().includes('The hide comes away clean.') && w.hasClass('skinning__panel--win'));
   check('skinning: the hide is put away and Close offered', !w.hasClass('skinning__hide') && w.text().includes('Close'));
+  check('skinning: the clean cuts stay on the lifted pelt', w.byClass('skinning__mark--clean').length === 2 && w.hasClass('skinning__opened'));
 
   w = mount(Skinning, Object.assign({}, round, { nonce: 'k2' }));
-  w.advance(100); w.key(' ', 'Space'); w.advance(100); w.key(' ', 'Space');
+  w.advance(100); w.key(' ', 'Space');
+  check('skinning: a slip leaves a tear and the line counts the slips left', w.hasClass('skinning__mark--slip') && w.text().includes('One more slip will tear it.'), w.text());
+  w.advance(100); w.key(' ', 'Space');
   const l = last('dbo:skinning');
   check('skinning: slips past the allowance report a loss', l && json(l[4]).win === false && json(l[4]).slips === 2, l);
-  check('skinning: and show it', w.text().includes('The knife slips') && w.hasClass('skinning__panel--lose'));
+  check('skinning: and show it', w.text().includes('The knife slips') && w.hasClass('skinning__panel--lose') && w.hasClass('skinning__mark--rip'));
 
   w = mount(Skinning, Object.assign({}, round, { nonce: 'k3' }));
   w.advance(200); w.key('Escape'); w.advance(11000);
@@ -235,9 +312,32 @@ section('reading', () => {
   check('reading: a server-judged round sends the order only', old && old.length === 3, old);
 });
 
+// ---- reading by candle stubs (pick: no clock) ----------------------------------------------------------------------
+section('reading pick', () => {
+  const Reading = load('features/reading/index.tsx').default;
+  const round = { id: 30, nonce: 'c1', title: 'A book', words: ['end', 'the'], judge: 'client', mode: 'pick', stubs: 2, totalMs: 600000 };
+  let w = mount(Reading, round);
+  check('reading pick: candle stubs and no seconds', w.byClass('reading__stub').length === 3 && !w.hasClass('reading__candle') && w.text().includes('two stubs to spare') && w.text().includes('burns a stub'), w.text());
+  const pool = () => w.byClass('reading__word').filter((n) => !n.p.className.includes('placed'));
+  w.advance(200000);
+  check('reading pick: nothing gutters by the second', count('dbo:reading') === 0);
+  w.click(pool()[0]); w.click(pool()[1]);
+  w.advance(1000); w.key('Enter');
+  const r1 = last('dbo:reading');
+  const v1 = r1 && json(r1[3]);
+  check('reading pick: a reading reports {v:3, mode:pick, elapsedMs, attempts, guttered}', r1 && r1[2] === '[0,1]' && v1.v === 3 && v1.mode === 'pick' && Math.abs(v1.elapsedMs - 201000) <= 2 && v1.attempts === 0 && v1.guttered === false, v1);
+  w.advance(2000);
+  w.set(Object.assign({}, round, { attempt: 1, feedback: 'Not quite. Even the first word is wrong. A stub of the candle burns away.' }));
+  check('reading pick: a wrong reading burns a stub', w.byClass('reading__stub--burnt').length === 1 && w.text().includes('one stub to spare'), w.text());
+  w = mount(Reading, Object.assign({}, round, { nonce: 'c2' }));
+  w.advance(600100);
+  const g = last('dbo:reading');
+  check('reading pick: an idle reading ends at its bound, guttered', g && json(g[3]).guttered === true, g);
+});
+
 // ---- prayer -------------------------------------------------------------------------------------------------------
 section('prayer', () => {
-  const Prayer = load('features/prayer/index.tsx').default;
+  const Prayer = load('features/prayer/index.tsx').TimedPrayer;
   const verses = [{ text: 'a', startMs: 0, endMs: 6000 }, { text: 'b', startMs: 6000, endMs: 12000 }, { text: 'c', startMs: 12000, endMs: 18000 }];
   const round = { id: 35, nonce: 'p1', deity: 'Arkay', verses, totalMs: 18000, startOnPress: true, judge: 'client', slackMs: 500, startGraceMs: 1500, waitMs: 60000 };
   let w = mount(Prayer, round);
@@ -273,9 +373,42 @@ section('prayer', () => {
   check('prayer: but shows no verdict of its own', !w.text().includes('You hold the three verses.') && !w.hasClass('prayer__hold--win'));
 });
 
+// ---- pick prayers ("speak the verses": no hold) --------------------------------------------------------------------
+section('prayer pick', () => {
+  const { PrayerPick } = load('features/prayer/index.tsx');
+  const verses = [{ lines: ['Let me be the one who stays', 'Hear me, for I have walked far to stand here', 'Kneel early and it is over sooner'] },
+    { lines: ['Time turns, and I turn with it', 'The scorned do not beg', 'Every thread pulls another'] },
+    { lines: ['Take by strength what deceit could not hold', 'What is said in the dark is still said', 'Keep my name where you can find it again'] }];
+  const round = { id: 35, nonce: 'q1', deity: 'Akatosh', kind: 'divine', shrine: 'Shrine of Akatosh', mode: 'pick', sphere: 'Time.', verses, right: [1, 0, 2], slips: 2, totalMs: 120000, minPickMs: 300, startOnPress: true, judge: 'client' };
+  let w = mount(PrayerPick, round);
+  check('prayer pick: the sphere, three lines of the first verse keyed 1-3, no hold bar', w.text().includes('Akatosh: Time.') && w.byClass('prayer__line').length === 3 && !w.hasClass('prayer__hold') && w.text().includes('press 1-3'), w.text());
+  w.advance(200); w.key('2', 'Digit2');
+  check('prayer pick: a line before the lines have shown is not taken', count('dbo:prayerStart') === 0);
+  w.advance(200); w.key('1', 'Digit1');
+  check('prayer pick: the first line marks the prayer begun', count('dbo:prayerStart') === 1 && last('dbo:prayerStart')[2] === 0);
+  check('prayer pick: a line of another god falters, and the verse is offered again', w.text().includes("another god's prayer") && w.text().includes('bear one more') && w.byClass('prayer__line--falter').length === 1 && w.byClass('prayer__verse--past').length === 0, w.text());
+  w.advance(400); w.key('2', 'Digit2');
+  check('prayer pick: the true line is spoken into the prayer', w.byClass('prayer__verse--past').length === 1 && w.text().includes('Hear me, for I have walked far'), w.text());
+  w.advance(400); w.key('1', 'Digit1'); w.advance(400); w.key('3', 'Digit3');
+  const r = last('dbo:prayer');
+  check('prayer pick: three verses spoken report [[index, ms], ...] once with {v:2, mode:pick}', r && r[2] === '[[0,400],[1,800],[0,1200],[2,1600]]' && r[3] === 1600 && json(r[4]).win === true && json(r[4]).hits === 3 && json(r[4]).slips === 1 && w.text().includes('You speak the three verses.') && w.text().includes('Rise'), r);
+  w = mount(PrayerPick, Object.assign({}, round, { nonce: 'q2' }));
+  for (const k of ['1', '3', '1']) { w.advance(400); w.key(k, 'Digit' + k); }
+  const l = last('dbo:prayer');
+  check('prayer pick: a third faltered line slips the prayer away', l && json(l[4]).win === false && json(l[4]).slips === 3 && w.text().includes('The verses slip away'), l);
+  w = mount(PrayerPick, Object.assign({}, round, { nonce: 'q3' }));
+  w.advance(121000);
+  const a = last('dbo:prayer');
+  check('prayer pick: an unspoken prayer ends at its limit', a && json(a[4]).win === false && a[3] === 120000 && w.text().includes('The moment passes'), a);
+  w = mount(PrayerPick, Object.assign({}, round, { nonce: 'q4' }));
+  w.key('Escape');
+  check('prayer pick: Escape stands up', count('dbo:prayerCancel') === 1);
+});
+
 // ---- lockpick -----------------------------------------------------------------------------------------------------
 section('lockpick', () => {
-  const Lockpick = load('features/lockpick/index.tsx').default;
+  // The timed lock; the default export picks between it and PickLock by the lock's mode
+  const Lockpick = load('features/lockpick/index.tsx').TimedLockpick;
   const base = { type: 'lockpick', id: 46, nonce: 'L0', title: 'Chest (Adept lock)', level: 'Adept', riseMs: 450, fallMs: 650, holds: [380, 420, 400], set: [false, false, false], picks: 5, notice: '', noticeKind: '', done: false };
   const primaryDisabled = (w) => !!w.byClass('lockpick__button--primary')[0].p.disabled;
   let w = mount(Lockpick, base);
@@ -333,9 +466,43 @@ section('lockpick', () => {
   check('lockpick: snaps without judge client stay on the per-try path', count('dbo:lockpickTry') === 1 && count('dbo:lockpickResult') === 0);
 });
 
+// ---- pick locks ("find where the pins give": no timing) -----------------------------------------------------------
+section('lockpick pick', () => {
+  const { PickLock } = load('features/lockpick/index.tsx');
+  const steps = [[[20, 50, 0.3], [50, 50, 0.9], [80, 50, 0.2]], [[25, 50, 0.2], [55, 50, 0.1], [85, 50, 0.8]], [[15, 50, 0.85], [45, 50, 0.3], [75, 50, 0.1]], [[30, 50, 0.7], [60, 50, 0.2], [90, 50, 0.1]]];
+  const base = { type: 'lockpick', id: 46, nonce: 'K1', title: 'Chest (Apprentice lock)', level: 'Apprentice', set: [false, false], picks: 2, notice: '', noticeKind: '', done: false, judge: 'client', snaps: [0, 1, 0, 0], maxTries: 4, mode: 'pick', steps, totalMs: 180000, minPickMs: 150 };
+  let w = mount(PickLock, base);
+  check('lockpick pick: no push or set, the positions of the first try keyed 1-3', w.byClass('lockpick__spot').length === 3 && !w.text().includes('Push') && w.text().includes('press 1-3'), w.text());
+  w.advance(100); w.key('2', 'Digit2');
+  check('lockpick pick: a pick before the positions have shown is not taken', w.byClass('lockpick__slot--set').length === 0);
+  w.advance(200); w.key('2', 'Digit2');
+  check('lockpick pick: the clearest position sets the loose tumbler', w.byClass('lockpick__slot--set').length === 1 && w.hasClass('lockpick__stroke--hit'));
+  w.advance(300); w.key('1', 'Digit1');
+  check('lockpick pick: a wrong position on a try whose snap was rolled snaps a pick and drops the tumblers', w.byClass('lockpick__slot--set').length === 0 && w.text().includes('The pick snaps.') && w.text().includes('One lockpick left.'), w.text());
+  w.advance(300); w.key('1', 'Digit1'); w.advance(300); w.key('1', 'Digit1');
+  const r = last('dbo:lockpickResult');
+  check('lockpick pick: the win reports [[index, ms], ...] once, from 0 to the last pick', r && r[1] === 'K1' && r[2] === 'win' && r[3] === '[[1,300],[0,600],[0,900],[0,1200]]' && r[4] === 0 && r[5] === 1200 && w.text().includes('The Apprentice lock gives way.'), r);
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K2', picks: 1, snaps: [1, 1, 1, 1] }));
+  w.advance(300); w.key('3', 'Digit3');
+  check('lockpick pick: a snapped last pick fails the lock', last('dbo:lockpickResult')[2] === 'fail' && w.text().includes('it was your last'));
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K3', snaps: [0, 0, 0, 0] }));
+  for (const k of ['1', '1', '2', '2']) { w.advance(300); w.key(k, 'Digit' + k); }
+  const tired = last('dbo:lockpickResult');
+  check('lockpick pick: the last try the server allowed ends the lock', tired && tired[2] === 'fail' && JSON.parse(tired[3]).length === 4 && w.text().includes('Your hands are tired'), tired);
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K4' }));
+  w.advance(300); w.key('2', 'Digit2'); w.advance(181000);
+  const idle = last('dbo:lockpickResult');
+  check('lockpick pick: an idle lock is set down at its limit, its tries reported as a cancel', idle && idle[2] === 'cancel' && idle[5] === 180000 && w.text().includes('set the picks down'), idle);
+  w = mount(PickLock, Object.assign({}, base, { nonce: 'K5' }));
+  w.advance(300); w.key('Escape');
+  check('lockpick pick: Escape leaves it with a cancel', last('dbo:lockpickResult')[2] === 'cancel' && count('dbo:lockpickCancel') === 0);
+  w.key('Escape');
+  check('lockpick pick: ...and the next one closes', count('dbo:lockpickCancel') === 1);
+});
+
 // ---- rite ---------------------------------------------------------------------------------------------------------
 section('rite', () => {
-  const Rite = load('features/rite/index.tsx').default;
+  const Rite = load('features/rite/index.tsx').TimedRite;
   const round = { id: 39, nonce: 'R', title: 'The Blood Fever', flavor: '', deadly: false, round: 1, rounds: 5, need: 3, hits: 0, misses: 0, period: 1500, zone: [0.5, 0.2], startsIn: 700, result: '' };
   let w = mount(Rite, round);
   w.advance(300); w.key(' ', 'Space');
@@ -364,6 +531,25 @@ section('rite', () => {
   w.advance(700 + 7050);
   const t = last('dbo:riteTimeout');
   check('rite (client): its own limit sends riteTimeout once', t && t[1] === 'C' && t[2] === 3 && t[3] === 'r3' && count('dbo:riteTimeout') === 1 && w.text().includes('too late'), t);
+});
+
+// ---- pick rites ("read the rite": no marker) -----------------------------------------------------------------------
+section('rite pick', () => {
+  const { RitePick } = load('features/rite/index.tsx');
+  const round = { id: 39, nonce: 'P', title: 'The Blood Fever', flavor: '', deadly: false, round: 1, rounds: 5, need: 3, hits: 0, misses: 0, result: '', judge: 'client', rnonce: 'r1', mode: 'pick', spots: [[20, 50, 0.3], [50, 50, 0.95], [80, 50, 0.25]], cue: 'pulse', minPickMs: 300, limitMs: 90000 };
+  let w = mount(RitePick, round);
+  check('rite pick: three marks keyed 1-3, no marker or Strike button', w.byClass('rite__spot').length === 3 && !w.hasClass('rite__marker') && !w.text().includes('Strike') && w.text().includes('strongest beat'), w.text());
+  w.advance(200); w.key('2', 'Digit2');
+  check('rite pick: a pick before the marks have shown is not taken', count('dbo:riteStrike') === 0);
+  w.advance(200); w.key('2', 'Digit2');
+  const h = last('dbo:riteStrike');
+  check('rite pick: the clearest mark reports [nonce, round, rnonce, pick, index, atMs] and shows True at once', h && h[1] === 'P' && h[2] === 1 && h[3] === 'r1' && h[4] === 'pick' && h[5] === 1 && h[6] === 400 && w.text().includes('True.') && w.byClass('rite__pip--hit').length === 1, h);
+  w.key('1', 'Digit1');
+  check('rite pick: one pick per round', count('dbo:riteStrike') === 1);
+  w.set(Object.assign({}, round, { round: 2, rnonce: 'r2', hits: 1, result: 'True.', spots: [[30, 50, 0.2], [60, 50, 0.3], [85, 50, 0.9]], cue: 'trail' }));
+  w.advance(400); w.key('1', 'Digit1');
+  const m = last('dbo:riteStrike');
+  check('rite pick: the next round brings its own marks; another mark is a miss, shown at once', m && m[3] === 'r2' && m[5] === 0 && w.text().includes('Missed (the wrong mark).') && w.text().includes('freshest track') && w.byClass('rite__pip--miss').length === 1, m);
 });
 
 // ---- parity with the server's arithmetic ----------------------------------------------------------------------------
@@ -425,6 +611,16 @@ section('parity', () => {
     if (J.lockpickLanded(push, set, 450, hold, 70) === server) agree++;
   }
   check(`parity: lockpick set agrees with lockpick.js on ${N} random tries`, agree === N, agree);
+
+  // server minigames.js rightOf (origin/labour-pick): the first spot with the strictly clearest cue
+  const serverRight = (spots) => spots.reduce((best, s, i) => (s[2] > spots[best][2] ? i : best), 0);
+  agree = 0;
+  for (let k = 0; k < N; k++) {
+    const n = 2 + Math.floor(rnd() * 4);
+    const spots = Array.from({ length: n }, () => [rnd() * 100, rnd() * 100, Math.round(rnd() * (k % 3 ? 100 : 4)) / 100]);
+    if (J.pickRight(spots) === serverRight(spots)) agree++;
+  }
+  check(`parity: the pick round's right spot agrees with minigames.js on ${N} random blows (ties included)`, agree === N, agree);
 });
 
 // ---- the capabilities the server keys the lockpick and rite rounds on -------------------------------------------------

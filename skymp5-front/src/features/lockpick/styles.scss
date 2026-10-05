@@ -100,4 +100,137 @@
       cursor: default;
     }
   }
+
+  // ---- the pick lock: the keyway with the positions of this try, and the pick that probes them ----
+  &--pick &__tumblers {
+    height: 104px;
+    cursor: default;
+  }
+
+  &--pick &__pin {
+    transition: bottom 160ms ease-out 140ms;
+  }
+
+  &__keyway {
+    position: relative;
+    height: 62px;
+    border: 1px solid $dbo-stone-dark;
+    background:
+      linear-gradient(180deg, transparent 38%, rgba(0, 0, 0, 0.65) 38%, rgba(0, 0, 0, 0.65) 62%, transparent 62%),
+      linear-gradient(180deg, #4a5355, #2c3335);
+    box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.7);
+    transition: border-color $dbo-fast;
+
+    &--hit { border-color: $dbo-border-strong; }
+    &--miss, &--snap { border-color: rgba(201, 70, 58, 0.85); }
+  }
+
+  &__spots {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    animation: lockpick-spots-in 200ms ease-out 160ms both;
+  }
+
+  &__spot {
+    @include dbo-pick-spot(38px);
+  }
+
+  &__give {
+    position: absolute;
+    inset: 2px;
+    width: calc(100% - 4px);
+    height: calc(100% - 4px);
+    overflow: visible;
+    pointer-events: none;
+
+    path {
+      fill: none;
+      stroke: rgba(8, 7, 6, 0.95);
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    path.lockpick__give-edge {
+      stroke: rgba(240, 230, 200, 0.6);
+      stroke-width: 4.4;
+    }
+  }
+
+  &__key {
+    @include dbo-pick-key;
+  }
+
+  // The pick slides along the keyway to the chosen position and lifts (under 400 ms)
+  &__stroke {
+    position: absolute;
+    top: 50%;
+    z-index: 3;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  &__pick {
+    position: absolute;
+    right: 0;
+    top: -2px;
+    width: 120px;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(150, 160, 162, 0.2), $dbo-silver);
+    transform-origin: 100% 50%;
+    animation: lockpick-probe 360ms ease-out forwards;
+
+    &::after {
+      content: '';
+      position: absolute;
+      right: -2px;
+      top: -6px;
+      width: 4px;
+      height: 8px;
+      border-radius: 1px;
+      background: $dbo-silver;
+    }
+  }
+
+  &__stroke--miss &__pick { animation-name: lockpick-slip; }
+  &__stroke--snap &__pick { animation-name: lockpick-snap; }
+
+  &__keys {
+    flex: 1;
+    color: $dbo-text-dim;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+}
+
+@keyframes lockpick-spots-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes lockpick-probe {
+  0% { opacity: 0; transform: translateX(-60px); }
+  25% { opacity: 1; }
+  60% { transform: translateX(0) rotate(0deg); }
+  80% { opacity: 1; transform: translateX(0) rotate(-8deg); }
+  100% { opacity: 0; transform: translateX(-10px) rotate(-8deg); }
+}
+
+@keyframes lockpick-slip {
+  0% { opacity: 0; transform: translateX(-60px); }
+  25% { opacity: 1; }
+  60% { transform: translateX(0); }
+  75% { transform: translateX(8px) rotate(4deg); }
+  100% { opacity: 0; transform: translateX(14px) rotate(4deg); }
+}
+
+@keyframes lockpick-snap {
+  0% { opacity: 0; transform: translateX(-60px); }
+  25% { opacity: 1; }
+  60% { transform: translateX(0); }
+  70% { transform: translateX(0) rotate(-14deg) scaleX(0.6); }
+  100% { opacity: 0; transform: translateX(-6px) rotate(-30deg) scaleX(0.5) translateY(12px); }
 }
