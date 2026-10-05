@@ -202,6 +202,14 @@ run(1);
 check('an offline worshipper is dropped from the tick', !globalThis.__dboBlessingRegenOwed.has(ACTOR));
 online = [ACTOR];
 
+// 5 Oct (#bugs 1556641893054681179): just after a cast the server's bars predate the spell; a write then refunded it
+globalThis.__dboCastHeld = (a, now) => a === ACTOR && now - castAt < 3000;
+let castAt = wallClock;
+check('no blessing write for castHoldSeconds after the worshipper\'s cast (racial.js castHeld): the spell stays paid',
+  (() => { bless('hircine'); setPc(0.5, 0.2, 0.5); castAt = wallClock + 1; out.sets.length = 0; run(2); return out.sets.length === 0 && near(pc().magicka, 0.2); })());
+check('...and the blessing runs again once the hold is over', (() => { run(2); return out.sets.length > 0 && pc().stamina > 0.5; })());
+delete globalThis.__dboCastHeld;
+
 console.log('');
 console.log('deity      bar      server rate/s   during the blessing   after it ends');
 for (const [deity, stat, perSec, secs, got] of table) console.log(`${deity.padEnd(10)} ${stat.padEnd(8)} ${String(perSec).padEnd(15)} +${got.toFixed(4)} in ${String(secs).padEnd(2)} s    +0`);

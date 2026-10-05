@@ -67,6 +67,7 @@ module.exports = (api) => {
   const C = merge(cfg && cfg.racial);
   const on = () => C.enabled === true;
   const S = globalThis.__dboRacialState || (globalThis.__dboRacialState = { owed: new Map(), highbornUntil: new Map() });
+  if (!(S.castAt instanceof Map)) S.castAt = new Map(); // state built by an older racial.js has none
 
   // ---- who ----------------------------------------------------------------------------------------------------------
   const isPlayer = (a) => { try { return profileOf(a >>> 0) >= 0; } catch (e) { return false; } };
@@ -158,6 +159,16 @@ module.exports = (api) => {
       && Math.hypot(Number(pos[0]) - Number(z.pos[0]), Number(pos[1]) - Number(z.pos[1])) <= num(z.radius, 0));
   };
   const highbornRunning = (a) => (S.highbornUntil.get(a >>> 0) || 0) > Date.now();
+  // The client reports its own bars at most once a second and holds the report while it casts and for half a second
+  // after (sendInputsService), so for a moment after a cast the server's percentages are the ones from before it. A
+  // regeneration tick that writes them back then refills the caster (#bugs 1556641893054681179: an Altmer's Conjure
+  // Familiar cost nothing). Every server-side regeneration (this gift, the blessings, the Ayleid well) waits
+  // castHoldSeconds after the player's last cast.
+  const castHeld = (a, now = Date.now()) => {
+    const d = now - (S.castAt.get(a >>> 0) || -Infinity);
+    return d >= 0 && d < Math.max(0, num(C.castHoldSeconds, 3)) * 1000;
+  };
+  globalThis.__dboCastHeld = castHeld;
   // The race's factor on one bar's regeneration now (1 = none), capped by the rule for its kind
   const regenFactor = (a, stat) => {
     const race = raceOf(a); if (!race) return 1;
@@ -206,6 +217,8 @@ module.exports = (api) => {
       if (!raceOf(a)) { S.owed.delete(a); continue; }
       let owed = S.owed.get(a);
       if (!owed) { owed = { at: now - TICK_MS, health: 0, magicka: 0, stamina: 0 }; S.owed.set(a, owed); }
+      // Just after a cast the server still holds the bars from before it: a write now would hand the spell's magicka back
+      if (castHeld(a, now)) { owed.at = now; owed.health = owed.magicka = owed.stamina = 0; continue; }
       // Never more than three ticks at once: a stall or a reload does not pay out
       const secs = Math.min(Math.max(0, now - owed.at), 3 * TICK_MS) / 1000;
       owed.at = now;
@@ -233,7 +246,9 @@ module.exports = (api) => {
   // ---- Highborn -------------------------------------------------------------------------------------------------------
   // gamemode.js castHook: a Highborn cast that reaches the server (an old or modified client; 0.3.74 dispels it and
   // never relays it) runs the C++ rate boost for its minute, and the Altmer's gift waits that minute
-  const onCast = (a, spellId) => {
+  const onCast = (a, spellId, at = Date.now()) => {
+    S.castAt.set(a >>> 0, at);
+    if (S.castAt.size > 500) for (const [k, t] of S.castAt) if (at - t > 60000) S.castAt.delete(k);
     if ((spellId >>> 0) !== HIGHBORN) return;
     S.highbornUntil.set(a >>> 0, Date.now() + 60000);
     for (const [k, t] of S.highbornUntil) if (t < Date.now()) S.highbornUntil.delete(k);
@@ -256,7 +271,7 @@ module.exports = (api) => {
 
   globalThis.__dboRaceGold = goldBonus;
   globalThis.__dboRaceOf = raceOf;
-  return { config: C, raceOf, attackMult, targetMult, capTargetSide, regenFactor, extraPerSecond, regenTick, onCast, goldBonus, inCold, fighting, COMBAT };
+  return { config: C, raceOf, attackMult, targetMult, capTargetSide, regenFactor, extraPerSecond, regenTick, onCast, castHeld, goldBonus, inCold, fighting, COMBAT };
 };
 module.exports.RACES = RACES;
 module.exports.RACE_IDS = RACE_IDS;

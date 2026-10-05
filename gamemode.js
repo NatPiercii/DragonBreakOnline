@@ -3738,6 +3738,8 @@ every('ayleidWellRegen', Math.max(1, Number(WELLS.tickSeconds) || 5) * 1000, () 
   for (const [a, until] of [...wellRegen]) {
     if (now > until) { wellRegen.delete(a); continue; }
     try {
+      // Not just after a cast: the server's bars are from before it, and writing them back refunds the spell (racial.js castHeld)
+      if (typeof globalThis.__dboCastHeld === 'function' && globalThis.__dboCastHeld(a, now)) continue;
       const pc = mp.get(a, 'percentages');
       if (!pc || !(pc.health > 0) || !(pc.magicka < 1)) continue;
       mp.set(a, 'percentages', { health: pc.health, magicka: Math.min(1, pc.magicka + Number(WELLS.regenPerTick)), stamina: pc.stamina });

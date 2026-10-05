@@ -554,6 +554,9 @@ module.exports = (api) => {
       if (!list.length) { regenOwed.delete(a); continue; }
       let owed = regenOwed.get(a);
       if (!owed) { owed = { at: now - REGEN_TICK_MS, health: 0, magicka: 0, stamina: 0 }; regenOwed.set(a, owed); }
+      // Just after a cast the server's bars are from before it; a write now would refund the spell (racial.js castHeld)
+      let held = false; try { held = typeof globalThis.__dboCastHeld === 'function' && !!globalThis.__dboCastHeld(a, now); } catch (e) { held = false; }
+      if (held) { owed.at = now; owed.health = owed.magicka = owed.stamina = 0; continue; }
       // The time since this worshipper's last tick, never more than three ticks (a stall or a reload does not pay out)
       const secs = Math.min(Math.max(0, now - owed.at), 3 * REGEN_TICK_MS) / 1000;
       owed.at = now;

@@ -153,6 +153,19 @@ delete globalThis.__dboBlessingRegen;
 R3.onCast(1, 0x0e40c8);
 state[1].pc.magicka = 0.2; t += 1000; R3.regenTick(t);
 check('Highborn reaching the server: the gift waits its minute, never both', near(state[1].pc.magicka, 0.2) && R3.regenFactor(1, 'magicka') === 1);
+// 5 Oct (#bugs 1556641893054681179): an Altmer's Conjure Familiar cost nothing, because the tick wrote back the server's
+// bars from before the cast (the client holds its report while casting and half a second after)
+globalThis.__dboRacialState.highbornUntil.clear(); // the Highborn minute just above
+state[1].pc.magicka = 0.9; t += 1000; R3.onCast(1, 0x640b6, t); R3.regenTick(t + 500);
+check('just after a cast (castHoldSeconds 3) no gift is written, so the spell\'s magicka stays spent', near(state[1].pc.magicka, 0.9) && R3.castHeld(1, t + 500));
+R3.regenTick(t + 2900);
+check('...still held at 2.9 s', near(state[1].pc.magicka, 0.9));
+R3.regenTick(t + 3100);
+check('...and the gift resumes after it', state[1].pc.magicka > 0.9 && !R3.castHeld(1, t + 3100), state[1].pc);
+check('the hold is shared with the blessings and the Ayleid well (globalThis.__dboCastHeld)', typeof globalThis.__dboCastHeld === 'function' && globalThis.__dboCastHeld(1, t + 100));
+check('gamemode: the Ayleid well waits for the hold', /__dboCastHeld\(a, now\)\) continue;/.test(gm));
+check('prayer.js: the blessing tick waits for the hold', /__dboCastHeld\(a, now\)/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'prayer.js'), 'utf8')));
+t += 4000;
 globalThis.__dboIsDowned = (a) => a === 10;
 state[10].pc.stamina = 0.5; t += 1000; R3.regenTick(t);
 check('the downed get nothing', near(state[10].pc.stamina, 0.5));
