@@ -1,6 +1,7 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
-import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuHotkeyBlocked } from "./widgetMenuUtil";
+import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
@@ -84,14 +85,16 @@ export class MasteryService extends ClientListener {
   }
 
   private onButtonEvent(e: ButtonEvent): void {
-    // Gamepad idCodes are bitmasks that alias onto keyboard scancodes
-    if (e.device !== InputDeviceType.Keyboard) return;
-    if (e.code === DxScanCode.Escape && e.isDown && this.menuOpen) {
+    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto
+    // keyboard scancodes and are never a key here
+    const code = buttonKeyCode(e);
+    if (code === null) return;
+    if (code === DxScanCode.Escape && e.isDown && this.menuOpen) {
       this.closeMenu();
       return;
     }
-    if (e.code !== this.menuKey || !e.isDown || this.menuOpen) return;
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    if (code !== this.menuKey || !e.isDown || this.menuOpen) return;
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) return;
 
     logTrace(this, `Requesting mastery info`);
     this.awaitingOpen = true;

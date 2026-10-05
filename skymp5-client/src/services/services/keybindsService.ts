@@ -1,11 +1,16 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
-import { BrowserMessageEvent, DxScanCode } from "skyrimPlatform";
+import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
+import { buttonKeyCode, isMouseKey } from "./mouseKeys";
 import { logTrace } from "../../logging";
 import { KeybindOverride, keybindOverride, launcherKeyValue, readKeybindFile, readMenuKeyCode, writeKeybindFile } from "./widgetMenuUtil";
 
 // F3, Settings, General: the menu keys, rebound in game (specs/f3-hub-design.md 3.7, piece H4).
 //   Browser -> client: cef::keybinds:get; cef::keybinds:save <json { keys: { <settingName>: code | null } }> (null: back
 //   to the launcher's key). Client -> browser: window.__dboKeybinds = { live, next } and the dbo:keybinds event.
+//   A code is a scan code or a mouse button as 256 + the button (258..263, mouseKeys.ts).
+//   cef::keybinds:capture <"1" | "0">: while the page waits for a key, a mouse side button the game hears goes to it as
+//   the dbo:keybindMouse event (detail: the code). The page sees only left, right and middle itself; the game hears the
+//   side buttons while a window is open only with the SkyrimPlatform change that stops hiding them.
 // live is what this session uses (read at launch); next is what the next launch will use. The file is keybinds-no-load
 // (widgetMenuUtil), each key stored with the launcher's value of the moment.
 
@@ -24,13 +29,22 @@ export class KeybindsService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
+    this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     // What this session reads, taken now: every service read its key in its constructor
     for (const name of Object.keys(MENU_KEYS)) this.live[name] = this.keyOf(name, false);
+  }
+
+  private onButtonEvent(e: ButtonEvent): void {
+    if (!this.capturing || e.device !== InputDeviceType.Mouse || !e.isDown) return;
+    const code = buttonKeyCode(e);
+    if (code === null) return;
+    this.sp.browser.executeJavaScript(`window.dispatchEvent(new CustomEvent('dbo:keybindMouse', { detail: ${code} }))`);
   }
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
     const key = e.arguments[0];
     if (key === "cef::keybinds:get") { this.tellPage(); return; }
+    if (key === "cef::keybinds:capture") { this.capturing = String(e.arguments[1] ?? "") === "1"; return; }
     if (key !== "cef::keybinds:save") return;
     try {
       const parsed = JSON.parse(String(e.arguments[1] ?? ""));
@@ -40,7 +54,7 @@ export class KeybindsService extends ClientListener {
         if (!(name in MENU_KEYS)) continue;
         const code = keys[name];
         if (code === null) { delete file[name]; continue; }
-        if (typeof code !== "number" || code < 0 || code > 255 || Math.floor(code) !== code) continue;
+        if (typeof code !== "number" || Math.floor(code) !== code || !((code >= 0 && code <= 255) || isMouseKey(code))) continue;
         // Escape, Backspace and Enter close panels, clear and open the chat; only an optional key may be none
         if (RESERVED_KEYS.indexOf(code) !== -1 || (code === 0 && !OPTIONAL_KEYS.has(name))) continue;
         file[name] = { code, launcher: launcherKeyValue(this.sp, name) } as KeybindOverride;
@@ -92,4 +106,5 @@ export class KeybindsService extends ClientListener {
   }
 
   private live: Record<string, number> = {};
+  private capturing = false;
 }

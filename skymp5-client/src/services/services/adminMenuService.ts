@@ -1,6 +1,7 @@
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
-import { openFormMenu, refreshFormMenu, closeFormMenu, readMenuKeyCode, isMenuHotkeyBlocked } from "./widgetMenuUtil";
+import { openFormMenu, refreshFormMenu, closeFormMenu, readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 import { RemoteServer } from "./remoteServer";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -108,17 +109,19 @@ export class AdminMenuService extends ClientListener {
   }
 
   private onButtonEvent(e: ButtonEvent) {
-    if (e.device !== InputDeviceType.Keyboard || !e.isDown) return;
-    if (e.code === DxScanCode.Escape && this.menuOpen) {
+    // A key, or a bindable mouse button as 256 + the button (mouseKeys.ts); never the gamepad
+    const code = buttonKeyCode(e);
+    if (code === null || !e.isDown) return;
+    if (code === DxScanCode.Escape && this.menuOpen) {
       this.closeMenu();
       return;
     }
-    if (e.code !== this.menuKey) return;
+    if (code !== this.menuKey) return;
     if (this.menuOpen) {
       this.closeMenu();
       return;
     }
-    if (isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) return;
     this.openMenu();
   }
 

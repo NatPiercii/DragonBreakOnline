@@ -43,6 +43,9 @@ export class BrowserService extends ClientListener {
     this.controller.emitter.on("queryKeyCodeBindings", (e) => this.onQueryKeyCodeBindings(e));
     // A front reload must never leave the player with a hidden interface
     this.controller.emitter.on("browserWindowLoaded", () => this.setUiHidden(false));
+    // A middle-button release-mouse key: while a window has the browser focus the game hears no mouse button, and the
+    // page receives the middle one only, so the page hands the cursor back itself (front utils/mouseMenuKeys.js)
+    this.controller.emitter.on("browserWindowLoaded", () => this.sp.browser.executeJavaScript(`window.__dboFreeCursorKey = ${Number(this.freeCursorKey) || 0}`));
     this.controller.once("update", () => this.onceUpdate());
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
     this.controller.on("menuOpen", (e) => this.onMenuOpen(e));

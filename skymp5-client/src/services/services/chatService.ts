@@ -3,7 +3,8 @@ import { logTrace } from "../../logging";
 import { BrowserMessageEvent, ButtonEvent, InputDeviceType } from "skyrimPlatform";
 import { MsgType } from "../../messages";
 import { FormView, getScreenResolution } from "../../view/formView";
-import { isGameInputBlocked, isMenuHotkeyBlocked, readMenuKeyCode } from "./widgetMenuUtil";
+import { isGameInputBlocked, readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
+import { buttonKeyCode } from "./mouseKeys";
 
 declare const window: any;
 
@@ -347,8 +348,11 @@ export class ChatService extends ClientListener {
   }
 
   private onButtonEvent(e: ButtonEvent): void {
-    if (!this.hideKey || e.device !== InputDeviceType.Keyboard || e.code !== this.hideKey || !e.isDown) return;
-    if (this.sp.browser.isFocused() || isMenuHotkeyBlocked(this.sp, this.controller)) return;
+    // A key, or a bindable mouse button as 256 + the button (mouseKeys.ts); a mouse button types nothing, so the chat
+    // box having the keyboard does not stop it
+    const code = buttonKeyCode(e);
+    if (!this.hideKey || code === null || code !== this.hideKey || !e.isDown) return;
+    if (isMenuKeyPressBlocked(this.sp, this.controller, e)) return;
     this.chatHidden = !this.chatHidden;
     this.sp.browser.executeJavaScript(`window.__dboChatHidden = ${this.chatHidden ? "true" : "false"}; window.dispatchEvent(new CustomEvent('dbo:chatHidden'));`);
   }
