@@ -583,7 +583,7 @@ const HELP_GROUPS = [
       'Introducing yourself, trading or inspecting someone: look at them and press X.', 'Emotes: press B.', 'Hiding your face: press H.',
       'Letters by pigeon, and yours to read: a notice board. A bird flies only to someone you have met.',
       'Everyone you have met: the ledger at a notice board or in your home (/ledger).'] },
-  { key: 'character', title: 'Your character', names: ['status', 'boost', 'appearance'],
+  { key: 'character', title: 'Your character', names: ['status', 'boost', 'appearance', 'playtime'],
     hints: ['Your journal: press F3. Profile, stats, skills, magic, your god, and settings such as your keys.',
       'A new look: /appearance reopens the appearance editor (gold, once a day; race, sex and name stay).',
       'Your skills: press K (the Skills tab of your journal).', 'Spending a level: /status tells you when you have a point.',
