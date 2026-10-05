@@ -1,6 +1,7 @@
 import { Actor, HitEvent, ObjectReference, Quest, ReferenceAlias, storage } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { companionFightState } from "./companionFightState";
+import { FightStall, fightStallStep } from "./companionFightStall";
 import { formationGap, formationOffset, formationPoint, formationWorldOffset } from "./companionFormation";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -73,6 +74,8 @@ interface LocalState {
   // keep-offset was last given for
   slot: number;
   followSlot: number;
+  // The ordered fight's progress window (companionFightStall.ts)
+  stall: FightStall | null;
 }
 
 export class CompanionService extends ClientListener {
@@ -154,6 +157,9 @@ export class CompanionService extends ClientListener {
       return;
     }
     const now = Date.now();
+    if (this.isSkipped(targetId, now)) {
+      return;
+    }
     if (targetId === this.lastOrderTarget && now - this.lastOrderMs < CompanionService.orderRepeatMs) {
       return;
     }
@@ -241,6 +247,10 @@ export class CompanionService extends ClientListener {
         }
         target = null;
       }
+      // An order given up as stalled stays given up until the server's follow arrives and for a while after
+      if (target && this.isSkipped(c.target, now)) target = null;
+      if (target && !target.isDead() && !this.fightProgress(c.id, actor, target, state, now)) target = null;
+      if (!target) state.stall = null;
       if (target && !target.isDead()) {
         if (state.driven) {
           state.driven = false;
@@ -396,7 +406,7 @@ export class CompanionService extends ClientListener {
   private stateFor(remoteId: number, actor: Actor): LocalState {
     let state = this.local.get(remoteId);
     if (!state || state.localId !== actor.getFormID()) {
-      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, leashSentAt: 0, stuckSince: 0, unstuckAt: 0, driven: false, slot: 0, followSlot: -1 };
+      state = { localId: actor.getFormID(), following: false, followAngle: 0, followResult: "none", aliasSlot: "", aliasAt: 0, aliasFailed: false, reportAt: 0, fightingTarget: 0, leashSentAt: 0, stuckSince: 0, unstuckAt: 0, driven: false, slot: 0, followSlot: -1, stall: null };
       this.local.set(remoteId, state);
       this.prepare(actor);
       if (!this.announced.has(remoteId)) {
@@ -423,6 +433,47 @@ export class CompanionService extends ClientListener {
     actor.clearKeepOffsetFromActor();
     actor.stopCombat();
     actor.stopCombatAlarm();
+  }
+
+  // Watches an ordered fight that goes nowhere (companionFightStall.ts): the first stall restarts the fight, the next gives
+  // the order up for the owner's heel, which walks; false when the order was given up
+  private fightProgress(remoteId: number, actor: Actor, target: Actor, state: LocalState, now: number): boolean {
+    const toTarget = actor.getDistance(target);
+    const pos = [actor.getPositionX(), actor.getPositionY(), actor.getPositionZ()];
+    const { stall, action } = fightStallStep(state.stall, now, target.getFormID(), pos, target.getActorValuePercentage("Health"), toTarget);
+    state.stall = stall;
+    if (action === "restart") {
+      actor.stopCombat();
+      actor.evaluatePackage();
+      actor.startCombat(target);
+      state.followResult = "fight restarted, stalled " + Math.round(toTarget) + " from its target";
+      return true;
+    }
+    if (action !== "drop") return true;
+    actor.stopCombat();
+    state.fightingTarget = 0;
+    state.stall = null;
+    state.followResult = "gave up a stalled order " + Math.round(toTarget) + " from its target";
+    const targetId = localIdToRemoteId(target.getFormID());
+    if (targetId) {
+      this.skipTarget = targetId;
+      this.skipUntil = now + CompanionService.stallSkipMs;
+    }
+    if (now - state.leashSentAt > CompanionService.orderRepeatMs) {
+      state.leashSentAt = now;
+      sendCustomPacket(this.controller, { customPacketType: "companionCommand", action: "follow", companionId: remoteId });
+    }
+    return false;
+  }
+
+  // Distance to a local actor, -1 when there is none or it is gone
+  private distanceTo(actor: Actor, localId: number): number {
+    const other = localId ? Actor.from(this.sp.Game.getFormEx(localId)) : null;
+    return other ? Math.round(actor.getDistance(other)) : -1;
+  }
+
+  private isSkipped(targetId: number, now: number): boolean {
+    return !!targetId && targetId === this.skipTarget && now < this.skipUntil;
   }
 
   private fight(actor: Actor, target: Actor, state: LocalState): void {
@@ -583,7 +634,7 @@ export class CompanionService extends ClientListener {
       const fv = views.getNthFormView(i);
       if (!fv) continue;
       const remoteId = fv.getRemoteRefrId();
-      if (!remoteId || isOwnCompanion(remoteId)) continue;
+      if (!remoteId || isOwnCompanion(remoteId) || this.isSkipped(remoteId, now)) continue;
       const enemy = Actor.from(this.sp.Game.getFormEx(fv.getLocalRefrId()));
       if (!enemy || enemy.isDead() || !enemy.is3DLoaded()) continue;
       const theirTarget = enemy.getCombatTarget();
@@ -656,6 +707,8 @@ export class CompanionService extends ClientListener {
         localId: actor.getFormID().toString(16), at: here.map(Math.round), owner: [player.getPositionX(), player.getPositionY(), player.getPositionZ()].map(Math.round),
         package: (actor.getCurrentPackage()?.getFormID() ?? 0).toString(16), aliasSlot: state.aliasSlot,
         fight: companionFightState(actor, state.fightingTarget ? Actor.from(this.sp.Game.getFormEx(state.fightingTarget)) : null),
+        stall: state.stall ? { kicks: state.stall.kicks, forMs: Date.now() - state.stall.since } : null,
+        toTarget: this.distanceTo(actor, state.fightingTarget),
       }],
     });
   }
@@ -702,6 +755,9 @@ export class CompanionService extends ClientListener {
   private pendingAliasClear: string[] = [];
   private lastApplyMs = 0;
   private lastOrderTarget = 0;
+  // The target of the order last given up as stalled, skipped by the owner's hits and assists until skipUntil
+  private skipTarget = 0;
+  private skipUntil = 0;
   private lastOrderMs = 0;
   private lastPerkCheckMs = 0;
   private sentTwinSouls = false;
@@ -739,5 +795,6 @@ export class CompanionService extends ClientListener {
   private static readonly fxLifeMs = 4000;
   private static readonly aliasCheckMs = 3000;
   private static readonly reportMs = 5000;
+  private static readonly stallSkipMs = 15000;
   private static readonly hostileEffectFlag = 0x1;
 }
