@@ -978,6 +978,18 @@ console.log('pick prayers:');
   check('the widget and the server agree on 200 random pick prayers', agree === 200, `${agree}/200`);
   // A Prince's worshipper: the true lines against the Divines' words
   props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', at: wallClock - 30 * 86400000 });
+  // The worshipper kneels for the prayer and rises when it ends (idles.js 'pray'), by verdict or by standing up
+  const idles = [];
+  globalThis.__dboHoldIdle = (a, key) => { idles.push('hold:' + key); return { anim: 'IdleKneelingEnter' }; };
+  globalThis.__dboStopIdle = (a, held) => idles.push('stop:' + held.anim);
+  f = freshC();
+  res = playP(f, trueList(f.w), claimP(true, 3, 0, 2700));
+  check('the worshipper kneels while the prayer is open and rises at its verdict', idles.join(',') === 'hold:pray,stop:IdleKneelingEnter', idles.join(','));
+  idles.length = 0;
+  f = freshC();
+  virtual = f.start + 400; clear(); fire('prayerStart', [f.w.nonce, 0]); fire('prayerCancel', [f.w.nonce]);
+  check('...and when they stand up', idles.join(',') === 'hold:pray,stop:IdleKneelingEnter', idles.join(','));
+  delete globalThis.__dboHoldIdle; delete globalThis.__dboStopIdle;
   api.cfg = { prayer: { clientJudged: true, pick: { enabled: false } } };
   load();
   f = freshC();

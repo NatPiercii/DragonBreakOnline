@@ -729,7 +729,15 @@ module.exports = (api) => {
     // Every round issued is logged, so one that never comes back (cancelled, hidden, lost) can be counted
     log(`prayer issue ${display(a)} ${round.deityName}${round.mode === 'pick' ? ` pick choices=${round.steps[0].length} slips=${round.slips}` : ''} total=${round.totalMs} judge=${clientJudged() ? 'client' : 'server'} seed=${round.seed.toString(16)}`);
     if (!openWidget(a, packetFor(round), true)) sessions.delete(a);
+    // The worshipper kneels while the prayer is open (idles.js 'pray'), and rises when it ends
+    else try { round.idle = typeof globalThis.__dboHoldIdle === 'function' ? globalThis.__dboHoldIdle(a, 'pray') : null; } catch (e) { /* no idle */ }
     return true;
+  };
+  const rise = (a, round) => {
+    if (!round || !round.idle) return;
+    const held = round.idle;
+    round.idle = null;
+    try { globalThis.__dboStopIdle(a, held); } catch (e) { /* offline */ }
   };
 
   // How long a round lives on the server's clock. Client-judged: the verses plus minutes, from the first press if it
@@ -743,6 +751,7 @@ module.exports = (api) => {
     if (!r) return null;
     if (nowMs() <= limitOf(r)) return r;
     sessions.delete(a);
+    rise(a, r);
     // No rest: an expired round costs no more than walking away (DESIGN.md section 2)
     if (clientJudged()) log(`prayer expired ${display(a)} ${r.deityName} after ${Math.round(nowMs() - r.openedAt)} ms, no report`);
     return null;
@@ -754,6 +763,7 @@ module.exports = (api) => {
   // show: 'widget' re-sends the panel with the verdict (the default), 'say' tells it in chat (the panel is gone), 'none'
   // says nothing (a provisional end that a report still on its way replaces)
   const finish = (a, round, win, text, kind, rest, show) => {
+    rise(a, round);
     if (rest !== false) {
       const rests = restsOf(a);
       // restUntil: the rest this round wrote itself, so its own report can tell it from one another round wrote since
@@ -1011,6 +1021,7 @@ module.exports = (api) => {
       // to leave sessions with no rest while its report could still be paid, so touch, F2, touch, F2... stacked rounds
       // at one shrine and every one of them paid: mastery, a blessing roll and the fever cure (review F1, 2026-10-01).
       round.hidden = true;
+      rise(a, round);
       log(`prayer hidden ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms: the round stays live, no rest`);
       return;
     }
@@ -1020,6 +1031,7 @@ module.exports = (api) => {
       log(`prayer abandon(close) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, before the first press: no rest`);
       return finish(a, round, false, 'You rise without praying. Kneel again when you are ready.', 'lose', false, 'say');
     }
+    rise(a, round);
     log(`prayer abandon(${hidden ? 'hidden' : 'close'}) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms${hidden ? ', no rest' : ''}`);
     if (hidden) sessions.delete(a);
     else finish(a, round, false, 'You rise before the third verse. The shrine is silent.', 'lose', true, 'say');
@@ -1030,6 +1042,7 @@ module.exports = (api) => {
     const round = sessions.get(a);
     if (!round) return;
     sessions.delete(a);
+    rise(a, round);
     log(`prayer abandon(logout) ${display(a)} ${round.deityName} after ${Math.round(nowMs() - round.openedAt)} ms, no rest`);
   };
   // Rounds nobody reports are cleared on the minute scale, logged, so a lost round can be counted

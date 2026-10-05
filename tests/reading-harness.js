@@ -438,6 +438,17 @@ console.log('client-judged:');
     if (last().resultKind === want) agree++;
   }
   check('pick: the widget and the server agree on 200 random readings (a stub a wrong reading, then the answer)', agree === 200, agree);
+  // The reader turns the pages while the book is open (idles.js 'read'), and stops at the verdict or on giving up
+  const idles = [];
+  globalThis.__dboHoldIdle = (a, key) => { idles.push('hold:' + key); return { anim: 'IdleBook_PageTurn' }; };
+  globalThis.__dboStopIdle = (a, held) => idles.push('stop:' + held.anim);
+  r = fresh(); wallClock += 9000;
+  ui('reading', [r.nonce, JSON.stringify(solve(r, answer)), p({})]);
+  check('pick: the reader turns pages while reading and stops at the verdict', idles.join(',') === 'hold:read,stop:IdleBook_PageTurn', idles.join(','));
+  idles.length = 0;
+  r = fresh(); ui('readingCancel', [r.nonce]);
+  check('pick: ...and on giving up', idles.join(',') === 'hold:read,stop:IdleBook_PageTurn', idles.join(','));
+  delete globalThis.__dboHoldIdle; delete globalThis.__dboStopIdle;
   pickUi = false;
   Math.random = realRandom;
   for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads']) props.delete(READER + '|private.' + k);

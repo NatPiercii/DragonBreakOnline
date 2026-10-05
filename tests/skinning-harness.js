@@ -257,7 +257,7 @@ const sb = {
   mp: { get: (id, k) => props.get(id + '|' + k), set: (id, k, v) => props.set(id + '|' + k, v) },
   giveItem: (a, id, n) => { cj.given.push([id, n]); return true; },
   recordOf: () => ({ record: { editorId: 'WolfPelt' } }), edidWords: (e, f) => e || f, peltsWorth: () => 5,
-  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k), __dboInteractionIdle: (a, key) => { cj.idles.push(key); return true; }, __dboInteractionIdleDef: (key) => (key === 'skin' ? { anim: 'IdleWarmHandsCrouched' } : null) },
+  globalThis: { __alduinakMasteryEvent: (k, a) => cj.events.push(k), __dboHoldIdle: (a, key) => { cj.idles.push(key); return key === 'skin' ? { anim: 'IdleWarmHandsCrouched' } : null; }, __dboStopIdle: (a, held) => cj.packets.push({ customPacketType: 'dboIdleStop', anim: held.anim }) },
   sendPacket: (a, p) => cj.packets.push(p),
   hasUiCap: (a, cap) => sb.pickUi === true && cap === MG.PICK_CAP,
   pickUi: false,

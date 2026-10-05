@@ -3365,6 +3365,7 @@ globalThis.__dboReadBook = (targetId, casterId) => {
     return true;
   }
   if (open && MG.clientJudged(READ)) log(`reading expired ${display(casterId)} after ${Math.round((Date.now() - open.startedAt) / 1000)} s, no reading: a new round opens`);
+  readIdleStop(casterId, open);
   readSessions.delete(casterId);
   const key = targetId.toString(16); const reads = readsOf(casterId);
   const until = Number(reads[key]) || 0;
@@ -3386,7 +3387,15 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   }
   readSessions.set(casterId, ses);
   if (!openWidget(casterId, readWidget(ses), true)) readSessions.delete(casterId);
+  // The reader turns the pages while the book is open (idles.js 'read'), and stops when the round ends
+  else try { ses.idle = typeof globalThis.__dboHoldIdle === 'function' ? globalThis.__dboHoldIdle(casterId, 'read') : null; } catch (e) { /* no idle */ }
   return true;
+};
+const readIdleStop = (a, ses) => {
+  if (!ses || !ses.idle) return;
+  const held = ses.idle;
+  ses.idle = null;
+  try { globalThis.__dboStopIdle(a, held); } catch (e) { /* offline */ }
 };
 // A round walked away from takes the lost round's cooldown on that book: cancelling cost nothing, so a reader could
 // cancel until an easy sentence came up (loot review, 2026-09-29)
@@ -3394,6 +3403,7 @@ const abandonRead = (a) => {
   const ses = readSessions.get(a);
   readSessions.delete(a);
   if (!ses) return;
+  readIdleStop(a, ses);
   const reads = readsOf(a);
   reads[ses.refId.toString(16)] = Math.max(Number(reads[ses.refId.toString(16)]) || 0, Date.now() + READ.loseCooldownMinutes * 60000);
   try { mp.set(a, 'private.scholarReads', reads); } catch (e) { log('scholarReads save failed', e.message); }
@@ -3403,7 +3413,7 @@ const endRead = (a) => { abandonRead(a); closeWidget(a, READ_WIDGET_ID); };
 if (typeof every === 'function') every('readingSweep', 60000, () => { const now = Date.now(); for (const [a, ses] of [...readSessions]) if (readExpired(ses, now)) { log(`reading expired ${display(a)} after ${Math.round((now - ses.startedAt) / 1000)} s, no reading`); abandonRead(a); } });
 onUi('readingCancel', (a) => endRead(a));
 // F2 hides the interface by closing the focused widget (args ['hidden']): the round ends without the lost round's cooldown
-onUi('close', (a, args, widgetId) => { if (widgetId !== READ_WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') readSessions.delete(a); else abandonRead(a); });
+onUi('close', (a, args, widgetId) => { if (widgetId !== READ_WIDGET_ID) return; if (Array.isArray(args) && args[0] === 'hidden') { readIdleStop(a, readSessions.get(a)); readSessions.delete(a); } else abandonRead(a); });
 onUi('reading', (a, args) => {
   const ses = readSessions.get(a);
   if (!ses || String(args[0]) !== ses.nonce) {
@@ -3531,6 +3541,7 @@ onUi('reading', (a, args) => {
   // (#bugs 1553205828058615839): each find gets a notice and a chat line.
   for (const name of gained) { try { notify(a, `${name} added`); } catch (e) { /* offline */ } }
   if (gained.length) personal(a, `From your reading: ${gained.join(', ')}.`);
+  readIdleStop(a, ses);
   readSessions.delete(a);
 });
 log(`scholar reading ${READ.enabled ? 'on' : 'off'}: ${READ_LINES.length} Skyrim, ${READ_LINES_CYRODIIL.length} Cyrodiil and ${READ_LINES_TAMRIEL.length} Tamriel lines, ${(READABLES.tomes || []).length} tomes, ${(READABLES.scrolls || []).length} scrolls, candle ${READ.baseSeconds}s + ${READ.secondsPerWord}s a word, -${READ.wrongPenaltySeconds}s a wrong reading, ${READ.cooldownMinutes} min per book`);
@@ -4228,17 +4239,13 @@ const judgeSkin = (round, raw, at, elapsed) => {
 };
 // The skinner crouches at the body while the attempt is open (idles.js 'skin', held), and stands when it ends
 const skinIdleStart = (a, round) => {
-  try {
-    if (typeof globalThis.__dboInteractionIdle !== 'function' || !globalThis.__dboInteractionIdle(a, 'skin')) return;
-    const def = typeof globalThis.__dboInteractionIdleDef === 'function' ? globalThis.__dboInteractionIdleDef('skin') : null;
-    round.idleAnim = def && def.anim ? String(def.anim) : '';
-  } catch (e) { log('skinning idle failed', e.message); }
+  try { round.idle = typeof globalThis.__dboHoldIdle === 'function' ? globalThis.__dboHoldIdle(a, 'skin') : null; } catch (e) { log('skinning idle failed', e.message); }
 };
 const skinIdleStop = (a, round) => {
-  if (!round || round.idleAnim === undefined) return;
-  const anim = round.idleAnim;
-  delete round.idleAnim;
-  try { sendPacket(a, Object.assign({ customPacketType: 'dboIdleStop' }, anim ? { anim } : {})); } catch (e) { /* offline */ }
+  if (!round || !round.idle) return;
+  const held = round.idle;
+  round.idle = null;
+  try { globalThis.__dboStopIdle(a, held); } catch (e) { /* offline */ }
 };
 // A pick attempt's report: '[[index, ms], ...]' replayed against the points the server rolled, in judgeSkin's fields
 const judgeSkinPick = (round, raw, at, elapsed) => {

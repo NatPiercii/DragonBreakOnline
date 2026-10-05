@@ -30,6 +30,11 @@ module.exports = (api) => {
     // emote wheel and the chest hold's crouch; held until gamemode.js sends dboIdleStop when the attempt ends. Mining
     // and chopping have no proven standalone idle (their swings come from furniture markers), so they play none
     skin: { anim: 'IdleWarmHandsCrouched', seconds: 10, endsItself: false, hold: true },
+    // Praying at a shrine (Nate, 4-5 Oct: the character works while the panel is open): kneeling, proven on the emote
+    // wheel (IdleKneelingEnter); held until prayer.js stops it when the prayer ends
+    pray: { anim: 'IdleKneelingEnter', seconds: 10, endsItself: false, hold: true },
+    // Reading a book: the page-turn idle the journal already holds (IdleBook_PageTurn, proven on the emote wheel)
+    read: { anim: 'IdleBook_PageTurn', seconds: 10, endsItself: false, hold: true },
   };
   const C = Object.assign({ enabled: true }, (cfg && cfg.interactionIdles) || {});
   const IDLES = Object.assign({}, DEFAULTS, C.idles || {});
@@ -56,6 +61,17 @@ module.exports = (api) => {
   globalThis.__dboInteractionIdle = play;
   // A copy of one interaction's definition (journal.js names its idle in the stop it sends)
   globalThis.__dboInteractionIdleDef = (key) => (IDLES[key] ? Object.assign({}, IDLES[key]) : null);
+  // A held idle for as long as a panel is open: plays the interaction's idle and returns what stops it (null: none played)
+  globalThis.__dboHoldIdle = (a, key) => {
+    if (!play(a, key)) return null;
+    const def = IDLES[key];
+    return { anim: def && typeof def.anim === 'string' ? def.anim : '' };
+  };
+  // Ends a held idle by its own anim, so it never ends another (journal.js does the same for its page turn)
+  globalThis.__dboStopIdle = (a, held) => {
+    if (!held) return;
+    try { sendPacket(Number(a) >>> 0, Object.assign({ customPacketType: 'dboIdleStop' }, held.anim ? { anim: held.anim } : {})); } catch (e) { /* offline */ }
+  };
 
   // ---- the chest hold (Nate 2026-09-30: about a second is fine) ------------------------------------------------------
   // The last gate of gamemode.js's activate chain, so every other gate (dungeon and camp chests, treasuries, raids...)
