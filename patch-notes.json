@@ -1,5 +1,19 @@
 [
   {
+    "title": "The Synod sells only tomes you can learn",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "The Synod's tome shop no longer sells a spell tome that your study of its school is not yet high enough to learn. The shop shows what you still need, and you keep your gold and your tome for the week."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Game client 0.3.77",
     "date": "2026-10-05",
     "version": "Client 0.3.77",

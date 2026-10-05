@@ -350,6 +350,16 @@ gold(OTHER, 5000);
 cmd('tomes', OTHER);
 check('a Master sees Expert tomes open but still no Master tomes', shop(OTHER).tomes.find((t) => t.id === T.incinerate[0]).blocked === '' && !shop(OTHER).tomes.some((t) => t.rank > 3));
 check('...and the Priest schools too', shop(OTHER).skills.length === 2 && shop(OTHER).tomes.some((t) => t.school === 'Restoration'));
+// The study of a school gates its Arcane Arts tomes in the shop as it does at reading (schools.js; ticket #0059)
+globalThis.__dboSchoolsRefusal = (a, school, rank) => (school === 'Destruction' && rank > 2 ? 'Your study of Destruction is Adept; an Expert spell needs more.' : null);
+cmd('tomes', OTHER);
+const inc = () => shop(OTHER).tomes.find((t) => t.id === T.incinerate[0]);
+check('an Expert tome above the study of its school shows the study as the reason', inc().blocked === 'Your study of Destruction is Adept; an Expert spell needs more', inc().blocked);
+check('...a tome the study reaches stays open', shop(OTHER).tomes.find((t) => t.id === T.fireball[0]).blocked === '' && shop(OTHER).tomes.some((t) => t.school === 'Restoration' && t.blocked === ''));
+buy(OTHER, T.incinerate[0]);
+check('...and cannot be bought: no gold taken, the week not spent', shop(OTHER).resultKind === 'refused' && /study of Destruction is Adept/.test(shop(OTHER).result) && count(OTHER, 0xf) === 5000 && shop(OTHER).canBuy === true, shop(OTHER).result);
+delete globalThis.__dboSchoolsRefusal;
+cmd('tomes', OTHER);
 load({ shopMaxRank: 2 });
 cmd('tomes', OTHER);
 check('shopMaxRank caps the list', shop(OTHER).tomes.every((t) => t.rank <= 2) && !shop(OTHER).tomes.some((t) => t.id === T.incinerate[0]));

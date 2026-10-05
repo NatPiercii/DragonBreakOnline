@@ -600,9 +600,13 @@ module.exports = (api) => {
   // The lowest tier of the skill whose spell rank reaches this tome, never below shopMinTier
   const tierFor = (skillId, rank) => { for (let t = 0; t < 5; t++) if (maxRankFor(skillId, t) >= rank) return Math.max(t, CFG.shopMinTier); return 4; };
   // Why this tome is out of the buyer's reach, or ''
+  // An Arcane Arts tome also needs the buyer's study of its school, as reading it does (slotRefusal): the shop sold an
+  // Adept Conjuration tome to an Apprentice of Conjuration, who could not learn it (ticket #0059, 5 Oct)
   const tomeBlock = (a, t) => {
     const paths = pathsOf(a, t.school);
-    if (paths.some((skill) => tierOf(a, skill.id) >= tierFor(skill.id, t.rank))) return '';
+    const tierOk = (skill) => tierOf(a, skill.id) >= tierFor(skill.id, t.rank);
+    if (paths.some((skill) => tierOk(skill) && (skill.id !== 'arcane' || !schoolRefusal(a, t, 'You')))) return '';
+    if (paths.some((skill) => tierOk(skill))) return String(schoolRefusal(a, t, 'You')).replace(/\.$/, '');
     return `Needs ${paths.map((skill) => `${skill.label} ${TIER_NAMES[tierFor(skill.id, t.rank)]}`).join(' or ')}`;
   };
   const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + CFG.shopCooldownDays * DAY; return at > Date.now() ? at : 0; };
