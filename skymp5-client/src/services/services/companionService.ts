@@ -7,7 +7,8 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { sendCustomPacket, parseCustomPacket } from "./customPacketUtil";
 import { WorldCleanerService } from "./worldCleanerService";
-import { getViewFromStorage, isRemoteHostedByMe, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
+import { getViewFromStorage, isRemoteHostedByMe, isRemotePlayerCharacter, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
+import { leavesPlayerFight, orderedTarget } from "./companionPvp";
 import { COMPANION_IDS_KEY, isOwnCompanion, isAnyCompanion } from "../../sync/ownCompanions";
 import { applyMovement, settleTranslation } from "../../sync/movementApply";
 import { ObjectReferenceEx } from "../../extensions/objectReferenceEx";
@@ -43,6 +44,10 @@ export const COMPANION_HUD_KEY = "dboCompanionHud";
 interface CompanionEntry {
   id: number;
   target: number;
+  // The server marks a player target (or what fights for a player) that the PvP rules allow; without it no player is fought
+  pvp: boolean;
+  // The server's kind: the PvP rules are for "summon" and "reanimated", a GM warband's "companion" keeps its own
+  kind: string;
   staying: boolean;
   leftMs: number;
   at: number;
@@ -111,7 +116,8 @@ export class CompanionService extends ClientListener {
     const list: CompanionEntry[] = raw
       .filter((x) => x && typeof x["id"] === "number")
       .map((x) => ({
-        id: x["id"] as number, target: typeof x["target"] === "number" ? x["target"] as number : 0,
+        id: x["id"] as number, target: typeof x["target"] === "number" ? x["target"] as number : 0, pvp: x["pvp"] === true,
+        kind: typeof x["kind"] === "string" ? x["kind"] as string : "",
         staying: x["staying"] === true, leftMs: typeof x["leftMs"] === "number" ? x["leftMs"] as number : 0, at: Date.now(),
       }));
     // A new companion stands in for the engine's own summon, which the world cleaner removes
@@ -143,7 +149,8 @@ export class CompanionService extends ClientListener {
     });
   }
 
-  // The owner's hit with a weapon or a hostile spell is the attack order, as vanilla summons join the caster's fights
+  // The owner's hit with a weapon or a hostile spell is the attack order, as vanilla summons join the caster's fights.
+  // A hit on a player is sent too: the server takes it only when the PvP rules allow that fight
   private onHit(e: HitEvent): void {
     if (!this.companions.length || !e.aggressor || !e.target || e.aggressor.getFormID() !== PLAYER_ID) {
       return;
@@ -235,7 +242,17 @@ export class CompanionService extends ClientListener {
         }
         continue;
       }
-      let target = c.target ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(c.target))) : null;
+      // The server decides who may be fought: a fight the engine picked with a player it has not named is left
+      const engineTarget = actor.getCombatTarget();
+      const engineTargetLocal = engineTarget ? engineTarget.getFormID() : 0;
+      if (engineTargetLocal && leavesPlayerFight(localIdToRemoteId(engineTargetLocal), c, isRemotePlayerCharacter)) {
+        actor.stopCombat();
+        if (state.fightingTarget === engineTargetLocal) state.fightingTarget = 0;
+        state.followResult = "left a fight with a player";
+      }
+      // A player target counts only with the server's pvp mark
+      const orderId = orderedTarget(c, isRemotePlayerCharacter);
+      let target = orderId ? this.sp.Actor.from(this.sp.Game.getFormEx(remoteIdToLocalId(orderId))) : null;
       // An attack order it cannot carry out used to strand the summon where it stood: past the leash it drops the order
       if (target && !target.isDead() && actor.getDistance(player) > CompanionService.combatLeashDistance) {
         actor.stopCombat();
@@ -275,7 +292,7 @@ export class CompanionService extends ClientListener {
       }
       // A throw here would break every companion this tick, so the driven path is contained
       try { if (!c.staying && !state.driven && !actor.isInCombat()) this.unstick(actor, player, state, now); } catch (e) { state.followResult = "unstick failed"; }
-      this.report(c.id, actor, player, state);
+      this.report(c, actor, player, state);
     }
   }
 
@@ -477,6 +494,13 @@ export class CompanionService extends ClientListener {
   }
 
   private fight(actor: Actor, target: Actor, state: LocalState): void {
+    // The fallback follow's keep-offset is left on otherwise: a raised bandit given a player to attack stayed in combat
+    // for 30 s at its owner's side (43-341 units) with following true and its offset unchanged (#bugs 2 Oct, Elion)
+    if (state.following) {
+      actor.clearKeepOffsetFromActor();
+      state.following = false;
+      state.followResult = "offset cleared for an order";
+    }
     state.fightingTarget = target.getFormID();
     if (actor.getCombatTarget()?.getFormID() !== state.fightingTarget) {
       actor.startCombat(target);
@@ -634,7 +658,8 @@ export class CompanionService extends ClientListener {
       const fv = views.getNthFormView(i);
       if (!fv) continue;
       const remoteId = fv.getRemoteRefrId();
-      if (!remoteId || isOwnCompanion(remoteId) || this.isSkipped(remoteId, now)) continue;
+      // Never a player: a fight with one is the server's call, made from the players' own blows
+      if (!remoteId || isOwnCompanion(remoteId) || this.isSkipped(remoteId, now) || isRemotePlayerCharacter(remoteId)) continue;
       const enemy = Actor.from(this.sp.Game.getFormEx(fv.getLocalRefrId()));
       if (!enemy || enemy.isDead() || !enemy.is3DLoaded()) continue;
       const theirTarget = enemy.getCombatTarget();
@@ -684,7 +709,8 @@ export class CompanionService extends ClientListener {
   }
 
   // Diagnostic: every few seconds the owner reports each companion's state to the server log (dbo npcDrift, kind companion)
-  private report(remoteId: number, actor: Actor, player: Actor, state: LocalState): void {
+  private report(entry: CompanionEntry, actor: Actor, player: Actor, state: LocalState): void {
+    const remoteId = entry.id;
     const now = Date.now();
     if (now - state.reportAt < CompanionService.reportMs) {
       return;
@@ -709,6 +735,9 @@ export class CompanionService extends ClientListener {
         fight: companionFightState(actor, state.fightingTarget ? Actor.from(this.sp.Game.getFormEx(state.fightingTarget)) : null),
         stall: state.stall ? { kicks: state.stall.kicks, forMs: Date.now() - state.stall.since } : null,
         toTarget: this.distanceTo(actor, state.fightingTarget),
+        // The server's order (remote id) and its pvp mark, and whether the engine's own combat target is a player
+        order: entry.target.toString(16), orderPvp: entry.pvp,
+        combatPlayer: isRemotePlayerCharacter(localIdToRemoteId(actor.getCombatTarget()?.getFormID() ?? 0)),
       }],
     });
   }
