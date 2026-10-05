@@ -1,5 +1,19 @@
 [
   {
+    "title": "Study timer counts down",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "The time left in Study Magic and Priest Studies now counts down while you study. Before, it jumped back up every few seconds."
+        ]
+      }
+    ]
+  },
+  {
     "title": "No limit on Guards",
     "date": "2026-10-05",
     "version": "Server update",

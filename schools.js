@@ -790,7 +790,8 @@ module.exports = (api) => {
       level: early ? arc : school ? levelOf(s, school) : 0,
       rank: early ? `First spell at ${FIRST_AT}` : school ? RANKS[Math.max(0, schoolRank(s, school))] : '',
       fill: early ? Math.max(0, Math.min(1, arc / FIRST_AT)) : school ? Math.max(0, Math.min(1, levelOf(s, school) / 100)) : 0,
-      leftSeconds: Math.round(b.leftMs / 1000), tickSeconds: C.study.tickSeconds,
+      // The open sitting is not logged until it ends: its time comes off, or each tick's redraw put the timer back up
+      leftSeconds: Math.round(Math.max(0, b.leftMs - (ses ? ses.lastTick - ses.at : 0)) / 1000), tickSeconds: C.study.tickSeconds,
       gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
       whyNot: why,
       choices: !school && !early ? SCHOOLS.map((n) => {
@@ -1072,7 +1073,7 @@ module.exports = (api) => {
       mode: ses ? 'studying' : 'idle',
       school: 'Priest', level: pr.level, rank: pr.held ? RANKS[Math.min(RANKS.length - 1, pr.rank)] : 'Not yet taken up',
       fill: Math.max(0, Math.min(1, pr.level / 100)),
-      leftSeconds: Math.round(b.leftMs / 1000), tickSeconds: PS.tickSeconds,
+      leftSeconds: Math.round(Math.max(0, b.leftMs - (ses ? ses.lastTick - ses.at : 0)) / 1000), tickSeconds: PS.tickSeconds,
       gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
       whyNot: priestRefusal(a, s),
       choices: [],
