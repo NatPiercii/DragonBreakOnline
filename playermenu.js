@@ -46,7 +46,9 @@ module.exports = (api) => {
   // Court Mages, Shamans and Wisewomen hold office without guard powers
   const UNLAWFUL_RANKS = new Set(['courtmage', 'shaman', 'wisewoman']);
   const isLawful = (a) => { try { return isLeadStaff(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)); } catch (e) { return false; } };
-  const nameFor = (viewer, a) => (isMasked(a) ? C.maskName : knownBy(viewer).includes(a >>> 0) ? nameOf(a) : 'Stranger');
+  // A player in a beast form is the beast to everyone (beastform.js __dboBeastName)
+  const beastName = (a) => { try { return typeof globalThis.__dboBeastName === 'function' ? String(globalThis.__dboBeastName(a) || '') : ''; } catch (e) { return ''; } };
+  const nameFor = (viewer, a) => beastName(a) || (isMasked(a) ? C.maskName : knownBy(viewer).includes(a >>> 0) ? nameOf(a) : 'Stranger');
   // Other modules name players the same way (downed.js: who raised you); a name must never skip the introductions
   globalThis.__dboNameFor = nameFor;
   const distance = (a, b) => {
@@ -280,6 +282,8 @@ module.exports = (api) => {
     if (now - (maskToggledAt.get(a >>> 0) || 0) < MASK_TOGGLE_MS) return;
     maskToggledAt.set(a >>> 0, now);
     if (maskToggledAt.size > 2000) for (const [k, t] of maskToggledAt) if (now - t > MASK_TOGGLE_MS) maskToggledAt.delete(k);
+    // The beast wears no mask, and a mask put on or off now would write a human name over the beast's
+    if (beastName(a)) return personal(a, 'You cannot handle a mask in this form.');
     if (isMasked(a)) unmask(a, false); else mask(a);
   });
 

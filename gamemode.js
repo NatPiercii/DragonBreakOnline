@@ -538,6 +538,9 @@ const watchPlayers = () => {
     const now = { name: nameOf(a), tier: tierOf(a), roles: rolesOf(a).sort().join(',') };
     const prev = seen.get(p);
     try { if ((mp.get(a, ADMIN_PROP) === true) !== (now.tier !== null)) mp.set(a, ADMIN_PROP, now.tier !== null); } catch (e) { /* ignore */ }
+    // A beast form's name (beastform.js) is not a rename; seen keeps the real one until the revert
+    let beastNamed = false; try { const b = mp.get(a, 'private.beast'); beastNamed = !!(b && b.form); } catch (e) { /* not ready */ }
+    if (beastNamed) { if (!prev) continue; now.name = prev.name; }
     if (!prev) { seen.set(p, now); continue; }
     if (prev.name !== now.name && now.name !== 'Stranger') audit(`NAME profile ${p} renamed "${prev.name}" -> "${now.name}"`);
     if (prev.tier !== now.tier) audit(`PERM ${who(a)} admin tier ${prev.tier || 'none'} -> ${now.tier || 'none'}`);
