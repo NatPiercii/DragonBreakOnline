@@ -90,7 +90,7 @@ const mp = {
   callPapyrusFunction: (...args) => calls.push(args),
 };
 const load = (gearSwap) => require(path.join(SERVER, 'gearswap.js'))({ mp, log: () => {}, audit: (t) => audits.push(t), who: (a) => `P${(a >>> 0).toString(16)}`, personal: (a, t) => said.push([a, t]),
-  onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, cfg: { gearSwap }, registerChatCommand: () => {}, isStaff: (a) => staff.has(a >>> 0),
+  onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, cfg: { gearSwap: Object.assign({ characters: true, housing: true }, gearSwap) }, registerChatCommand: () => {}, isStaff: (a) => staff.has(a >>> 0),
   recordOf: (id) => (id >>> 0 === CHEST_BASE ? { record: { type: 'CONT', editorId: 'TreasCaveChest' } } : id >>> 0 === BARREL_BASE ? { record: { type: 'ACTI', editorId: 'Barrel' } } : EDID[id >>> 0] ? { record: { editorId: EDID[id >>> 0] } } : null) });
 const staff = new Set();
 // Each online character logs in (gamemode.js onCharacterReady calls __dboGearSwapLogin)
@@ -183,6 +183,32 @@ load({}); calls.length = 0;
 globalThis.__dboGearSwapLogin(LH);
 const lh = calls.filter((c) => /^EquipItem/.test(c[2]));
 check('a left-hand piece is put on again in the left hand (EquipItemEx slot 2)', lh.length === 1 && lh[0][2] === 'EquipItemEx' && lh[0][4][1] === 2 && lh[0][4][0].desc === descOf(ID.SteelSword), lh);
+
+// Loot only (Nate, 5 Oct: "the cap was only supposed to affect dungeon loot/loot pools"): the config's characters false and
+// housing false leave a character's own gear and a property's chests alone; a world chest is still swapped
+{
+  const LOOTONLY = { characters: false, housing: false };
+  const ME = 0xff000308;
+  store[ME] = { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] }, profileId: 52 };
+  load(LOOTONLY); calls.length = 0; said.length = 0; audits.length = 0;
+  globalThis.__dboGearSwapLogin(ME);
+  check('loot only: a character keeps a glass sword at login', ((store[ME].inventory || {}).entries || []).some((e) => e.baseId === ID.GlassSword) && !said.length && !audits.length);
+  const HOUSE = 0xff00a001, WORLD = 0xff00a002;
+  store[HOUSE] = { baseDesc: descOf(CHEST_BASE), inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+  store[WORLD] = { baseDesc: descOf(CHEST_BASE), inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+  globalThis.__dboHousing = { recordOf: (ref) => ((ref >>> 0) === HOUSE ? { owner: 52 } : null) };
+  globalThis.__dboGearSwapContainer(HOUSE);
+  check('loot only: a chest inside a property keeps its glass sword', store[HOUSE].inventory.entries.some((e) => e.baseId === ID.GlassSword));
+  globalThis.__dboGearSwapContainer(WORLD);
+  check('loot only: a world chest is still swapped', !store[WORLD].inventory.entries.some((e) => e.baseId === ID.GlassSword));
+  globalThis.__dboHousing = { recordOf: () => { throw new Error('housing not ready'); } };
+  store[WORLD].inventory = { entries: [{ baseId: ID.GlassSword, count: 1 }] }; delete store[WORLD]['private.dboGearSwap'];
+  globalThis.__dboGearSwapContainer(WORLD);
+  check('loot only: a housing error counts the chest as a world chest', !store[WORLD].inventory.entries.some((e) => e.baseId === ID.GlassSword));
+  delete globalThis.__dboHousing;
+  const cfgNow = JSON.parse(require('fs').readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).gearSwap;
+  check('the shipped config is loot only', cfgNow.characters === false && cfgNow.housing === false);
+}
 delete globalThis.__dboGearSwapContainer; delete globalThis.__dboGearSwapLogin;
 delete globalThis.__dboCombatAt; delete globalThis.__dboIsDowned; delete globalThis.__dboBeastOriginalRace;
 console.log(failures ? `${failures} FAILED` : 'all checks passed');

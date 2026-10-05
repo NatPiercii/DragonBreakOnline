@@ -141,7 +141,7 @@ const plan = {
 };
 fs.writeFileSync(PLAN, JSON.stringify(plan));
 const load = (gearSwap) => require(path.join(SERVER, 'gearswap.js'))({ mp, log: (...a) => logs.push(a.join(' ')), audit: (t) => { events.push('audit'); audits.push(t); }, who: (a) => `P${(a >>> 0).toString(16)}`, personal: (a, t) => { events.push('personal'); said.push([a, t]); },
-  onlineActors: () => [], every: () => {}, cfg: { gearSwap: Object.assign({ restoreFile: path.relative(SERVER, PLAN) }, gearSwap || {}) }, registerChatCommand: () => {}, isStaff: () => false, recordOf });
+  onlineActors: () => [], every: () => {}, cfg: { gearSwap: Object.assign({ characters: true, housing: true, restoreFile: path.relative(SERVER, PLAN) }, gearSwap || {}) }, registerChatCommand: () => {}, isStaff: () => false, recordOf });
 const M = load({});
 check('the runtime reads the bow\'s own enchantment from its record', JSON.stringify(M.enchantOf(ID.CYREnchAyleidBowShock02)) === JSON.stringify({ enchantmentId: ID.EnchWeaponShockDamage02, maxCharge: 1000 }));
 check('...and a plain record has none', M.enchantOf(ID.HuntingBow) === null);
