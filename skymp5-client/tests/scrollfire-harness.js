@@ -94,6 +94,8 @@ const fallbackModule = load('services/services/scrollFireFallback.ts', {});
 const messagesModule = load('messages.ts', {});
 const { MagicSyncService } = load('services/services/magicSyncService.ts', {
   'skyrimPlatform': skyrimPlatform,
+  // Every actor here is humanoid; tests/beastbody-harness.js covers a beast caster's empty snapshot
+  '../../sync/beastRaces': { guardedRaceOf: () => 0 },
   '../../view/worldViewMisc': {
     isHostedByMe: (id) => world.hosted.has(id >>> 0),
     localIdToRemoteId: (id) => REMOTE[id >>> 0] || 0,

@@ -3,6 +3,7 @@ import { isHostedByMe, localIdToRemoteId } from "../../view/worldViewMisc";
 
 // @ts-expect-error (TODO: Remove in 2.10.0)
 import { SpellCastEvent, ActionEvent, Actor, printConsole, Game, getAnimationVariablesFromActor, ActorAnimationVariables, SpellType, SlotType, EquippedItemType, Spell, Debug, Form } from 'skyrimPlatform'
+import { guardedRaceOf } from '../../sync/beastRaces';
 import { ClientListener, CombinedController, Sp } from './clientListener';
 import { logError, logTrace } from '../../logging';
 import { consumeServerCast } from './castSelfService';
@@ -82,7 +83,7 @@ export class MagicSyncService extends ClientListener {
         this.controller.once('update', () => {
             const ac = Game.getPlayer();
 
-            if (!ac) {
+            if (!ac || guardedRaceOf(ac)) {
                 return;
             }
 
@@ -326,6 +327,11 @@ export class MagicSyncService extends ClientListener {
     }
 
     private getAnimationVariablesFromActorConverted(actorId: number) {
+        // A beast or other non-humanoid caster sends none: the native reads at the humanoid graph's indexes, past the end
+        // of its graph, and a watcher would write that into its copy (sync/beastRaces.ts)
+        if (guardedRaceOf(Actor.from(Game.getFormEx(actorId)))) {
+            return { booleans: [] as number[], floats: [] as number[], integers: [] as number[] };
+        }
         const animVars = getAnimationVariablesFromActor(actorId);
         const booleans: ArrayBuffer = animVars.booleans;
         const floats: ArrayBuffer = animVars.floats;
