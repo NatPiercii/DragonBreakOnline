@@ -1,5 +1,20 @@
 [
   {
+    "title": "College and Synod robes",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "College robes (Winterhold and Whispers), the Archmage's robes and the Synod's robes and hood no longer turn up in dungeons, on bodies or in camp chests. They are given by the colleges and the Synod in roleplay. Robes you already have are yours to keep.",
+          "Ordinary mage robes still drop as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Less coin from fighting",
     "date": "2026-10-04",
     "version": "Server update",
