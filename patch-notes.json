@@ -9,7 +9,8 @@
         "heading": "Fixes",
         "items": [
           "Weapons you enchant with Soul Trap yourself now trap souls: a kill while the effect lasts fills an empty soul gem, as weapons found with Soul Trap already did.",
-          "Raise Zombie tells you when a body cannot rise: one too powerful for the spell, another adventurer's, or one already bound."
+          "Raise Zombie tells you when a body cannot rise: one too powerful for the spell, another adventurer's, or one already bound.",
+          "Your summons and raised dead fight another player only where PvP allows it: while you and that player are fighting, never someone in your party, downed, jailed, held or logged out."
         ]
       }
     ]
