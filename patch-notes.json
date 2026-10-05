@@ -1,5 +1,19 @@
 [
   {
+    "title": "Fixes",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Fighting in werewolf or Vampire Lord form no longer trains Martial Arts: beast claws are not fists."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Study after an early tome",
     "date": "2026-10-05",
     "version": "Server update",
