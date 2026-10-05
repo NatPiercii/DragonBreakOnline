@@ -1965,8 +1965,9 @@ const redress = (a) => {
 };
 // The login work waits for the character, not for the connection: with the title screen in front
 // (server-settings characterSelect) a player sits at character select for as long as they like, and
-// the actor only exists once they press Play or Create.
-const LOGIN_WAIT_MS = 15 * 60000;
+// the actor only exists once they press Play or Create. The watch lasts the whole connection: it once ended
+// 15 minutes after connecting, so a character chosen later through character select got no login run at all
+// (Kagrethas Mzulft, 5 Oct: no learned enchantments sent, no restore, no JOIN; 8 such loads in one day).
 // userId -> the interval waiting for that user's character; a hot reload drops the old waiters first.
 if (globalThis.__dboLoginWaits) { for (const t of globalThis.__dboLoginWaits.values()) clearInterval(t); }
 globalThis.__dboLoginWaits = new Map();
@@ -2033,10 +2034,9 @@ const onCharacterReady = (userId, a) => {
 const startLoginWait = (userId, seenActor) => {
   const old = globalThis.__dboLoginWaits.get(userId);
   if (old) clearInterval(old);
-  const since = Date.now();
   let seen = seenActor || 0;
   const wait = setInterval(timed('loginWait', () => {
-    if (!connected.has(userId) || Date.now() - since > LOGIN_WAIT_MS) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); return; }
+    if (!connected.has(userId)) { clearInterval(wait); globalThis.__dboLoginWaits.delete(userId); return; }
     const a = actorOf(userId);
     // A character switch hands the user a different actor; each one gets its own login run.
     if (!a || a === seen) return;

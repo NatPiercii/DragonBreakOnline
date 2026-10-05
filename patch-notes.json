@@ -13,7 +13,8 @@
           "The time left in Study Magic and Priest Studies now counts down while you study. Before, it jumped back up every few seconds.",
           "Faction armour and clothing: 88 new recipes for faction sets are in the game. Only the faction's own Armorer or Clothier can make them, and a Great House's sets once that House is claimed.",
           "A vampire who has fed recently looks mortal again: their own eyes and their own colour. The glowing eyes and the pallor only show from the third stage of thirst, and feeding takes them away again.",
-          "A vampire newly turned by the fever shows them until their first meal. The sun still burns every vampire, fed or not."
+          "A vampire newly turned by the fever shows them until their first meal. The sun still burns every vampire, fed or not.",
+          "Switching to another character more than 15 minutes after you connected now sets that character up properly. Before, it skipped the login steps: enchantments you had learned did not show at the arcane enchanter, and your party, faction and other login messages never arrived. Those enchantments come back the next time that character logs in, including the ones being given back from before 4 October."
         ]
       }
     ]
