@@ -1,5 +1,19 @@
 [
   {
+    "title": "School progress",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Your schools of magic show how far you are towards the next level, beside the rank in Study Magic and the journal (for example \"Apprentice · 40% to 37\"), and Study Magic's meter fills with it."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Fixes",
     "date": "2026-10-05",
     "version": "Server update",

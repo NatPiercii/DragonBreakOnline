@@ -203,7 +203,7 @@ p = progress(MAGE);
 ui('schoolChoose', MAGE, [p.nonce, 'Destruction', 'primary']);
 check('choosing Destruction takes Arcane Arts up (the refused try asked too) and makes it the primary at level 1', rec(MAGE).primary === 'Destruction' && level(MAGE, 'Destruction') === 1 && touches.length === 2 && touches.every((t) => t[0] === MAGE && t[1] === 'arcane'), [rec(MAGE), touches]);
 p = lastPacket(MAGE, 'dboSchoolProgress').progress;
-check('...the meters are sent again: Destruction primary Novice, the rest closed', p.schools[0].role === 'primary' && p.schools[0].rank === 'Novice' && p.schools.slice(1).every((x) => x.role === 'locked' && !x.choose), p.schools);
+check('...the meters are sent again: Destruction primary Novice, the rest closed', p.schools[0].role === 'primary' && p.schools[0].rank === 'Novice · 0% to 2' && p.schools.slice(1).every((x) => x.role === 'locked' && !x.choose), p.schools);
 check('...and the choice is audited', out.audits.some((l) => /SCHOOLS P14 chose Destruction as their primary school \(level 1\)/.test(l)));
 ui('schoolChoose', MAGE, [p.nonce, 'Illusion', 'primary']);
 check('a second primary is refused', rec(MAGE).primary === 'Destruction' && /already your primary/.test(said(MAGE)));

@@ -267,6 +267,10 @@ module.exports = (api) => {
   };
   const save = (a, s) => set(a, PROP, s);
   const levelOf = (s, school) => { const l = s.levels[school]; return l ? Math.max(0, Number(l.level) || 0) : 0; };
+  // How far a school is towards its next level, shown beside its rank (Nate, 5 Oct: Conjuration "isn't levelling" when it
+  // is, slowly; each level is 100 xp, a cast gives castUnits of it)
+  const xpPctOf = (s, school) => { const l = s.levels[school]; return Math.max(0, Math.min(99, Math.floor(l ? Number(l.xp) || 0 : 0))); };
+  const withProgress = (rank, s, school) => (rank && levelOf(s, school) < 100 ? `${rank} · ${xpPctOf(s, school)}% to ${levelOf(s, school) + 1}` : rank);
   const roleOf = (s, school) => (s.primary === school ? 'primary' : s.secondary === school ? 'secondary' : 'locked');
   // A school changed away from keeps its level, resting; changing back restores it
   const resting = (s, school) => !active(s, school) && levelOf(s, school) > 0;
@@ -653,7 +657,7 @@ module.exports = (api) => {
         const rest = role === 'locked' && resting(s, school);
         const l = s.levels[school];
         return {
-          name: school, role, level, rank: role === 'locked' ? '' : RANKS[Math.max(0, r)],
+          name: school, role, level, rank: role === 'locked' ? '' : withProgress(RANKS[Math.max(0, r)], s, school),
           roleLabel: role === 'primary' ? 'Primary school' : role === 'secondary' ? 'Secondary school' : rest ? 'Resting' : 'Closed',
           // The meter fills bottom to top over the whole ladder, 0..100
           fill: role === 'locked' ? 0 : Math.max(0, Math.min(1, (level + (l ? Number(l.xp) || 0 : 0) / 100) / 100)),
@@ -788,8 +792,8 @@ module.exports = (api) => {
       mode: !school && !early ? 'choose' : ses ? 'studying' : 'idle',
       school: early ? 'Arcane Arts' : school || '',
       level: early ? arc : school ? levelOf(s, school) : 0,
-      rank: early ? `First spell at ${FIRST_AT}` : school ? RANKS[Math.max(0, schoolRank(s, school))] : '',
-      fill: early ? Math.max(0, Math.min(1, arc / FIRST_AT)) : school ? Math.max(0, Math.min(1, levelOf(s, school) / 100)) : 0,
+      rank: early ? `First spell at ${FIRST_AT}` : school ? withProgress(RANKS[Math.max(0, schoolRank(s, school))], s, school) : '',
+      fill: early ? Math.max(0, Math.min(1, arc / FIRST_AT)) : school ? Math.max(0, Math.min(1, (levelOf(s, school) + xpPctOf(s, school) / 100) / 100)) : 0,
       // The open sitting is not logged until it ends: its time comes off, or each tick's redraw put the timer back up
       leftSeconds: Math.round(Math.max(0, b.leftMs - (ses ? ses.lastTick - ses.at : 0)) / 1000), tickSeconds: C.study.tickSeconds,
       gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
@@ -1546,7 +1550,7 @@ module.exports = (api) => {
       return {
         name: school, epithet: EPITHET[school] || '', blurb: isR ? RESTORATION_BLURB : BLURB[school] || '',
         role, roleLabel: { primary: 'Primary school', secondary: 'Secondary school', priest: 'Through Priest', resting: 'Resting', closed: isR ? 'Opens with Priest' : 'Closed' }[role],
-        level, rank: r >= 0 && role !== 'closed' ? RANKS[r] : '', nextRank: next ? RANKS[r + 1] : '', nextAt: next,
+        level, rank: r >= 0 && role !== 'closed' ? (isR ? RANKS[r] : withProgress(RANKS[r], s, school)) : '', nextRank: next ? RANKS[r + 1] : '', nextAt: next,
         fill: Math.max(0, Math.min(1, (level + (l ? Number(l.xp) || 0 : 0) / 100) / 100)),
         firstSpell: firstPick,
         // What the rank really allows: the highest tome rank read in this school (the school's rank, capped by Arcane Arts'

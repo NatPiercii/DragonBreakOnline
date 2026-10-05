@@ -299,7 +299,7 @@ check('the Magic tab is not offered without Arcane Arts or Priest', v && v.open 
 v = view(MAGE);
 check('the Magic tab: five schools, Restoration last', v.open === true && v.schools.map((x) => x.name).join() === 'Destruction,Illusion,Conjuration,Alteration,Restoration', v.schools.map((x) => x.name));
 const d = v.schools[0], il = v.schools[1], cj = v.schools[2], rs = v.schools[4];
-check('...Destruction: primary at 40, Apprentice, Adept at 50, its first spell made (Sparks)', d.role === 'primary' && d.level === 40 && d.rank === 'Apprentice' && d.nextRank === 'Adept' && d.nextAt === 50 && d.firstSpell.state === 'made' && d.firstSpell.spell === 'Sparks', d);
+check('...Destruction: primary at 40, Apprentice, Adept at 50, its first spell made (Sparks)', d.role === 'primary' && d.level === 40 && d.rank.startsWith('Apprentice') && d.nextRank === 'Adept' && d.nextAt === 50 && d.firstSpell.state === 'made' && d.firstSpell.spell === 'Sparks', d);
 check('...what the rank allows, in words (no magicka-cost bonuses)', d.allows.maxRank === 1 && d.allows.line === 'You may read Destruction tomes up to Apprentice, held there by your study of Destruction.' && !('bonuses' in d), d.allows);
 check('...Illusion resting at 20, with how to take it back', il.role === 'resting' && il.level === 20 && /change back to Illusion at a Scholars' Ledger/.test(il.allows.line) && il.swapStartsAt === 20, il);
 check('...Conjuration closed, its first spells named, what a change would start it at', cj.role === 'closed' && cj.firstSpell.state === 'closed' && cj.firstSpell.spells === 'Bound Sword or Conjure Familiar' && cj.swapStartsAt === 20, cj);
