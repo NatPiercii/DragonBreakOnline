@@ -1,5 +1,19 @@
 [
   {
+    "title": "No limit on Guards",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Holds and strongholds",
+        "items": [
+          "A ruler, Guard Captain or Chieftain can now appoint as many Guards or Stronghold Guards as their hold needs. Before, each hold stopped at 20."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Game client 0.3.77",
     "date": "2026-10-05",
     "version": "Client 0.3.77",

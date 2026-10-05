@@ -665,7 +665,7 @@ const STAFF_HELP = [
     ['faction remove', '<name|#TAG> <faction id>: take someone out of a faction'], ['faction hallmark', "<faction id>, at a building's door: its faction's hall (hallunmark undoes it)"], ['faction list', 'every faction id, secret ones included'], 'ledgerpoint',
     ['rolename', 'list <court|faction> | <court> <office> <new title> | <faction> <rank number> <new title> | reset <court> <office> | reset <faction> <rank number>: rename an office or rank for everyone who holds it, at once (Lead GM; F3 Court and the Faction tab\'s rank editor do it too)'], 'war'] },
   { key: 'appoint', title: 'Appointments and property', items: [
-    ['appoint', '<player|#TAG|profile id> <zone> <rank> [override]: make someone an official, online or offline. A Jarl must be a Nord or an Imperial; only the Owners may add override. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards'],
+    ['appoint', '<player|#TAG|profile id> <zone> <rank> [override]: make someone an official, online or offline. A Jarl must be a Nord or an Imperial; only the Owners may add override. /appoint alone lists the zone ids; a wrong rank lists that zone\'s ranks. Rulers name 5 Stewards, 2 Court Mages, a Guard Captain and any number of Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and any number of Guards; captains name Guards'],
     ['dismiss', '<player|#TAG|profile id> <zone>: remove an official, online or offline (told if online). Officials may dismiss the ranks they may appoint'],
     ['officials', '[zone]: who holds which rank where'],
     ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
@@ -2929,13 +2929,15 @@ const ranksOf = (profileId) => {
   for (const z of zoneList()) for (const r of (z.officials || [])) if (((o[z.id] || {})[r] || []).map(Number).includes(profileId)) out.push({ zone: z, rank: r });
   return out;
 };
-// Seat holders appoint their own officers (config appointRules: holder rank -> { appointable rank: max per zone }).
-// Bruma is ruled by a Count; count stands in for the Baron until a baron rank exists.
+// Seat holders appoint their own officers (config appointRules: holder rank -> { appointable rank: max per zone; null
+// in the config = no limit }). Bruma is ruled by a Count; count stands in for the Baron until a baron rank exists.
+// Guards have no limit (Nate, 5 Oct: a hold's guard was capped at 20)
 const APPOINT_RULES = Object.assign({
-  jarl: { steward: 5, courtmage: 2, guardcaptain: 1, guard: 20 }, baron: { steward: 5, courtmage: 2, guardcaptain: 1, guard: 20 }, count: { steward: 5, courtmage: 2, captain: 1, guard: 20 },
-  guardcaptain: { guard: 20 }, captain: { guard: 20 }, commander: { guard: 20 },
-  chieftain: { bane: 5, shaman: 1, wisewoman: 1, strongholdcommander: 1, strongholdguard: 20 }, strongholdcommander: { strongholdguard: 20 },
+  jarl: { steward: 5, courtmage: 2, guardcaptain: 1, guard: Infinity }, baron: { steward: 5, courtmage: 2, guardcaptain: 1, guard: Infinity }, count: { steward: 5, courtmage: 2, captain: 1, guard: Infinity },
+  guardcaptain: { guard: Infinity }, captain: { guard: Infinity }, commander: { guard: Infinity },
+  chieftain: { bane: 5, shaman: 1, wisewoman: 1, strongholdcommander: 1, strongholdguard: Infinity }, strongholdcommander: { strongholdguard: Infinity },
 }, cfg.appointRules || {});
+for (const rules of Object.values(APPOINT_RULES)) for (const k of Object.keys(rules || {})) if (rules[k] === null) rules[k] = Infinity;
 const appointCap = (a, z, rank) => {
   if (isAdmin(a)) return Infinity;
   let cap = 0;
@@ -3053,7 +3055,7 @@ registerChatCommand('appoint', (a, args) => {
   const tg = officialTarget(m[1]); if (tg.error) return personal(a, tg.error);
   const r = appointFrom(a, z, rank, tg, override);
   personal(a, r.error || r.text);
-}, { help: '<player|#TAG|profile id> <zone> <rank> [override] make someone an official, online or not (admins at once; a ruler\'s appointment is offered and accepted in the journal, F3 Court; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and 20 Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and 20 Guards; captains name Guards). A Jarl must be a Nord or an Imperial; only the Owners may add override' });
+}, { help: '<player|#TAG|profile id> <zone> <rank> [override] make someone an official, online or not (admins at once; a ruler\'s appointment is offered and accepted in the journal, F3 Court; rulers name 5 Stewards, 2 Court Mages, a Guard Captain and any number of Guards; Chieftains 5 Banes, a Shaman, a Wise-Woman, a Guard Commander and any number of Guards; captains name Guards). A Jarl must be a Nord or an Imperial; only the Owners may add override' });
 registerChatCommand('dismiss', (a, args) => {
   // The name may have spaces: the zone is the last word
   const m = args.trim().match(/^(.+?)\s+(\S+)$/); if (!m) return personal(a, 'Usage: /dismiss <player|#TAG|profile id> <zone>');
