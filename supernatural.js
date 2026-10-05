@@ -85,6 +85,9 @@ module.exports = (api) => {
     // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
     // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
     feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
+    // Nate, 5 Oct: a forced change is felt coming. feralWarn.seconds before it the screen shakes (client dboShake,
+    // Game.ShakeCamera; 0.3.77+, older clients only get the line), harder at each shake; 0 changes at once as before
+    feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] },
     // Share of the way from the character's own skin colour to a bloodless pallor (beast races fade less)
     vampirePallor: 0.55, vampirePallorBeast: 0.25,
     // Nat: covering up shields a vampire from the sun. Share of the burn each covered part takes away (sums to 1),
@@ -1804,6 +1807,37 @@ module.exports = (api) => {
   const sunWarned = new Map();
   // A higher rank of the Great Hunt holds the beast back better
   const forcedMult = (a) => { try { const m = typeof globalThis.__dboHuntForcedMult === 'function' ? Number(globalThis.__dboHuntForcedMult(a)) : 1; return Number.isFinite(m) && m >= 0 ? m : 1; } catch (e) { return 1; } };
+  // A forced change comes feralWarn.seconds after its warning: the line, then the shakes, then the change if the
+  // werewolf is still one, still in their own shape, alive, online and not in a rite. Pending changes live on
+  // globalThis so a reload neither drops nor doubles them; each timer re-reads the hooks it calls
+  const FERAL_DUE = globalThis.__dboFeralDue instanceof Map ? globalThis.__dboFeralDue : (globalThis.__dboFeralDue = new Map());
+  const shake = (a, strength, seconds) => { try { sendPacket(a, { customPacketType: 'dboShake', strength, seconds }); } catch (e) { /* offline */ } };
+  const stillChanges = (a) => {
+    const s = stateOf(a);
+    if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || !onlineActors().includes(a)) return false;
+    try { return !mp.get(a, 'isDead'); } catch (e) { return false; }
+  };
+  const forcedChange = (a, warning, change, logLine) => {
+    const W = C.feralWarn || {};
+    const lead = Math.max(0, Number(W.seconds) || 0);
+    const go = () => {
+      FERAL_DUE.delete(a);
+      if (!stillChanges(a)) return log(`supernatural: ${display(a)}'s forced change passed (no longer able to change)`);
+      change();
+      log(logLine);
+      if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
+    };
+    if (!lead) return go();
+    if (FERAL_DUE.has(a)) return;
+    FERAL_DUE.set(a, Date.now() + lead * 1000);
+    onScreen(a, warning, 4);
+    for (const x of Array.isArray(W.shakes) ? W.shakes : []) {
+      const at = Math.max(0, Math.min(lead, Number(x.at) || 0));
+      const fire = () => { if (FERAL_DUE.has(a)) shake(a, Math.max(0, Math.min(1, Number(x.strength) || 0)), Math.max(0, Number(x.seconds) || 0)); };
+      if (at >= lead) fire(); else setTimeout(fire, (lead - at) * 1000);
+    }
+    setTimeout(go, lead * 1000);
+  };
   let lastHour = -1;
   every('superMoon', 5000, () => {
     const c = clock(); if (!c) return;
@@ -1811,9 +1845,9 @@ module.exports = (api) => {
     if (!c.isNight() || !c.isFullMoon()) return;
     for (const a of onlineActors()) {
       const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || !isOutdoors(a)) continue;
-      if (Math.random() >= C.forcedChangeChance * forcedMult(a)) continue;
-      personal(a, 'The full moon calls, and the beast answers without you.');
-      if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
+      if (FERAL_DUE.has(a) || Math.random() >= C.forcedChangeChance * forcedMult(a)) continue;
+      forcedChange(a, 'The full moon pulls at your blood. The beast is coming.', () => personal(a, 'The full moon calls, and the beast answers without you.'),
+        `supernatural: ${display(a)} changed under the full moon`);
     }
   });
 
@@ -1821,17 +1855,17 @@ module.exports = (api) => {
   every('superFeral', 60000, () => {
     const c = clock();
     for (const a of onlineActors()) {
-      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a)) continue;
+      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || FERAL_DUE.has(a)) continue;
       try { if (mp.get(a, 'isDead')) continue; } catch (e) { continue; }
       const hunger = typeof hungerOf === 'function' ? Math.max(0, Math.min(100, Number(hungerOf(a)) || 0)) : 50;
       let p = C.feralPerMinute.sated + (C.feralPerMinute.starving - C.feralPerMinute.sated) * hunger / 100;
       if (c && c.isNight()) p *= c.isFullMoon() ? C.feralFullMoonMult : C.feralNightMult;
       p *= forcedMult(a);
       if (Math.random() >= p) continue;
-      personal(a, hunger >= 60 ? 'Hunger claws its way up your throat, and the beast tears free.' : 'Something wakes in your blood, and the beast takes you without asking.');
-      quietNear(a, (v) => `${nameTo(v, a)} doubles over, and something tears its way out of them.`, 3000);
-      log(`supernatural: ${display(a)} went feral (hunger ${Math.round(hunger)}, chance ${(p * 100).toFixed(1)}%/min)`);
-      if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
+      forcedChange(a, hunger >= 60 ? 'Your hunger turns to a fever. The beast is coming.' : 'Your blood runs hot and your bones ache. The beast is coming.', () => {
+        personal(a, hunger >= 60 ? 'Hunger claws its way up your throat, and the beast tears free.' : 'Something wakes in your blood, and the beast takes you without asking.');
+        quietNear(a, (v) => `${nameTo(v, a)} doubles over, and something tears its way out of them.`, 3000);
+      }, `supernatural: ${display(a)} went feral (hunger ${Math.round(hunger)}, chance ${(p * 100).toFixed(1)}%/min)`);
     }
   });
 
