@@ -164,30 +164,73 @@ beast(0x901, 'wolf');
 for (let i = 0; i < 5; i++) globalThis.__dboContractKill(0x901, GUARD);
 check('finishing pays the hunter out of what the notice held', goldOf(GUARD) === guardBefore + 60, `${goldOf(GUARD) - guardBefore} gold`);
 check('...and the treasury is not touched a second time', goldOf(CHEST) === 40, `${goldOf(CHEST)} left`);
-check('...and the notice is gone', posted().length === 0, `${posted().length} posted`);
+check('...and the notice stays up for the other hunters, done by this one', posted().length === 1 && (posted()[0].doneBy || []).includes('12'), JSON.stringify(posted()));
+check('...which he cannot take again', said(run(GUARD, 'take 1'), /already done/) && !stored().taken['12']);
 
-// 5 Oct (#bug-tracker 1556560650292039732): three hunters took the same 2 trolls; the first was paid and the others'
-// kills counted for nothing, silently. The next holder is now told and released at the next kill, board or /contract
+// ---- per hunter (Nate, 5 Oct: "Contracts need to be per player"; three took the same 2 trolls and only one was paid) --
+clear();
 inv(CHEST, 100);
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
 run(COUNT, 'post wolf 2 24');
-run(GUARD, 'take 1'); run(HUNTER, 'take 1');
-check('two hunters may hold one notice', stored().taken['12'] && stored().taken['13'] && stored().taken['12'].id === stored().taken['13'].id);
+check('posting sets the first hunter\'s reward aside', goldOf(CHEST) === 76, `${goldOf(CHEST)}`);
+run(GUARD, 'take 1');
+check('the first taker\'s share is the one the notice held: the treasury is not touched', goldOf(CHEST) === 76 && stored().taken['12'].held === 24 && posted()[0].held === 0, `${goldOf(CHEST)} ${JSON.stringify(stored().taken['12'])}`);
+run(HUNTER, 'take 1');
+check('a second hunter takes the same notice: their own copy, their own 24 gold set aside from the treasury', stored().taken['13'] && stored().taken['13'].id === stored().taken['12'].id && stored().taken['13'].held === 24 && goldOf(CHEST) === 52, `${goldOf(CHEST)} ${JSON.stringify(stored().taken['13'])}`);
+check('...and the notice is still up for anyone else', posted().length === 1);
 beast(0x905, 'wolf');
-for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x905, GUARD);
-const otherBefore = goldOf(HUNTER);
-out.personal.length = 0;
-globalThis.__dboContractKill(0x905, HUNTER);
-check('the other holder\'s next kill tells them the notice was finished and releases them',
-  out.personal.some((p) => p.a === HUNTER && /no longer posted/.test(p.t)) && !stored().taken['13'] && goldOf(HUNTER) === otherBefore, out.personal.map((p) => p.t).join(' | '));
-run(COUNT, 'post wolf 2 24'); run(GUARD, 'take 1'); run(HUNTER, 'take 1');
-for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x905, GUARD);
-check('...and /contract tells them too', said(run(HUNTER, ''), /no longer posted/) && !stored().taken['13']);
-run(COUNT, 'post wolf 2 24'); run(HUNTER, 'take 1');
+globalThis.__dboContractKill(0x905, GUARD);
+check('one hunter\'s kill counts for that hunter only', stored().taken['12'].progress === 1 && stored().taken['13'].progress === 0, JSON.stringify(stored().taken));
+const g0 = goldOf(GUARD), h0 = goldOf(HUNTER);
+globalThis.__dboContractKill(0x905, GUARD);
+check('the first to finish is paid their 24', goldOf(GUARD) === g0 + 24 && !stored().taken['12'], `${goldOf(GUARD) - g0}`);
+check('...and the other hunter keeps their contract and their count', stored().taken['13'] && stored().taken['13'].progress === 0 && goldOf(HUNTER) === h0);
+globalThis.__dboContractKill(0x905, HUNTER); globalThis.__dboContractKill(0x905, HUNTER);
+check('the second hunter finishes theirs and is paid their own 24', goldOf(HUNTER) === h0 + 24 && !stored().taken['13'], `${goldOf(HUNTER) - h0}`);
+check('...each completion paid from the treasury, never twice: 100 - 24 - 24', goldOf(CHEST) === 52, `${goldOf(CHEST)}`);
+// a hold that cannot set aside another share refuses the take (the conservative rule): nobody hunts for pay that is not there
+run(COUNT, 'post bear 2 50');
+inv(CHEST, 10);
+const bearAt = stored().contracts.findIndex((c) => c.kind === 'bear') + 1;
+run(GUARD, `take ${bearAt}`);
+const refused = run(HUNTER, `take ${bearAt}`);
+check('a second taker the treasury cannot cover is refused and told', said(refused, /cannot set aside another 50 gold/) && !stored().taken['13'], refused.join(' | '));
+run(GUARD, 'abandon');
+check('giving up hands the share back to the hold', goldOf(CHEST) === 60 && !stored().taken['12'], `${goldOf(CHEST)}`);
+// a copy runs out on its own clock and gives its share back; the hunter is told at the next look
+inv(CHEST, 100);
+run(HUNTER, `take ${bearAt}`);
+check('a later taker\'s share comes from the treasury (the notice\'s own went to the first and back with the give-up)', goldOf(CHEST) === 50 && stored().taken['13'].held === 50, `${goldOf(CHEST)}`);
+const ran = stored(); ran.taken['13'].expiresAt = Date.now() - 1000; fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify(ran));
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+check('a hunter\'s copy that ran out gives its 50 back to the hold', goldOf(CHEST) === 100, `${goldOf(CHEST)}`);
+check('...and /contract tells them', said(run(HUNTER, ''), /ran out/) && !stored().taken['13']);
+run(COUNT, 'post wolf 2 24'); run(HUNTER, `take ${stored().contracts.findIndex((c) => c.kind === 'wolf' && !(c.doneBy || []).length) + 1}`);
 beast(0x907, 'wolf', 'Skyrim.esm:Tamriel');
 out.personal.length = 0;
 globalThis.__dboContractKill(0x907, HUNTER);
 check('a kill in another hold says only Bruma\'s wilds count', out.personal.some((p) => /felled in Bruma's wilds/.test(p.t)), out.personal.map((p) => p.t).join(' | '));
 run(HUNTER, 'abandon');
+
+// ---- contracts taken under the one-notice rule keep working (migration) ----------------------------------------------
+clear();
+inv(CHEST, 1000);
+fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify({
+  contracts: [{ id: 'old1', zone: 'bruma', kind: 'wolf', count: 3, reward: 36, held: 36, postedAt: Date.now(), expiresAt: Date.now() + 3600000 }],
+  taken: { 12: { id: 'old1', progress: 2 }, 13: { id: 'old1', progress: 1 }, 14: { id: 'gone1', progress: 1 } },
+}));
+load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
+const mig = stored().taken;
+check('both old holders of one notice become copies with their progress', mig['12'] && mig['12'].kind === 'wolf' && mig['12'].progress === 2 && mig['13'] && mig['13'].progress === 1, JSON.stringify(mig));
+check('...the first takes what the notice held, the second is set aside from the treasury', mig['12'].held === 36 && mig['13'].held === 36 && goldOf(CHEST) === 964, `${goldOf(CHEST)}`);
+const gm0 = goldOf(GUARD), hm0 = goldOf(HUNTER);
+beast(0x908, 'wolf');
+globalThis.__dboContractKill(0x908, GUARD);
+globalThis.__dboContractKill(0x908, HUNTER); globalThis.__dboContractKill(0x908, HUNTER);
+check('...and both finish and are paid 36 each', goldOf(GUARD) === gm0 + 36 && goldOf(HUNTER) === hm0 + 36, `${goldOf(GUARD) - gm0} ${goldOf(HUNTER) - hm0}`);
+out.personal.length = 0;
+globalThis.__dboContractKill(0x908, COUNT_ALT);
+check('an old contract whose notice is gone is closed with word of it', out.personal.some((p) => p.a === COUNT_ALT && /no longer posted/.test(p.t)) && !stored().taken['14'], out.personal.map((p) => p.t).join(' | '));
 
 // an expired notice hands its gold back
 clear();
@@ -237,23 +280,23 @@ run(COUNT, 'post wolf 2 24');
 run(HUNTER, 'take 1');
 DEBOUNCE = true;
 let onDiskAtPay = null;
-onPay = () => { onDiskAtPay = posted().length; };
+onPay = () => { onDiskAtPay = stored().taken['13'] ? 1 : 0; };
 beast(0x920, 'wolf');
 const paidBefore = goldOf(HUNTER);
 for (let i = 0; i < 2; i++) globalThis.__dboContractKill(0x920, HUNTER);
 onPay = null;
 check('the hunter is paid', goldOf(HUNTER) === paidBefore + 24, `${goldOf(HUNTER) - paidBefore} gold`);
-check('...only after the notice is off the board on disk', onDiskAtPay === 0, `${onDiskAtPay} still on disk when the gold moved`);
+check('...only after his contract is closed on disk', onDiskAtPay === 0, `${onDiskAtPay} still on disk when the gold moved`);
 check('...and his hold on it is gone on disk too', !stored().taken['13'], JSON.stringify(stored().taken));
 // the crash: nothing debounced was written, and the server starts again from the file
 load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
 for (let i = 0; i < 4; i++) globalThis.__dboContractKill(0x920, HUNTER);
-check('after a crash the notice does not come back to pay again', goldOf(HUNTER) === paidBefore + 24 && posted().length === 0, `${goldOf(HUNTER) - paidBefore} gold, ${posted().length} posted`);
+check('after a crash the contract does not come back to pay again', goldOf(HUNTER) === paidBefore + 24 && !stored().taken['13'] && (posted()[0].doneBy || []).includes('13'), `${goldOf(HUNTER) - paidBefore} gold, ${JSON.stringify(stored().taken)}`);
 
 // an expired notice is off the board on disk before its gold goes back, or a crash would refund it twice
 run(COUNT, 'post wolf 5 60');
-check('a notice posted with the debounce on is still on disk', posted().length === 1, `${posted().length} posted`);
-const exp = stored(); exp.contracts[0].expiresAt = Date.now() - 1000;
+check('a notice posted with the debounce on is still on disk', posted().length === 2, `${posted().length} posted`);
+const exp = stored(); exp.contracts.find((c) => c.reward === 60).expiresAt = Date.now() - 1000;
 fs.writeFileSync(path.resolve('contracts.json'), JSON.stringify(exp));
 const chestBefore = goldOf(CHEST);
 load({ enabled: true, perZone: 0, rewardPerKill: { 1: 12, 2: 25, 3: 60 } });
