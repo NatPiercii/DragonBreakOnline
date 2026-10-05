@@ -124,7 +124,10 @@ const UI_CAPS = ['bank', 'robPrompt', 'feedPrompt', 'downed', 'businessLedger', 
   // for the crouch before it opens (gamemode.js chestHold)
   'dboIdle',
   // Not panels: the lockpick and rite widgets can play a round and judge it on their own clock (judge 'client')
-  'lockpickLocal', 'riteJudge'];
+  'lockpickLocal', 'riteJudge',
+  // Not a panel: the client builds another player's beast body from the server's dboBeastBody list and keeps humanoid
+  // caster variables out of it (skymp5-client sync/beastBody.ts), so the server may show a werewolf as one (beastform.js)
+  'beastBody'];
 const useUiCaps = (): void => {
   useEffect(() => {
     const tell = () => {

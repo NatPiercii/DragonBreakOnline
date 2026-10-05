@@ -7,6 +7,7 @@ import { sendCustomPacket } from "./customPacketUtil";
 import { logError, logTrace } from "../../logging";
 import { adoptHeld } from "./beastLoadout";
 import { howlShoutIds, mayHoldHowl, stripDue } from "./beastHowl";
+import { parseBeastBodies, setBeastBodies } from "../../sync/beastBody";
 
 // WerewolfChange 92c48, DLC1VampireChange 0200283b, DLC1RevertForm 0200cd5c (load order: Dawnguard is index 02)
 const BEAST_POWERS = new Set([0x00092c48, 0x0200283b, 0x0200cd5c]);
@@ -83,7 +84,7 @@ export class BeastFormService extends ClientListener {
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.on("update", () => this.onCameraCheck());
     this.controller.on("update", () => this.onHowlCheck());
-    this.controller.emitter.on("connectionAccepted", () => { this.howlForced = true; });
+    this.controller.emitter.on("connectionAccepted", () => { this.howlForced = true; setBeastBodies([]); });
   }
 
   // No howl outside the form (beastHowl.ts): a revert, a death or down in the form, a relog, a lost end packet, or a
@@ -177,6 +178,9 @@ export class BeastFormService extends ClientListener {
 
   private onBeastMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
+    // Which other players to show in a beast's body (sync/beastBody.ts); formView rebuilds a copy whose race changes
+    const bodies = parseBeastBodies(content);
+    if (bodies) { setBeastBodies(bodies); return; }
     if (!content || content["customPacketType"] !== "dboBeast") return;
     const raceId = Number(content["race"]) >>> 0;
     const beast = content["beast"] === true;

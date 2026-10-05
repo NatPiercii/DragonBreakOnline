@@ -85,18 +85,18 @@ check('a whole session of skip lines is under 8 KB of the 60 KB Report a Problem
 // ---- every place the client applies relayed variables is guarded ----------------------------------------------------
 const rs = read('services/services/remoteServer.ts');
 const castMsg = rs.slice(rs.indexOf('private onSpellCastMessage('), rs.indexOf('private stopCloneCast('));
-check('onSpellCastMessage builds its variables through casterVariablesFor(beastRaceOf(ac), ...)',
-  /const beastRace = beastRaceOf\(ac\);\s*const actorAnimationVariables: ActorAnimationVariables = casterVariablesFor\(beastRace, \{/.test(castMsg));
-const guardAt = castMsg.indexOf('casterVariablesFor(beastRace');
+check('onSpellCastMessage builds its variables through casterVariablesFor(guardedRaceOf(ac, caster), ...)',
+  /const guardedRace = guardedRaceOf\(ac, msg\.data\.caster\);\s*const actorAnimationVariables: ActorAnimationVariables = casterVariablesFor\(guardedRace, \{/.test(castMsg));
+const guardAt = castMsg.indexOf('casterVariablesFor(guardedRace');
 check('...before both the stop and the cast use them', guardAt >= 0 && guardAt < castMsg.indexOf('this.stopCloneCast(ac') &&
   guardAt < castMsg.indexOf('castSpellImmediate('), guardAt);
-check('...and notes each skip through the throttled noteBeastSkip', /if \(beastRace\) \{\s*noteBeastSkip\(msg\.data\.caster, beastRace, /.test(castMsg));
+check('...and notes each skip through the throttled noteBeastSkip', /if \(guardedRace\) \{\s*noteBeastSkip\(msg\.data\.caster, guardedRace, /.test(castMsg));
 const sweep = rs.slice(rs.indexOf('private sweepCloneCasts('), rs.indexOf('private onUpdateAnimVariablesMessage('));
-check('the sweep\'s stop of a stored clone is guarded too', /this\.stopCloneCast\(ac, watch\.casterRemoteId, watch\.castingSource, casterVariablesFor\(beastRaceOf\(ac\), watch\.animVars\)\)/.test(sweep));
+check('the sweep\'s stop of a stored clone is guarded too', /this\.stopCloneCast\(ac, watch\.casterRemoteId, watch\.castingSource, casterVariablesFor\(guardedRaceOf\(ac, watch\.casterRemoteId\), watch\.animVars\)\)/.test(sweep));
 const upd = rs.slice(rs.indexOf('private onUpdateAnimVariablesMessage('), rs.indexOf('private cloneCastWatch'));
 check('a relayed anim-variables update is refused for a beast before applyAnimationVariablesToActor',
-  upd.indexOf('beastRaceOf(ac)') > 0 && upd.indexOf('beastRaceOf(ac)') < upd.indexOf('applyAnimationVariablesToActor(') &&
-  /if \(beastRace\) \{\s*noteBeastSkip\(msg\.data\.actorRemoteId, beastRace, "anim variables update"\);\s*return;/.test(upd));
+  upd.indexOf('guardedRaceOf(ac, msg.data.actorRemoteId)') > 0 && upd.indexOf('guardedRaceOf(ac, msg.data.actorRemoteId)') < upd.indexOf('applyAnimationVariablesToActor(') &&
+  /if \(guardedRace\) \{\s*noteBeastSkip\(msg\.data\.actorRemoteId, guardedRace, "anim variables update"\);\s*return;/.test(upd));
 const bareDiag = allSrc.filter((f) => f !== path.join('sync', 'beastRaces.ts') && /writeDiagLine\(/.test(read(f)));
 check('no skip line bypasses the throttle (writeDiagLine is private to beastRaces.ts)', bareDiag.length === 0 &&
   !/export const writeDiagLine/.test(read('sync/beastRaces.ts')) && /export const noteBeastSkip = createBeastSkipLog\(writeDiagLine\)/.test(read('sync/beastRaces.ts')), bareDiag);

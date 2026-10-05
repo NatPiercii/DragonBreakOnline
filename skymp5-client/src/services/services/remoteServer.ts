@@ -1263,7 +1263,7 @@ export class RemoteServer extends ClientListener {
       // A werewolf's or Vampire Lord's copy gets no caster variables: the native writes them at humanoid graph indexes
       // (sync/beastRaces.ts). A stop still stops the clone; a cast is then not replayed, since the native casts only
       // after applying them. Hits and effects are the server's either way.
-      const guardedRace = guardedRaceOf(ac);
+      const guardedRace = guardedRaceOf(ac, msg.data.caster);
       const actorAnimationVariables: ActorAnimationVariables = casterVariablesFor(guardedRace, {
         booleans: new Uint8Array(msg.data.actorAnimationVariables.booleans),
         floats: new Uint8Array(msg.data.actorAnimationVariables.floats),
@@ -1375,7 +1375,7 @@ export class RemoteServer extends ClientListener {
         continue;
       }
       logTrace(this, `Clone cast swept for remote caster`, watch.casterRemoteId.toString(16));
-      this.stopCloneCast(ac, watch.casterRemoteId, watch.castingSource, casterVariablesFor(guardedRaceOf(ac), watch.animVars));
+      this.stopCloneCast(ac, watch.casterRemoteId, watch.castingSource, casterVariablesFor(guardedRaceOf(ac, watch.casterRemoteId), watch.animVars));
     }
   }
 
@@ -1389,7 +1389,7 @@ export class RemoteServer extends ClientListener {
       }
 
       // Never a humanoid snapshot into a non-humanoid graph (sync/beastRaces.ts)
-      const guardedRace = guardedRaceOf(ac);
+      const guardedRace = guardedRaceOf(ac, msg.data.actorRemoteId);
       if (guardedRace) {
         noteBeastSkip(msg.data.actorRemoteId, guardedRace, "anim variables update");
         return;
