@@ -12,6 +12,7 @@ const path = require('path')
 const config = require('../../config')
 const audit = require('./audit')
 const transcript = require('./ticketTranscript')
+const gmApplication = require('./gmApplication')
 
 const STATE_FILE = path.join(__dirname, '..', '..', 'data', 'tickets.json')
 
@@ -23,6 +24,12 @@ const TYPES = [
     blurb: 'You need a moderator, but nobody has broken a rule.' },
   { id: 'rep',  label: 'Report Player',       category: 'Player Reports',       emoji: '🚩',
     blurb: 'Report a player for breaking the rules. Bring evidence.' },
+  { id: 'fac',  label: 'Faction Inquiry',     category: 'Faction Inquiries',    emoji: '🏰',
+    blurb: 'Ask about joining, founding or running a faction.' },
+  // The application's questions are posted into the ticket (intro), one message each
+  { id: 'gm',   label: 'Trial GM Application', category: 'GM Applications',     emoji: '📜',
+    blurb: 'Apply to join the Game Master team. The questions are posted in your ticket.',
+    prompt: 'Anything to add before you start? (optional)', optional: true, intro: gmApplication },
 ]
 
 const byId = new Map(TYPES.map(t => [t.id, t]))
@@ -151,6 +158,7 @@ async function openTicket(interaction, typeId, summary) {
   // owner does not get a notification for every map bug
   const ping = config.discordTicketPingRoleId ? `<@&${config.discordTicketPingRoleId}>` : ''
   await channel.send({ content: `<@${interaction.user.id}> ${ping}`.trim(), embeds: [embed], components: [closeRow] })
+  for (const content of type.intro || []) await channel.send({ content, allowedMentions: { parse: [] } })
 
   audit.log(`TICKET opened ${type.label} #${number} by ${interaction.user.tag} (${interaction.user.id}) in #${channel.name}`)
   return { channel, number, type }
@@ -228,10 +236,10 @@ async function handleInteraction(interaction) {
         .addComponents(new ActionRowBuilder().addComponents(
           new TextInputBuilder()
             .setCustomId('summary')
-            .setLabel('What is this about?')
+            .setLabel(type.prompt || 'What is this about?')
             .setStyle(TextInputStyle.Paragraph)
             .setMaxLength(1000)
-            .setRequired(true)))
+            .setRequired(!type.optional)))
       await interaction.showModal(modal)
       return true
     }
