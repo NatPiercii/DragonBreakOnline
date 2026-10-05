@@ -198,6 +198,50 @@
     transition: left 0.1s linear;
   }
 
+  // ---- a pick round's candle: stubs, one burnt by each wrong reading, the flame on the one alight ----
+  &__stubs {
+    position: relative;
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    height: 14px;
+  }
+
+  &__stub {
+    position: relative;
+    flex: 1;
+    border: 1px solid $dbo-border-strong;
+    background: linear-gradient(90deg, $dbo-aqua-deep, $dbo-aqua);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
+
+    &--burnt {
+      border-color: $dbo-stone-dark;
+      background: rgba(8, 25, 28, 0.7);
+    }
+
+    // The stub a wrong reading has just burnt away (under 400 ms)
+    &--just {
+      animation: reading-stub-out 380ms ease-out;
+    }
+
+    &--lit::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: -12px;
+      width: 10px;
+      height: 16px;
+      margin-left: -5px;
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      background: radial-gradient(circle at 50% 70%, #fff2c0, $dbo-amber 60%, transparent 75%);
+      filter: drop-shadow(0 0 6px rgba(201, 138, 58, 0.8));
+    }
+  }
+
+  &__stubs + &__time {
+    min-width: 9em;
+  }
+
   &__actions {
     display: flex;
     justify-content: center;
@@ -215,4 +259,9 @@
   40% { transform: translateX(7px); }
   60% { transform: translateX(-5px); }
   80% { transform: translateX(3px); }
+}
+
+@keyframes reading-stub-out {
+  0% { background: linear-gradient(90deg, #fff2c0, $dbo-amber); filter: brightness(1.4); }
+  100% { background: rgba(8, 25, 28, 0.7); filter: none; }
 }

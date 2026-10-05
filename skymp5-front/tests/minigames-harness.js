@@ -312,6 +312,29 @@ section('reading', () => {
   check('reading: a server-judged round sends the order only', old && old.length === 3, old);
 });
 
+// ---- reading by candle stubs (pick: no clock) ----------------------------------------------------------------------
+section('reading pick', () => {
+  const Reading = load('features/reading/index.tsx').default;
+  const round = { id: 30, nonce: 'c1', title: 'A book', words: ['end', 'the'], judge: 'client', mode: 'pick', stubs: 2, totalMs: 600000 };
+  let w = mount(Reading, round);
+  check('reading pick: candle stubs and no seconds', w.byClass('reading__stub').length === 3 && !w.hasClass('reading__candle') && w.text().includes('two stubs to spare') && w.text().includes('burns a stub'), w.text());
+  const pool = () => w.byClass('reading__word').filter((n) => !n.p.className.includes('placed'));
+  w.advance(200000);
+  check('reading pick: nothing gutters by the second', count('dbo:reading') === 0);
+  w.click(pool()[0]); w.click(pool()[1]);
+  w.advance(1000); w.key('Enter');
+  const r1 = last('dbo:reading');
+  const v1 = r1 && json(r1[3]);
+  check('reading pick: a reading reports {v:3, mode:pick, elapsedMs, attempts, guttered}', r1 && r1[2] === '[0,1]' && v1.v === 3 && v1.mode === 'pick' && Math.abs(v1.elapsedMs - 201000) <= 2 && v1.attempts === 0 && v1.guttered === false, v1);
+  w.advance(2000);
+  w.set(Object.assign({}, round, { attempt: 1, feedback: 'Not quite. Even the first word is wrong. A stub of the candle burns away.' }));
+  check('reading pick: a wrong reading burns a stub', w.byClass('reading__stub--burnt').length === 1 && w.text().includes('one stub to spare'), w.text());
+  w = mount(Reading, Object.assign({}, round, { nonce: 'c2' }));
+  w.advance(600100);
+  const g = last('dbo:reading');
+  check('reading pick: an idle reading ends at its bound, guttered', g && json(g[3]).guttered === true, g);
+});
+
 // ---- prayer -------------------------------------------------------------------------------------------------------
 section('prayer', () => {
   const Prayer = load('features/prayer/index.tsx').TimedPrayer;
