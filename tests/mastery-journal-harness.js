@@ -64,13 +64,15 @@ ok('no actor, no menu', globalThis.__alduinakMasteryMenu(0) === null);
 packets = [];
 let r = globalThis.__alduinakMasteryAction(PLAYER, 'lock', { skill: 'defense', lock: 'hold' });
 ok('lock: ok, and the record holds it', r.ok === true && mp.get(PLAYER, 'private.mastery').skills.defense.lock === 'hold', r);
-ok('lock: no masteryMenu and no masteryNotice went to the client', packets.length === 0, packets);
+// A fork with craft-perk-tiers (ad48a3c8) sends dboCraftPerks once on the first skill write it sees; that is no menu or notice
+const menuPackets = () => packets.filter((p) => p.customPacketType !== 'dboCraftPerks');
+ok('lock: no masteryMenu and no masteryNotice went to the client', menuPackets().length === 0, packets);
 r = globalThis.__alduinakMasteryAction(PLAYER, 'lock', { skill: 'defense', lock: 'sideways' });
 ok('a bad lock changes nothing', r.ok === false && mp.get(PLAYER, 'private.mastery').skills.defense.lock === 'hold', r);
 r = globalThis.__alduinakMasteryAction(PLAYER, 'takeUp', { skill: 'oneHanded' });
 const after = mp.get(PLAYER, 'private.mastery').skills.oneHanded;
 ok('takeUp of an offered skill: ok, and its text is kept for the result line', r.ok === true && after.level >= 1 && /You take up oneHanded/.test(r.text), [r, after]);
-ok('takeUp: nothing was sent to the client', packets.length === 0, packets);
+ok('takeUp: no masteryMenu and no masteryNotice went to the client', menuPackets().length === 0, packets);
 r = globalThis.__alduinakMasteryAction(PLAYER, 'takeUp', { skill: 'blacksmith' });
 ok('takeUp with no offer standing: refused', r.ok === false, r);
 r = globalThis.__alduinakMasteryAction(PLAYER, 'drop', { skill: 'defense' });
