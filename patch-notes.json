@@ -1,5 +1,19 @@
 [
   {
+    "title": "Switching characters",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Switching to another character more than 15 minutes after you connected now sets that character up properly. Before, it skipped the login steps: enchantments you had learned did not show at the arcane enchanter, and your party, faction and other login messages never arrived. Those enchantments come back the next time that character logs in, including the ones being given back from before 4 October."
+        ]
+      }
+    ]
+  },
+  {
     "title": "No limit on Guards",
     "date": "2026-10-05",
     "version": "Server update",
