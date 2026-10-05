@@ -86,7 +86,9 @@ let failures = 0;
 const check = (label, ok, detail) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${label}${detail !== undefined ? '   ' + detail : ''}`); if (!ok) failures++; };
 const run = (a, args) => { out.personal.length = 0; commands.get('contract')(a, args); return out.personal.map((p) => p.t); };
 const stored = () => { try { return JSON.parse(fs.readFileSync(path.resolve('contracts.json'), 'utf8')); } catch (e) { return { contracts: [], taken: {} }; } };
-const progress = () => Number((stored().taken['13'] || {}).progress) || 0;
+// A hunter's first held contract (state.taken[profile] is a list of copies; older files held one object)
+const tk = (pid) => [].concat(stored().taken[pid] || [])[0];
+const progress = () => Number((tk('13') || {}).progress) || 0;
 let next = 0x900;
 // A beast that fell: the spot it came from, and its base (null: a base the load order cannot read)
 const kill = (spot, base) => {
@@ -99,7 +101,7 @@ load();
 const posted = run(COUNT, 'post wolf 8 96');
 check('the Count posts 8 wolves for Bruma (a spot there puts down a real wolf)', posted.some((l) => /^Posted/.test(l)), posted.join(' | '));
 run(HUNTER, 'take 1');
-check('the hunter holds it', !!stored().taken['13'], JSON.stringify(stored().taken));
+check('the hunter holds it', !!tk('13'), JSON.stringify(stored().taken));
 
 kill('wild:wolf:2874', '60242a:BSAssets.esm');
 check('a rat from a wolf spot is not a wolf (the report)', progress() === 0, `progress ${progress()}`);

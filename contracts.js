@@ -19,6 +19,11 @@ module.exports = (api) => {
     // Gold per kill by danger tier, before the count
     rewardPerKill: { 1: 12, 2: 25, 3: 60 },
     expiryHours: 12,
+    // Nate, 5 Oct: a hunter may hold up to this many contracts at once, each notice once
+    maxActive: 3,
+    // Nate, 5 Oct: "make sure treasuries don't get bled dry". No take or new notice may leave a hold's treasury under
+    // max(gold, share x its balance): boards shrink instead of draining it
+    treasuryFloor: { gold: 200, share: 0.25 },
     // A champion kill counts for this many
     championWorth: 2,
   }, cfg.contracts || {});
@@ -61,7 +66,10 @@ module.exports = (api) => {
     if (legacy.length) {
       const ids = new Set(legacy.map((c) => c.id));
       state.contracts = state.contracts.filter((c) => !ids.has(c.id));
-      for (const key of Object.keys(state.taken)) if (ids.has((state.taken[key] || {}).id)) delete state.taken[key];
+      for (const key of Object.keys(state.taken)) {
+        const left = [].concat(state.taken[key] || []).filter((w) => w && !ids.has(w.id));
+        if (left.length) state.taken[key] = left; else delete state.taken[key];
+      }
       save();
       log(`contracts: dropped ${legacy.length} notice(s) posted before rewards were set aside`);
     }
@@ -167,6 +175,16 @@ module.exports = (api) => {
     return false;
   };
 
+  // The floor no take or new notice may push a treasury under (CFG.treasuryFloor)
+  const floorOf = (zone) => {
+    const f = CFG.treasuryFloor || {};
+    const gold = Number.isFinite(Number(f.gold)) ? Math.max(0, Number(f.gold)) : 200;
+    const share = Number.isFinite(Number(f.share)) ? Math.max(0, Math.min(1, Number(f.share))) : 0.25;
+    return Math.max(gold, Math.ceil(share * treasuryGold(zone)));
+  };
+  const canSpare = (zone, amount) => !!zone && amount > 0 && treasuryGold(zone) - amount >= floorOf(zone);
+  const TREASURY_TEXT = "The hold's treasury cannot spare more bounties right now.";
+
   const nextId = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 
   const makeContract = (zone) => {
@@ -179,7 +197,7 @@ module.exports = (api) => {
     // Fewer of the dangerous things
     const count = Math.max(2, Math.round((lo + Math.random() * (hi - lo)) / danger));
     const reward = count * (Number(CFG.rewardPerKill[danger]) || 12);
-    if (treasuryGold(zone) < reward) return null;
+    if (!canSpare(zone, reward)) return null;
     return {
       id: nextId(), zone: zone.id, kind, count, reward,
       postedAt: Date.now(), expiresAt: Date.now() + (Number(CFG.expiryHours) || 12) * 3600000,
@@ -199,10 +217,11 @@ module.exports = (api) => {
     state.contracts = kept;
     // A hunter's own copy that ran out gives its share back to the hold; the hunter is told when next they look (closeIfOver)
     for (const key of Object.keys(state.taken)) {
-      const w = state.taken[key];
-      if (w && w.kind && !w.expired && !(Number(w.expiresAt) > Date.now())) {
-        if (Number(w.held) > 0 && !refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of ${key}'s expired contract could not go back to ${w.zone}`);
-        w.held = 0; w.expired = true; expired.push({});
+      for (const w of [].concat(state.taken[key] || [])) {
+        if (w && w.kind && !w.expired && !(Number(w.expiresAt) > Date.now())) {
+          if (Number(w.held) > 0 && !refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of ${key}'s expired contract could not go back to ${w.zone}`);
+          w.held = 0; w.expired = true; expired.push({});
+        }
       }
     }
     // An expired notice hands its reward back rather than leaving the gold nowhere, once it is off the board on disk
@@ -248,55 +267,65 @@ module.exports = (api) => {
     return (id && zoneById(id)) || zoneOf(a);
   };
 
-  const takenBy = (a) => { const key = String(profileOf(a)); return state.taken[key] || null; };
-  const setTaken = (a, value) => {
-    const key = String(profileOf(a));
-    if (value) state.taken[key] = value; else delete state.taken[key];
-    save();
-  };
+  const keyOf = (a) => String(profileOf(a));
+  // A hunter's contracts: an array of copies. Older files hold one object (a copy, or { id, progress } from before)
+  const rawList = (key) => { const v = state.taken[key]; return v ? [].concat(v).filter(Boolean) : []; };
+  const putList = (key, list) => { if (list.length) state.taken[key] = list; else delete state.taken[key]; };
+  const takenBy = (a) => rawList(keyOf(a)).length > 0;
   const contractById = (id) => state.contracts.find((c) => c.id === id) || null;
+  const maxActive = () => (Number.isFinite(Number(CFG.maxActive)) ? Math.max(1, Math.floor(Number(CFG.maxActive))) : 3);
   // Contracts are per hunter (Nate, 5 Oct; three hunters had taken the same 2 trolls and only the first was paid): taking
   // a notice gives the hunter a copy of their own, with its own count, its own share of the reward set aside from the
-  // treasury and its own time limit, and leaves the notice up for everyone else. A notice is done once per hunter.
-  // state.taken[profile] = { id, kind, count, reward, zone, held, progress, takenAt, expiresAt[, expired] }
+  // treasury and its own time limit, and leaves the notice up for everyone else. A notice is done once per hunter, and a
+  // hunter holds up to maxActive at once.
+  // state.taken[profile] = [{ id, kind, count, reward, zone, held, progress, counted, takenAt, expiresAt[, expired] }]
   const copyHours = () => (Number(CFG.expiryHours) || 12) * 3600000;
-  // The share for one more hunter: what the notice still holds (the first taker's), else set aside now. All or nothing,
-  // and refused when the treasury cannot cover it: a hunter is never sent out for pay the hold does not have
+  // The share for one more hunter: what the notice still holds (the first taker's), else set aside now, all or nothing,
+  // and only above the treasury's floor. 0 when the hold cannot spare it: nobody is sent out for pay that is not there
   const shareFor = (c) => {
     const reward = Number(c.reward) || 0;
     if (Number(c.held) >= reward && reward > 0) { c.held = Number(c.held) - reward; return reward; }
-    return escrow(zoneById(c.zone), reward) ? reward : 0;
+    const zone = zoneById(c.zone);
+    return canSpare(zone, reward) && escrow(zone, reward) ? reward : 0;
   };
   const copyFor = (c, progress = 0) => ({ id: c.id, kind: c.kind, count: c.count, reward: c.reward, zone: c.zone, held: 0, progress,
-    takenAt: Date.now(), expiresAt: Date.now() + copyHours() });
-  // A contract taken under the old rule ({ id, progress }) becomes a copy of its notice, keeping its progress
-  const migrateOne = (key) => {
-    const old = state.taken[key];
-    if (!old || old.kind) return old || null;
+    counted: [], takenAt: Date.now(), expiresAt: Date.now() + copyHours() });
+  // A contract taken under the one-notice rule ({ id, progress }) becomes a copy of its notice, keeping its progress; null
+  // when its notice is gone
+  const migrate = (key, old) => {
     const c = contractById(old.id);
-    if (!c) return old;
+    if (!c) return null;
     const w = copyFor(c, Number(old.progress) || 0);
     w.held = shareFor(c);
-    state.taken[key] = w;
     log(`contracts: profile ${key}'s contract ${c.id} (${c.count} ${c.kind}) is its own copy now, ${w.progress} done, ${w.held} gold set aside`);
     return w;
   };
   const GONE_TEXT = 'Your contract is closed: its notice is no longer posted. Take new work at the board.';
-  const RAN_OUT_TEXT = 'Your contract ran out before the last beast fell, and its reward went back to the hold. Take new work at the board.';
-  // The hunter's own work, or null; one that is over (its notice gone before it became a copy, or run out) is closed
-  // with word of it wherever they next look: a kill, the board, /contract
-  const workOf = (a, tell = true) => {
-    const key = String(profileOf(a));
-    if (!state.taken[key]) return null;
-    const w = migrateOne(key);
-    if (w && w.kind && !w.expired && Number(w.expiresAt) > Date.now()) return w;
-    if (w && w.kind && Number(w.held) > 0) refundToTreasury(zoneById(w.zone), Number(w.held));
-    delete state.taken[key];
-    saveNow();
-    if (tell) personal(a, w && w.kind ? RAN_OUT_TEXT : GONE_TEXT);
-    return null;
+  const ranOutText = (w) => `Your contract for ${w.count} ${plural(w.kind)} ran out before the last beast fell, and its reward went back to the hold.`;
+  // The hunter's live contracts. One that is over (its notice gone before it became a copy, or run out) is closed with
+  // word of it wherever they next look: a kill, the board, /contract
+  const copiesOf = (a, tell = true) => {
+    const key = keyOf(a);
+    const raw = rawList(key);
+    if (!raw.length) return [];
+    const live = [];
+    let changed = !Array.isArray(state.taken[key]);
+    for (const old of raw) {
+      const w = old.kind ? old : migrate(key, old);
+      if (w !== old) changed = true;
+      if (!w) { if (tell) personal(a, GONE_TEXT); continue; }
+      if (w.expired || !(Number(w.expiresAt) > Date.now())) {
+        if (Number(w.held) > 0) refundToTreasury(zoneById(w.zone), Number(w.held));
+        changed = true;
+        if (tell) personal(a, ranOutText(w));
+        continue;
+      }
+      live.push(w);
+    }
+    if (changed) { putList(key, live); saveNow(); }
+    return live;
   };
-  const doneBy = (c, a) => (c.doneBy || []).indexOf(String(profileOf(a))) !== -1;
+  const doneBy = (c, a) => (c.doneBy || []).indexOf(keyOf(a)) !== -1;
 
   const describe = (c, progress) => {
     const zone = zoneById(c.zone);
@@ -316,94 +345,116 @@ module.exports = (api) => {
     try { return ranksOf(profileOf(a)).some((r) => r.zone && r.zone.id === zoneId); } catch (e) { return false; }
   };
 
-  // Death of a spawned creature: the killer's contract, if it matches, moves on
+  // Death of a spawned creature: every one of the killer's contracts it matches moves on, each at most once per body
   globalThis.__dboContractKill = (npcId, killerId) => {
     if (!CFG.enabled) return;
     if (!takenBy(killerId)) return;
-    const held = workOf(killerId);
-    if (!held) return;
-    const c = held;
+    const work = copiesOf(killerId);
+    if (!work.length) return;
     let tag = ''; try { tag = String(mp.get(npcId, 'private.npcSpawner') || ''); } catch (e) { return; }
     const m = /^wild:([^:]+):/.exec(tag);
     if (!m) return;
     // The body's own record says what fell; the spot's name only when that cannot be read (kindOfBase above)
     let base = ''; try { base = String(mp.get(npcId, 'baseDesc') || ''); } catch (e) { base = ''; }
     const own = kindOfBase(base);
-    if ((own === undefined ? m[1] : own) !== c.kind) {
-      // A spot named for the quarry that put down something else (a rat at a "wolf" spot) is said, not silently skipped
-      if (m[1] === c.kind) personal(killerId, `That was ${own ? `a ${own}` : 'some other creature'}, not one of your ${plural(c.kind)}: it does not count for the contract.`);
-      return;
-    }
-    // The hold pays for its own ground: a wolf felled in another hold is not this notice's work
+    const kind = own === undefined ? m[1] : own;
     const where = zoneOf(npcId);
-    if (!where || where.id !== c.zone) {
-      const z = zoneById(c.zone);
-      personal(killerId, `Only ${plural(c.kind)} felled in ${z ? z.name : c.zone}'s wilds count for your contract.`);
-      return;
-    }
+    const body = (Number(npcId) >>> 0).toString(16);
     let worth = 1;
     try { if (mp.get(npcId, 'private.dboChampion') === true) worth = Math.max(1, Number(CFG.championWorth) || 1); } catch (e) { /* plain beast */ }
-    held.progress = (Number(held.progress) || 0) + worth;
-    if (held.progress < c.count) {
-      setTaken(killerId, held);
-      personal(killerId, `Contract: ${held.progress}/${c.count} ${plural(c.kind)}.`);
+    const key = keyOf(killerId);
+    const sameKind = work.filter((w) => w.kind === kind);
+    if (!sameKind.length) {
+      // A spot named for the quarry that put down something else (a rat at a "wolf" spot) is said, not silently skipped
+      const named = work.find((w) => w.kind === m[1]);
+      if (named) personal(killerId, `That was ${own ? `a ${own}` : 'some other creature'}, not one of your ${plural(named.kind)}: it does not count for the contract.`);
       return;
     }
-    const zone = zoneById(c.zone);
-    // The hunter's share was set aside from the treasury when they took the notice; a copy that holds none (one migrated
-    // while the treasury was short) is paid now if the hold can, else it waits
-    if (!(Number(held.held) > 0)) held.held = payFromTreasury(zone, Number(c.reward) || 0);
-    const paid = Number(held.held) || 0;
-    if (paid <= 0) {
-      setTaken(killerId, held);
-      personal(killerId, `The work is done, but the ${zone ? zone.name : c.zone} treasury is empty. Speak to its officials.`);
-      return;
+    let counted = 0;
+    for (const w of sameKind) {
+      // The hold pays for its own ground: a wolf felled in another hold is not this notice's work
+      if (!where || where.id !== w.zone) continue;
+      w.counted = Array.isArray(w.counted) ? w.counted : [];
+      if (w.counted.indexOf(body) !== -1) continue;
+      w.counted.push(body);
+      if (w.counted.length > 60) w.counted.splice(0, w.counted.length - 60);
+      counted++;
+      w.progress = (Number(w.progress) || 0) + worth;
+      if (w.progress < w.count) { personal(killerId, `Contract: ${w.progress}/${w.count} ${plural(w.kind)}.`); continue; }
+      const zone = zoneById(w.zone);
+      // The hunter's share was set aside when they took the notice; a copy that holds none (one migrated while the
+      // treasury was short) is paid now if the hold can, else it waits
+      if (!(Number(w.held) > 0)) w.held = payFromTreasury(zone, Number(w.reward) || 0);
+      const paid = Number(w.held) || 0;
+      if (paid <= 0) {
+        personal(killerId, `The work is done, but the ${zone ? zone.name : w.zone} treasury is empty. Speak to its officials.`);
+        continue;
+      }
+      // Closed and written before the gold changes hands, so no crash can pay it twice. The notice stays up for the
+      // other hunters; this one has done it
+      putList(key, rawList(key).filter((x) => x !== w));
+      const notice = contractById(w.id);
+      if (notice) notice.doneBy = (notice.doneBy || []).concat(key);
+      saveNow();
+      giveItem(killerId, GOLD_BASE, paid);
+      personal(killerId, `Contract complete: ${w.count} ${plural(w.kind)}. ${paid} gold from the ${zone ? zone.name : w.zone} treasury.`);
+      // Imperial Luck (racial.js): new coin on top of the pay, never out of the treasury
+      try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(killerId, paid, 'contract pay'); } catch (e) { /* the pay itself is done */ }
+      audit(`CONTRACT ${who(killerId)} completed ${w.count} ${plural(w.kind)} for ${zone ? zone.name : w.zone} (${paid} gold)`);
     }
-    // Closed and written before the gold changes hands, so no crash can pay it twice. The notice stays up for the other
-    // hunters; this one has done it
-    delete state.taken[String(profileOf(killerId))];
-    const notice = contractById(c.id);
-    if (notice) notice.doneBy = (notice.doneBy || []).concat(String(profileOf(killerId)));
-    saveNow();
-    giveItem(killerId, GOLD_BASE, paid);
-    personal(killerId, `Contract complete: ${c.count} ${plural(c.kind)}. ${paid} gold from the ${zone ? zone.name : c.zone} treasury.`);
-    // Imperial Luck (racial.js): new coin on top of the pay, never out of the treasury
-    try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(killerId, paid, 'contract pay'); } catch (e) { /* the pay itself is done */ }
-    audit(`CONTRACT ${who(killerId)} completed ${c.count} ${plural(c.kind)} for ${zone ? zone.name : c.zone} (${paid} gold)`);
+    if (!counted && sameKind.some((w) => !where || where.id !== w.zone)) {
+      const z = zoneById(sameKind[0].zone);
+      personal(killerId, `Only ${plural(sameKind[0].kind)} felled in ${z ? z.name : sameKind[0].zone}'s wilds count for your contract.`);
+    }
+    save();
     refresh();
   };
 
   // Take and give up, shared by /contract and the board's Contracts tab; each returns what the player is told
   const takeContract = (a, c, zone) => {
     if (!CFG.enabled) return OFF_TEXT;
-    if (takenBy(a) && workOf(a)) return 'You already hold a contract. Give it up first.';
+    const work = copiesOf(a);
+    if (work.length >= maxActive()) return `You already hold ${maxActive()} contracts. Finish or give one up first.`;
     if (!c || c.zone !== zone.id || !(c.expiresAt > Date.now())) return 'That contract is no longer posted here.';
+    if (work.some((w) => w.id === c.id)) return 'You already hold that contract.';
     if (postedBy(c, a)) return 'You posted that notice yourself. Someone else does the hunting.';
     if (doneBy(c, a)) return 'You have already done the work on that notice. Take another.';
     const w = copyFor(c);
     w.held = shareFor(c);
-    if (!(w.held > 0)) return `The ${zone.name} treasury cannot set aside another ${c.reward} gold for that notice right now.`;
-    state.taken[String(profileOf(a))] = w;
+    if (!(w.held > 0)) return TREASURY_TEXT;
+    putList(keyOf(a), work.concat([w]));
     saveNow();
     audit(`CONTRACT ${who(a)} took ${c.count} ${plural(c.kind)} for ${zone.name}`);
     return `Taken: ${describe(c, 0)}. Kills count anywhere in ${zone.name}'s wilds, and you are paid when the last one falls.`;
   };
-  const abandonContract = (a) => {
-    if (!takenBy(a)) return 'You hold no contract.';
-    const w = workOf(a, false);
-    if (!w) return 'You hold no contract.';
+  // which: a number from /contract's list of what you hold, or a notice id; none is fine only while one is held
+  const abandonContract = (a, which) => {
+    const work = copiesOf(a, false);
+    if (!work.length) return 'You hold no contract.';
+    let w = null;
+    if (which === undefined || which === null || which === '') {
+      if (work.length > 1) return `You hold ${work.length} contracts. Give one up with /contract abandon <number>; /contract lists them.`;
+      w = work[0];
+    } else {
+      const n = Number(which);
+      w = Number.isInteger(n) && n >= 1 && n <= work.length ? work[n - 1] : work.find((x) => x.id === String(which)) || null;
+    }
+    if (!w) return 'No such contract. /contract lists the ones you hold.';
     // The share set aside for this hunter goes back to the hold
     if (Number(w.held) > 0 && !refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of a given-up contract could not go back to ${w.zone}`);
-    delete state.taken[String(profileOf(a))];
+    putList(keyOf(a), work.filter((x) => x !== w));
     saveNow();
-    return 'Contract given up. Its reward goes back to the hold.';
+    return `Contract for ${w.count} ${plural(w.kind)} given up. Its reward goes back to the hold.`;
   };
 
   // What the Contracts tab of the expedition board shows (dungeons.js puts it in the board's payload)
   const boardView = (a) => {
     refresh();
     const zone = playerZone(a);
-    const held = workOf(a);
+    const work = copiesOf(a);
+    // The board of client 0.3.77 takes nothing more while it shows a contract held, so it is shown only at the cap; every
+    // held notice is stamped as yours either way, and heldAll carries them all for a board that lists several
+    const held = work.length >= maxActive() ? work[0] : null;
     const hc = held;
     // A notice this hunter has done is off their board; the others still see it
     const list = zone ? zoneContracts(zone.id).filter((c) => !doneBy(c, a)) : [];
@@ -415,9 +466,11 @@ module.exports = (api) => {
       treasury: zone ? treasuryGold(zone) : 0,
       note: !CFG.enabled ? OFF_TEXT : !zone ? 'No hold claims this ground, so there is no hunting work posted here.'
         : list.length ? '' : `${zone.name} has no hunting work posted. Its coffers may be empty.`,
+      heldAll: work.map((w) => ({ id: w.id, what: `${w.count} ${plural(w.kind)}`, zone: zoneName(w.zone), progress: Math.min(w.count, Number(w.progress) || 0), count: w.count, reward: w.reward, hoursLeft: hours(w) })),
+      maxActive: maxActive(),
       held: hc ? { id: hc.id, what: `${hc.count} ${plural(hc.kind)}`, zone: zoneName(hc.zone), progress: Math.min(hc.count, Number(held.progress) || 0), count: hc.count, reward: hc.reward, hoursLeft: hours(hc) } : null,
       list: list.map((c) => ({ id: c.id, what: `${c.count} ${plural(c.kind)}`, count: c.count, reward: c.reward, danger: DANGER[c.kind] || 1, hoursLeft: hours(c),
-        state: hc && hc.id === c.id ? 'yours' : postedBy(c, a) ? 'posted' : 'open' })),
+        state: work.some((w) => w.id === c.id) ? 'yours' : postedBy(c, a) ? 'posted' : 'open' })),
       canPost: !!(zone && isOfficial(a, zone.id)),
     };
   };
@@ -432,7 +485,7 @@ module.exports = (api) => {
       personal(a, zone ? takeContract(a, contractById(String((args || [])[0] || '')), zone) : 'There is no work posted on this ground.');
       reopen(a);
     });
-    onUi('contractAbandon', (a) => { if (!boardOpen(a)) return; personal(a, abandonContract(a)); reopen(a); });
+    onUi('contractAbandon', (a, args) => { if (!boardOpen(a)) return; personal(a, abandonContract(a, (args || [])[0])); reopen(a); });
   }
 
   // The list is its own function so /contract with no words can show it, and /contracts survives as an alias
@@ -451,11 +504,14 @@ module.exports = (api) => {
   registerChatCommand('contract', (a, args) => {
     const parts = String(args || '').trim().split(/\s+/).filter(Boolean);
     const verb = (parts[0] || '').toLowerCase();
-    const held = takenBy(a) ? workOf(a) : null;
+    const work = takenBy(a) ? copiesOf(a) : [];
 
     // No words: what you hold, then what is posted here. Two commands' worth in one answer.
     if (!verb) {
-      if (held) personal(a, `You hold: ${describe(held, Number(held.progress) || 0)}.`);
+      if (work.length) {
+        personal(a, `You hold ${work.length} of ${maxActive()} contracts:`);
+        work.forEach((w, i) => personal(a, `  ${i + 1}. ${describe(w, Number(w.progress) || 0)}`));
+      }
       return listContracts(a);
     }
 
@@ -463,13 +519,12 @@ module.exports = (api) => {
       if (!CFG.enabled) return personal(a, OFF_TEXT);
       const zone = playerZone(a);
       if (!zone) return personal(a, 'There is no work posted on this ground.');
-      if (held) return personal(a, 'You already hold a contract. /contract abandon to give it up.');
       const c = zoneContracts(zone.id)[Math.max(1, Number(parts[1]) || 1) - 1];
       if (!c) return personal(a, 'No such contract. /contracts lists them.');
       return personal(a, takeContract(a, c, zone));
     }
 
-    if (verb === 'abandon') return personal(a, abandonContract(a));
+    if (verb === 'abandon') return personal(a, abandonContract(a, parts[1]));
 
     if (verb === 'post') {
       if (!CFG.enabled) return personal(a, OFF_TEXT);
@@ -496,13 +551,18 @@ module.exports = (api) => {
       return audit(`CONTRACT ${who(a)} posted ${c.count} ${plural(c.kind)} for ${zone.name} at ${c.reward} gold`);
     }
 
-    return personal(a, 'Use: /contract, /contract take <n>, /contract abandon, /contract post <creature> <count> <reward>.');
+    return personal(a, 'Use: /contract, /contract take <n>, /contract abandon [n], /contract post <creature> <count> <reward>.');
   }, { help: 'take or post hunting work' });
 
   // Contracts taken under the one-notice rule keep working, as copies with their progress
   {
     let moved = 0;
-    for (const key of Object.keys(state.taken)) if (state.taken[key] && !state.taken[key].kind && contractById(state.taken[key].id)) { migrateOne(key); moved++; }
+    for (const key of Object.keys(state.taken)) {
+      const raw = rawList(key);
+      if (!raw.some((w) => !w.kind && contractById(w.id)) && Array.isArray(state.taken[key])) continue;
+      putList(key, raw.map((w) => (w.kind ? w : migrate(key, w) || w)));
+      moved++;
+    }
     if (moved) saveNow();
   }
   refresh();

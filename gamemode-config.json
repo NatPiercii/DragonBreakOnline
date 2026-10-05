@@ -822,7 +822,9 @@
  "economy": { "_comment": "Weekly taxes and wages (economy.js). On from 2026-09-28 (Nate: \"economy needs to fully be turned on\"); the review B2 guards are in economy.js.", "enabled": true },
  "contracts": {
   "_comment": "Hunting contracts (server\\contracts.js). Off 2026-09-28 to 2026-09-30 (claude-jake review A1-1: officials could post and take their own contracts and drain the hold treasury). On again (Nate, 2026-09-30) with the poster, cap and escrow rules in place, kills counted only in the notice's own hold, and players taking work on the Contracts tab of the expedition board.",
-  "enabled": true
+  "enabled": true,
+  "maxActive": 3,
+  "treasuryFloor": { "gold": 200, "share": 0.25 }
  },
  "tickets": {
   "_comment": "In-game /ticket (gameticket.js, consolidation C9): the players who were within 40 m when a ticket opens are posted to this staff-only channel (#ticket-archive, named by claude-jake 2026-09-28), never into the ticket the reporter reads.",
