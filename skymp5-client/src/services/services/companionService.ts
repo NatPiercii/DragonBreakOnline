@@ -45,6 +45,8 @@ interface CompanionEntry {
   target: number;
   // The server marks a player target (or what fights for a player) that the PvP rules allow; without it no player is fought
   pvp: boolean;
+  // The server's kind: the PvP rules are for "summon" and "reanimated", a GM warband's "companion" keeps its own
+  kind: string;
   staying: boolean;
   leftMs: number;
   at: number;
@@ -112,6 +114,7 @@ export class CompanionService extends ClientListener {
       .filter((x) => x && typeof x["id"] === "number")
       .map((x) => ({
         id: x["id"] as number, target: typeof x["target"] === "number" ? x["target"] as number : 0, pvp: x["pvp"] === true,
+        kind: typeof x["kind"] === "string" ? x["kind"] as string : "",
         staying: x["staying"] === true, leftMs: typeof x["leftMs"] === "number" ? x["leftMs"] as number : 0, at: Date.now(),
       }));
     // A new companion stands in for the engine's own summon, which the world cleaner removes

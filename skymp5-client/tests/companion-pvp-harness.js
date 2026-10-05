@@ -124,6 +124,10 @@ function pure(m) {
   check('pure: ...with a player other than the named one, too', m.leavesPlayerFight(C, { target: B, pvp: true }, isPlayer));
   check('pure: the named, marked player is fought', !m.leavesPlayerFight(B, { target: B, pvp: true }, isPlayer));
   check('pure: no combat target leaves nothing', !m.leavesPlayerFight(0, { target: 0, pvp: false }, isPlayer));
+  check('pure: a raised corpse is ruled like a summon', m.orderedTarget({ target: B, pvp: false, kind: 'reanimated' }, isPlayer) === 0
+    && m.leavesPlayerFight(B, { target: 0, pvp: false, kind: 'reanimated' }, isPlayer));
+  check('pure: a GM warband follower (kind companion) keeps its player target without the mark', m.orderedTarget({ target: B, pvp: false, kind: 'companion' }, isPlayer) === B);
+  check('pure: ...and its engine fights with players are left alone', !m.leavesPlayerFight(C, { target: 0, pvp: false, kind: 'companion' }, isPlayer));
 }
 
 function service(bundle) {
@@ -191,6 +195,23 @@ function service(bundle) {
   t.summon.combatTarget = t.b;
   t.tick(1);
   check('...and an engine fight with them afterwards is left', t.summon.combatTarget === null, t.summon.calls);
+
+  // A GM warband follower keeps the old rules
+  t = fresh();
+  t.state([{ id: S, target: B, kind: 'companion' }]);
+  t.tick(2);
+  check('a warband follower ordered onto a player by an older server attacks them', started(t.summon, LOCAL[B]), t.summon.calls);
+  t.state([{ id: S, target: 0, kind: 'companion' }]);
+  t.tick(1);
+  t.summon.combatTarget = t.c;
+  t.tick(2);
+  check('...and an engine fight of its own with a player is not left', t.summon.combatTarget === t.c, t.summon.calls);
+
+  // A raised corpse is ruled like a summon
+  t = fresh();
+  t.state([{ id: S, target: B, kind: 'reanimated' }]);
+  t.tick(3);
+  check('a raised corpse ordered onto a player without the mark does not attack', !started(t.summon, LOCAL[B]), t.summon.calls);
 
   // An engine fight with an NPC is left alone
   t = fresh();
