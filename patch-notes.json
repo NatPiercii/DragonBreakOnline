@@ -1,5 +1,19 @@
 [
   {
+    "title": "The Great Houses of Morrowind",
+    "date": "2026-10-05",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "The Great Houses of Morrowind are factions now, ready to be claimed: Hlaalu, Redoran and Telvanni with their ranks from Morrowind, and Indoril, Dres and Sadras with the Great Houses' shared ranks. Each has an Armorer and a Clothier."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Synod sells only tomes you can learn",
     "date": "2026-10-05",
     "version": "Server update",

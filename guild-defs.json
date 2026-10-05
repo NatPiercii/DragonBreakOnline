@@ -1786,6 +1786,342 @@
           "role": "member"
         }
       ]
+    },
+    {
+      "id": "house-hlaalu",
+      "name": "House Hlaalu",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Grandmaster",
+          "role": "leader"
+        },
+        {
+          "title": "Councilman",
+          "role": "officer"
+        },
+        {
+          "title": "House Father",
+          "role": "officer"
+        },
+        {
+          "title": "House Brother",
+          "role": "sergeant"
+        },
+        {
+          "title": "House Cousin",
+          "role": "sergeant"
+        },
+        {
+          "title": "Armorer",
+          "role": "blacksmith"
+        },
+        {
+          "title": "Clothier",
+          "role": "tailor"
+        },
+        {
+          "title": "Kinsman",
+          "role": "member"
+        },
+        {
+          "title": "Lawman",
+          "role": "member"
+        },
+        {
+          "title": "Oathman",
+          "role": "member"
+        },
+        {
+          "title": "Retainer",
+          "role": "member"
+        },
+        {
+          "title": "Hireling",
+          "role": "member"
+        }
+      ],
+      "_ranks": "The ranks a member of the house could hold in Morrowind (3E 427), highest first; Armorer and Clothier are the server's crafting seats, as in the County of Bruma."
+    },
+    {
+      "id": "house-redoran",
+      "name": "House Redoran",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Archmaster",
+          "role": "leader"
+        },
+        {
+          "title": "Councilman",
+          "role": "officer"
+        },
+        {
+          "title": "House Father",
+          "role": "officer"
+        },
+        {
+          "title": "House Brother",
+          "role": "sergeant"
+        },
+        {
+          "title": "House Cousin",
+          "role": "sergeant"
+        },
+        {
+          "title": "Armorer",
+          "role": "blacksmith"
+        },
+        {
+          "title": "Clothier",
+          "role": "tailor"
+        },
+        {
+          "title": "Kinsman",
+          "role": "member"
+        },
+        {
+          "title": "Lawman",
+          "role": "member"
+        },
+        {
+          "title": "Oathman",
+          "role": "member"
+        },
+        {
+          "title": "Retainer",
+          "role": "member"
+        },
+        {
+          "title": "Hireling",
+          "role": "member"
+        }
+      ],
+      "_ranks": "The ranks a member of the house could hold in Morrowind (3E 427), highest first; Armorer and Clothier are the server's crafting seats, as in the County of Bruma."
+    },
+    {
+      "id": "house-telvanni",
+      "name": "House Telvanni",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Archmagister",
+          "role": "leader"
+        },
+        {
+          "title": "Magister",
+          "role": "officer"
+        },
+        {
+          "title": "Master",
+          "role": "officer"
+        },
+        {
+          "title": "Wizard",
+          "role": "mage"
+        },
+        {
+          "title": "Spellwright",
+          "role": "mage"
+        },
+        {
+          "title": "Armorer",
+          "role": "blacksmith"
+        },
+        {
+          "title": "Clothier",
+          "role": "tailor"
+        },
+        {
+          "title": "Mouth",
+          "role": "sergeant"
+        },
+        {
+          "title": "Lawman",
+          "role": "member"
+        },
+        {
+          "title": "Oathman",
+          "role": "member"
+        },
+        {
+          "title": "Retainer",
+          "role": "member"
+        },
+        {
+          "title": "Hireling",
+          "role": "member"
+        }
+      ],
+      "_ranks": "The ranks a member of the house could hold in Morrowind (3E 427), highest first; Armorer and Clothier are the server's crafting seats, as in the County of Bruma."
+    },
+    {
+      "id": "house-indoril",
+      "name": "House Indoril",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Grandmaster",
+          "role": "leader"
+        },
+        {
+          "title": "Councilman",
+          "role": "officer"
+        },
+        {
+          "title": "House Father",
+          "role": "officer"
+        },
+        {
+          "title": "House Brother",
+          "role": "sergeant"
+        },
+        {
+          "title": "House Cousin",
+          "role": "sergeant"
+        },
+        {
+          "title": "Armorer",
+          "role": "blacksmith"
+        },
+        {
+          "title": "Clothier",
+          "role": "tailor"
+        },
+        {
+          "title": "Kinsman",
+          "role": "member"
+        },
+        {
+          "title": "Lawman",
+          "role": "member"
+        },
+        {
+          "title": "Oathman",
+          "role": "member"
+        },
+        {
+          "title": "Retainer",
+          "role": "member"
+        },
+        {
+          "title": "Hireling",
+          "role": "member"
+        }
+      ],
+      "_ranks": "Not joinable in the games, so no rank list of its own is attested: it takes the Great Houses' shared ladder (Hlaalu and Redoran, Morrowind) and its head is styled Grandmaster as theirs are; Armorer and Clothier are the server's crafting seats."
+    },
+    {
+      "id": "house-dres",
+      "name": "House Dres",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Grandmaster",
+          "role": "leader"
+        },
+        {
+          "title": "Councilman",
+          "role": "officer"
+        },
+        {
+          "title": "House Father",
+          "role": "officer"
+        },
+        {
+          "title": "House Brother",
+          "role": "sergeant"
+        },
+        {
+          "title": "House Cousin",
+          "role": "sergeant"
+        },
+        {
+          "title": "Armorer",
+          "role": "blacksmith"
+        },
+        {
+          "title": "Clothier",
+          "role": "tailor"
+        },
+        {
+          "title": "Kinsman",
+          "role": "member"
+        },
+        {
+          "title": "Lawman",
+          "role": "member"
+        },
+        {
+          "title": "Oathman",
+          "role": "member"
+        },
+        {
+          "title": "Retainer",
+          "role": "member"
+        },
+        {
+          "title": "Hireling",
+          "role": "member"
+        }
+      ],
+      "_ranks": "Not joinable in the games, so no rank list of its own is attested: it takes the Great Houses' shared ladder (Hlaalu and Redoran, Morrowind) and its head is styled Grandmaster as theirs are; Armorer and Clothier are the server's crafting seats."
+    },
+    {
+      "id": "house-sadras",
+      "name": "House Sadras",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Grandmaster",
+          "role": "leader"
+        },
+        {
+          "title": "Councilman",
+          "role": "officer"
+        },
+        {
+          "title": "House Father",
+          "role": "officer"
+        },
+        {
+          "title": "House Brother",
+          "role": "sergeant"
+        },
+        {
+          "title": "House Cousin",
+          "role": "sergeant"
+        },
+        {
+          "title": "Armorer",
+          "role": "blacksmith"
+        },
+        {
+          "title": "Clothier",
+          "role": "tailor"
+        },
+        {
+          "title": "Kinsman",
+          "role": "member"
+        },
+        {
+          "title": "Lawman",
+          "role": "member"
+        },
+        {
+          "title": "Oathman",
+          "role": "member"
+        },
+        {
+          "title": "Retainer",
+          "role": "member"
+        },
+        {
+          "title": "Hireling",
+          "role": "member"
+        }
+      ],
+      "_ranks": "Not joinable in the games, so no rank list of its own is attested: it takes the Great Houses' shared ladder (Hlaalu and Redoran, Morrowind) and its head is styled Grandmaster as theirs are; Armorer and Clothier are the server's crafting seats. A minor house (Journey to Baan Malur)."
     }
   ]
 }

@@ -70,7 +70,7 @@ check('Thalmor Robes are loom work: the Thalmor tailor makes them', gear[descs.g
 check('...the Thalmor smith does not, and is sent to the loom', craft(A.TH_SMITH, THALMOR) === false && /leave the loom/.test(lastTo(A.TH_SMITH)), lastTo(A.TH_SMITH));
 // The Thalmor loom sets (Nate, 5 Oct: "Thalmor gear should only be crafted by the Thalmor player faction"; the PC pass
 // strips the recipes' quest and High Elf conditions, so this gate is the whole rule)
-const thalmor = Object.entries(gear).filter(([, v]) => v.set === 'Thalmor');
+const thalmor = Object.entries(gear).filter(([, v]) => v.set === 'Thalmor' && /MoreCraftableEquipment\.esp$/.test(v.recipes[0])); // the PC's Sentinel Thalmor armour (5 Oct) is forge work beside them
 check('the five Thalmor pieces belong to the Thalmor faction alone, loom work, one MoreCraftableEquipment recipe each',
   thalmor.length === 5 && thalmor.every(([, v]) => JSON.stringify(v.factions) === '["thalmor"]' && v.role === 'tailor') &&
   JSON.stringify(thalmor.map(([, v]) => v.recipes[0]).sort()) === JSON.stringify(['9ca', '9cb', '9cc', '9cd', '9ce'].map((r) => `${r}:MoreCraftableEquipment.esp`)), thalmor.map(([k, v]) => [k, v.name, v.recipes]));

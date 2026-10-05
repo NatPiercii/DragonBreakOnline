@@ -2408,6 +2408,974 @@
    "recipes": [
     "8c8:MoreCraftableEquipment.esp"
    ]
+  },
+  "723d0:BSHeartland.esm": {
+   "name": "Bruma Guard's Boots",
+   "set": "Bruma Guard",
+   "factions": [
+    "county-bruma"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "800:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "723cd:BSHeartland.esm": {
+   "name": "Bruma Guard's Armor",
+   "set": "Bruma Guard",
+   "factions": [
+    "county-bruma"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "801:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "cc21f:BSHeartland.esm": {
+   "name": "Bruma Guard's Gloves",
+   "set": "Bruma Guard",
+   "factions": [
+    "county-bruma"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "802:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "723ce:BSHeartland.esm": {
+   "name": "Bruma Guard's Helmet",
+   "set": "Bruma Guard",
+   "factions": [
+    "county-bruma"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "803:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "723cf:BSHeartland.esm": {
+   "name": "Bruma Guard's Shield",
+   "set": "Bruma Guard",
+   "factions": [
+    "county-bruma"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "804:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "84c:Sentinel - City Guards.esp": {
+   "name": "Winterhold Cloak",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "805:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "84b:Sentinel - City Guards.esp": {
+   "name": "Winterhold Guard's Armor",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "806:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "84d:Sentinel - City Guards.esp": {
+   "name": "Winterhold Guard's Helmet",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "807:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "84e:Sentinel - City Guards.esp": {
+   "name": "Winterhold Shield",
+   "set": "Winterhold Guard",
+   "factions": [
+    "hold-winterhold"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "808:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "be274:SurWR.esp": {
+   "name": "Whiterun Thane Armor",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "809:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "165e98:SurWR.esp": {
+   "name": "Steel-Arm Family Armor",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "80a:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "1d09bb:SurWR.esp": {
+   "name": "Festive Guard's Helmet",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "80b:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "33e582:SurWR.esp": {
+   "name": "Iron Rimmed Shield",
+   "set": "Whiterun Guard",
+   "factions": [
+    "hold-whiterun"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "80c:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "a495d:WindhelmSSE.esp": {
+   "name": "Nord Officer Armor",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "80d:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "a495f:WindhelmSSE.esp": {
+   "name": "Nord Officer Helmet",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "80e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "14d882:WindhelmSSE.esp": {
+   "name": "Nord Officer Helmet",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "80f:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "1c57c5:WindhelmSSE.esp": {
+   "name": "Bear Armor",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "810:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "33e575:SurWR.esp": {
+   "name": "Bear Helmet",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "811:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "ad5a0:Skyrim.esm": {
+   "name": "Stormcloak Cuirass",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "812:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "171688:WindhelmSSE.esp": {
+   "name": "Stormcloak Thane Cuirass",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "813:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8a6:Sentinel.esp": {
+   "name": "Thalmor Boots",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "814:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8a7:Sentinel.esp": {
+   "name": "Thalmor Armor",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "815:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8a8:Sentinel.esp": {
+   "name": "Thalmor Gilded Armor",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "816:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8a9:Sentinel.esp": {
+   "name": "Thalmor Gauntlets",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "817:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8aa:Sentinel.esp": {
+   "name": "Thalmor Helmet",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "818:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8ab:Sentinel.esp": {
+   "name": "Thalmor Shield",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "819:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8ac:Sentinel.esp": {
+   "name": "Thalmor Light Boots",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "81a:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8ad:Sentinel.esp": {
+   "name": "Thalmor Light Armor",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "81b:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8ae:Sentinel.esp": {
+   "name": "Thalmor Light Gauntlets",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "81c:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8af:Sentinel.esp": {
+   "name": "Thalmor Light Helmet",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "81d:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8b0:Sentinel.esp": {
+   "name": "Thalmor Glass Boots",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "81e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8b1:Sentinel.esp": {
+   "name": "Thalmor Glass Armor",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "81f:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8b2:Sentinel.esp": {
+   "name": "Thalmor Glass Gauntlets",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "820:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8b3:Sentinel.esp": {
+   "name": "Thalmor Glass Helmet",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "821:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8b4:Sentinel.esp": {
+   "name": "Thalmor Glass Shield",
+   "set": "Thalmor",
+   "factions": [
+    "thalmor"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "822:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "82c30:BSHeartland.esm": {
+   "name": "Synod Hood",
+   "set": "Synod",
+   "factions": [
+    "synod"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "823:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "82c2f:BSHeartland.esm": {
+   "name": "Synod Robes",
+   "set": "Synod",
+   "factions": [
+    "synod"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "824:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "df7:Sentinel.esp": {
+   "name": "Vigil Plate Armor",
+   "set": "Vigilants of Stendarr",
+   "factions": [
+    "vigil-of-stendarr"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "825:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "e0e:Sentinel.esp": {
+   "name": "Vigil Plate Helmet",
+   "set": "Vigilants of Stendarr",
+   "factions": [
+    "vigil-of-stendarr"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "826:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "df9:Sentinel.esp": {
+   "name": "Vigil Robes",
+   "set": "Vigilants of Stendarr",
+   "factions": [
+    "vigil-of-stendarr"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "827:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "df8:Sentinel.esp": {
+   "name": "Vigil Hood",
+   "set": "Vigilants of Stendarr",
+   "factions": [
+    "vigil-of-stendarr"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "828:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "1989e:Dawnguard.esm": {
+   "name": "Dawnguard Helmet",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "829:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "f09:JK's Fort Dawnguard.esp": {
+   "name": "Dawnguard Heavy Boots SPR",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "82a:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "f08:JK's Fort Dawnguard.esp": {
+   "name": "Dawnguard Heavy Armor SPR",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "82b:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "f0a:JK's Fort Dawnguard.esp": {
+   "name": "Dawnguard Heavy Gauntlets SPR",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "82c:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "f0b:JK's Fort Dawnguard.esp": {
+   "name": "Dawnguard Full Helmet SPR",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "82d:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "f0c:JK's Fort Dawnguard.esp": {
+   "name": "Dawnguard Shield SPR",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "82e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "187c:DIS_Heavy_Legion.esp": {
+   "name": "Imperial Cloak",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "82f:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "187e:DIS_Heavy_Legion.esp": {
+   "name": "Penitus Oculatus Cloak",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "830:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "1871:DIS_Heavy_Legion.esp": {
+   "name": "Penitus Oculatus Shield",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "831:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "23964:JKs Skyrim.esp": {
+   "name": "Corsair Leather Boots",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "832:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "23966:JKs Skyrim.esp": {
+   "name": "Corsair Leather Armor",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "833:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "23965:JKs Skyrim.esp": {
+   "name": "Corsair Leather Gloves",
+   "set": "Thieves Guild",
+   "factions": [
+    "thieves-guild"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "834:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "2177b3:Journey to Baan Malur.esp": {
+   "name": "Hlaalu Guard Boots",
+   "set": "House Hlaalu Guard",
+   "factions": [
+    "house-hlaalu"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "835:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "2177b4:Journey to Baan Malur.esp": {
+   "name": "Hlaalu Guard Cuirass",
+   "set": "House Hlaalu Guard",
+   "factions": [
+    "house-hlaalu"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "836:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "2177b5:Journey to Baan Malur.esp": {
+   "name": "Hlaalu Guard Gauntlets",
+   "set": "House Hlaalu Guard",
+   "factions": [
+    "house-hlaalu"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "837:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "2177b6:Journey to Baan Malur.esp": {
+   "name": "Hlaalu Guard Helmet",
+   "set": "House Hlaalu Guard",
+   "factions": [
+    "house-hlaalu"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "838:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a18:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Boots",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "839:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a17:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Bracers",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "83a:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a1a:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Cloak",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "83b:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a19:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Cuirass",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "83c:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a16:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Helm",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "83d:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "ad14:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Shawl",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "83e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a20:Journey to Baan Malur.esp": {
+   "name": "Indoril Guard Shield",
+   "set": "House Indoril Guard",
+   "factions": [
+    "house-indoril"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "83f:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "119137:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Boots",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "840:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a0d:Journey to Baan Malur.esp": {
+   "name": "Redoran Cloak",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "841:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "119135:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Cuirass",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "842:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "119136:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Cuirass",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "843:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "119138:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Gauntlets",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "844:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "119139:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Helmet",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "845:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "11913a:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Helmet",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "846:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "12d60d:Journey to Baan Malur.esp": {
+   "name": "Redoran Guard Shield",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "847:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "11913c:Journey to Baan Malur.esp": {
+   "name": "Redoran Temple Guard Helmet",
+   "set": "House Redoran Guard",
+   "factions": [
+    "house-redoran"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "848:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "81c:Journey to Baan Malur.esp": {
+   "name": "Telvanni Guard Boots",
+   "set": "House Telvanni Guard",
+   "factions": [
+    "house-telvanni"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "849:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "81e:Journey to Baan Malur.esp": {
+   "name": "Telvanni Guard Bracers",
+   "set": "House Telvanni Guard",
+   "factions": [
+    "house-telvanni"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "84a:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "822:Journey to Baan Malur.esp": {
+   "name": "Telvanni Guard Cloak",
+   "set": "House Telvanni Guard",
+   "factions": [
+    "house-telvanni"
+   ],
+   "role": "tailor",
+   "recipes": [
+    "84b:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "81d:Journey to Baan Malur.esp": {
+   "name": "Telvanni Guard Cuirass",
+   "set": "House Telvanni Guard",
+   "factions": [
+    "house-telvanni"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "84c:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "81f:Journey to Baan Malur.esp": {
+   "name": "Telvanni Guard Helm",
+   "set": "House Telvanni Guard",
+   "factions": [
+    "house-telvanni"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "84d:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "820:Journey to Baan Malur.esp": {
+   "name": "Telvanni Guard Helm",
+   "set": "House Telvanni Guard",
+   "factions": [
+    "house-telvanni"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "84e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a2b:Journey to Baan Malur.esp": {
+   "name": "Dres Milita Boots",
+   "set": "House Dres Guard",
+   "factions": [
+    "house-dres"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "84f:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a2a:Journey to Baan Malur.esp": {
+   "name": "Dres Milita Bracers",
+   "set": "House Dres Guard",
+   "factions": [
+    "house-dres"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "850:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a2c:Journey to Baan Malur.esp": {
+   "name": "Dres Militia Cuirass",
+   "set": "House Dres Guard",
+   "factions": [
+    "house-dres"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "851:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a28:Journey to Baan Malur.esp": {
+   "name": "Dres Milita Helm",
+   "set": "House Dres Guard",
+   "factions": [
+    "house-dres"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "852:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "5a29:Journey to Baan Malur.esp": {
+   "name": "Dres Militia Helm",
+   "set": "House Dres Guard",
+   "factions": [
+    "house-dres"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "853:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "80f:Journey to Baan Malur.esp": {
+   "name": "Sadras Guard Boots",
+   "set": "House Sadras Guard",
+   "factions": [
+    "house-sadras"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "854:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "810:Journey to Baan Malur.esp": {
+   "name": "Sadras Guard Cuirass",
+   "set": "House Sadras Guard",
+   "factions": [
+    "house-sadras"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "855:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "811:Journey to Baan Malur.esp": {
+   "name": "Sadras Guard Bracers",
+   "set": "House Sadras Guard",
+   "factions": [
+    "house-sadras"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "856:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "812:Journey to Baan Malur.esp": {
+   "name": "Sadras Guard Helmet",
+   "set": "House Sadras Guard",
+   "factions": [
+    "house-sadras"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "857:DragonBreak Nexus Patches.esp"
+   ]
   }
  },
  "_uniformsComment": "War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only extras; a faction with neither (the Fighters Guild today) is not held to it.",
