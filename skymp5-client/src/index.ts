@@ -114,6 +114,7 @@ import { RacemenuPresetService } from "./services/services/racemenuPresetService
 import { FavoritesService } from "./services/services/favoritesService";
 import { FovService } from "./services/services/fovService";
 import { LearnedEnchantmentsService } from "./services/services/learnedEnchantmentsService";
+import { CameraShakeService } from "./services/services/cameraShakeService";
 
 // Gold weighs 0.02 a coin (Nate, 2026-09-26), so a fortune is worth taking to the bank: 1,000 gold weighs 20.
 // SKSE's Form.SetWeight changes the base form in memory, so no plugin changes; it is set again after every game load.
@@ -246,7 +247,8 @@ const main = () => {
       new RaceSpellsService(sp, controller),
       new FavoritesService(sp, controller),
       new FovService(sp, controller),
-      new LearnedEnchantmentsService(sp, controller)
+      new LearnedEnchantmentsService(sp, controller),
+      new CameraShakeService(sp, controller)
     ];
     SpApiInteractor.setup(listeners);
   } catch (e) {
