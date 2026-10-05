@@ -117,7 +117,7 @@ const InterfacePart = () => {
       </section>
       <section className="jset__group">
         <h2 className="journal__heading">Health, magicka and stamina</h2>
-        <Row label="Show the bars" hint={ui.vitals === 'fade' ? 'They come back at once when you are hit, or use stamina or magicka.' : undefined}>
+        <Row label="Show the bars" hint={ui.vitals === 'fade' ? 'They come back at once when you are hit, or use stamina or magicka. The hunger and voice panel fades with them and comes back when it changes, while you talk, or while you are hungry.' : ui.vitals === 'hidden' ? 'The hunger and voice panel shows only while you talk.' : undefined}>
           <Chips<VitalsMode> label="Show the bars" value={ui.vitals} onChange={(v) => ui2({ vitals: v })}
             options={[['always', 'Always'], ['fade', 'Fade when full'], ['hidden', 'Hidden']]} />
         </Row>
