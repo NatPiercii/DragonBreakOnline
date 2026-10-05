@@ -16,6 +16,7 @@ const SKILLS = require(path.join(SERVER, 'skills.json'));
 
 let virtual = 0;
 let nearM = 2;
+let pickUi = false;
 globalThis.performance = { now: () => virtual };
 let wallClock = 1780000000000;                    // Date.now() under the harness's control
 const realNow = Date.now;
@@ -78,6 +79,8 @@ const api = {
   skills: SKILLS,
   takeGold: (a, n) => { if (gold < n) return false; gold -= n; return true; },
   treasuryHere: (a, n) => { treasury += n; return n; },
+  // A UI that names 'pickRound'; off until the pick cases at the end
+  hasUiCap: (a, cap) => pickUi && cap === 'pickRound',
 };
 globalThis.__alduinakMasteryEvent = (kind, actorId, detail) => out.events.push({ kind, actorId, detail });
 
@@ -900,6 +903,88 @@ check('rollback (clientJudged false): the same 4 s late hold is refused(late) ag
 f = freshC();
 check('...and the widget is not told it judges', f.w.judge === undefined);
 playC(f);
+
+// ---- "Speak the verses": a UI that names 'pickRound' gets a prayer with no hold, every other UI today's held prayer -----
+console.log('');
+console.log('pick prayers:');
+{
+  const MG = require(path.join(SERVER, 'minigames.js'));
+  api.cfg = { prayer: { clientJudged: true } };
+  load();
+  const TIMING_KEYS = 'type,id,nonce,deity,kind,shrine,verses,totalMs,startOnPress,judge,slackMs,startGraceMs,waitMs';
+  pickUi = false;
+  let f = freshC();
+  check('a UI without the capability gets exactly the held prayer', Object.keys(f.w).join(',') === TIMING_KEYS, Object.keys(f.w).join(','));
+  playC(f);
+  pickUi = true;
+  f = freshC();
+  check('a UI with it gets three verses of three lines, the true one marked, no verse windows', f.w.mode === 'pick' && f.w.verses.length === 3 && f.w.verses.every((v) => v.lines.length === 3 && v.startMs === undefined) && f.w.right.length === 3 && f.w.slips === 2 && f.w.totalMs === 120000, Object.keys(f.w).join(','));
+  check('...with the god\'s sphere to read them by', /Time/.test(f.w.sphere), f.w.sphere);
+  const OWN_DIVINE = ['The dragon does not hurry and neither shall I', 'Time turns, and I turn with it'];
+  check('...the true middle line is Akatosh\'s own', OWN_DIVINE.includes(f.w.verses[1].lines[f.w.right[1]]), f.w.verses[1].lines.join(' / '));
+  const daedric = ['The scorned do not beg', 'Kneel early and it is over sooner', 'Everything that lives belongs to something', 'Dusk and dawn are the same door'];
+  check('...and every other line belongs to another god, none of them a Divine', f.w.verses.every((v, i) => v.lines.every((l, j) => j === f.w.right[i] || !OWN_DIVINE.includes(l))), JSON.stringify(f.w.verses));
+  const claimP = (win, hits, slips, durMs) => JSON.stringify({ v: 2, mode: 'pick', win, hits, slips, durMs, waitMs: 0 });
+  const playP = (fw, list, claim, lag) => {
+    virtual = fw.start + 400; clear(); fire('prayerStart', [fw.w.nonce, 0]);
+    const at = list.length ? list[list.length - 1][1] : 0;
+    virtual = fw.start + at + (lag === undefined ? 150 : lag); clear();
+    fire('prayer', [fw.w.nonce, JSON.stringify(list), at, claim]);
+    return { log: out.logs.join(' | '), events: out.events.slice(), result: out.widgets[0] };
+  };
+  const trueList = (w) => w.right.map((r, k) => [r, 900 + 900 * k]);
+  res = playP(f, trueList(f.w), claimP(true, 3, 0, 2700));
+  check('three true lines: held, the Priest credited, the shrine rested its hour', verdictOf(res.log) === 'held' && res.events.length === 1 && Math.abs(restOf(AKATOSH_SHRINE) - (wallClock + 3600000)) < 5000 && /You speak the three verses/.test((res.result || {}).result || '') && / pick verses=3\/3/.test(res.log), res.log);
+  f = freshC();
+  const wrong = (w, k) => (w.right[k] + 1) % w.verses[k].lines.length;
+  let l = [[wrong(f.w, 0), 900], [f.w.right[0], 1800], [wrong(f.w, 1), 2700], [f.w.right[1], 3600], [f.w.right[2], 4500]];
+  res = playP(f, l, claimP(true, 3, 2, 4500));
+  check('two faltered lines, chosen again: still held', verdictOf(res.log) === 'held' && / faltered=2\/2/.test(res.log), res.log);
+  f = freshC();
+  l = [[wrong(f.w, 0), 900], [wrong(f.w, 0), 1800], [wrong(f.w, 0), 2700]];
+  res = playP(f, l, claimP(false, 0, 3, 2700));
+  check('a third faltered line: the verses slip away, the 5 min fail rest, nothing given', verdictOf(res.log) === 'faltered' && res.events.length === 0 && Math.abs(restOf(AKATOSH_SHRINE) - (wallClock + 5 * 60000)) < 5000, res.log);
+  f = freshC();
+  res = playP(f, [[f.w.right[0], 900]], claimP(false, 1, 0, 120000));
+  check('an idle prayer ends at its 120 s limit as a loss', verdictOf(res.log) === 'faltered' && res.events.length === 0, res.log);
+  f = freshC();
+  res = playP(f, f.w.right.map((r, k) => [r, 100 + 100 * k]), claimP(true, 3, 0, 300));
+  check('lines chosen faster than a hand reads them are refused(fast)', verdictOf(res.log) === 'fast' && res.events.length === 0, res.log);
+  f = freshC();
+  res = playP(f, trueList(f.w).concat([[0, 4000]]), claimP(true, 3, 0, 4000));
+  check('a line after the third verse is refused(extra)', verdictOf(res.log) === 'extra', res.log);
+  f = freshC();
+  res = playP(f, [[400, 18000]], claimP(false, 0, 0, 18000));
+  check('held spans sent for a pick prayer are refused(range)', verdictOf(res.log) === 'range', res.log);
+  f = freshC();
+  res = playP(f, f.w.right.map((r, k) => [(r + 1) % 3, 900 + 900 * k]).slice(0, 1).concat([[f.w.right[0], 1800], [f.w.right[1], 2700], [f.w.right[2], 3600]]), claimP(true, 3, 1, 3600));
+  check('the faltered line is counted against the same verse, not the next', verdictOf(res.log) === 'held', res.log);
+  f = freshC();
+  res = playP(f, [[wrong(f.w, 0), 900], [wrong(f.w, 1), 1800], [wrong(f.w, 2), 2700]], claimP(true, 3, 0, 2700));
+  check("a claimed prayer its lines do not bear out is audited (replayCheck 'log')", out.audits.some((t) => /^PRAYER-MISMATCH /.test(t)), res.log);
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    f = freshC();
+    const list = []; let hits = 0, misses = 0, t = 0;
+    while (hits < 3 && misses <= f.w.slips) {
+      t += 400 + Math.floor(Math.random() * 1500);
+      const pick = Math.random() < 0.75 ? f.w.right[hits] : Math.floor(Math.random() * 3);
+      list.push([pick, t]);
+      if (pick === f.w.right[hits]) hits++; else misses++;
+    }
+    res = playP(f, list, claimP(hits >= 3, hits, misses, t));
+    if (verdictOf(res.log) === (hits >= 3 ? 'held' : 'faltered') && !/mismatch/.test(susOfP(res.log))) agree++;
+  }
+  check('the widget and the server agree on 200 random pick prayers', agree === 200, `${agree}/200`);
+  // A Prince's worshipper: the true lines against the Divines' words
+  props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', at: wallClock - 30 * 86400000 });
+  api.cfg = { prayer: { clientJudged: true, pick: { enabled: false } } };
+  load();
+  f = freshC();
+  check('prayer.pick.enabled false gives the held prayer again', Object.keys(f.w).join(',') === TIMING_KEYS, Object.keys(f.w).join(','));
+  playC(f);
+  pickUi = false;
+}
 
 Date.now = realNow;
 console.log('');

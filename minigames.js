@@ -152,7 +152,7 @@ MG.judgePicks = (raw, round) => {
   r.count = list.length;
   for (let k = 0; k < list.length; k++) {
     const e = list[k];
-    const i = Array.isArray(e) ? Number(e[0]) : NaN, t = Array.isArray(e) ? Number(e[1]) : NaN;
+    const i = Array.isArray(e) && e.length === 2 ? Number(e[0]) : NaN, t = Array.isArray(e) && e.length === 2 ? Number(e[1]) : NaN;
     const step = round.retry ? r.hits : k;
     if (r.hits >= round.need || r.misses > round.allowed) { r.bad = 'extra'; break; }
     if (!Number.isInteger(i) || !Number.isInteger(t) || t < 0 || t > round.totalMs || i < 0 || i >= (round.steps[step] || []).length) { r.bad = 'range'; break; }
