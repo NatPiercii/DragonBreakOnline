@@ -135,6 +135,8 @@ module.exports = (api) => {
         try {
           const r = housing.recordOf(ref);
           if (!r || Number(r.owner) !== me) continue;
+          // A chest or an inner door is no home (Nate, 5 Oct)
+          if (typeof housing.isBuilding === 'function' && !housing.isBuilding(ref)) continue;
           const hold = housing.holdOf(ref);
           const name = hold ? (C.homeNames[hold] || (typeof api.zoneById === 'function' && api.zoneById(hold) ? api.zoneById(hold).name : '')) : '';
           if (name) homes.add(name);

@@ -25,7 +25,7 @@ const check = (label, ok, detail) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${l
 const FORT = 'b5936:BSHeartland.esm', STREET = 'a764b:BSHeartland.esm';
 const descToId = (d) => parseInt(String(d).split(':')[0], 16) >>> 0;
 // One week's reckoning over these claims; returns the county's report, Lydia's bank and the overdue table after it
-const reckonOnce = ({ registry, recs, cells, primaryOf, values, overdue, bank }) => {
+const reckonOnce = ({ registry, recs, cells, primaryOf, values, overdue, bank, isBuilding }) => {
   delete globalThis.__dboEconomy;
   fs.writeFileSync('housing.json', JSON.stringify(registry));
   fs.writeFileSync('economy.json', JSON.stringify({ rates: { 'county-bruma': 0.1 }, wages: {}, values: values || {}, owed: {}, overdue: overdue || {}, reports: {}, assessed: {}, balanceAfter: {} }));
@@ -38,7 +38,7 @@ const reckonOnce = ({ registry, recs, cells, primaryOf, values, overdue, bank })
     getActorsByProfileId: (pid) => (pid === 60 ? [0x20] : []),
   };
   const P = primaryOf || ((r) => (recs[r] ? r : 0));
-  globalThis.__dboHousing = { primaryOf: P, recordOf: (r) => recs[P(r)] || null, isManager: () => false };
+  globalThis.__dboHousing = { primaryOf: P, recordOf: (r) => recs[P(r)] || null, isManager: () => false, ...(isBuilding ? { isBuilding } : {}) };
   globalThis.__dboTreasury = { balance: () => 1000, spend: () => true, deposit: () => true };
   globalThis.__dboRealmTerritoryAt = (w) => (w === STREET ? { id: 'applewatch', name: 'Applewatch' } : null);
   globalThis.__dboRealmOwnerOf = () => 'county-bruma';
@@ -67,6 +67,11 @@ const cells = { [ROOT]: FORT, [ROOT_OUT]: STREET, [D1]: STREET, [D1_IN]: FORT, [
 const fort = { [ROOT]: rec({ name: 'Fort Caractacus', partner: ROOT_OUT }), [D1]: rec({ partner: D1_IN }), [D2]: rec({ partner: D2_OUT }), [CHEST]: rec({}), [BARREL]: rec({}) };
 const registry = [D2, CHEST, BARREL, D1, ROOT];
 let o = reckonOnce({ registry, recs: fort, cells, bank: 10000 });
+// A chest or an inner door is no property (Nate, 5 Oct): with the housing view's isBuilding, the barrel pays nothing
+const buildingsOnly = (r) => r !== BARREL && r !== CHEST;
+const ob = reckonOnce({ registry, recs: fort, cells, bank: 10000, isBuilding: buildingsOnly, overdue: { [String(BARREL)]: { weeks: 1, gold: 5 } } });
+check('a claimed chest or barrel pays no tax: only the fort is taxed', ob.r.taxed === 1 && ob.bank === 9800, ob.r);
+check("...and the barrel's old overdue entry is gone", !ob.overdue[String(BARREL)], ob.overdue);
 check('today: the fort is taxed once (10% of 2,000), not once for each door pair; the barrel is its own claim', o.r.taxed === 2 && o.r.income === 400 && o.bank === 9600, o.r);
 // Kojus cannot pay: one overdue entry for the fort, last week's per-door entries gone
 o = reckonOnce({ registry, recs: fort, cells, bank: 0, overdue: { [String(ROOT)]: { weeks: 1, gold: 200 }, [String(D1)]: { weeks: 1, gold: 200 }, [String(D2)]: { weeks: 1, gold: 200 } } });
