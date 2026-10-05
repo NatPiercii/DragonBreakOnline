@@ -6,7 +6,7 @@ import { System, Log, SystemContext, Content } from "./system";
 import { resolveEditorIds, isEditorId } from "./espmEditorIds";
 import { espmFieldFormIds } from "./formIdUtil";
 import { npcLevel } from "./espmMagic";
-import { readCraftPerkTiers, craftPerkHeld } from "./craftPerkTiers";
+import { readCraftPerkTiers, craftPerkHeld, craftPerkPacket, CraftPerkTiers } from "./craftPerkTiers";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -47,6 +47,7 @@ type Mp = any;
 //   Gameplay (skill rates): globalThis.__dboSkillRate(actorId, skillId, kind, detail) -> the rate metered work is worth, 0..5
 //   Native (craft perks): mp.onCraftPerkRequired(actorId, perkId) -> false when the crafter's tier stands in for the
 //     vanilla perk a recipe asks for (craftPerkTiers.ts); anything else keeps the recipe locked
+//   Server -> Client: { customPacketType: "dboCraftPerks", perks, managed }   the perks the player's own game holds for it
 //
 // Persistence: `private.mastery` on the character's actor form.
 //   { skills: { <id>: { points, lastPointAt, rank, granted[] } }, order: [<id>], respecs }
@@ -76,6 +77,7 @@ const ANIM_BOW = 7;
 const ANIM_CROSSBOW = 9;
 const INVALID_USER_ID = 65535;
 const LOGIN_GRANT_DELAY_MS = 5000;
+const CRAFT_PERK_TABLE_CHECK_MS = 10000;
 const AV_PER_TIER = 15;
 // Phase 0 of the point system (serverSKILLS_DESIGN.md): before any gain curve is tuned we need to know
 // what a real hour of play actually produces. This only counts and logs; nothing about crediting changes.
@@ -415,11 +417,66 @@ export class MasterySystem implements System {
     const perk = this.baseInfo(ctx, perkId);
     if (!actorId || !perk || perk.type !== "PERK" || !perk.editorId) return false;
     const table = readCraftPerkTiers();
-    const rec = this.read(ctx, actorId);
+    return craftPerkHeld(table, perk.editorId, this.craftTierOf(table, this.read(ctx, actorId)));
+  }
+
+  private craftTierOf(table: CraftPerkTiers, rec: MasteryRecord | null): number {
     const prog = rec ? rec.skills[table.skill] : undefined;
     const holds = !!rec && !!prog && (this.points ? prog.level >= 1 : rec.order.indexOf(table.skill) !== -1);
-    const tier = holds ? this.rankFor(prog!.level) + 1 : 0;
-    return craftPerkHeld(table, perk.editorId, tier);
+    return holds ? this.rankFor(prog!.level) + 1 : 0;
+  }
+
+  // Sends the character's craft perks to its player when they differ from what was sent last (or nothing was)
+  private syncCraftPerks(ctx: SystemContext, actorId: number, userId = this.userOf(ctx, actorId), rec = this.read(ctx, actorId)): void {
+    if (userId < 0) { this.craftPerkSent.delete(actorId); return; }
+    const table = readCraftPerkTiers();
+    this.ensureCraftPerkIds(ctx, table);
+    const packet = craftPerkPacket(table, this.craftPerkIds, this.craftTierOf(table, rec));
+    const key = `${packet.perks.join(",")}|${packet.managed.join(",")}`;
+    if (this.craftPerkSent.get(actorId) === key) return;
+    this.craftPerkSent.set(actorId, key);
+    this.send(ctx, userId, { customPacketType: "dboCraftPerks", perks: packet.perks, managed: packet.managed });
+  }
+
+  // The second send after a login, and a resend to everyone once a config change has been read
+  private flushCraftPerks(ctx: SystemContext): void {
+    const now = Date.now();
+    this.craftPerkResendAt.forEach((dueAt, actorId) => {
+      if (now < dueAt) return;
+      this.craftPerkResendAt.delete(actorId);
+      this.craftPerkSent.delete(actorId);
+      this.syncCraftPerks(ctx, actorId);
+    });
+    if (now < this.craftPerkTableCheckAt) return;
+    this.craftPerkTableCheckAt = now + CRAFT_PERK_TABLE_CHECK_MS;
+    const table = readCraftPerkTiers();
+    if (table === this.craftPerkTable) return;
+    const first = this.craftPerkTable === null;
+    this.craftPerkTable = table;
+    if (!first) for (const actorId of Array.from(this.craftPerkSent.keys())) this.syncCraftPerks(ctx, actorId);
+  }
+
+  private addCraftPerkIds(ctx: SystemContext, names: string[], resolved: Map<string, string>): void {
+    for (const name of names) {
+      const desc = resolved.get(name.toLowerCase());
+      let id = 0;
+      try { id = desc ? (ctx.svr as Mp).getIdFromDesc(desc) >>> 0 : 0; } catch { id = 0; }
+      if (id) this.craftPerkIds.set(name.toLowerCase(), id);
+      else if (!this.craftPerkMissing.has(name.toLowerCase())) { this.craftPerkMissing.add(name.toLowerCase()); this.log(`[skills] craft perk ${name} not found in the load order`); }
+    }
+  }
+
+  // A perk a reloaded table adds is looked up once in the background, then everyone online is sent the new set
+  private ensureCraftPerkIds(ctx: SystemContext, table: CraftPerkTiers): void {
+    if (!this.espmSource) return;
+    const unknown = Array.from(table.perks.keys()).filter((n) => !this.craftPerkIds.has(n) && !this.craftPerkMissing.has(n) && !this.craftPerkResolving.has(n));
+    if (!unknown.length) return;
+    for (const n of unknown) this.craftPerkResolving.add(n);
+    const { dataDir, loadOrder } = this.espmSource;
+    resolveEditorIds(unknown, dataDir, loadOrder, this.log, ["PERK"]).then((scan) => {
+      this.addCraftPerkIds(ctx, unknown, scan.resolved);
+      for (const actorId of Array.from(this.craftPerkSent.keys())) this.syncCraftPerks(ctx, actorId);
+    }).catch((e) => this.log(`[skills] craft perk lookup failed: ${e}`)).finally(() => { for (const n of unknown) this.craftPerkResolving.delete(n); });
   }
 
   private enqueue(kind: string, actorId: unknown, detail: unknown): void {
@@ -443,6 +500,7 @@ export class MasterySystem implements System {
 
   async updateAsync(ctx: SystemContext): Promise<void> {
     this.flushPendingGrants(ctx);
+    this.flushCraftPerks(ctx);
     this.logCreditRate();
     if (!this.events.length) return;
     const batch = this.events.splice(0, this.events.length);
@@ -847,6 +905,10 @@ export class MasterySystem implements System {
   // ── Login ───────────────────────────────────────────────────────────────────
 
   private onActorAssigned(ctx: SystemContext, userId: number, actorId: number): void {
+    // Perks are held by the player's own game, not the character: each assignment replaces the last character's set
+    this.craftPerkSent.delete(actorId);
+    this.syncCraftPerks(ctx, actorId, userId);
+    this.craftPerkResendAt.set(actorId, Date.now() + LOGIN_GRANT_DELAY_MS);
     const rec = this.read(ctx, actorId);
     if (!rec || !rec.order.length) return;
     for (const id of rec.order) {
@@ -1193,8 +1255,11 @@ export class MasterySystem implements System {
       for (let t = 1; t <= this.tierHours.length; t++) markerNames.push(`DBO_Skill_${k.id}_T${t}`);
     }
     wanted.add("ActorTypeNPC");
+    const perkNames = Array.from(readCraftPerkTiers().perks.keys());
     const names = Array.from(wanted).concat(markerNames);
-    const scan = await resolveEditorIds(names.filter(isEditorId), dataDir, loadOrder, this.log, ["KYWD", "SPEL"]);
+    const scan = await resolveEditorIds(names.concat(perkNames).filter(isEditorId), dataDir, loadOrder, this.log, ["KYWD", "SPEL", "PERK"]);
+    this.espmSource = { dataDir, loadOrder };
+    this.addCraftPerkIds(ctx, perkNames, scan.resolved);
     const mp = ctx.svr as Mp;
     const ids = new Map<string, number>(); const unresolved: string[] = [];
     for (const name of names) {
@@ -1609,6 +1674,7 @@ export class MasterySystem implements System {
     // save, exactly as `order` and `rank` are, so nothing outside this file has to change.
     for (const prog of Object.values(rec.skills)) (prog as unknown as Record<string, unknown>).points = prog.level;
     try { (ctx.svr as Mp).set(actorId, MASTERY_PROP, rec); } catch (e) { this.log(`[skills] write failed for ${actorId.toString(16)}: ${e}`); }
+    try { this.syncCraftPerks(ctx, actorId, this.userOf(ctx, actorId), rec); } catch (e) { this.log(`[skills] craft perk sync failed: ${e}`); }
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -1658,6 +1724,14 @@ export class MasterySystem implements System {
   private lastDenyMs = new Map<number, number>();
   private respecUntil = new Map<number, number>();
   private pendingGrants = new Map<number, number>();
+  private craftPerkIds = new Map<string, number>();         // lower-case perk editor id -> form id
+  private craftPerkMissing = new Set<string>();
+  private craftPerkResolving = new Set<string>();
+  private craftPerkSent = new Map<number, string>();        // actor -> the set last sent to its player
+  private craftPerkResendAt = new Map<number, number>();
+  private craftPerkTable: CraftPerkTiers | null = null;
+  private craftPerkTableCheckAt = 0;
+  private espmSource: { dataDir: string; loadOrder: string[] } | null = null;
   private benchCache = new Map<number, number>();
   private valueCache = new Map<number, number>();
   private costCache = new Map<number, number>();

@@ -4,6 +4,8 @@
 // It bundles masterySystem.ts with esbuild (settings and the espm editor-id scan stubbed), runs it against a fake mp
 // in a temp folder holding a test skills.json and gamemode-config.json, and calls the handler as the C++ would.
 // No handler, or any answer but false, keeps the recipe locked: unit/CraftTest.cpp covers that side.
+// It also checks the dboCraftPerks packet the player's own game holds the perks by: sent at each character
+// assignment and again after the login delay, on a tier change, and to everyone online after a table change.
 // Run it from skymp5-server with node_modules present:
 //
 //   node tests/craft-perk-tiers-harness.js
@@ -27,7 +29,11 @@ const stubs = {
       contents: a.path === '../settings'
         ? 'module.exports = { Settings: { get: async () => ({ allSettings: {}, dataDir: ".", loadOrder: [] }) } };'
         : a.path === './espmEditorIds'
-          ? 'module.exports = { resolveEditorIds: async () => ({ resolved: new Map(), unresolved: [], scannedMs: 0 }), isEditorId: (s) => !s.includes(":") };'
+          ? `module.exports = { isEditorId: (s) => !s.includes(":"), resolveEditorIds: async (names, d, l, log, types) => {
+              globalThis.__scans.push({ names, types });
+              const resolved = new Map();
+              for (const n of names) { const id = globalThis.__perkIds[n.toLowerCase()]; if (id && types.includes("PERK")) resolved.set(n.toLowerCase(), id.toString(16) + ":Skyrim.esm"); }
+              return { resolved, unresolved: [], scannedMs: 0 }; } };`
           : 'module.exports = {};',
       loader: 'js',
     }));
@@ -42,7 +48,16 @@ const PERKS = {
 const ALCHEMIST = 0xbe127;
 const IRON_DAGGER = 0x1397e;
 
+// The clock the reader and the resend timers see: each step moves it on instead of waiting
+const realNow = Date.now;
+let skew = 0;
+Date.now = () => realNow() + skew;
+
 (async () => {
+  globalThis.__scans = [];
+  globalThis.__perkIds = {};
+  for (const [edid, id] of Object.entries(PERKS)) globalThis.__perkIds[edid.toLowerCase()] = id;
+  globalThis.__perkIds.alchemist00 = ALCHEMIST;
   await esbuild.build({ entryPoints: [path.join(root, 'ts', 'systems', 'masterySystem.ts')], bundle: true, platform: 'node', format: 'cjs',
     outfile: path.join(out, 'mastery.js'), logLevel: 'error', plugins: [stubs], external: ['*.node'] });
   const cwd = process.cwd();
@@ -55,9 +70,10 @@ const IRON_DAGGER = 0x1397e;
     const cfg = { mastery: {} };
     if (craftPerkTiers !== undefined) cfg.craftPerkTiers = craftPerkTiers;
     fs.writeFileSync('gamemode-config.json', JSON.stringify(cfg));
-    // the reader keys on mtime, so each rewrite is stamped a second apart
-    const t = Date.now() / 1000 + (writeConfig.n = (writeConfig.n || 0) + 1);
+    // the reader keys on mtime and looks once a second, so each rewrite is stamped and the clock moved on
+    const t = realNow() / 1000 + (writeConfig.n = (writeConfig.n || 0) + 1);
     fs.utimesSync('gamemode-config.json', t, t);
+    skew += 1100;
   };
 
   const records = new Map();
@@ -74,12 +90,19 @@ const IRON_DAGGER = 0x1397e;
     lookupEspmRecordById: (id) => (records.has(id) ? { record: records.get(id) } : { record: null }),
     get: (id, prop) => { const a = actors.get(id); if (!a) throw new Error('no form'); return a[prop]; },
     set: (id, prop, v) => { actors.get(id)[prop] = v; },
-    getIdFromDesc: () => 0,
+    getIdFromDesc: (desc) => parseInt(String(desc).split(':')[0], 16) >>> 0,
+    getUserByActor: (id) => (users.has(id) ? users.get(id) : 65535),
+    sendCustomPacket: (userId, json) => sent.push({ userId, ...JSON.parse(json) }),
   };
+  const users = new Map();
+  const sent = [];
+  const gmHandlers = {};
+  const gm = { on: (name, f) => { gmHandlers[name] = f; } };
   const logs = [];
   const { MasterySystem } = require(path.join(out, 'mastery.js'));
   const sys = new MasterySystem((l) => logs.push(l));
-  await sys.initAsync({ svr: mp, gm: { on: () => {} } });
+  const ctx = { svr: mp, gm };
+  await sys.initAsync(ctx);
   const ask = (actorId, perk) => mp.onCraftPerkRequired(actorId, perk);
   check('masterySystem answers onCraftPerkRequired', typeof mp.onCraftPerkRequired === 'function');
 
@@ -121,6 +144,62 @@ const IRON_DAGGER = 0x1397e;
   fs.writeFileSync('gamemode-config.json', '{ "craftPerkTiers": { "perks": { "SteelSm');
   const t = Date.now() / 1000 + 100; fs.utimesSync('gamemode-config.json', t, t);
   check('a half-written config keeps the last good table', ask(apprentice, PERKS.SteelSmithing) === false);
+
+  // The packet the player's own game holds the perks by (dboCraftPerks)
+  writeConfig(undefined);
+  const T2 = [PERKS.SteelSmithing, PERKS.DwarvenSmithing, PERKS.ElvenSmithing].sort((a, b) => a - b);
+  const ALL = mapped.map(([, id]) => id).sort((a, b) => a - b);
+  const craftPackets = (userId) => sent.filter((p) => p.customPacketType === 'dboCraftPerks' && p.userId === userId);
+  const lastPacket = (userId) => craftPackets(userId).slice(-1)[0];
+  check('the boot scan looked the table perks up as PERK records', globalThis.__scans.some((x) => x.types.includes('PERK') && x.names.includes('steelsmithing')));
+  const smith = at(26);
+  users.set(smith, 7);
+  gmHandlers.userAssignActor(7, smith);
+  check('a character assignment sends the tier 2 perks at once', JSON.stringify(lastPacket(7)) === JSON.stringify({ userId: 7, customPacketType: 'dboCraftPerks', perks: T2, managed: ALL }), lastPacket(7));
+  check('managed lists every table perk and never ArcaneBlacksmith', !lastPacket(7).managed.includes(PERKS.ArcaneBlacksmith) && lastPacket(7).managed.length === 9);
+  const afterAssign = craftPackets(7).length;
+  await sys.updateAsync(ctx);
+  check('no second send before the login delay', craftPackets(7).length === afterAssign);
+  skew += 6000;
+  await sys.updateAsync(ctx);
+  check('the login delay sends the set again', craftPackets(7).length === afterAssign + 1 && JSON.stringify(lastPacket(7).perks) === JSON.stringify(T2));
+  const write = (actorId) => sys.write(ctx, actorId, sys.read(ctx, actorId));
+  const setLevel = (actorId, level) => { actors.get(actorId)['private.mastery'].skills.blacksmith.level = level; write(actorId); };
+  let n = craftPackets(7).length;
+  write(smith);
+  check('a write that changes nothing sends nothing', craftPackets(7).length === n);
+  setLevel(smith, 30);
+  check('points inside the tier send nothing', craftPackets(7).length === n);
+  setLevel(smith, 55);
+  check('reaching tier 3 sends orcish and advanced armor too', lastPacket(7).perks.length === 5 && lastPacket(7).perks.includes(PERKS.OrcishSmithing) && lastPacket(7).perks.includes(PERKS.AdvancedArmors) && !lastPacket(7).perks.includes(PERKS.GlassSmithing));
+  setLevel(smith, 95);
+  check('tier 5 sends every table perk', JSON.stringify(lastPacket(7).perks) === JSON.stringify(ALL));
+  setLevel(smith, 10);
+  check('falling to tier 1 sends none, so the client drops them', lastPacket(7).perks.length === 0 && lastPacket(7).managed.length === 9);
+  setLevel(smith, 26);
+  const fresh = 0xff000900;
+  actors.set(fresh, { profileId: 1 });
+  users.delete(smith); users.set(fresh, 7);
+  n = craftPackets(7).length;
+  gmHandlers.userAssignActor(7, fresh);
+  check('switching to a character without the skill sends an empty set', craftPackets(7).length === n + 1 && lastPacket(7).perks.length === 0);
+  users.delete(fresh); users.set(smith, 7);
+  gmHandlers.userAssignActor(7, smith);
+  check('switching back sends the tier 2 set again', JSON.stringify(lastPacket(7).perks) === JSON.stringify(T2));
+  const offline = at(95);
+  n = sent.length;
+  write(offline);
+  check('a character nobody plays is sent nothing', sent.length === n);
+  writeConfig({ perks: { SteelSmithing: 3, EbonySmithing: 2, ArcaneBlacksmith: 2 } });
+  skew += 11000;
+  await sys.updateAsync(ctx);
+  check('a changed table is sent to the player within the check interval', JSON.stringify(lastPacket(7)) === JSON.stringify({ userId: 7, customPacketType: 'dboCraftPerks', perks: [PERKS.EbonySmithing], managed: [PERKS.SteelSmithing, PERKS.EbonySmithing].sort((a, b) => a - b) }), lastPacket(7));
+  check('ArcaneBlacksmith in the config is ignored', ask(master, PERKS.ArcaneBlacksmith) === undefined);
+  writeConfig({ perks: { SteelSmithing: 2, Alchemist00: 2 } });
+  skew += 11000;
+  await sys.updateAsync(ctx);
+  await new Promise((r) => setImmediate(r));
+  check('a perk the reload adds is looked up and sent', globalThis.__scans.some((x) => x.names.length === 1 && x.names[0] === 'alchemist00') && lastPacket(7).perks.includes(ALCHEMIST), lastPacket(7));
 
   // A handler set before masterySystem still answers first
   process.chdir(cwd);
