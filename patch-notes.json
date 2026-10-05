@@ -1,5 +1,19 @@
 [
   {
+    "title": "Fixes",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Reading tells you when you have found all the books, scrolls or spell tomes you can for the day (6 copies, 6 scrolls and 2 tomes); finds come back at midnight UTC, and reading still trains Scholar."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Study after an early tome",
     "date": "2026-10-05",
     "version": "Server update",
