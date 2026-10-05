@@ -67,6 +67,10 @@ const hudScript = (text: string | null): string =>
   `text-shadow:0 1px 2px #000';document.body.appendChild(d);}d.textContent=t;})(${JSON.stringify(text)})`;
 
 const norm = (deg: number): number => ((deg % 360) + 360) % 360;
+// Below these the preview is left where it is (units, degrees)
+const GHOST_MOVE_EPS = 2;
+const GHOST_TURN_EPS = 0.5;
+
 // -180..180, for showing a tilt
 const signed = (deg: number): number => { const d = norm(deg); return d > 180 ? d - 360 : d; };
 
@@ -186,6 +190,7 @@ export class PlacementService extends ClientListener {
     if (this.ghostId) {
       const id = this.ghostId;
       this.ghostId = 0;
+      this.ghostAt = null;
       this.controller.lookupListener(WorldCleanerService).modWcProtection(id, -1);
       const ghost = ObjectReference.from(Game.getFormEx(id));
       if (ghost) safeDelete(ghost);
@@ -337,6 +342,7 @@ export class PlacementService extends ClientListener {
         return this.stop(true);
       }
       this.ghostId = ghost.getFormID();
+      this.ghostAt = null;
       noteCopyPlaced(this.ghostId);
       this.controller.lookupListener(WorldCleanerService).modWcProtection(this.ghostId, 1);
       const ac = Actor.from(ghost);
@@ -346,6 +352,10 @@ export class PlacementService extends ClientListener {
         ac.setAlpha(0.45, false);
       }
     }
+    // Moved only when the aim really changed: re-placing it every tick kept the copy faint (Nate, 5 Oct)
+    const last = this.ghostAt;
+    if (last && pos.every((v, i) => Math.abs(v - last[i]) < GHOST_MOVE_EPS) && rot.every((v, i) => Math.abs(v - last[3 + i]) < GHOST_TURN_EPS)) return;
+    this.ghostAt = [...pos, ...rot];
     ghost.setPosition(pos[0], pos[1], pos[2]);
     ghost.setAngle(rot[0], rot[1], rot[2]);
   }
@@ -390,6 +400,7 @@ export class PlacementService extends ClientListener {
   private pendingEdit: Record<string, any> | null = null;
   private formId = 0;
   private ghostId = 0;
+  private ghostAt: number[] | null = null;
   private distance = DISTANCE.start;
   private height = 0;
   private turn = 0;
