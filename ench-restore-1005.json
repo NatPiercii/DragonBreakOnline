@@ -1,0 +1,48 @@
+{
+ "_comment": "One-off (Nate, 5 Oct): enchantments these characters learned by disenchanting before the server recorded them (alchemy.js rememberLearned, live 4 Oct 04:27Z), proven by the server's own 'disenchant: ... taken' log lines of 2-3 Oct (dry run: claude-nate-release/specs/bugs-1005-ench-restore.json). alchemy.js adds the missing effects to private.dboEnchLearned at the character's next login, once (private.dboEnchRestore = marker), audits ENCH-RESTORE, and the login restore then sends them. Keys are actor ids; the profile must match.",
+ "marker": "1005",
+ "actors": {
+  "ff001ed0": {
+   "name": "Old Grimbo #SB5X",
+   "profileId": 37,
+   "effects": [
+    373842,
+    373841
+   ],
+   "from": [
+    "Steel Mace of Binding (0x000a69bf EnchSteelMaceSoulTrap3, unofficial skyrim special edition patch.esp) [EnchWeaponSoulTrap03] -> EnchSoulTrapFFContact",
+    "Steel Battleaxe of Fear (0x000a697a EnchSteelBattleaxeFear3, unofficial skyrim special edition patch.esp) [EnchWeaponFear03] -> EnchInfluenceConfDownFFContactLow"
+   ]
+  },
+  "ff001602": {
+   "name": "Lorian Karthold #US6N",
+   "profileId": 53,
+   "effects": [
+    499962,
+    286812
+   ],
+   "from": [
+    "Ayleid Amulet of Minor Illusion (0x080d4aae CYREnchAmuletIllusionAyleid01, BSHeartland.esm) [EnchArmorFortifyIllusion01] -> EnchFortifyIllusionConstantSelf",
+    "Ayleid Dagger of Arcing (0x080d30e0 CYREnchAyleidDaggerShock02, BSHeartland.esm) [EnchWeaponShockDamage02] -> EnchShockDamageFFContact"
+   ]
+  },
+  "ff000304": {
+   "name": "Kagrethas Mzulft #TY94",
+   "profileId": 40,
+   "effects": [
+    123741460,
+    499969,
+    499954,
+    570972,
+    499962
+   ],
+   "from": [
+    "Glass Boots of Water Walking (0x0760251f BSKEnchArmorGlassBootsWaterWalking, BSAssets.esm) [BSKEnchArmorWaterWalking] -> BSKEnchWaterWalkingConstantSelf",
+    "Ayleid Amulet of Restoration (0x080d4aa9 CYREnchAmuletRestorationAyleid02, BSHeartland.esm) [EnchArmorFortifyRestoration02] -> EnchFortifyRestorationConstantSelf",
+    "Ayleid Amulet of Eminent Alteration (0x080d4abc CYREnchAmuletAlterationAyleid04, BSHeartland.esm) [EnchArmorFortifyAlteration04] -> EnchFortifyAlterationConstantSelf",
+    "Ayleid Ring of Alchemy (0x080d4a94 CYREnchRingAlchemyAyleid02, BSHeartland.esm) [EnchArmorFortifyAlchemy02] -> EnchFortifyAlchemyConstantSelf",
+    "Ayleid Ring of Illusion (0x080d4a90 CYREnchRingIllusionAyleid02, BSHeartland.esm) [EnchArmorFortifyIllusion02] -> EnchFortifyIllusionConstantSelf"
+   ]
+  }
+ }
+}
