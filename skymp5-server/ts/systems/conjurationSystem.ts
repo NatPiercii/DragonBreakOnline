@@ -19,6 +19,9 @@ const REANIMATE_FALLBACK_RANGE = 2048;
 const REANIMATE_FALLBACK_CONE_DEG = 20;
 // A hit that arrives before its cast already handled that cast
 const REANIMATE_HIT_FIRST_MS = 1000;
+// One refusal notice per caster this often, and the user id getUserByActor reports for none (Networking::InvalidUserId)
+const REFUSAL_NOTICE_MS = 3000;
+const INVALID_USER_ID = 65535;
 
 interface PendingReanimate {
   spellId: number;
@@ -33,6 +36,7 @@ export class ConjurationSystem implements System {
   private mp: Mp = null;
   private pending = new Map<number, PendingReanimate>();
   private lastReanimateHit = new Map<number, number>();
+  private lastRefusalNotice = new Map<number, number>();
 
   async initAsync(ctx: SystemContext): Promise<void> {
     this.mp = ctx.svr as Mp;
@@ -45,6 +49,7 @@ export class ConjurationSystem implements System {
     try { actorId = ctx.svr.getUserActor(userId) >>> 0; } catch { return; }
     this.clearPending(actorId);
     this.lastReanimateHit.delete(actorId);
+    this.lastRefusalNotice.delete(actorId);
   }
 
   // Handlers run after the native event returns: they may destroy the hit target, which the C++ hit path still uses
@@ -96,8 +101,10 @@ export class ConjurationSystem implements System {
         this.clearPending(aggressorId);
         this.lastReanimateHit.set(aggressorId, Date.now());
         const refusal = this.reanimateRefusal(aggressorId, targetId, effect);
-        if (refusal) this.log(`ConjurationSystem: ${hex(aggressorId)} cannot reanimate ${hex(targetId)} with ${hex(spellId)}: ${refusal}`);
-        else this.reanimate(aggressorId, targetId, spellId, effect);
+        if (refusal) {
+          this.log(`ConjurationSystem: ${hex(aggressorId)} cannot reanimate ${hex(targetId)} with ${hex(spellId)}: ${refusal}`);
+          this.tellRefusal(aggressorId, refusal);
+        } else this.reanimate(aggressorId, targetId, spellId, effect);
       }
     }
   }
@@ -119,6 +126,20 @@ export class ConjurationSystem implements System {
     if (!p) return;
     clearTimeout(p.timer);
     this.pending.delete(casterId);
+  }
+
+  // The caster hears why a body they could see rise did not; a living target or one out of reach stays silent, as in vanilla
+  private tellRefusal(casterId: number, refusal: string): void {
+    const text = refusal.startsWith("level ") ? "That body is too powerful for this spell to raise."
+      : refusal === "a player body" ? "The bodies of other adventurers cannot be raised."
+      : refusal === "a companion" ? "That body is already bound to another's will." : "";
+    const now = Date.now();
+    if (!text || now - (this.lastRefusalNotice.get(casterId) ?? 0) < REFUSAL_NOTICE_MS) return;
+    this.lastRefusalNotice.set(casterId, now);
+    try {
+      const userId = this.mp.getUserByActor(casterId);
+      if (userId >= 0 && userId < INVALID_USER_ID) this.mp.sendCustomPacket(userId, JSON.stringify({ customPacketType: "notification", text }));
+    } catch { /* offline */ }
   }
 
   // Empty when the corpse can be raised; player bodies, companions and their bodies never can
