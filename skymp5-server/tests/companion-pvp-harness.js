@@ -220,6 +220,21 @@ const SWORD = 0x12eb7;
   check('a player who logged out is dropped as a target', targetOf(sys, S) === 0, targetOf(sys, S));
   check('...and their body cannot be struck by the summon', hit(S, B) === false);
 
+  // ---- raised corpses follow the same rules; GM warbands (kind companion) keep the old ones ----
+  ({ sys, S, T } = await boot());
+  delete globalThis.__dboCompanionMayFight;
+  const R = sys.spawn(A, SUMMON_BASE, { kind: 'reanimated' });
+  hit(A, B);
+  check('a raised corpse is not ordered onto a player without the rule', targetOf(sys, R) === 0, targetOf(sys, R));
+  check('...and its blow on them is refused', hit(R, B) === false);
+  const G = C;
+  const F = sys.spawn(G, SUMMON_BASE, { kind: 'companion' });
+  check('a GM\'s warband follower may still be ordered onto a player (/warband attack), rule or not', sys.orderAttack(F, B) === true && targetOf(sys, F) === B, targetOf(sys, F));
+  check('...its state carries the pvp mark, so the client fights them', lastState(3)?.companions?.find((c) => c.id === F)?.pvp === true, lastState(3));
+  check('...and its blows land', hit(F, B) === true);
+  check('...and it is no player\'s side: the owner\'s strike on it orders the raised corpse (which replaced the summon) onto it without any PvP rule', hit(A, F) === true && targetOf(sys, R) === F, targetOf(sys, R));
+  check('...as a wolf would be (no pvp mark)', lastState(1)?.companions?.find((c) => c.id === R)?.pvp === false, lastState(1));
+
   // ---- the window is configurable ----
   ({ sys, S, T } = await boot({ companionPvpHostileSeconds: 10 }));
   allow(true);
