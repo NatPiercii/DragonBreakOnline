@@ -304,6 +304,70 @@ r = begin();
 }
 ok(/marker [\d.]+\/[\d.]+\/[\d.]+ judge=server/.test(lastRound()), '...and the three-sample check logs its three markers as before', lastRound());
 
+// ---- "Read the rite": a riteJudge client that also names 'pickRound' gets marks to choose, no marker ----------------
+console.log('');
+console.log('pick rites:');
+{
+  const MG = require(path.resolve(__dirname, '..', 'minigames.js'));
+  cfg = {}; load();
+  caps.clear(); caps.add('riteJudge');
+  const TIMING_KEYS = 'type,id,nonce,title,flavor,deadly,round,rounds,need,hits,misses,period,zone,startsIn,result,judge,rnonce,graceMs,limitMs';
+  r = begin();
+  ok(Object.keys(lastW()).join(',') === TIMING_KEYS && !r.pick, 'a riteJudge client without pickRound gets exactly today\'s rite', Object.keys(lastW()).join(','));
+  caps.add('pickRound');
+  // The widget's choice: [nonce, round, rnonce, 'pick', index, atMs]
+  const pick = (rr, right, atMs) => {
+    const rd = rr.current;
+    const index = right ? MG.rightOf(rd.spots) : (MG.rightOf(rd.spots) + 1) % rd.spots.length;
+    advance(rd.sentAt + (atMs || 1500) + 120 - mono);
+    ui.riteStrike(A, [rr.nonce, rr.round + 1, rd.rnonce, 'pick', index, atMs || 1500]);
+  };
+  r = begin();
+  let w = lastW();
+  ok(r.pick === true && w.mode === 'pick' && w.judge === 'client' && w.spots.length === 3 && w.period === undefined && w.zone === undefined && w.cue === 'pulse' && w.limitMs === 90000, "a pick rite: this round's marks, no marker, period or zone", Object.keys(w).join(','));
+  ok(w.spots.every((q) => q[1] === 50) && MG.rightOf(w.spots) === r.current.right, '...on one line, the right mark the clearest');
+  pick(r, true);
+  ok(/round 1\/5 hit/.test(lastRound()) && lastW().spots.length === 3, 'the clearest mark is a hit; the next round has its own marks', lastRound());
+  pick(rite(), false);
+  ok(/round 2\/5 miss \(the wrong mark\)/.test(lastRound()) && lastW().spots.length === 4, 'another mark is a miss; round three has four marks', lastRound());
+  pick(rite(), true, 100);
+  ok(/round 3\/5 miss \(too fast\)/.test(lastRound()), 'a pick faster than a hand is a miss (too fast)', lastRound());
+  r = begin();
+  advance(90000 + 10); fireDue(); advance(90000 + 10); fireDue();
+  ok(!rite() && said.some((t) => /The moment swims and passes you by/.test(t)) && store.get(`${A}|isDead`) !== true, 'a rite never touched is abandoned, not failed, once its rounds of 90 s would lose it', said.slice(-1)[0]);
+  r = begin();
+  pick(r, true);
+  advance(90000 + 10); fireDue();
+  ok(/round 2\/5 miss \(left unread\)/.test(lastRound()), 'a round left unread for 90 s is a miss', lastRound());
+  // Rewards, penalties and rests unchanged
+  r = begin();
+  for (let i = 0; i < 4 && rite(); i++) pick(rite(), true);
+  let st = store.get(`${A}|private.supernatural`) || {};
+  ok(!rite() && st.kind === 'vampire' && st.pure === true, 'four right marks: Molag Bal makes a pure-blood, as the timing rite', st);
+  const rnd = Math.random;
+  r = begin();
+  Math.random = () => 0;
+  for (let i = 0; i < 5 && rite(); i++) pick(rite(), false);
+  Math.random = rnd;
+  ok(!rite() && Number(store.get(`${A}|private.riteFailedAt`)) > 0 && store.get(`${A}|private.permaDead`) === true, 'wrong marks past the need: the shrine waits a day and the permadeath roll still runs', { perma: store.get(`${A}|private.permaDead`) });
+  store.set(`${A}|private.permaDead`, false);
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    r = begin();
+    let hits = 0, misses = 0;
+    while (rite()) { const right = Math.random() < 0.8; pick(rite(), right, 400 + Math.floor(Math.random() * 3000)); if (right) hits++; else misses++; }
+    const won = hits >= 4;
+    st = store.get(`${A}|private.supernatural`) || {};
+    if (won === (st.kind === 'vampire')) agree++;
+    store.set(`${A}|private.permaDead`, false);
+  }
+  ok(agree === 200, 'the widget and the server agree on 200 random pick rites (four right marks make the vampire, else the rite is lost)', `${agree}/200`);
+  cfg = { supernatural: { rite: { pick: { enabled: false } } } }; load();
+  r = begin();
+  ok(Object.keys(lastW()).join(',') === TIMING_KEYS && !r.pick, 'supernatural.rite.pick.enabled false gives the timing rite again', Object.keys(lastW()).join(','));
+  caps.delete('pickRound');
+}
+
 Date.now = realNow;
 console.log('');
 console.log(fail ? `${fail} FAILURES` : 'all checks passed');
