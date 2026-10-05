@@ -165,13 +165,13 @@ const Trade = ({ data }: { data: TradeData }) => {
   };
 
   const ev = data.events || ({} as TradeEvents);
-  const threshold = data.stackPromptThreshold || 5;
+  const threshold = data.stackPromptThreshold || 1;
 
   const sendMove = (dir: 'add' | 'remove', item: UiItem, count: number): void => {
     send(dir === 'add' ? ev.add : ev.remove, item.lineId, count);
   };
 
-  // Small stacks move whole; large stacks ask "how many?" first (like vanilla).
+  // A single item moves at once; any stack asks "how many?" first
   const clickItem = (dir: 'add' | 'remove', item: UiItem): void => {
     if (item.count > threshold) {
       setPromptCount(1);

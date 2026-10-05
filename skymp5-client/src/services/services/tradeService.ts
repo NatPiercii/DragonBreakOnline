@@ -20,8 +20,8 @@ declare const window: any;
 const WIDGET_ID = 14; // the two-pane trade window (12 belongs to capture-consent)
 const INVITE_WIDGET_ID = 15; // the small "X wants to trade" prompt
 
-// Stacks larger than this prompt for a count when added/removed (vanilla-style); smaller stacks move whole.
-const STACK_PROMPT_THRESHOLD = 5;
+// Any stack larger than this asks for a count when added or removed; a single item moves at once
+const STACK_PROMPT_THRESHOLD = 1;
 
 // Extras that tell copies apart, same as the server's IDENTITY_KEYS (tradeSystem.ts)
 const IDENTITY_KEYS = [
