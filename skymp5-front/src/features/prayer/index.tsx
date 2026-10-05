@@ -281,6 +281,9 @@ export const PrayerPick = ({ data }: { data: PrayerData }) => {
   const slips = Math.max(0, Math.floor(num(data.slips, 2)));
   const lockMs = Math.max(PICK_LOCK_MS, Math.floor(num(data.minPickMs, 300)) + 1);
   const daedric = data.kind === 'daedra';
+  // The sphere's first sentence: what the god holds, short enough for one line
+  const sphereAll = String(data.sphere || '');
+  const sphere = sphereAll.indexOf('. ') > 0 ? sphereAll.slice(0, sphereAll.indexOf('. ') + 1) : sphereAll;
 
   const openedAt = useRef(performance.now());
   const readyAt = useRef(lockMs);
@@ -378,7 +381,7 @@ export const PrayerPick = ({ data }: { data: PrayerData }) => {
       <div className="prayer__fade" />
       <div className="prayer__shrine">
         <h1 className="prayer__title">{data.shrine || ('Shrine of ' + data.deity)}</h1>
-        {data.sphere && <p className="prayer__sphere">{data.deity}: {data.sphere}</p>}
+        {sphere && <p className="prayer__sphere">{data.deity}: {sphere}</p>}
         <p className={'prayer__hint' + (last && !last.landed && !done ? ' prayer__hint--falter' : '')}>{status}</p>
 
         <ol className="prayer__verses">

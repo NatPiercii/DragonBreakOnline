@@ -134,7 +134,7 @@
   // ---- the pick rite: the strip with this round's marks ----
   &__strip {
     position: relative;
-    height: 70px;
+    height: 40px;
     border: 1px solid $dbo-border;
     background:
       linear-gradient(180deg, transparent 49%, rgba(214, 84, 84, 0.35) 49%, rgba(214, 84, 84, 0.35) 51%, transparent 51%),
@@ -155,7 +155,7 @@
   }
 
   &__spot {
-    @include dbo-pick-spot(42px);
+    @include dbo-pick-spot(38px);
 
     // The chosen mark beats once: red for a true mark found, dull for a wrong one (under 400 ms)
     &--hit { animation: rite-beat 360ms ease-out; border: 1.5px solid rgba(232, 110, 96, 0.95); box-shadow: 0 0 14px rgba(214, 84, 84, 0.7); }
@@ -181,10 +181,10 @@
   }
 
   &__strip--trail &__cue path {
-    fill: rgba(222, 206, 170, 0.9);
-    stroke: rgba(40, 30, 18, 0.9);
-    stroke-width: 1;
-    filter: none;
+    fill: rgba(240, 228, 196, 0.98);
+    stroke: rgba(30, 22, 12, 0.95);
+    stroke-width: 0.8;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
   }
 
   &__key {

@@ -168,7 +168,7 @@ const PICK_LOCK_MS = 220;   // a round's marks fade in; no pick lands before the
 // A heartbeat on the pulse line, or a track of the prey: drawn inside each mark at its strength
 const CUE_PATHS = {
   pulse: 'M-14 0 L-6 0 L-3 -8 L1 9 L4 -3 L6 0 L14 0',
-  trail: 'M-6 6 m-3 0 a3 4 0 1 0 6 0 a3 4 0 1 0 -6 0 M5 -4 m-3 0 a3 4 0 1 0 6 0 a3 4 0 1 0 -6 0 M-1 -10 l2 0 M-9 -2 l2 0',
+  trail: 'M-9 6 a4 5 0 1 0 8 0 a4 5 0 1 0 -8 0 M-10 -1 a1.6 2 0 1 0 3.2 0 a1.6 2 0 1 0 -3.2 0 M-6.6 -3.5 a1.6 2 0 1 0 3.2 0 a1.6 2 0 1 0 -3.2 0 M-3 -1 a1.6 2 0 1 0 3.2 0 a1.6 2 0 1 0 -3.2 0 M3 -2 a4 5 0 1 0 8 0 a4 5 0 1 0 -8 0 M2 -9 a1.6 2 0 1 0 3.2 0 a1.6 2 0 1 0 -3.2 0 M5.4 -11.5 a1.6 2 0 1 0 3.2 0 a1.6 2 0 1 0 -3.2 0 M9 -9 a1.6 2 0 1 0 3.2 0 a1.6 2 0 1 0 -3.2 0',
 };
 
 export const RitePick = ({ data }: { data: RiteData }) => {
