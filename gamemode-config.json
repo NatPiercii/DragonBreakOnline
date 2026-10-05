@@ -907,6 +907,21 @@
   },
   "salvageLoop": { "enabled": true, "windowMinutes": 60, "rate": 0 }
  },
+ "craftPerkTiers": {
+  "_comment": "Forge recipes that ask for a vanilla Smithing perk (HasPerk): the fork's masterySystem counts the perk as held when the crafter's tier in this skill (1 Novice .. 5 Master) reaches the tier listed here. Keys are perk editor ids; a perk not listed stays locked (ArcaneBlacksmith only gates tempering enchanted gear and a few enchanted Immersive Armors sets, so it is left out). Re-read when this file changes; an empty perks turns it off. The same table is sent to each player (dboCraftPerks) so their own crafting menu shows the recipes; ArcaneBlacksmith is never granted. Needs fork craft-perk-tiers (C++ onCraftPerkRequired, masterySystem) and the client-craft-perks client.",
+  "skill": "blacksmith",
+  "perks": {
+   "SteelSmithing": 2,
+   "ElvenSmithing": 2,
+   "DwarvenSmithing": 2,
+   "AdvancedArmors": 3,
+   "OrcishSmithing": 3,
+   "GlassSmithing": 4,
+   "EbonySmithing": 4,
+   "DaedricSmithing": 5,
+   "DragonArmor": 5
+  }
+ },
  "hud": {
   "_comment": "The HUD panel (dboHud, gamemode.js pushHud): gold hides the gold row (Nate, 4 Oct: \"I want it gone, it makes it look convoluted\"); vitals and watermark as before. Hot reload.",
   "gold": false
