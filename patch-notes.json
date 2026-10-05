@@ -1,5 +1,20 @@
 [
   {
+    "title": "Fixes",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Weapons you enchant with Soul Trap yourself now trap souls: a kill while the effect lasts fills an empty soul gem, as weapons found with Soul Trap already did.",
+          "Raise Zombie tells you when a body cannot rise: one too powerful for the spell, another adventurer's, or one already bound."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Study after an early tome",
     "date": "2026-10-05",
     "version": "Server update",
