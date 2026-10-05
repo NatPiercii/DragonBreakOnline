@@ -19,7 +19,9 @@ const sqr = (x: number) => x * x;
 const standingMaxDeltaZ = 64;
 
 // isNpc: the copy is an NPC someone else hosts (no appearance), played back rather than extrapolated (see translateTo)
-export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: boolean, isNpc?: boolean): void => {
+// opts.noOffset: moved by translation only, no KeepOffsetFromActor and no head tracking (a dragon's copy under a staff
+// test's FLYER_NO_OFFSET switch, view/flyerGuard.ts)
+export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: boolean, isNpc?: boolean, opts?: { noOffset?: boolean }): void => {
   if (teleportIfNeed(refr, m)) {
     return;
   }
@@ -54,7 +56,9 @@ export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: bo
     }
   }
 
-  if (lookAt) {
+  if (opts?.noOffset) {
+    // nothing: no head tracking either
+  } else if (lookAt) {
     ac.setHeadTracking(true);
     ac.setLookAt(lookAt, false);
   } else {
@@ -64,7 +68,7 @@ export const applyMovement = (refr: ObjectReference, m: Movement, isMyClone?: bo
   // ac.stopCombat();
   ac.blockActivation(true);
 
-  keepOffsetFromActor(ac, m);
+  if (!opts?.noOffset) keepOffsetFromActor(ac, m);
 
   applySprinting(ac, m.runMode === "Sprinting");
   applyBlocking(ac, m);
