@@ -2,7 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
-import { ObjectReference } from "skyrimPlatform";
+import { Door, ObjectReference } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 
 const MASTER_LOCK_LEVEL = 100;
@@ -108,7 +108,12 @@ export class RefDecorService extends ClientListener {
     }
 
     const prev = this.applied.get(d.refId) || {};
-    if (d.name && prev.name !== d.name) {
+    // Names go on doors only, and only once the door's 3D is loaded: SKSE's SetDisplayName on a ref with no extra data
+    // yet writes through a null pointer (skse64+42EC, 8 crashes on 5 Oct for the owners of Frostcrag Spire's rooms, whose
+    // member chests were renamed about 2 s after loading in). Skipped refs are tried again on a later tick.
+    let nameable = false;
+    try { nameable = refr.is3DLoaded() && !!Door.from(refr.getBaseObject()); } catch (e) { nameable = false; }
+    if (d.name && prev.name !== d.name && nameable) {
       try {
         refr.setDisplayName(d.name, true);
         prev.name = d.name;
@@ -119,7 +124,7 @@ export class RefDecorService extends ClientListener {
       }
     }
     // A released claim hands the crosshair back to the base object's name
-    if (!d.name && prev.name) {
+    if (!d.name && prev.name && nameable) {
       try {
         refr.setDisplayName(refr.getBaseObject()?.getName() || "", true);
         delete prev.name;
