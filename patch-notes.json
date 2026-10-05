@@ -1,5 +1,22 @@
 [
   {
+    "title": "A character slot for 150 hours",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Character slots",
+        "items": [
+          "Play 150 hours on DragonBreak Online and you earn an extra character slot, yours to keep. The hours of all your characters count together.",
+          "Your hours count from the opening of the alpha on 1 October, so the time you have already played counts too.",
+          "The slot comes on top of any slots your Patreon tier or roles give you. You are told when you earn it, and it appears on the character screen the next time you log in.",
+          "Type /playtime to see your hours so far."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Fixes",
     "date": "SHIP_DATE",
     "version": "Server update",
@@ -8,24 +25,26 @@
       {
         "heading": "Fixes",
         "items": [
+          "Reading a spell tome early no longer closes the study shelves. Priest Studies and Study Magic keep teaching until the skill reaches 25, even if you already learned a spell from a tome; from 25 your skill grows by casting, in prayer and in class as before.",
           "Werewolf and Vampire Lord forms train no skills: claws are not fists, and nothing a beast does counts toward a skill or a school of magic.",
           "Reading tells you when you have found all the books, scrolls or spell tomes you can for the day (6 copies, 6 scrolls and 2 tomes); finds come back at midnight UTC, and reading still trains Scholar.",
           "Killing animals no longer trains Skinner. Skinning and tanning still do.",
           "For 20 seconds after you log in, creatures cannot hurt you while the world loads in around you. Attacking or casting ends it early.",
           "When the beast takes a werewolf without asking (hunger or the full moon), you are warned 12 seconds before the change.",
-          "Other players see a werewolf's beast body again, and anyone in werewolf or Vampire Lord form goes only by Werewolf or Vampire Lord, never their own name.",
+          "Anyone in werewolf or Vampire Lord form goes only by Werewolf or Vampire Lord, never their own name.",
           "The Bloodscale Bone Helmet no longer drops as loot: for now it only fits Argonians and Khajiit.",
           "Enchantments a few characters learned at the arcane enchanter before the 4 October update come back at their next login.",
           "Weapons you enchant with Soul Trap yourself now trap souls: a kill while the effect lasts fills an empty soul gem, as weapons found with Soul Trap already did.",
           "Raise Zombie tells you when a body cannot rise: one too powerful for the spell, another adventurer's, or one already bound.",
-          "Your summons and raised dead fight another player only where PvP allows it: while you and that player are fighting, never someone in your party, downed, jailed, held or logged out."
+          "Inside a house, each chest and inner door now has its own key, cut at that chest or door. A key cut at a door in from the street opens the doors in from the street, and no longer the rooms and chests inside. The owner still opens them all.",
+          "Gear you make, buy or trade is no longer swapped for steel when you log in, and chests inside a claimed home are left alone. The steel cap still holds for loot: dungeon chests, bodies and camps, and world chests as they are opened."
         ]
       }
     ]
   },
   {
     "title": "College and Synod robes",
-    "date": "2026-10-05",
+    "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -34,20 +53,6 @@
         "items": [
           "College robes (Winterhold and Whispers), the Archmage's robes and the Synod's robes and hood no longer turn up in dungeons, on bodies or in camp chests. They are given by the colleges and the Synod in roleplay. Robes you already have are yours to keep.",
           "Ordinary mage robes still drop as before."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "Study after an early tome",
-    "date": "2026-10-05",
-    "version": "Server update",
-    "tag": "Fix",
-    "sections": [
-      {
-        "heading": "Magic",
-        "items": [
-          "Reading a spell tome early no longer closes the study shelves. Priest Studies and Study Magic keep teaching until the skill reaches 25, even if you already learned a spell from a tome; from 25 your skill grows by casting, in prayer and in class as before."
         ]
       }
     ]
@@ -486,23 +491,6 @@
           "Aleswell's farm is replanted: leeks, wheat, potatoes, carrots, gourds and grapes, where the old tomato beds were.",
           "Fort Caractacus has a working smithy: a forge, an armour workbench, a sharpening wheel, and a supply chest that everyone shares.",
           "The Bleak-Frost Mine is open a short walk west of Bruma: a new road leads to its door, and its veins can be worked for iron and corundum, with a few veins of gold for miners skilled enough to work it. Three of the iron seams at the very bottom of the mine hold meteoric iron instead, for Adept miners: smelt it into ingots at any smelter."
-        ]
-      }
-    ]
-  },
-  {
-    "title": "A character slot for 150 hours",
-    "date": "SHIP_DATE",
-    "version": "Server update",
-    "tag": "New",
-    "sections": [
-      {
-        "heading": "Character slots",
-        "items": [
-          "Play 150 hours on DragonBreak Online and you earn an extra character slot, yours to keep. The hours of all your characters count together.",
-          "Your hours count from the opening of the alpha on 1 October, so the time you have already played counts too.",
-          "The slot comes on top of any slots your Patreon tier or roles give you. You are told when you earn it, and it appears on the character screen the next time you log in.",
-          "Type /playtime to see your hours so far."
         ]
       }
     ]
