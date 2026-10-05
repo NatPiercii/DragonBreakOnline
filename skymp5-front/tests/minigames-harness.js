@@ -479,7 +479,7 @@ section('lockpick pick', () => {
 
 // ---- rite ---------------------------------------------------------------------------------------------------------
 section('rite', () => {
-  const Rite = load('features/rite/index.tsx').default;
+  const Rite = load('features/rite/index.tsx').TimedRite;
   const round = { id: 39, nonce: 'R', title: 'The Blood Fever', flavor: '', deadly: false, round: 1, rounds: 5, need: 3, hits: 0, misses: 0, period: 1500, zone: [0.5, 0.2], startsIn: 700, result: '' };
   let w = mount(Rite, round);
   w.advance(300); w.key(' ', 'Space');
@@ -508,6 +508,25 @@ section('rite', () => {
   w.advance(700 + 7050);
   const t = last('dbo:riteTimeout');
   check('rite (client): its own limit sends riteTimeout once', t && t[1] === 'C' && t[2] === 3 && t[3] === 'r3' && count('dbo:riteTimeout') === 1 && w.text().includes('too late'), t);
+});
+
+// ---- pick rites ("read the rite": no marker) -----------------------------------------------------------------------
+section('rite pick', () => {
+  const { RitePick } = load('features/rite/index.tsx');
+  const round = { id: 39, nonce: 'P', title: 'The Blood Fever', flavor: '', deadly: false, round: 1, rounds: 5, need: 3, hits: 0, misses: 0, result: '', judge: 'client', rnonce: 'r1', mode: 'pick', spots: [[20, 50, 0.3], [50, 50, 0.95], [80, 50, 0.25]], cue: 'pulse', minPickMs: 300, limitMs: 90000 };
+  let w = mount(RitePick, round);
+  check('rite pick: three marks keyed 1-3, no marker or Strike button', w.byClass('rite__spot').length === 3 && !w.hasClass('rite__marker') && !w.text().includes('Strike') && w.text().includes('strongest beat'), w.text());
+  w.advance(200); w.key('2', 'Digit2');
+  check('rite pick: a pick before the marks have shown is not taken', count('dbo:riteStrike') === 0);
+  w.advance(200); w.key('2', 'Digit2');
+  const h = last('dbo:riteStrike');
+  check('rite pick: the clearest mark reports [nonce, round, rnonce, pick, index, atMs] and shows True at once', h && h[1] === 'P' && h[2] === 1 && h[3] === 'r1' && h[4] === 'pick' && h[5] === 1 && h[6] === 400 && w.text().includes('True.') && w.byClass('rite__pip--hit').length === 1, h);
+  w.key('1', 'Digit1');
+  check('rite pick: one pick per round', count('dbo:riteStrike') === 1);
+  w.set(Object.assign({}, round, { round: 2, rnonce: 'r2', hits: 1, result: 'True.', spots: [[30, 50, 0.2], [60, 50, 0.3], [85, 50, 0.9]], cue: 'trail' }));
+  w.advance(400); w.key('1', 'Digit1');
+  const m = last('dbo:riteStrike');
+  check('rite pick: the next round brings its own marks; another mark is a miss, shown at once', m && m[3] === 'r2' && m[5] === 0 && w.text().includes('Missed (the wrong mark).') && w.text().includes('freshest track') && w.byClass('rite__pip--miss').length === 1, m);
 });
 
 // ---- parity with the server's arithmetic ----------------------------------------------------------------------------

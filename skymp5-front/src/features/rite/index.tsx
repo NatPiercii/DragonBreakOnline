@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { riteHit, riteMarkerAt } from '../../utils/minigameJudge';
+import { countWord } from '../../utils/countWord';
+import { pickRight, riteHit, riteMarkerAt } from '../../utils/minigameJudge';
 
 import './styles.scss';
 
@@ -10,6 +11,8 @@ import './styles.scss';
 //   judge 'client':              sendMessage('dbo:riteStrike', nonce, round, rnonce, 'hit' | 'miss', pressMs, atMs, shown)
 //                                sendMessage('dbo:riteTimeout', nonce, round, rnonce, atMs) when limitMs runs out
 //   Close / Escape:              sendMessage('dbo:riteClose', nonce)  (forfeits the rite)
+//   mode 'pick' (a server with labour-pick, for a UI that says riteJudge and pickRound): no marker. The round's marks are
+//   spots [x, y, cue]; the clearest is the true one. sendMessage('dbo:riteStrike', nonce, round, rnonce, 'pick', index, atMs)
 export interface RiteData {
   id: number;
   nonce: string;
@@ -29,6 +32,10 @@ export interface RiteData {
   rnonce?: string;   // one per round, spent by its one report
   graceMs?: number;  // how far either side of the press the marker may be in the zone
   limitMs?: number;  // how long a round waits for the press once the marker moves
+  mode?: 'pick';
+  spots?: number[][];          // a pick rite: this round's marks
+  cue?: 'pulse' | 'trail';     // a pick rite: what the marks are, a heartbeat or a track
+  minPickMs?: number;
 }
 
 const send = (key: string, ...args: unknown[]): void => {
@@ -46,7 +53,7 @@ const num = (v: unknown, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const Rite = ({ data }: { data: RiteData }) => {
+export const TimedRite = ({ data }: { data: RiteData }) => {
   const local = data.judge === 'client' && typeof data.rnonce === 'string' && data.rnonce.length > 0;
   const period = Math.max(200, data.period || 1500);
   const [center, width] = data.zone || [0.5, 0.2];
@@ -155,5 +162,99 @@ const Rite = ({ data }: { data: RiteData }) => {
     </div>
   );
 };
+
+// ---- the pick rite: read the marks of the rite ----
+const PICK_LOCK_MS = 220;   // a round's marks fade in; no pick lands before they show
+// A heartbeat on the pulse line, or a track of the prey: drawn inside each mark at its strength
+const CUE_PATHS = {
+  pulse: 'M-14 0 L-6 0 L-3 -8 L1 9 L4 -3 L6 0 L14 0',
+  trail: 'M-6 6 m-3 0 a3 4 0 1 0 6 0 a3 4 0 1 0 -6 0 M5 -4 m-3 0 a3 4 0 1 0 6 0 a3 4 0 1 0 -6 0 M-1 -10 l2 0 M-9 -2 l2 0',
+};
+
+export const RitePick = ({ data }: { data: RiteData }) => {
+  const spots = Array.isArray(data.spots) ? data.spots : [];
+  const cue = data.cue === 'trail' ? 'trail' : 'pulse';
+  const lockMs = Math.max(PICK_LOCK_MS, Math.floor(num(data.minPickMs, 300)) + 1);
+  const [own, setOwn] = useState<{ index: number; hit: boolean } | null>(null);
+  const receivedAt = useRef(performance.now());
+  const pickedRef = useRef(false);
+
+  useEffect(() => {
+    receivedAt.current = performance.now();
+    pickedRef.current = false;
+    setOwn(null);
+  }, [data.nonce, data.round, data.rnonce]);
+
+  const choose = (i: number) => {
+    const at = Math.floor(performance.now() - receivedAt.current);
+    if (pickedRef.current || i < 0 || i >= spots.length || at < lockMs) return;
+    pickedRef.current = true;
+    const hit = i === pickRight(spots);
+    setOwn({ index: i, hit });
+    send('dbo:riteStrike', data.nonce, data.round, data.rnonce, 'pick', i, at);
+  };
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const n = parseInt(e.key, 10);
+      if (n >= 1 && n <= 9) { e.preventDefault(); chooseRef.current(n - 1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const hits = data.hits + (own && own.hit ? 1 : 0);
+  const misses = data.misses + (own && !own.hit ? 1 : 0);
+  const result = own ? (own.hit ? 'True.' : 'Missed (the wrong mark).') : data.result;
+  const pips = [];
+  for (let i = 0; i < data.rounds; i++) {
+    const done = i < hits + misses;
+    pips.push(<span key={i} className={'rite__pip' + (done ? (i < hits ? ' rite__pip--hit' : ' rite__pip--miss') : '')} />);
+  }
+  const read = cue === 'trail' ? 'Choose the freshest track of the prey.' : 'Choose the strongest beat of the slowing heart.';
+
+  return (
+    <div className="rite rite--pick">
+      <div className={'rite__fade' + (data.deadly ? ' rite__fade--deadly' : '')} />
+      <div className="rite__panel">
+        <h1 className="rite__title">{data.title}</h1>
+        <p className="rite__flavor">{data.flavor}</p>
+        <div className="rite__pips">{pips}</div>
+        <div className={'rite__strip rite__strip--' + cue}>
+          <div key={'round-' + data.round + '-' + data.rnonce} className="rite__spots">
+            {spots.map((sp, j) => (
+              <button
+                key={j}
+                className={'rite__spot' + (own && own.index === j ? (own.hit ? ' rite__spot--hit' : ' rite__spot--miss') : '')}
+                style={{ left: num(sp[0], 50) + '%', top: num(sp[1], 50) + '%' }}
+                onClick={() => choose(j)}
+              >
+                <svg className="rite__cue" viewBox="-20 -20 40 40" aria-hidden="true" style={{ opacity: Math.max(0.1, Math.pow(Math.max(0, Math.min(1, num(sp[2], 0))), 1.5)) }}>
+                  <path d={CUE_PATHS[cue]} />
+                </svg>
+                <span className="rite__key">{j + 1}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="rite__hint">
+          {result ? <span className="rite__result">{result} </span> : null}
+          {`Round ${data.round} of ${data.rounds}: ${countWord(data.need)} true marks. ${read} Click a mark or press 1-${spots.length || 3}.`}
+          {data.deadly ? ' Failure here can be the end of this life.' : ''}
+        </p>
+        <div className="rite__actions">
+          <button className="rite__button" onClick={() => send('dbo:riteClose', data.nonce)}>Yield</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// A pick rite is its own component, so a rite of the other kind arriving in the same window remounts it
+const Rite = ({ data }: { data: RiteData }) => (data.mode === 'pick' && data.judge === 'client' && Array.isArray(data.spots) && data.spots.length
+  ? <RitePick key={'pick-' + data.nonce} data={data} />
+  : <TimedRite data={data} />);
 
 export default Rite;

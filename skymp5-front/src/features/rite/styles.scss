@@ -130,4 +130,83 @@
       background: $dbo-gold-fill;
     }
   }
+
+  // ---- the pick rite: the strip with this round's marks ----
+  &__strip {
+    position: relative;
+    height: 70px;
+    border: 1px solid $dbo-border;
+    background:
+      linear-gradient(180deg, transparent 49%, rgba(214, 84, 84, 0.35) 49%, rgba(214, 84, 84, 0.35) 51%, transparent 51%),
+      rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.7);
+
+    &--trail {
+      background:
+        repeating-linear-gradient(100deg, transparent 0 14px, rgba(255, 255, 255, 0.03) 14px 16px),
+        linear-gradient(180deg, #2b3324, #1b2016);
+    }
+  }
+
+  &__spots {
+    position: absolute;
+    inset: 0;
+    animation: rite-marks-in 200ms ease-out 160ms both;
+  }
+
+  &__spot {
+    @include dbo-pick-spot(42px);
+
+    // The chosen mark beats once: red for a true mark found, dull for a wrong one (under 400 ms)
+    &--hit { animation: rite-beat 360ms ease-out; border: 1.5px solid rgba(232, 110, 96, 0.95); box-shadow: 0 0 14px rgba(214, 84, 84, 0.7); }
+    &--miss { animation: rite-falter 360ms ease-out; border-color: rgba(140, 150, 152, 0.6); opacity: 0.6; }
+  }
+
+  &__cue {
+    position: absolute;
+    inset: 2px;
+    width: calc(100% - 4px);
+    height: calc(100% - 4px);
+    overflow: visible;
+    pointer-events: none;
+
+    path {
+      fill: none;
+      stroke: rgba(232, 110, 96, 0.98);
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 3px rgba(214, 84, 84, 0.8));
+    }
+  }
+
+  &__strip--trail &__cue path {
+    fill: rgba(222, 206, 170, 0.9);
+    stroke: rgba(40, 30, 18, 0.9);
+    stroke-width: 1;
+    filter: none;
+  }
+
+  &__key {
+    @include dbo-pick-key;
+  }
+}
+
+@keyframes rite-marks-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rite-beat {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.22); }
+  60% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+@keyframes rite-falter {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-5px); }
+  60% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
 }
