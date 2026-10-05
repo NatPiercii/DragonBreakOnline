@@ -72,6 +72,7 @@ import { AutoMoveService } from "./services/services/autoMoveService";
 import { ParalysisService } from "./services/services/paralysisService";
 import { CastSelfService } from "./services/services/castSelfService";
 import { PaleCoatService } from "./services/services/paleCoatService";
+import { AppearanceExtrasService } from "./services/services/appearanceExtrasService";
 import { RestraintService } from "./services/services/restraintService";
 import { CaptureConsentService } from "./services/services/captureConsentService";
 import { SearchService } from "./services/services/searchService";
@@ -208,6 +209,7 @@ const main = () => {
       new ParalysisService(sp, controller),
       new CastSelfService(sp, controller),
       new PaleCoatService(sp, controller),
+      new AppearanceExtrasService(sp, controller),
       new RestraintService(sp, controller),
       new CaptureConsentService(sp, controller),
       new SearchService(sp, controller),

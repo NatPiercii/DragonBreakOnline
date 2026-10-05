@@ -44,6 +44,23 @@ export const guardedRaceOf = (ac: Actor | null | undefined): number => {
   }
 };
 
+// For calls that write into an actor's 3D (skee's overlays, node scales, morphs, presets): a race whose graph or body is
+// not the humanoid one, or a race that cannot be read, is refused (fails closed, unlike guardedRaceOf)
+export const isGuardedRace = (raceId: number | undefined | null): boolean => {
+  resolveNonHumanoidRaces();
+  return !raceId || isGuardedRaceId(raceId);
+};
+
+export const isGuardedActor = (ac: Actor | null | undefined): boolean => {
+  try {
+    if (!ac) return true;
+    const race = ac.getRace();
+    return !race || isGuardedRace(race.getFormID() >>> 0);
+  } catch {
+    return true;
+  }
+};
+
 const DIAG_LOG = "dbo-diag";
 
 // One line in Data\Platform\Logs\dbo-diag-logs.txt (flushed per line); an older SkyrimPlatform without writeLogs is quiet

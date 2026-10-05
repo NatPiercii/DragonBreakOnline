@@ -379,6 +379,8 @@ export class FormView {
             note("fv:destroy", `${(refrId >>> 0).toString(16)} remote=${((remoteRefrId || 0) >>> 0).toString(16)} wasHosted=${wasHosted ? "yes" : "no"} found=${refr ? "yes" : "NO"} 3d=${loaded} disabled=${disabled}`);
           } catch (e) { /* diagnostics never break the caller */ }
         }
+        // RaceMenu extras (appearanceExtrasService): skee keys its data by form id, so it goes before the id is freed
+        try { const forget = (globalThis as any).__dboAppearanceExtrasForget; if (typeof forget === "function") forget(refrId); } catch (e) { /* never block the delete */ }
         if (refr) {
           safeDelete(refr);
         }
