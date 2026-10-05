@@ -114,7 +114,7 @@ MG.byTier = (list, tier, fallback) => {
 const r2 = (x) => Math.round(x * 100) / 100;
 // One blow's spots as [x, y, cue] in percent of the face (cue 0..1), and the index of the right one. Spread across the
 // face one per slot so no two touch; layout 'seam' puts the right spot on the seam line (y 50) and the decoys off it by
-// at least seamGap, 'face' scatters them all. The right cue is always strictly the clearest.
+// at least seamGap, 'line' puts them all on it, 'face' scatters them all. The right cue is always strictly the clearest.
 MG.pickStep = (rand, n, cue, decoy, layout, seamGap) => {
   const count = Math.max(2, Math.min(6, Math.floor(n) || 4));
   const right = Math.min(count - 1, Math.floor(rand() * count));
@@ -123,7 +123,7 @@ MG.pickStep = (rand, n, cue, decoy, layout, seamGap) => {
   for (let j = 0; j < count; j++) {
     const x = r2(8 + slot * (j + 0.5) + (rand() - 0.5) * slot * 0.5);
     const off = (Number(seamGap) || 10) + rand() * 8;
-    const y = layout === 'seam' ? (j === right ? 50 : r2(50 + (rand() < 0.5 ? -off : off))) : r2(26 + rand() * 48);
+    const y = layout === 'line' ? 50 : layout === 'seam' ? (j === right ? 50 : r2(50 + (rand() < 0.5 ? -off : off))) : r2(26 + rand() * 48);
     const c = j === right ? r2(Math.max(0.05, Math.min(1, cue))) : r2(Math.max(0, Math.min(Number(decoy) || 0, cue - 0.1)) * (0.4 + 0.6 * rand()));
     spots.push([x, y, c]);
   }
@@ -141,6 +141,7 @@ MG.rightOf = (spots) => spots.reduce((best, s, i) => (s[2] > spots[best][2] ? i 
 MG.pickMinMs = (need, minPickMs) => Math.max(1, Math.floor(need)) * Math.max(0, Number(minPickMs) || 0);
 // Replay a pick report: raw is '[[index, ms], ...]' in the order picked. Returns the hits, the misses and any reason to
 // refuse; the widget submits on the last needed hit or the miss past the allowance, so nothing may follow either.
+// round.retry: a wrong pick is tried again on the same step (a verse, a tumbler), so step k is the hits so far.
 MG.judgePicks = (raw, round) => {
   const r = { hits: 0, misses: 0, count: 0, last: 0, first: -1, minGap: Infinity, bad: '', sus: [] };
   let list = null;
@@ -152,10 +153,11 @@ MG.judgePicks = (raw, round) => {
   for (let k = 0; k < list.length; k++) {
     const e = list[k];
     const i = Array.isArray(e) ? Number(e[0]) : NaN, t = Array.isArray(e) ? Number(e[1]) : NaN;
-    if (!Number.isInteger(i) || !Number.isInteger(t) || t < 0 || t > round.totalMs || i < 0 || i >= (round.steps[k] || []).length) { r.bad = 'range'; break; }
-    if (t < r.last) { r.bad = 'order'; break; }
+    const step = round.retry ? r.hits : k;
     if (r.hits >= round.need || r.misses > round.allowed) { r.bad = 'extra'; break; }
-    if (i === round.right[k]) r.hits++; else r.misses++;
+    if (!Number.isInteger(i) || !Number.isInteger(t) || t < 0 || t > round.totalMs || i < 0 || i >= (round.steps[step] || []).length) { r.bad = 'range'; break; }
+    if (t < r.last) { r.bad = 'order'; break; }
+    if (i === round.right[step]) r.hits++; else r.misses++;
     if (r.first < 0) r.first = t; else r.minGap = Math.min(r.minGap, t - r.last);
     r.last = t;
   }

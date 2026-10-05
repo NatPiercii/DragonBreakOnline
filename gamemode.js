@@ -5985,7 +5985,7 @@ try {
 try {
   const STRUGGLE_JS = path.resolve('struggle.js');
   delete require.cache[STRUGGLE_JS];
-  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, isLeadStaff, distanceMeters, sendPacket });
+  require(STRUGGLE_JS)({ mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, isAdmin, isLeadStaff, distanceMeters, sendPacket, hasUiCap });
 } catch (e) { log('struggle.js failed to load:', e.stack || e.message); globalThis.__dboOnRestrained = null; globalThis.__dboStruggling = null; }
 
 // ---- rope: tying someone up without authority, left unattended, cut free (server\rope.js, config "rope") ----

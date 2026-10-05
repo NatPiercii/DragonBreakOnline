@@ -34,7 +34,7 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, system, audit, display, nameOf, cfg, openWidget, closeWidget, onUi, registerChatCommand,
-    onlineActors, isAdmin, distanceMeters, sendPacket } = api;
+    onlineActors, isAdmin, distanceMeters, sendPacket, hasUiCap } = api;
   // The shared rules for client-judged mini-games, beside this file (reloaded with it)
   const MINIGAMES_JS = path.join(__dirname, 'minigames.js');
   delete require.cache[MINIGAMES_JS];
@@ -86,6 +86,13 @@ module.exports = (api) => {
   const clientJudged = () => MG.clientJudged(CFG);
   // A rope captive left unattended (rope.js): band, winChance and cooldownMinutes in place of the ones above
   CFG.ropeUnattended = Object.assign({ band: 9, winChance: 0.85, cooldownMinutes: 1 }, CFG.ropeUnattended || {});
+  // "Read the rope" (Nate, 4 Oct: no timing mini-games): a UI that names MG.PICK_CAP gets a round with no sweep. Every pull
+  // shows spots on the rope, one where it gives (the clearest cue); one wrong pull and the bonds hold, as one miss does
+  // today. More spots and clearer decoys while someone lawful watches, fewer and fainter left alone on a rope. seconds
+  // bounds the whole round. Pulls, cooldowns, watchers and the winChance roll are the timing round's. enabled false:
+  // every client gets the timing round.
+  const PICK = Object.assign({ enabled: true, seconds: 60, spots: 4, watchedSpots: 5, aloneSpots: 3, cue: 0.8, decoy: 0.35, watchedDecoy: 0.5, aloneDecoy: 0.2, minPickMs: 150 }, CFG.pick || {});
+  const pickFor = (a) => PICK.enabled !== false && typeof hasUiCap === 'function' && hasUiCap(a, MG.PICK_CAP);
 
   // Rounds and spent nonces outlive a gamemode reload, or every save would strand a round in flight
   const sessions = globalThis.__dboStruggleRounds || (globalThis.__dboStruggleRounds = new Map()); // actorId -> round
@@ -171,12 +178,36 @@ module.exports = (api) => {
       hitMs: int(CFG.hitCooldownMs, 250, 0),
       startedAt: 0, prevNext: 0, captor: 0,
     };
+    if (pickFor(a)) {
+      const spots = watched ? PICK.watchedSpots : alone ? PICK.aloneSpots : PICK.spots;
+      const decoy = watched ? PICK.watchedDecoy : alone ? PICK.aloneDecoy : PICK.decoy;
+      const p = MG.pickSteps(rand, strikes, Number(spots) || 4, Number(PICK.cue) || 0.8, Number(decoy) || 0.35, 'face');
+      Object.assign(round, { mode: 'pick', steps: p.steps, right: p.right, totalMs: Math.max(10000, Math.round((Number(PICK.seconds) || 60) * 1000)), minPickMs: Math.max(0, Number(PICK.minPickMs) || 0) });
+      round.minMs = MG.pickMinMs(strikes, round.minPickMs);
+      return round;
+    }
     round.minMs = minMsOf(round);
     return round;
   };
 
   // Everything the widget needs to draw the server's round, and nothing it could use to judge it
   const packetFor = (round, result, resultKind) => {
+    if (round.mode === 'pick') {
+      const p = {
+        type: 'labour', id: WIDGET_ID, kind: 'struggle', event: 'struggle', nonce: round.nonce, mode: 'pick',
+        title: 'Bound Hands',
+        hint: round.watched
+          ? 'Someone is watching closely. Pull where the rope gives; one wrong pull and the bonds hold.'
+          : round.alone
+            ? 'Nobody is watching and the knots are loose. Pull where the rope gives; one wrong pull and they hold.'
+            : 'Pull where the rope gives; one wrong pull and the bonds hold.',
+        strikes: round.strikes, slips: 0, steps: round.steps, totalMs: round.totalMs, minPickMs: round.minPickMs,
+        strikeLabel: 'Pull', leaveLabel: 'Give up', doneLabel: 'Close',
+      };
+      if (clientJudged()) p.judge = 'client';
+      if (result) { p.result = result; p.resultKind = resultKind; }
+      return p;
+    }
     const w = {
       type: 'labour', id: WIDGET_ID, kind: 'struggle', event: 'struggle', nonce: round.nonce,
       title: 'Bound Hands',
@@ -252,7 +283,7 @@ module.exports = (api) => {
       system(w, text);
       sendPacket(w, { customPacketType: 'dboNotice', text });
     }
-    log(`struggle start ${display(a)} band=${round.half} sweeps=${round.sweeps.join('/')} ${watchers.length ? `watched by ${watchers.map(display).join(', ')}` : alone ? 'rope, unattended' : 'unwatched'} seed=${round.seed.toString(16)} min=${round.minMs} judge=${clientJudged() ? 'client' : 'server'}`);
+    log(`struggle start ${display(a)} ${round.mode === 'pick' ? `pick spots=${round.steps[0].length}` : `band=${round.half} sweeps=${round.sweeps.join('/')}`} ${watchers.length ? `watched by ${watchers.map(display).join(', ')}` : alone ? 'rope, unattended' : 'unwatched'} seed=${round.seed.toString(16)} min=${round.minMs} judge=${clientJudged() ? 'client' : 'server'}`);
     return true;
   };
 
@@ -339,6 +370,18 @@ module.exports = (api) => {
     else if (r.hits >= round.strikes && r.err < CFG.minErr) r.bad = 'precise'; // every pull on the centre line
     return r;
   };
+  // A pick round's report, '[[index, ms], ...]', replayed against the spots the server rolled (minigames.js judgePicks), in
+  // judge()'s fields: the first wrong pull is the miss and ends it
+  const judgePick = (round, raw, at, elapsed) => {
+    const p = MG.judgePicks(raw, { need: round.strikes, allowed: 0, steps: round.steps, right: round.right, totalMs: round.totalMs, minPickMs: round.minPickMs });
+    const r = { hits: p.hits, count: p.count, last: p.last, at, lag: Math.round(elapsed - at), err: 0, bad: p.bad, missed: p.misses > 0, sus: p.sus };
+    if (r.bad) return r;
+    if (r.last > at) r.bad = 'submit';
+    else if (clientJudged()) r.sus.push(...MG.lagFlags(r.lag, CFG.clockSlackMs, CFG.slowFlagMs));
+    else if (r.lag < -CFG.clockSlackMs) r.bad = 'future';
+    else if (r.lag > CFG.lagGraceMs) r.bad = 'late';
+    return r;
+  };
   // The widget's verdict, args[3] (minigames.js); anything unreadable is an old widget, judged from its pulls
   const claimOf = (raw) => {
     const c = MG.verdictOf(raw);
@@ -359,7 +402,7 @@ module.exports = (api) => {
     }
     const elapsed = nowMs() - round.startedAt;
     const at = Math.max(0, Math.floor(Number(args[2]) || 0));
-    const v = judge(round, args[1], at, elapsed);
+    const v = round.mode === 'pick' ? judgePick(round, args[1], at, elapsed) : judge(round, args[1], at, elapsed);
     const cj = clientJudged();
     const claim = cj ? claimOf(args[3]) : null;
     // Cleanup bound only: minutes past the round

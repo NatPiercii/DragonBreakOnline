@@ -18,6 +18,7 @@ const STRUGGLE = path.join(SERVER, 'struggle.js');
 const CONFIG = require(path.join(SERVER, 'gamemode-config.json')).struggle || {};
 
 let virtual = 0;
+let pickUi = false;
 globalThis.performance = { now: () => virtual };
 const realNow = Date.now;
 let dateOffset = 0;
@@ -69,6 +70,8 @@ const api = {
   isAdmin: () => false,
   distanceMeters: (a, b) => Math.abs(pos.get(a) - pos.get(b)),
   sendPacket: (a, p) => { out.packets.push([a, p]); return true; },
+  // A UI that names 'pickRound'; off until the pick cases at the end
+  hasUiCap: (a, cap) => pickUi && cap === 'pickRound',
 };
 
 // gamemode.js rebuilds its ui registry and command table on every reload, so they go with it
@@ -541,6 +544,80 @@ f = freshC(); { const pc = careful(f.w);
   res = reportC(f.w, pc.strikes, pc.at, 4000, f.start, claimT(true, pc.hits));
   check('rollback (clientJudged false): 4 s late is refused(late) again', verdictOf(res.log) === 'refused(late)' && jOf(res.log) === 'server', res.log); }
 check('...and the widget is not told it judges', f.w.judge === undefined);
+
+// ---- "Read the rope": a UI that names 'pickRound' gets a pick round, every other UI today's timing round ---------------
+console.log('');
+console.log('pick rounds:');
+{
+  const MG = require(path.join(SERVER, 'minigames.js'));
+  api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: true }) };
+  load();
+  const TIMING_KEYS = 'type,id,kind,event,nonce,title,hint,strikes,band,bands,sweepMs,sweeps,failOnMiss,totalMs,hitMs,missMs,strikeLabel,leaveLabel,doneLabel,judge';
+  pickUi = false;
+  let f = freshC();
+  check('a UI without the capability gets exactly the timing round', Object.keys(f.w).join(',') === TIMING_KEYS, Object.keys(f.w).join(','));
+  pickUi = true;
+  const claimP = (win, hits, slips) => JSON.stringify({ v: 2, mode: 'pick', win, hits, slips });
+  const right = (wd) => wd.steps.map((st) => [MG.rightOf(st)]);
+  const timed = (list) => list.map((e, k) => [e[0], 600 + k * 600]);
+  f = freshC();
+  check('a UI with it gets a pick round: a set of spots per pull, one wrong pull allowed none, no sweep or band', f.w.mode === 'pick' && f.w.steps.length === f.w.strikes && f.w.slips === 0 && f.w.bands === undefined && f.w.sweeps === undefined && f.w.totalMs === 60000, Object.keys(f.w).join(','));
+  check('...four spots unwatched, and its hint speaks of the rope, not a marker', f.w.steps.every((st) => st.length === 4) && /where the rope gives/.test(f.w.hint) && !/marker/.test(f.w.hint), f.w.hint);
+  let l = timed(right(f.w));
+  res = reportC(f.w, l, l[l.length - 1][1], 150, f.start, claimP(true, f.w.strikes, 0));
+  check('every pull where the rope gives, then the roll: free (winChance 1 here), as the timing round', verdictOf(res.log) === 'win' && res.freed.length === 1, res.log);
+  f = freshC();
+  l = timed(right(f.w).slice(0, 2).concat([[(MG.rightOf(f.w.steps[2]) + 1) % f.w.steps[2].length]]));
+  res = reportC(f.w, l, l[l.length - 1][1], 150, f.start, claimP(false, 2, 1));
+  check('one wrong pull and the bonds hold, with the cooldown', verdictOf(res.log) === 'lose' && res.freed.length === 0 && cooldownSet(), res.log);
+  f = freshC();
+  l = timed(right(f.w)).concat([[0, 9000]]);
+  res = reportC(f.w, l, 9000, 150, f.start, claimP(true, f.w.strikes, 0));
+  check('a pull after the last is refused (more pulls than the round has)', /refused\((extra|flood)\)/.test(res.log) && res.freed.length === 0, res.log);
+  f = freshC();
+  l = right(f.w).map((e, k) => [e[0], 30 + 30 * k]);
+  res = reportC(f.w, l, 200, 150, f.start, claimP(true, f.w.strikes, 0));
+  check('pulls faster than a hand are refused(fast)', verdictOf(res.log) === 'refused(fast)' && res.freed.length === 0, res.log);
+  f = freshC();
+  res = reportC(f.w, [[MG.rightOf(f.w.steps[0]), 4000]], 60000, 150, f.start, claimP(false, 1, 0));
+  check('an idle round ends at its 60 s limit as a loss', verdictOf(res.log) === 'lose' && res.freed.length === 0, res.log);
+  f = freshC();
+  res = reportC(f.w, JSON.stringify([700, 1400]), 1400, 150, f.start, claimP(false, 0, 0));
+  check('timing pulls sent for a pick round are refused', /refused\(range\)/.test(res.log) && res.freed.length === 0, res.log);
+  pos.set(GUARD, 2);
+  f = { start: (T2 += 1000000) }; f.w = fresh(f.start);
+  check('a lawful watcher within reach: five spots and clearer decoys', f.w.steps.every((st) => st.length === 5) && /watching closely/.test(f.w.hint), f.w.hint);
+  pos.set(GUARD, 10);
+  api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 0, clientJudged: true }) };
+  load();
+  f = freshC();
+  l = timed(right(f.w));
+  res = reportC(f.w, l, l[l.length - 1][1], 150, f.start, claimP(true, f.w.strikes, 0));
+  check('a clean pick round still waits on the knot roll (winChance 0: held)', verdictOf(res.log) === 'held' && res.freed.length === 0, res.log);
+  api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: true }) };
+  load();
+  let agree = 0;
+  for (let i = 0; i < 200; i++) {
+    f = freshC();
+    const list = []; let hits = 0, t = 0;
+    for (let k = 0; k < f.w.strikes; k++) {
+      t += 200 + Math.floor(Math.random() * 900);
+      const pick = Math.random() < 0.9 ? MG.rightOf(f.w.steps[k]) : Math.floor(Math.random() * f.w.steps[k].length);
+      list.push([pick, t]);
+      if (pick !== MG.rightOf(f.w.steps[k])) break;
+      hits++;
+    }
+    const win = hits >= f.w.strikes;
+    res = reportC(f.w, list, t, 150, f.start, claimP(win, hits, win ? 0 : 1));
+    if (verdictOf(res.log) === (win ? 'win' : 'lose') && !/mismatch/.test(sOf(res.log))) agree++;
+  }
+  check('the widget and the server agree on 200 random pick rounds', agree === 200, `${agree}/200`);
+  api.cfg = { struggle: Object.assign({}, CONFIG, { winChance: 1, clientJudged: true, pick: { enabled: false } }) };
+  load();
+  f = freshC();
+  check('struggle.pick.enabled false gives every UI the timing round again', Object.keys(f.w).join(',') === TIMING_KEYS, Object.keys(f.w).join(','));
+  pickUi = false;
+}
 
 console.log('');
 console.log(failures ? `${failures} FAILED` : 'all passed');
