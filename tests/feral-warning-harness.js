@@ -102,6 +102,35 @@ ok(changes.length === 0 && said.some(([, t]) => /full moon pulls at your blood/.
 advance(12000);
 ok(changes.length === 1, '...and the change follows');
 
+// ---- no forced change just after a login (#bugs 1556845702422990888, 6 Oct) ----
+globalThis.__dboClock = { gameDays: () => 0, isNight: () => false, isFullMoon: () => false, weatherFor: () => 0 };
+reset();
+load();
+globalThis.__dboSuperLogin(A);
+timers.superFeral();
+advance(12000);
+ok(changes.length === 0 && shakes().length === 0, 'a werewolf who just logged in does not go feral');
+advance(4 * 60000);
+timers.superFeral();
+advance(12000);
+ok(changes.length === 0, '...nor 4 minutes later');
+advance(60000);
+timers.superFeral();
+advance(12000);
+ok(changes.length === 1, '...but can after the 5 minutes of feralLoginGraceMinutes', changes);
+reset();
+globalThis.__dboClock = { gameDays: () => 1, isNight: () => true, isFullMoon: () => true, weatherFor: () => 0 };
+globalThis.__dboSuperLogin(A);
+timers.superMoon();
+ok(changes.length === 0 && shakes().length === 0, 'the full moon waits out the login grace too');
+reset();
+load({ supernatural: { feralLoginGraceMinutes: 0 } });
+globalThis.__dboClock = { gameDays: () => 0, isNight: () => false, isFullMoon: () => false, weatherFor: () => 0 };
+globalThis.__dboSuperLogin(A);
+timers.superFeral();
+advance(12000);
+ok(changes.length === 1, 'feralLoginGraceMinutes 0 turns it off');
+
 Math.random = realRandom;
 globalThis.setTimeout = realSetTimeout;
 console.log(fail ? `${fail} FAILED` : 'all passed');

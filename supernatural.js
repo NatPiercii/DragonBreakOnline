@@ -88,6 +88,9 @@ module.exports = (api) => {
     // Nate, 5 Oct: a forced change is felt coming. feralWarn.seconds before it the screen shakes (client dboShake,
     // Game.ShakeCamera; 0.3.77+, older clients only get the line), harder at each shake; 0 changes at once as before
     feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] },
+    // #bugs 1556845702422990888 (6 Oct): no forced change (feral or full moon) in the first minutes after a login, so a
+    // werewolf is not changed before they have even looked around; 0 = none
+    feralLoginGraceMinutes: 5,
     // Share of the way from the character's own skin colour to a bloodless pallor (beast races fade less)
     vampirePallor: 0.55, vampirePallorBeast: 0.25,
     // Nate, 5 Oct (ticket #0064): a fed vampire passes for mortal, as Cyrodiil's vampires do. The eyes and the pallor
@@ -1081,6 +1084,27 @@ module.exports = (api) => {
   // never capped and never eats into the cap; it multiplies whatever Defense, a blessing and the race let through.
   const MAGIC_TYPES = new Set(['SPEL', 'ENCH', 'SCRL', 'ALCH', 'INGR', 'EXPL', 'HAZD']);
   const clawLogged = new Set();
+  // The server's damage formula (TES5DamageFormula CalcUnarmedDamage) takes a claw's base damage from the attacker's
+  // appearance race, and since 5 Oct (beastform 12760dac, 9df05483) a beast keeps its mortal race there for other
+  // clients. So claws landed the mortal fist's 4 (Khajiit 14, Argonian 10) instead of the werewolf's 20 or the Vampire
+  // Lord's 10 (#bugs 1556845702422990888: 3.7 a hit on a steel-armoured player). This puts the beast race's base back,
+  // from both races' RACE DATA unarmed damage (float at 96, libespm RACE.cpp), before beastMeleeMult
+  const BEAST_RACES = { werewolf: idOf('cdd84:Skyrim.esm'), vampirelord: idOf('283a:Dawnguard.esm') };
+  const unarmedOf = (raceId) => {
+    const r = raceId ? recordOf(raceId >>> 0) : null;
+    const f = r && (r.fields || []).find((x) => x && x.type === 'DATA');
+    const d = f && f.data;
+    if (!(d instanceof Uint8Array) || d.byteLength < 100) return 0;
+    const v = new DataView(d.buffer, d.byteOffset, d.byteLength).getFloat32(96, true);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  };
+  const clawBaseMult = (a, form) => {
+    const beast = BEAST_RACES[form] || 0;
+    let race = 0; try { const ap = mp.get(a, 'appearance'); race = ap && ap.raceId ? Number(ap.raceId) >>> 0 : 0; } catch (e) { /* none */ }
+    if (!beast || !race || race === beast) return 1;
+    const b = unarmedOf(beast), m = unarmedOf(race);
+    return b && m ? Math.max(0.25, Math.min(10, b / m)) : 1;
+  };
   // A beast holds no weapon, so any non-magic hit it lands is its claws
   const beastMeleeMult = (agg, src) => {
     const form = isPlayer(agg) ? beastForm(agg) : null;
@@ -1089,8 +1113,9 @@ module.exports = (api) => {
     if (MAGIC_TYPES.has(type)) return 1;
     // Claws come as the unarmed source; a weapon a modified client kept in hand is not a claw (combat review, 2026-09-29)
     if (type === 'WEAP' && (Number(src) >>> 0) !== 0x1f4) return 1;
-    if (!clawLogged.has(form)) { clawLogged.add(form); log(`supernatural: ${form} claw hit carries source 0x${(Number(src) >>> 0).toString(16)} (${type || 'no record'})`); }
-    return Number((C.beastMeleeMult || {})[form]) || 1;
+    const base = clawBaseMult(agg, form);
+    if (!clawLogged.has(form)) { clawLogged.add(form); log(`supernatural: ${form} claw hit carries source 0x${(Number(src) >>> 0).toString(16)} (${type || 'no record'}), claw base x${base.toFixed(2)}`); }
+    return (Number((C.beastMeleeMult || {})[form]) || 1) * base;
   };
   globalThis.__dboSuperDamageMult = (agg, tgt, src) => {
     const beast = beastMeleeMult(agg, src);
@@ -1741,6 +1766,7 @@ module.exports = (api) => {
   globalThis.__dboSuperLogin = (a) => {
     // After the client's own login spell sync (remoteServer.ts enforceSpells on CreateActor), not before it
     flushedFor.delete(a >>> 0);
+    globalThis.__dboSuperLoginAt instanceof Map && globalThis.__dboSuperLoginAt.set(a >>> 0, Date.now());
     try { const bs = stateOf(a); if (bs && bs.blood) sendPacket(a, { customPacketType: 'dboBloody', on: true }); } catch (e) { /* old client */ }
     setTimeout(() => { try { if (onlineActors().includes(a)) flushStageSpells(a, stateOf(a), 'login'); } catch (e) { log('supernatural: login spell flush failed', e.message); } }, 15000);
     const i = G.revoke.indexOf(a >>> 0);
@@ -1861,6 +1887,8 @@ module.exports = (api) => {
   // werewolf is still one, still in their own shape, alive, online and not in a rite. Pending changes live on
   // globalThis so a reload neither drops nor doubles them; each timer re-reads the hooks it calls
   const FERAL_DUE = globalThis.__dboFeralDue instanceof Map ? globalThis.__dboFeralDue : (globalThis.__dboFeralDue = new Map());
+  const LOGIN_AT = globalThis.__dboSuperLoginAt instanceof Map ? globalThis.__dboSuperLoginAt : (globalThis.__dboSuperLoginAt = new Map());
+  const inLoginGrace = (a) => { const t = LOGIN_AT.get(a >>> 0); return !!t && Date.now() - t < Math.max(0, Number(C.feralLoginGraceMinutes) || 0) * 60000; };
   const shake = (a, strength, seconds) => { try { sendPacket(a, { customPacketType: 'dboShake', strength, seconds }); } catch (e) { /* offline */ } };
   const stillChanges = (a) => {
     const s = stateOf(a);
@@ -1895,7 +1923,7 @@ module.exports = (api) => {
     if (!c.isNight() || !c.isFullMoon()) return;
     for (const a of onlineActors()) {
       const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || !isOutdoors(a)) continue;
-      if (FERAL_DUE.has(a) || Math.random() >= C.forcedChangeChance * forcedMult(a)) continue;
+      if (FERAL_DUE.has(a) || inLoginGrace(a) || Math.random() >= C.forcedChangeChance * forcedMult(a)) continue;
       forcedChange(a, 'The full moon pulls at your blood. The beast is coming.', () => personal(a, 'The full moon calls, and the beast answers without you.'),
         `supernatural: ${display(a)} changed under the full moon`);
     }
@@ -1905,7 +1933,7 @@ module.exports = (api) => {
   every('superFeral', 60000, () => {
     const c = clock();
     for (const a of onlineActors()) {
-      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || FERAL_DUE.has(a)) continue;
+      const s = stateOf(a); if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || FERAL_DUE.has(a) || inLoginGrace(a)) continue;
       try { if (mp.get(a, 'isDead')) continue; } catch (e) { continue; }
       const hunger = typeof hungerOf === 'function' ? Math.max(0, Math.min(100, Number(hungerOf(a)) || 0)) : 50;
       let p = C.feralPerMinute.sated + (C.feralPerMinute.starving - C.feralPerMinute.sated) * hunger / 100;

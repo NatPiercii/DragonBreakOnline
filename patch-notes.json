@@ -1,5 +1,20 @@
 [
   {
+    "title": "Fixes",
+    "date": "2026-10-06",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Werewolf and Vampire Lord claws hit as hard as they should again. Since the last update they were dealing the damage of a mortal's fists.",
+          "A werewolf no longer goes feral or answers the full moon in the first five minutes after logging in."
+        ]
+      }
+    ]
+  },
+  {
     "title": "School progress",
     "date": "2026-10-05",
     "version": "Server update",
