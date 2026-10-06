@@ -1,4 +1,4 @@
-import { Actor, HitEvent, ObjectReference, Quest, ReferenceAlias, storage } from "skyrimPlatform";
+import { Actor, ActorBase, CombatStyle, HitEvent, ObjectReference, Quest, ReferenceAlias, storage } from "skyrimPlatform";
 import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
@@ -29,6 +29,8 @@ const whereOf = (ref: ObjectReference | null): string => {
 const TWIN_SOULS_PERK = 0xd5f1c;
 // Vanilla summoning flash (SummonTargetFXActivator), played where a companion appears and where it vanishes
 const SUMMON_FX = 0x07cd55;
+// Flame atronach ranged combat style (magic kiting/fallback), used to override broken melee styles on ranged summons like Scamps
+const CS_ATRONACH_FLAME = 0x070ff9;
 // Vanilla DialogueFollower: its Follower and Animal aliases carry the engine's follow-the-player packages, so a companion
 // forced into one walks the navmesh, uses doors and fights like a hired follower. Papyrus events are blocked on the client,
 // so the quest's scripts stay inert; one slot per companion, which covers the summon limit of two.
@@ -399,6 +401,18 @@ export class CompanionService extends ClientListener {
     actor.clearKeepOffsetFromActor();
     actor.stopCombat();
     actor.stopCombatAlarm();
+
+    // Ranged caster summons like Scamps may have a melee combat style assigned in ESM; force flame atronach ranged kiting style
+    const base = actor.getLeveledActorBase() || ActorBase.from(actor.getBaseObject());
+    const baseId = base ? (base.getFormID() & 0x00ffffff) : 0;
+    const baseName = base?.getName()?.toLowerCase() || "";
+    if (baseName.includes("scamp") || baseId === 0x00601fb2 || baseId === 0x00601fb7) {
+      const flameCombatStyle = this.sp.CombatStyle.from(this.sp.Game.getFormEx(CS_ATRONACH_FLAME));
+      if (flameCombatStyle && base) {
+        base.setCombatStyle(flameCombatStyle);
+        actor.evaluatePackage();
+      }
+    }
   }
 
   private fight(actor: Actor, target: Actor, state: LocalState): void {
