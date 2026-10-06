@@ -1001,6 +1001,45 @@ console.log('pick prayers:');
   pickUi = false;
 }
 
+// ---- Meridia: a shrine that cannot be touched, prayed near (skills.json prayNear, 6 Oct) ----
+// The statue is the nameless vanilla DA09MeridiaStatue, never activated in game; /pray beside it is the touch, and the
+// verdict measures from the spot, since the server may never have loaded the reference (distanceMeters says Infinity)
+{
+  api.cfg = { prayer: { clientJudged: true, pick: { enabled: false } } };
+  pickUi = false;
+  load();
+  const meridia = choiceOf('meridia');
+  const spot = meridia.prayNear[0];
+  const STATUE = idOf(spot.ref);
+  const stand = (dx, world) => { props.set(ACTOR + '|worldOrCellDesc', world || spot.world); props.set(ACTOR + '|pos', [spot.pos[0] + dx, spot.pos[1], spot.pos[2]]); };
+  const prayNear = () => { wallClock += 61 * 60000; virtual += 1000000; const start = virtual; const said = say('pray'); return { start, said, w: out.widgets.find((x) => x && x.nonce), log: out.logs.join(' | ') }; };
+  props.set(ACTOR + '|private.dboDeity', { id: 'meridia', name: 'Meridia', kind: 'daedra', at: wallClock - 30 * 86400000 });
+  props.delete(ACTOR + '|private.prayedShrines');
+  nearM = Infinity;
+  check('skills.json names the statue by reference, with its world and position', !!spot && STATUE === 0x125bf8 && spot.world === 'a764b:BSHeartland.esm' && spot.pos.length === 3, JSON.stringify(spot));
+  stand(1400);
+  let m = prayNear();
+  check('20 m from the statue, /pray says where to stand', !m.w && /Stand beside the Statue of Meridia and say \/pray/.test(m.said), m.said);
+  stand(200, '3c:Somewhere.esp');
+  m = prayNear();
+  check('the same coordinates in another world are not the statue', !m.w, m.said);
+  stand(200);
+  m = prayNear();
+  check('3 m from the statue, /pray is the touch: a prayer to Meridia opens', !!m.w && /Meridia/i.test(String(m.w.deity)) && /shrine touch .* Meridia/.test(m.log), m.said + ' | ' + m.log);
+  res = playC(m);
+  check('...and it is held, measured from the statue though the server has no position for the reference', verdictOf(res.log) === 'held' && res.events.length === 1, res.log);
+  check('...the rest is kept on the statue itself', restOf(STATUE) > wallClock, String(restOf(STATUE)));
+  m = prayNear();
+  stand(2100);
+  res = playC(m);
+  check('a worshipper 30 m from the statue when the report lands is refused(away)', verdictOf(res.log) === 'away' && res.events.length === 0, res.log);
+  stand(200);
+  props.set(ACTOR + '|private.dboDeity', { id: 'akatosh', name: 'Akatosh', kind: 'divine', at: wallClock - 30 * 86400000 });
+  m = prayNear();
+  check("a follower of another god beside the statue is told how to turn, as at any shrine", !m.w && /Meridia has no ear for a follower of Akatosh/.test(m.said), m.said);
+  check('...and the statue counts as touched for /deity Meridia', /You now follow Meridia|Meridia/.test(say('deity', 'Meridia')) && (props.get(ACTOR + '|private.dboDeity') || {}).id === 'meridia', JSON.stringify(props.get(ACTOR + '|private.dboDeity')));
+}
+
 Date.now = realNow;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

@@ -1522,6 +1522,10 @@
     "inPlaytest": 1,
     "inBruma": 1,
     "isReference": true,
+    "prayNear": [
+     { "ref": "125bf8:DragonBreak Online Edits.esp", "world": "a764b:BSHeartland.esm", "pos": [94912, 193057, 2220], "meters": 8, "name": "the Statue of Meridia" }
+    ],
+    "_prayNear": "6 Oct (Nate: Meridia's shrine isn't working): the statue is the vanilla DA09MeridiaStatue, an ACTI with no FULL name, which the game does not offer to activate - 0 touches of Meridia in the logs since 27 Sep, against touches for every other Bruma deity. Until a named DBO_ShrineOfMeridia is placed (a plugin edit on the PC), /pray within 8 m of the statue (DLE REFR 125bf8 in CYRNamirasShrineExterior, BSHeartland) counts as touching it (prayer.js prayNear).",
     "sphere": "The energies of living things, and a hatred of the undead so total that she is counted a Daedric Prince mostly by process of elimination.",
     "boon": "Health regenerates 25% faster.",
     "blessingSource": "vanilla",

@@ -439,11 +439,22 @@ module.exports = (api) => {
     // ignores it can still have its disenchants taken)
     SESSION.delete(a >>> 0);
     try { restoreOnce(a >>> 0); } catch (e) { log(`disenchant: restore failed: ${e.message}`); }
-    if (!LEARN.enabled || typeof api.sendPacket !== 'function') return false;
-    const effects = learnedOf(a >>> 0);
-    if (!effects.length) return false;
-    try { api.sendPacket(a >>> 0, { customPacketType: 'dboEnchLearned', effects }); } catch (e) { log(`disenchant: learned enchantments send failed for ${display(a)}: ${e.message}`); return false; }
-    return true;
+    return sendLearned(a >>> 0) > 0;
+  };
+  // The learned effects to the client again; how many were sent (0: none recorded or sending off, -1: it failed)
+  const sendLearned = (a) => {
+    if (!LEARN.enabled || typeof api.sendPacket !== 'function') return 0;
+    const effects = learnedOf(a);
+    if (!effects.length) return 0;
+    try { api.sendPacket(a, { customPacketType: 'dboEnchLearned', effects }); } catch (e) { log(`disenchant: learned enchantments send failed for ${display(a)}: ${e.message}`); return -1; }
+    return effects.length;
+  };
+  // /syncenchant (gamemode.js) resends only. It must not run the login above: that clears this session's disenchants,
+  // so a later report naming one again would take a second copy (6 Oct)
+  globalThis.__dboEnchLearnedResend = (a) => {
+    const n = sendLearned(a >>> 0);
+    log(`disenchant: ${display(a)} asked for their learned enchantments: ${n < 0 ? 'the send failed' : `${n} effect(s) sent`}`);
+    return n;
   };
 
   // CustomEvent prepends the actor: (actor, workbench, result, inputs)

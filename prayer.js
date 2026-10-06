@@ -142,6 +142,30 @@ module.exports = (api) => {
   // statue is not overruled by a deity that claims every statue of that model.
   const shrineAt = (targetId, baseId) => shrineIndex().get(targetId) || (baseId ? shrineIndex().get(baseId) : null);
 
+  // A shrine that cannot be touched (skills.json prayNear): Meridia's statue in Bruma is the vanilla DA09MeridiaStatue,
+  // an activator with no name, which the game never lets a player activate - in 10 days of logs it was touched 0 times,
+  // and every other Bruma deity was. /pray within its meters counts as the touch, judged from the spot itself, since the
+  // server may never have loaded the reference. Each: { ref, world, pos: [x, y, z], meters, name }
+  const SPOTS = new Map(); // refId -> { d, world, pos, meters, name }
+  for (const d of DEITIES) for (const s of d.prayNear || []) {
+    const id = idOf(s && s.ref);
+    if (!id || !s.world || !Array.isArray(s.pos) || s.pos.length < 3) { log(`prayer: ${d.name} prayNear ${JSON.stringify(s)} is incomplete, skipped`); continue; }
+    SPOTS.set(id, { d, world: String(s.world), pos: s.pos.map(Number), meters: Math.max(1, Number(s.meters) || 8), name: String(s.name || '') });
+  }
+  const spotMeters = (a, spot) => {
+    try {
+      if (mp.get(a, 'worldOrCellDesc') !== spot.world) return Infinity;
+      const p = mp.get(a, 'pos');
+      return Math.hypot(p[0] - spot.pos[0], p[1] - spot.pos[1], p[2] - spot.pos[2]) / 70;
+    } catch (e) { return Infinity; }
+  };
+  const spotNear = (a) => {
+    for (const [refId, spot] of SPOTS) if (spotMeters(a, spot) <= spot.meters) return { refId, spot };
+    return null;
+  };
+  // Metres from the worshipper to the shrine they knelt at: the spot's own position for a shrine prayed near
+  const shrineMeters = (a, refId) => (SPOTS.has(refId) ? spotMeters(a, SPOTS.get(refId)) : distanceMeters(a, refId));
+
   const deityByName = (s) => {
     const q = String(s || '').trim().toLowerCase().replace(/[^a-z]/g, '');
     if (!q) return null;
@@ -788,7 +812,7 @@ module.exports = (api) => {
     for (const [n, c] of closing) if (nowMs() > limitOf(c.round)) closing.delete(n);
     // Where the worshipper was when the close arrived: they rise after the verdict, so this is never further than when
     // the report was sent, and it still counts if a load door has since taken them to another cell (review LAT-1)
-    try { if (round.refId !== ANYWHERE_REF && typeof distanceMeters === 'function') round.closeNear = distanceMeters(a, round.refId); } catch (e) { /* unknown */ }
+    try { if (round.refId !== ANYWHERE_REF && typeof distanceMeters === 'function') round.closeNear = shrineMeters(a, round.refId); } catch (e) { /* unknown */ }
     closing.set(round.nonce, { a, round, how });
     while (closing.size > 500) closing.delete(closing.keys().next().value);
   };
@@ -845,7 +869,9 @@ module.exports = (api) => {
     const baseId = baseIdOf(targetId);
     const d = shrineAt(targetId, baseId);
     if (!d) return false;
-
+    return touchShrine(targetId, casterId, baseId, d);
+  };
+  const touchShrine = (targetId, casterId, baseId, d) => {
     // From here on the target IS a shrine: the vanilla blessing must not fire whatever we answer.
     lastShrine.set(casterId, { deityId: d.id, at: Date.now() });
     log(`shrine touch ${display(casterId)} ${d.name}`);
@@ -884,10 +910,16 @@ module.exports = (api) => {
   registerChatCommand('pray', (a) => {
     if (!CFG.enabled) return personal(a, 'Prayer is closed on this server.');
     { const live = liveRound(a); if (live) { reshow(a, live); return; } }
+    // Beside a shrine that cannot be touched, /pray is the touch (prayNear)
+    const near = spotNear(a);
+    if (near) { touchShrine(near.refId, a, 0, near.spot.d); return; }
     const faith = faithOf(a);
     const d = faith ? deityById(faith.id) : null;
     if (!d) return personal(a, 'You hold no god. Say /deity to choose one.');
-    if (!d.prayAnywhere) return personal(a, `${d.name} is prayed to at a shrine. Find one and use it.`);
+    if (!d.prayAnywhere) {
+      const at = (d.prayNear || []).find((s) => s && s.name);
+      return personal(a, at ? `${d.name} is prayed to at a shrine. Stand beside ${at.name} and say /pray, or use another shrine of ${d.name}.` : `${d.name} is prayed to at a shrine. Find one and use it.`);
+    }
     const until = Number(restsOf(a)[ANYWHERE_REF.toString(16)]) || 0;
     if (until > Date.now()) {
       const mins = Math.ceil((until - Date.now()) / 60000);
@@ -1112,7 +1144,7 @@ module.exports = (api) => {
       // or where they were when their close arrived (review LAT-1)
       if (!v.bad || ORDINARY.has(v.bad)) {
         if (round.refId !== ANYWHERE_REF && Number(CFG.nearMeters) > 0 && typeof distanceMeters === 'function') {
-          near = distanceMeters(a, round.refId);
+          near = shrineMeters(a, round.refId);
           if (closed && Number(round.closeNear) < near) near = Number(round.closeNear);
           const wait = claim && Number.isFinite(claim.waitMs) ? claim.waitMs : round.waitMs;
           const held = claim && Number.isFinite(claim.durMs) ? claim.durMs : at;

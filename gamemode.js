@@ -2395,14 +2395,19 @@ registerChatCommand('whereami', (a) => personal(a, `server thinks: cell/world ${
 
 // What a playtest actually costs: players, live npcs, the spawn poll and the packets we send
 
+// Resends only (alchemy.js __dboEnchLearnedResend), and says what happened in words (6 Oct: "sent=false" read as broken)
 registerChatCommand('syncenchant', (a) => {
-  if (typeof globalThis.__dboEnchLearnedLogin === 'function') {
-    const res = globalThis.__dboEnchLearnedLogin(a);
-    personal(a, `Enchantments sync triggered (sent=${res}). Check your Arcane Enchanter.`);
+  if (typeof globalThis.__dboEnchLearnedResend !== 'function') return personal(a, 'Enchanting is not ready yet. Try again in a minute.');
+  const n = globalThis.__dboEnchLearnedResend(a);
+  if (n > 0) {
+    personal(a, `${n} learned enchantment effect${n === 1 ? '' : 's'} sent to your game. Step away from the Arcane Enchanter and use it again to see them.`);
+  } else if (n === 0) {
+    personal(a, 'The server has no learned enchantments recorded for this character. Disenchant an item at an Arcane Enchanter to learn its enchantment; it is kept from then on.');
   } else {
-    personal(a, 'Enchanting system is not ready.');
+    personal(a, 'Your learned enchantments could not be sent just now. Try again in a moment.');
   }
-}, { help: 'resend learned enchantments to your client' });
+  personal(a, 'Fortify Alchemy and Fortify Enchanting can be learned, but they cannot be put on an item on this server.');
+}, { help: 'resend the enchantments you have learned to your Arcane Enchanter' });
 registerChatCommand('load', (a, args) => {
   const c = globalThis.__dboPacketCounts || { since: Date.now(), byType: {}, total: 0 };
   const minutes = Math.max(1 / 60, (Date.now() - c.since) / 60000);

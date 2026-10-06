@@ -69,6 +69,18 @@ load({ learnedEnchantments: { enabled: true } });
 ok(globalThis.__dboEnchLearnedLogin(P) === true && packets.length === 1 && packets[0][0] === P && packets[0][1].customPacketType === 'dboEnchLearned'
   && JSON.stringify(packets[0][1].effects) === JSON.stringify([BURN, STAMINA, FIRE]), 'on: the login sends dboEnchLearned with the effects, read after a reload', packets);
 ok(globalThis.__dboEnchLearnedLogin(Q) === false && packets.length === 1, '...and nothing for a character that learned nothing');
+// /syncenchant resends without the login's session reset (6 Oct): a disenchant this session stays known, so a report
+// naming it again cannot take a second copy
+const S = globalThis.__dboDisenchantSession;
+place(P, [{ baseId: DAGGER, count: 1 }]);
+disenchant(P, [DAGGER]);
+packets.length = 0;
+ok(globalThis.__dboEnchLearnedResend(P) === 3 && packets.length === 1 && packets[0][1].customPacketType === 'dboEnchLearned', 'resend: sends the learned effects and says how many', packets);
+ok(!!(S && S.get(P >>> 0) && S.get(P >>> 0).ench.size), "...and leaves this session's disenchants in place", S && S.get(P >>> 0));
+ok(logs.some((l) => /asked for their learned enchantments: 3 effect\(s\) sent/.test(l)), '...and logs the ask', logs.filter((l) => /asked for/.test(l)));
+ok(globalThis.__dboEnchLearnedResend(Q) === 0, '...0 for a character with nothing recorded');
+globalThis.__dboEnchLearnedLogin(P);
+ok(!S.get(P >>> 0), 'the login itself still starts a new session');
 // Bounded: max keeps the newest
 load({ learnedEnchantments: { enabled: true, max: 2 } });
 place(Q, [{ baseId: DAGGER, count: 1 }, { baseId: AMULET, count: 1 }]);
@@ -79,5 +91,7 @@ const cfg = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json')
 ok(cfg.learnedEnchantments && cfg.learnedEnchantments.enabled === true, 'gamemode-config.json carries learnedEnchantments, on (client 0.3.76 reads dboEnchLearned; Nate, 4 Oct)', cfg.learnedEnchantments);
 const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 ok(/globalThis\.__dboEnchLearnedLogin\(a\)/.test(gm) && /require\(ALCHEMY_JS\)\(\{[^}]*cfg, sendPacket \}\)/.test(gm), 'gamemode.js calls it at login and hands alchemy.js cfg and sendPacket');
+const sync = gm.slice(gm.indexOf("registerChatCommand('syncenchant'"), gm.indexOf("registerChatCommand('load'"));
+ok(/__dboEnchLearnedResend\(a\)/.test(sync) && !/__dboEnchLearnedLogin/.test(sync) && !/sent=/.test(sync), '/syncenchant uses the resend, never the login, and answers in words');
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);
