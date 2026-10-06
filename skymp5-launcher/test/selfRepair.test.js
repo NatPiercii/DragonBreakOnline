@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
-const { checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot } = require('../src/selfRepair')
+const { checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir } = require('../src/selfRepair')
 
 const sha = s => crypto.createHash('sha256').update(s).digest('hex')
 function game(files) {
@@ -116,4 +116,17 @@ test('watchBoot reports a failed start from a log written since the launch, and 
   assert.ok(hit && /skyrimPlatform/.test(hit.reason) && /skse/.test(hit.file.replace(/\\/g, '/')))
   const none = await watchBoot({ logDirs: ['/old'], launchedAt: 4000, forMs: 5000, everyMs: 1000, ...clock, ...io })
   assert.strictEqual(none, null, 'a log older than the launch is not this start')
+})
+
+test('ensureSkseLogDir creates a missing registered Documents folder and the SKSE log folder under it', () => {
+  const made = new Set(), have = new Set(['C:/Users/k'])
+  const io = { exists: p => have.has(p.replace(/\\/g, '/')) || made.has(p.replace(/\\/g, '/')), mkdir: p => made.add(p.replace(/\\/g, '/')) }
+  const r = ensureSkseLogDir({ docs: null, registered: '%USERPROFILE%/OneDrive/Documents', env: { UserProfile: 'C:/Users/k' }, ...io })
+  assert.strictEqual(r.error, null)
+  assert.ok(made.has('C:/Users/k/OneDrive/Documents'))
+  assert.ok([...made].some(p => p.endsWith('OneDrive/Documents/My Games/Skyrim Special Edition/SKSE')), [...made].join(' '))
+  const gog = ensureSkseLogDir({ docs: 'D:/Docs', registered: null, edition: 'GOG', ...io })
+  assert.ok(gog.created.some(p => p.replace(/\\/g, '/').endsWith('My Games/Skyrim Special Edition GOG/SKSE')))
+  assert.ok(/could not say/.test(ensureSkseLogDir({ docs: null, registered: null, ...io }).error))
+  assert.ok(/could not be created/.test(ensureSkseLogDir({ docs: null, registered: 'Z:/gone/Documents', exists: () => false, mkdir: () => { throw new Error('no drive') } }).error))
 })

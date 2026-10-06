@@ -2164,6 +2164,18 @@ ipcMain.handle('launch:direct', () => guardLaunch(async () => {
 // files; stray files in the platform's folders (and its DLLs in MO2's overwrite) go to "DragonBreak Quarantine".
 // The server's list unreachable means nothing is judged and the launch goes on.
 async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
+  if (process.platform === 'win32') {
+    const dirs = selfRepair.ensureSkseLogDir({
+      docs: documentsDirOrNull(),
+      registered: regQueryValue('HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders', 'Personal'),
+      edition: mo2.detectEdition(skyrimPath),
+    })
+    for (const p of dirs.created) log(`[selfRepair] created ${p}`)
+    if (dirs.error) {
+      log(`[selfRepair] Documents folder: ${dirs.error}`)
+      return { success: false, error: `Skyrim's mods cannot start: ${dirs.error}. Open File Explorer, right-click Documents > Properties > Location, press Restore Default, then press PLAY again.` }
+    }
+  }
   let vd = null
   try { vd = await fetchJSON(`${config.apiUrl}/api/files/version`) } catch (err) { log(`[selfRepair] server file list unavailable (${err.message}); skipped`) }
   const files = vd && Array.isArray(vd.files) ? vd.files : []

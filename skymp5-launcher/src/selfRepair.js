@@ -134,6 +134,36 @@ function overwritePlatformDlls(overwriteDir) {
   return out
 }
 
+// SKSE plugins built on CommonLib find their log folder through Windows' Documents known folder, which fails when the
+// registered Documents path is missing (a OneDrive redirect whose folder is gone): SkyPatcher then stops with "Failed to
+// find standard logging directory" and other plugins can fail to load. Creating the registered folder and the SKSE log
+// folder under it fixes that. registered: the "Personal" value of User Shell Folders, %VARS% unexpanded.
+const MYGAMES_BY_EDITION = { Steam: 'Skyrim Special Edition', GOG: 'Skyrim Special Edition GOG', 'Epic Games': 'Skyrim Special Edition EPIC', 'Microsoft Store': 'Skyrim Special Edition MS' }
+
+function expandEnv(p, env) {
+  return String(p || '').replace(/%([^%]+)%/g, (all, name) => {
+    const key = Object.keys(env).find(k => k.toLowerCase() === name.toLowerCase())
+    return key ? env[key] : all
+  })
+}
+
+/** { docs, created: [paths], error } after making sure Documents and its SKSE log folder exist. */
+function ensureSkseLogDir({ docs, registered, env = process.env, edition = 'Steam', mkdir = (p) => fs.mkdirSync(p, { recursive: true }), exists = fs.existsSync }) {
+  const created = []
+  const make = (p) => { if (exists(p)) return true; try { mkdir(p); created.push(p); return true } catch { return false } }
+  let base = docs || null
+  const reg = registered ? expandEnv(registered, env) : ''
+  if (reg && !/%[^%]+%/.test(reg) && !exists(reg)) {
+    if (!make(reg)) return { docs: base, created, error: `the Documents folder Windows points to (${reg}) is missing and could not be created` }
+    base = base || reg
+  }
+  if (!base && reg) base = reg
+  if (!base) return { docs: null, created, error: 'Windows could not say where the Documents folder is' }
+  const logDir = path.join(base, 'My Games', MYGAMES_BY_EDITION[edition] || MYGAMES_BY_EDITION.Steam, 'SKSE')
+  if (!make(logDir)) return { docs: base, created, error: `could not create ${logDir}` }
+  return { docs: base, created, error: null }
+}
+
 // skyrim-platform.log lines that mean the client script never ran: a module the platform should provide could not be
 // found, or the bundle could not even be parsed. Runtime errors later in a session are not this, so they are not matched.
 const BOOT_FAILURE_RES = [
@@ -176,6 +206,6 @@ async function watchBoot({ logDirs, launchedAt = Date.now(), forMs = 180_000, ev
 }
 
 module.exports = {
-  checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot,
+  checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir, expandEnv,
   OWNED_DIRS, CRITICAL_RES, HASH_LIMIT,
 }
