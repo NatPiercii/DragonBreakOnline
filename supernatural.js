@@ -84,10 +84,10 @@ module.exports = (api) => {
     huntMarkChance: 0.10,
     // Nat: the average werewolf goes feral. Chance per real minute that the beast takes them unprepared, from sated
     // (hunger 0) to starving (hunger 100), multiplied at night and more under a full moon. Only a pack's Alpha is spared
-    feralPerMinute: { sated: 0.005, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
+    feralPerMinute: { sated: 0, starving: 0.06 }, feralNightMult: 1.5, feralFullMoonMult: 3,
     // Nate, 5 Oct: a forced change is felt coming. feralWarn.seconds before it the screen shakes (client dboShake,
     // Game.ShakeCamera; 0.3.77+, older clients only get the line), harder at each shake; 0 changes at once as before
-    feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] },
+    feralWarn: { seconds: 45, shakes: [{ at: 45, strength: 0.25, seconds: 2.5 }, { at: 30, strength: 0.35, seconds: 2.5 }, { at: 15, strength: 0.5, seconds: 2.5 }, { at: 2, strength: 0.8, seconds: 2 }] },
     // #bugs 1556845702422990888 (6 Oct): no forced change (feral or full moon) in the first minutes after a login, so a
     // werewolf is not changed before they have even looked around; 0 = none
     feralLoginGraceMinutes: 5,

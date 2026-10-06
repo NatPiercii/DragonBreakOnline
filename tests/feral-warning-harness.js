@@ -32,7 +32,8 @@ const api = {
 globalThis.__dboBeastTransform = (a, key, forced) => { changes.push([a, key, forced]); store.set(`${a}|private.beast`, { form: key }); return true; };
 const MODULE = path.resolve(__dirname, '..', 'supernatural.js');
 const load = (cfg) => { api.cfg = cfg || {}; delete require.cache[MODULE]; require(MODULE)(api); };
-load();
+// The 12 s schedule these checks were written for (the default is 45 s since 6 Oct, Jake): passed in, so they test the mechanics
+load({ supernatural: { feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] } } });
 
 let fail = 0;
 const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c || got === undefined ? '' : '   ' + JSON.stringify(got)}`); if (!c) fail++; };
@@ -95,7 +96,7 @@ ok(changes.length === 1, 'a configured lead applies (5 s)');
 
 // ---- the full moon's change is warned the same way ----
 reset();
-load();
+load({ supernatural: { feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] } } });
 globalThis.__dboClock = { gameDays: () => 1, isNight: () => true, isFullMoon: () => true, weatherFor: () => 0 };
 timers.superMoon();
 ok(changes.length === 0 && said.some(([, t]) => /full moon pulls at your blood/.test(t)) && shakes().length === 1, 'the full moon warns first too');
@@ -105,7 +106,7 @@ ok(changes.length === 1, '...and the change follows');
 // ---- no forced change just after a login (#bugs 1556845702422990888, 6 Oct) ----
 globalThis.__dboClock = { gameDays: () => 0, isNight: () => false, isFullMoon: () => false, weatherFor: () => 0 };
 reset();
-load();
+load({ supernatural: { feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }, { at: 6, strength: 0.45, seconds: 2.5 }, { at: 1, strength: 0.7, seconds: 1.5 }] } } });
 globalThis.__dboSuperLogin(A);
 timers.superFeral();
 advance(12000);
@@ -124,7 +125,7 @@ globalThis.__dboSuperLogin(A);
 timers.superMoon();
 ok(changes.length === 0 && shakes().length === 0, 'the full moon waits out the login grace too');
 reset();
-load({ supernatural: { feralLoginGraceMinutes: 0 } });
+load({ supernatural: { feralLoginGraceMinutes: 0, feralWarn: { seconds: 12, shakes: [{ at: 12, strength: 0.25, seconds: 2 }] } } });
 globalThis.__dboClock = { gameDays: () => 0, isNight: () => false, isFullMoon: () => false, weatherFor: () => 0 };
 globalThis.__dboSuperLogin(A);
 timers.superFeral();
@@ -133,5 +134,6 @@ ok(changes.length === 1, 'feralLoginGraceMinutes 0 turns it off');
 
 Math.random = realRandom;
 globalThis.setTimeout = realSetTimeout;
+ok(/feralWarn: \{ seconds: 45,/.test(require('fs').readFileSync(MODULE, 'utf8')) && /feralPerMinute: \{ sated: 0,/.test(require('fs').readFileSync(MODULE, 'utf8')), 'defaults (Jake, 6 Oct): a 45 s warning, and no feral change while sated');
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);

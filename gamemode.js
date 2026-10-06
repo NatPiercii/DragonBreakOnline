@@ -614,7 +614,7 @@ const HELP_GROUPS = [
     hints: ['Your factions and your court: F3, the Faction and Court tabs.',
       'A dungeon: its door. The party leader picks Novice, Adept, Expert or Master; /dungeon says what is claimed.',
       'An expedition: the board in the Synod Conclave, the Fighters Guild or Frostcrag Spire.'] },
-  { key: 'trouble', title: 'Trouble and help', names: ['gm', 'unstuck', 'struggle', 'bug', 'ticket', 'name', 'help'],
+  { key: 'trouble', title: 'Trouble and help', names: ['gm', 'unstuck', 'struggle', 'bug', 'ticket', 'name', 'help', 'syncenchant'],
     hints: ['Where you stand, your ids and the effects on you: press F7.',
       'Your keys: F3, Settings. A new key works from the next time you start the game.'] },
 ];
@@ -2394,6 +2394,15 @@ if ((cfg.debug || {}).logPlayerLocations) {
 registerChatCommand('whereami', (a) => personal(a, `server thinks: cell/world ${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} pos ${JSON.stringify((mp.get(a, 'pos') || []).map(Math.round))}`), { help: 'server-side location' });
 
 // What a playtest actually costs: players, live npcs, the spawn poll and the packets we send
+
+registerChatCommand('syncenchant', (a) => {
+  if (typeof globalThis.__dboEnchLearnedLogin === 'function') {
+    const res = globalThis.__dboEnchLearnedLogin(a);
+    personal(a, `Enchantments sync triggered (sent=${res}). Check your Arcane Enchanter.`);
+  } else {
+    personal(a, 'Enchanting system is not ready.');
+  }
+}, { help: 'resend learned enchantments to your client' });
 registerChatCommand('load', (a, args) => {
   const c = globalThis.__dboPacketCounts || { since: Date.now(), byType: {}, total: 0 };
   const minutes = Math.max(1 / 60, (Date.now() - c.since) / 60000);
