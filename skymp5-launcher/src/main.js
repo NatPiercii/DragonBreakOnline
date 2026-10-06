@@ -2176,6 +2176,23 @@ async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
       return { success: false, error: `Skyrim's mods cannot start: ${dirs.error}. Open File Explorer, right-click Documents > Properties > Location, press Restore Default, then press PLAY again.` }
     }
   }
+  // The game and MO2 folders must be writable; inside Program Files they often are not (selfRepair.installLocationCheck)
+  let locationWarning = null
+  if (process.platform === 'win32') {
+    const places = [{ label: 'the game folder', dir: skyrimPath }]
+    if (viaMO2) places.push({ label: "Mod Organizer's folder", dir: mo2.getRoot() })
+    const where = selfRepair.installLocationCheck(places)
+    if (where.unwritable.length) {
+      const list = where.unwritable.map(d => `${d.label} (${d.dir})`).join(' and ')
+      log(`[selfRepair] cannot write to ${list}`)
+      return { success: false, error: `Windows will not let the launcher write to ${list}, so your mods cannot be kept up to date and the game may not start. Move your DragonBreak folder to one you own, such as C:\\Games\\DragonBreak (not inside Program Files), point the launcher at it in Settings, then press PLAY again.` }
+    }
+    if (where.programFiles.length) {
+      const list = where.programFiles.map(d => d.dir).join(' and ')
+      log(`[selfRepair] installed inside Program Files: ${list}`)
+      locationWarning = `DragonBreak is installed inside a Program Files folder (${list}). Windows can block mods from working there. If the game crashes on start, move it to a folder like C:\\Games\\DragonBreak.`
+    }
+  }
   let vd = null
   try { vd = await fetchJSON(`${config.apiUrl}/api/files/version`) } catch (err) { log(`[selfRepair] server file list unavailable (${err.message}); skipped`) }
   const files = vd && Array.isArray(vd.files) ? vd.files : []
@@ -2189,7 +2206,7 @@ async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
   }
   const failed = store.get('clientStartFailed')
   const bad = selfRepair.checkClient(skyrimPath, files)
-  if (!failed && bad.length === 0) return { success: true }
+  if (!failed && bad.length === 0) return { success: true, warning: locationWarning }
   log(`[selfRepair] reinstalling the client files: ${failed ? `the last start failed (${failed.reason})` : bad.map(b => `${b.path} (${b.why})`).join(', ')}`)
   send('install:progress', { phase: 'download', file: 'Repairing your client files…', index: 0, total: 0, skipped: false })
   const core = await installClientFilesCore(skyrimPath, srv, serverInfo, true)
@@ -2198,7 +2215,7 @@ async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
   const still = selfRepair.checkClient(skyrimPath, files)
   if (still.length) return { success: false, error: `Your client files are still damaged after a repair (${still.map(b => b.path).join(', ')}). Use Report a Problem so staff can see your logs.` }
   log('[selfRepair] client files repaired')
-  return { success: true }
+  return { success: true, warning: locationWarning }
 }
 
 // After a launch: a client that died at start (the main menu shows only the logo) is remembered, so the next PLAY
@@ -2578,7 +2595,7 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
 
   // A CC plugin without its archive still loads, so this only warns
   const lostArchives = mo2.missingCcArchives(skyrimPath, serverInfo?.loadOrder)
-  const warning = lostArchives.length > 0 ? ccArchiveWarning(lostArchives) : null
+  const warning = [lostArchives.length > 0 ? ccArchiveWarning(lostArchives) : null, healed.warning].filter(Boolean).join(' ') || null
   if (warning) log('[launch] ' + warning)
 
   // Every control map the game reads must hold all its input contexts, with CRLF lines: a short one crashed every

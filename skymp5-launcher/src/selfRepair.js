@@ -164,6 +164,29 @@ function ensureSkseLogDir({ docs, registered, env = process.env, edition = 'Stea
   return { docs: base, created, error: null }
 }
 
+// Where the game and MO2 live (CarloftFhang, 6 Oct: installed under "A:\Program Files (x86)\Games\DragonBreak", every start
+// crashed in RaceMenu's BodyGen loader). Windows protects Program Files on the system drive, and a launcher that cannot
+// write there cannot keep MO2's profile or the client files current. A folder that cannot be written stops PLAY; one inside
+// a Program Files folder anywhere is only a warning, since on another drive it may be writable.
+const PROGRAM_FILES_RE = /(^|[\\/])Program Files( \(x86\))?([\\/]|$)/i
+
+function inProgramFiles(dir) { return PROGRAM_FILES_RE.test(String(dir || '')) }
+
+/** True when a file can be created and removed in dir. */
+function canWriteDir(dir, { fsx = fs } = {}) {
+  const probe = path.join(dir, `.dragonbreak-write-test-${process.pid}-${Date.now()}`)
+  try { fsx.writeFileSync(probe, ''); fsx.unlinkSync(probe); return true } catch { return false }
+}
+
+/** { unwritable, programFiles }: the { label, dir } entries that exist but cannot be written, and those inside Program Files. */
+function installLocationCheck(dirs, { exists = fs.existsSync, canWrite = (d) => canWriteDir(d) } = {}) {
+  const present = (dirs || []).filter(d => d && d.dir && exists(d.dir))
+  return {
+    unwritable: present.filter(d => !canWrite(d.dir)),
+    programFiles: present.filter(d => inProgramFiles(d.dir)),
+  }
+}
+
 // skyrim-platform.log lines that mean the client script never ran: a module the platform should provide could not be
 // found, or the bundle could not even be parsed. Runtime errors later in a session are not this, so they are not matched.
 const BOOT_FAILURE_RES = [
@@ -207,5 +230,6 @@ async function watchBoot({ logDirs, launchedAt = Date.now(), forMs = 180_000, ev
 
 module.exports = {
   checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir, expandEnv,
+  inProgramFiles, canWriteDir, installLocationCheck,
   OWNED_DIRS, CRITICAL_RES, HASH_LIMIT,
 }
