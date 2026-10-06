@@ -1000,7 +1000,10 @@ module.exports = (api) => {
   // Every 2 s each new humanoid of a lease without a weapon gets one that fits its placement
   // (archer -> bow + arrows, two-hander -> greatsword/battleaxe/warhammer, caster -> dagger, else
   // sword/war axe/mace; draugr, falmer and forsworn keep their own kind) within the difficulty's band.
-  const HUMANOID = /bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|orc|soldier|guard|thalmor|vampire|hunter|warlock|necromancer|conjurer|mage|cultist|silverhand|reaver|smuggler|pirate|warrior|dremora|boss/i;
+  // Goblins are a people with their own gear (weaponFor arms them with BSKGoblin iron), so their bodies are searched with E
+  // like any humanoid's (#bugs 1555083068547797072, Purr 1 Oct: a lease's goblins dropped nothing; only a boss or a guard
+  // kind matched here, and only wild:* bodies are searched otherwise)
+  const HUMANOID = /goblin|bandit|highwayman|marauder|outlaw|thug|forsworn|draugr|falmer|orc|soldier|guard|thalmor|vampire|hunter|warlock|necromancer|conjurer|mage|cultist|silverhand|reaver|smuggler|pirate|warrior|dremora|boss/i;
   const ANIMAL = /wolf|bear|skeever|spider|chaurus|troll|sabre|mudcrab|horker|slaughterfish|deer|elk|goat|fox|hare|dog|mammoth|giant|atronach|wisp|spriggan|hagraven|sphere|centurion|ballista|ghost|dragon|frostbite|netch|riekling|ashhopper|ogre|minotaur|dreugh|gargoyle|werewolf|werebear|ashspawn|lurker|seeker|scamp|clannfear|daedroth|dragonpriest|horse|cow|chicken/i;
   const CASTER = /mage|wizard|sorcerer|warlock|necromancer|conjurer|witch|priest|cultist|shaman/i;
   const BAD_WEAPON = /dun|Favor|^FF|LD_|NPC$|Trap|^FX|Unarmed|POI|Freeform|DragonPriest|Giant|Lurker|Riekling|Nightingale|^MG|^T0|^C0|SSD|weapBasic|BYOH|Skyforge|Bound|Projectile|dlc2DB|Wrathman|Keeper|Ysgramor|Horksbane|Longhammer|Relic|Illusion|Pickaxe|Catapult|Ballista|Sphere|Knife|Fork|Scimitar|Executioner|Katana|Akaviri|Prelate|Aetherium|Dawnguard|^Axe01|Cross[Bb]ow|Stalhrim|Dragonbone|Daedric|Wooden|Follower|Imperial|Silver|NordHero|Honed|Supple|Enhanced|^MFD/;

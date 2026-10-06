@@ -10,7 +10,8 @@
         "items": [
           "Werewolf and Vampire Lord claws hit as hard as they should again. Since the last update they were dealing the damage of a mortal's fists.",
           "A werewolf no longer goes feral or answers the full moon in the first five minutes after logging in.",
-          "A werewolf gets 45 seconds' warning, with the ground shaking, before the beast takes them, and a sated werewolf is never taken at all: only hunger and the full moon force the change. /syncenchant resends the enchantments you have learned to your arcane enchanter if they ever go missing."
+          "A werewolf gets 45 seconds' warning, with the ground shaking, before the beast takes them, and a sated werewolf is never taken at all: only hunger and the full moon force the change. /syncenchant resends the enchantments you have learned to your arcane enchanter if they ever go missing.",
+          "Goblins in a claimed dungeon can now be searched: press E on a fallen goblin to take what it carried, as you would a bandit. Until now only goblin bosses and guards could be searched."
         ]
       }
     ]
