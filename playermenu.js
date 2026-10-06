@@ -4,7 +4,9 @@
 // X on another player: the client asks for the menu (dbo event "playerMenu" [targetId]) and this answers
 // with the entries the viewer may use right now:
 //   everyone:                 Trade, Introduce (until the target knows you), Inspect, Invite to Party
-//   admins and zone officials: Search, Restrain / Uncuff (Untie for a rope captive), while their own hands are free
+//   admins, zone officials, an allegiance's leaders/officers/sergeants (Legion, Stormcloaks, Thalmor, Blades, the Great
+//   Houses) and hold guards (Guard, Guard Sergeant, Guard Captain):
+//                             Search, Restrain / Uncuff (Untie for a rope captive), while their own hands are free
 //   anyone else carrying a rope: Tie Up; their rope captive: Untie, Leave Tied Here / Lead; someone else's: Cut Free
 //                             (rope.js; Tie Up and Untie go to captureSystem as Restrain and Uncuff do)
 //   whoever carries the target: Put down
@@ -45,7 +47,20 @@ module.exports = (api) => {
   const isMasked = (a) => !!String(get(a, MASK_PROP, '') || '');
   // Court Mages, Shamans and Wisewomen hold office without guard powers
   const UNLAWFUL_RANKS = new Set(['courtmage', 'shaman', 'wisewoman']);
-  const isLawful = (a) => { try { return isLeadStaff(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)); } catch (e) { return false; } };
+  // Faction ranks that arrest too (Nate, 6 Oct; guilds.js __dboGuildsOf, the rank's own title and role): an allegiance's
+  // leaders, officers and sergeants, and a hold's guards by title. A plain member or a Citizen is not lawful.
+  const LAWFUL_FACTIONS = new Set(C.lawfulFactions || ['imperial-legion', 'stormcloaks', 'thalmor', 'blades',
+    'house-hlaalu', 'house-redoran', 'house-telvanni', 'house-indoril', 'house-dres', 'house-sadras']);
+  const LAWFUL_ROLES = new Set(C.lawfulRoles || ['leader', 'officer', 'sergeant']);
+  const GUARD_FACTIONS = new Set(C.guardFactions || ['hold-whiterun', 'hold-riften', 'hold-solitude', 'hold-windhelm', 'hold-markarth',
+    'hold-falkreath', 'hold-morthal', 'hold-dawnstar', 'hold-winterhold', 'county-bruma']);
+  const GUARD_TITLES = new Set((C.guardTitles || ['Guard', 'Guard Sergeant', 'Guard Captain']).map((t) => String(t).toLowerCase()));
+  const lawfulByFaction = (a) => {
+    if (typeof globalThis.__dboGuildsOf !== 'function') return false;
+    return (globalThis.__dboGuildsOf(a) || []).some((g) => (LAWFUL_FACTIONS.has(g.id) && LAWFUL_ROLES.has(g.role))
+      || (GUARD_FACTIONS.has(g.id) && GUARD_TITLES.has(String(g.title || '').toLowerCase())));
+  };
+  const isLawful = (a) => { try { return isLeadStaff(a) || ranksOf(profileOf(a)).some((m) => !UNLAWFUL_RANKS.has(m.rank)) || lawfulByFaction(a); } catch (e) { return false; } };
   // A player in a beast form is the beast to everyone (beastform.js __dboBeastName)
   const beastName = (a) => { try { return typeof globalThis.__dboBeastName === 'function' ? String(globalThis.__dboBeastName(a) || '') : ''; } catch (e) { return ''; } };
   const nameFor = (viewer, a) => beastName(a) || (isMasked(a) ? C.maskName : knownBy(viewer).includes(a >>> 0) ? nameOf(a) : 'Stranger');
@@ -58,17 +73,18 @@ module.exports = (api) => {
   };
   const validTarget = (a, t) => t && t !== a && isOnline(t) && distance(a, t) <= C.maxDistance;
 
-  // ---- who may restrain: admins and anyone holding a zone rank --------------------------------------
+  // ---- who may restrain: admins, anyone holding a zone rank, and the lawful faction ranks above ---------------
   const refreshLawful = (a) => { const v = isLawful(a); if (get(a, LAWFUL_PROP, false) !== v) { try { mp.set(a, LAWFUL_PROP, v); } catch (e) { /* not ready */ } } };
   every('lawful', 15000, () => { for (const a of onlineActors()) refreshLawful(a); });
 
   // Asked by captureSystem: restrain without the target's consent; a staff target is always asked unless the captor is a
-  // Lead GM or above. A GM restrains like anyone else: with a zone rank, or with the target's yes (review A3-7)
+  // Lead GM or above. A GM restrains like anyone else: with a zone rank or a lawful faction rank, or with the target's
+  // yes (review A3-7)
   globalThis.__dboInstantRestraint = (captor, target) => {
     try {
       if (isLeadStaff(captor)) return true;
       if (isAdmin(target)) return false;
-      return ranksOf(profileOf(captor)).some((m) => !UNLAWFUL_RANKS.has(m.rank));
+      return ranksOf(profileOf(captor)).some((m) => !UNLAWFUL_RANKS.has(m.rank)) || lawfulByFaction(captor);
     } catch (e) { log('instant restraint check failed', e.message); return false; }
   };
 

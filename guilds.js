@@ -199,12 +199,15 @@ module.exports = (api) => {
   const mirror = (a) => { try { mp.set(a, MIRROR_PROP, membershipsOf(a).map((m) => ({ id: m.fid, role: (FACTIONS.get(m.fid).ranks[m.e.rank] || {}).role }))); } catch (e) { /* offline */ } };
   const isOnline = (a) => onlineActors().includes(a >>> 0);
 
-  const setMember = (fid, a, rank) => {
+  // by: the character who makes the change (null for the court's own office sync), for the wording of a limit refusal
+  const setMember = (fid, a, rank, by) => {
     const f = FACTIONS.get(fid);
     const role = (f.ranks[rank] || {}).role;
     const cap = Number(CAPS[role]) || 0;
     const had = entryOf(fid, a);
     if (cap && (!had || (f.ranks[had.rank] || {}).role !== role) && roleCount(fid, role) >= cap) return `${f.name} already has ${cap} ${shownAt(f, rank)}${cap === 1 ? '' : 's'}.`;
+    const lim = limitProblem(a, fid, rank, by === undefined ? a : by);
+    if (lim && !useOverride(a, fid, lim)) return lim.text;
     rosterOf(fid)[String(a >>> 0)] = { rank, name: nameOf(a), tag: tagOf(a), since: had ? had.since : Date.now() };
     save(); mirror(a);
     return null;
@@ -216,6 +219,116 @@ module.exports = (api) => {
   // A clan or pack with requires takes only that kind (supernatural.js); admins are not bound by it
   const fits = (a, f) => !f || !f.requires || isLeadStaff(a) || (typeof globalThis.__dboSuperKind === 'function' && globalThis.__dboSuperKind(a) === f.requires);
 
+  // ---- membership limits (Nate, 6 Oct): config factions.limits -------------------------------------------------------
+  // categories: at most one faction per category, the ids listed by name (a faction's kind is no guide: the Legion's is
+  // "guild"). In a category's officialsOnly factions (the holds), a rank whose role is in exemptRoles (a Citizen, a
+  // Guard) takes no slot; any higher rank does, so a Legion soldier may live in a hold but not sit in its court.
+  // conflicts: { a: [ids], b: [ids], supernatural?: kind }, whatever the category: one of a with one of b, or one of a as
+  // that supernatural kind (supernatural.js), is refused. Checked on a new membership (and on a rank that newly takes a
+  // slot); nobody is ever removed, so a character who broke the rule before it existed keeps what they hold.
+  // A Lead GM lifts it once for one character and faction with /faction override (audited).
+  const LIM = ((cfg.factions || {}).limits) || {};
+  const CAT_OF = new Map();
+  for (const [cat, c] of Object.entries(LIM.categories || {})) for (const id of (c && c.ids) || []) if (!CAT_OF.has(String(id))) CAT_OF.set(String(id), cat);
+  const catDef = (cat) => (LIM.categories || {})[cat] || {};
+  // Whether rank in fid takes fid's category slot
+  const takesSlot = (fid, rank) => {
+    const cat = CAT_OF.get(fid); if (!cat) return false;
+    if (!(catDef(cat).officialsOnly || []).includes(fid)) return true;
+    const f = FACTIONS.get(fid); const role = f && (f.ranks[rank] || {}).role;
+    return !(catDef(cat).exemptRoles || ['member']).includes(role);
+  };
+  const lowerThe = (n) => String(n || '').replace(/^The /, 'the ');
+  // "the Imperial Legion", "the Afflicted", "Clan Volkihar", "House Hlaalu", "Namira's Coven"
+  const theName = (n) => (/^The /.test(String(n)) || /^(Clan|House) |^\S+'s /.test(String(n)) ? lowerThe(n) : `the ${n}`);
+  const TheName = (n) => theName(n).replace(/^the /, 'The ');
+  const holds = (fid) => ((catDef(CAT_OF.get(fid)).officialsOnly || []).includes(fid) ? `hold office in ${/^County /.test(FACTIONS.get(fid).name) ? 'the ' : ''}${lowerThe(FACTIONS.get(fid).name)}` : `serve ${theName(FACTIONS.get(fid).name)}`);
+  // { text, hidden } or null. viewer: who reads the refusal; hidden when it would tell them of a secret membership or of
+  // the character's nature (an invite then goes out, and the character is refused at accept, in their own words).
+  const limitProblem = (t, fid, rank, viewer) => {
+    if (LIM.enabled !== true) return null;
+    const f = FACTIONS.get(fid); if (!f) return null;
+    t = t >>> 0;
+    const had = entryOf(fid, t);
+    const self = viewer === null ? false : (viewer >>> 0) === t;
+    const sees = (hf) => self || (viewer !== null && (isAdmin(viewer) || !!entryOf(hf.id, viewer))) || !hf.secret;
+    const name = nameOf(t);
+    const mine = membershipsOf(t).filter((m) => m.fid !== fid);
+    const say = (hf, how) => ({
+      text: self ? `You already ${how}; leave it first.` : `${name} already ${how.replace(/^serve/, 'serves').replace(/^hold office/, 'holds office')}; they must leave it first.`,
+      hidden: !sees(hf),
+    });
+    // The category slot: only when this change newly takes it
+    const cat = CAT_OF.get(fid);
+    if (cat && takesSlot(fid, rank) && !(had && takesSlot(fid, had.rank))) {
+      const m = mine.find((x) => CAT_OF.get(x.fid) === cat && takesSlot(x.fid, x.e.rank));
+      if (m) return say(FACTIONS.get(m.fid), holds(m.fid));
+    }
+    if (had) return null;
+    for (const c of LIM.conflicts || []) {
+      const A = (c.a || []).map(String), B = (c.b || []).map(String);
+      const other = A.includes(fid) ? B : B.includes(fid) ? A : null;
+      if (!other) continue;
+      const m = mine.find((x) => other.includes(x.fid));
+      if (m) { const hf = FACTIONS.get(m.fid); return { text: `${TheName(f.name)} will never take one who serves ${theName(hf.name)}; ${self ? 'leave it first' : `${name} must leave it first`}.`, hidden: !sees(hf) }; }
+      if (c.supernatural && A.includes(fid) && typeof globalThis.__dboSuperKind === 'function' && globalThis.__dboSuperKind(t) === c.supernatural) {
+        return { text: self ? `${TheName(f.name)} will never take a ${c.supernatural}.` : `${name} cannot join ${f.name}.`, hidden: !self && !(viewer !== null && isAdmin(viewer)) };
+      }
+    }
+    return null;
+  };
+  // A Lead GM's override: one change for one character and faction, within OVERRIDE_MS
+  const OVERRIDE_MS = 10 * 60000;
+  ST.overrides = ST.overrides || new Map();
+  const useOverride = (t, fid, lim) => {
+    const k = `${t >>> 0}:${fid}`; const o = ST.overrides.get(k);
+    if (!o || Date.now() - o.at > OVERRIDE_MS) { ST.overrides.delete(k); return false; }
+    ST.overrides.delete(k);
+    audit(`FACTION-LIMIT OVERRIDE by ${o.by}: ${who(t)} into ${FACTIONS.get(fid).name} despite "${lim.text}"`);
+    return true;
+  };
+  // A refusal before anything else moves (a leader stepped down, an invite sent); the override is spent in setMember
+  const limitRefusal = (t, fid, rank, by) => {
+    const lim = limitProblem(t, fid, rank, by);
+    if (!lim) return null;
+    const o = ST.overrides.get(`${t >>> 0}:${fid}`);
+    return o && Date.now() - o.at <= OVERRIDE_MS ? null : lim;
+  };
+  const armOverride = (a, t, fid) => {
+    ST.overrides.set(`${t >>> 0}:${fid}`, { by: who(a), at: Date.now() });
+    audit(`FACTION-LIMIT OVERRIDE armed by ${who(a)} for ${who(t)} and ${FACTIONS.get(fid).name}`);
+  };
+  // gamemode.js appointCheck (through court.js): the household rank an office brings must fit the limits too.
+  // titles: the office's household rank titles (court.js factionRanks). A refusal string, or null.
+  globalThis.__dboFactionLimitSeat = (by, zoneId, actor, titles) => {
+    const f = courtFactionOf(zoneId); const t = Number(actor) >>> 0;
+    if (!f || !t) return null;
+    const e = entryOf(f.id, t); const want = courtRankIndex(f, titles);
+    const rank = want >= 0 ? want : (e ? e.rank : lowestRank(f.id));
+    const lim = limitRefusal(t, f.id, rank, by == null ? null : by);
+    if (!lim) return null;
+    return lim.hidden ? `${nameOf(t)} cannot take that seat.` : lim.text;
+  };
+  // Who breaks the rule today (grandfathered): [{ actor, name, tag, factions, why }]
+  globalThis.__dboFactionLimitBreaches = () => {
+    const out = [];
+    const ids = new Set(); for (const r of Object.values(ST.members)) for (const k of Object.keys(r || {})) ids.add(Number(k) >>> 0);
+    for (const t of ids) {
+      const mine = membershipsOf(t);
+      for (const m of mine) {
+        const rest = mine.filter((x) => x.fid !== m.fid);
+        const cat = CAT_OF.get(m.fid);
+        const clash = cat && takesSlot(m.fid, m.e.rank) && rest.find((x) => x.fid > m.fid && CAT_OF.get(x.fid) === cat && takesSlot(x.fid, x.e.rank));
+        if (clash) out.push({ actor: t, name: m.e.name, tag: m.e.tag, factions: [m.fid, clash.fid], why: cat });
+        for (const c of LIM.conflicts || []) if ((c.a || []).includes(m.fid)) {
+          const x = rest.find((y) => (c.b || []).includes(y.fid)); if (x) out.push({ actor: t, name: m.e.name, tag: m.e.tag, factions: [m.fid, x.fid], why: 'conflict' });
+          if (c.supernatural && typeof globalThis.__dboSuperKind === 'function' && globalThis.__dboSuperKind(t) === c.supernatural) out.push({ actor: t, name: m.e.name, tag: m.e.tag, factions: [m.fid], why: c.supernatural });
+        }
+      }
+    }
+    return out;
+  };
+
   // ---- invites ------------------------------------------------------------------------------------
   const invitesOf = (t) => (ST.invites.get(t >>> 0) || []).filter((i) => Date.now() - i.at < INVITE_MS);
   const invite = (a, t, fid) => {
@@ -225,6 +338,8 @@ module.exports = (api) => {
     if (!t || t === a || !isOnline(t)) return 'They must be online.';
     if (entryOf(fid, t)) return `${nameOf(t)} is already in ${f.name}.`;
     if (!fits(t, f)) return `${nameOf(t)} could never belong to ${f.name}.`;
+    const lim = limitRefusal(t, fid, lowestRank(fid), a);
+    if (lim && !lim.hidden) return lim.text;
     const list = invitesOf(t).filter((i) => i.fid !== fid);
     list.push({ fid, from: a >>> 0, at: Date.now() });
     ST.invites.set(t >>> 0, list);
@@ -475,9 +590,11 @@ module.exports = (api) => {
       if (!can(fid, a, 'setRank')) return { error: 'Only the leader sets ranks.' };
       if (t === (a >>> 0)) return { error: 'Pass leadership by naming someone else leader.' };
     }
+    const lim = limitRefusal(t, fid, rank, a);
+    if (lim) return { error: lim.hidden ? `${nameOf(t)} cannot take that rank.` : lim.text };
     // Naming a new leader steps the old one down to the rank below, so a faction never has two
     if (rank === leaderRank) for (const [id, m] of Object.entries(rosterOf(fid))) if (m.rank === leaderRank && Number(id) !== t) { m.rank = Math.min(leaderRank + 1, lowestRank(fid)); if (isOnline(Number(id))) mirror(Number(id)); }
-    const err = setMember(fid, t, rank);
+    const err = setMember(fid, t, rank, a);
     if (err) return { error: err };
     const title = shownAt(f, rank);
     if (isOnline(t)) system(t, `You are now ${title} of ${f.name}.`);
@@ -515,7 +632,9 @@ module.exports = (api) => {
     if (!t) return { error: 'No character by that name or #TAG.' };
     if (entryOf(fid, t)) return { error: `${nameOf(t)} is already in ${f.name}.` };
     if (!fits(t, f)) return { error: `${nameOf(t)} could never belong to ${f.name}.` };
-    const err = setMember(fid, t, lowestRank(fid));
+    const lim = limitRefusal(t, fid, lowestRank(fid), a);
+    if (lim) return { error: `${lim.text} A Lead GM may lift this once: /faction override ${tagOf(t) ? `#${tagOf(t)}` : nameOf(t)} ${fid}` };
+    const err = setMember(fid, t, lowestRank(fid), a);
     if (err) return { error: err };
     const title = shownAt(f, lowestRank(fid));
     ST.invites.set(t >>> 0, invitesOf(t).filter((i) => i.fid !== fid));
@@ -667,14 +786,16 @@ module.exports = (api) => {
     const e = entryOf(f.id, t);
     if (!seated) {
       if (!e || want < 0 || e.rank !== want) return null;
-      const err = setMember(f.id, t, lowestRank(f.id));
+      const err = setMember(f.id, t, lowestRank(f.id), null);
       return err || `${nameOf(t)} is ${shownAt(f, lowestRank(f.id))} of ${f.name} again.`;
     }
     const rank = want >= 0 ? want : (e ? e.rank : lowestRank(f.id));
     if (e && e.rank === rank) return null;
+    const lim = limitRefusal(t, f.id, rank, null);
+    if (lim) { log(`court: ${lim.text}`); return lim.text; }
     const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
     if (rank === leaderRank) for (const [id, m] of Object.entries(rosterOf(f.id))) if (m.rank === leaderRank && Number(id) !== t) { m.rank = Math.min(leaderRank + 1, lowestRank(f.id)); if (isOnline(Number(id))) mirror(Number(id)); }
-    const err = setMember(f.id, t, rank);
+    const err = setMember(f.id, t, rank, null);
     if (err) { log(`court: ${err}`); return err; }
     return `${nameOf(t)} is ${shownAt(f, rank)} of ${f.name}.`;
   };
@@ -795,18 +916,29 @@ module.exports = (api) => {
       const t = findByName(rest[0] || ''); const fid = rest[1] || ''; const f = FACTIONS.get(fid);
       if (!t || !f) return personal(a, 'Usage: /faction leader <player|#TAG> <faction id>   (/faction list)');
       const leaderRank = f.ranks.findIndex((r) => r.role === 'leader');
+      const lim = limitRefusal(t, fid, leaderRank, a); if (lim) return personal(a, `${lim.text} (A Lead GM may lift this once: /faction override <player|#TAG> ${fid})`);
       for (const [id, m] of Object.entries(rosterOf(fid))) if (m.rank === leaderRank && Number(id) !== (t >>> 0)) m.rank = Math.min(leaderRank + 1, lowestRank(fid));
-      const err = setMember(fid, t, leaderRank); if (err) return personal(a, err);
+      const err = setMember(fid, t, leaderRank, a); if (err) return personal(a, err);
       system(t, `You are now ${shownAt(f, leaderRank)} of ${f.name}.`);
       audit(`FACTION GM ${who(a)} named ${who(t)} ${shownAt(f, leaderRank)} of ${f.name}`);
       return personal(a, `${display(t)} now leads ${f.name}.`);
+    }
+    // A Lead GM lifts the membership limits once, for one character and one faction, for ten minutes (audited); the next
+    // join, rank or office that character takes in that faction goes through and the override is spent
+    if (s === 'override') {
+      if (!isLeadStaff(a)) return personal(a, 'Only a Lead GM or above overrides the faction limits.');
+      const t = findAnyByName(rest[0] || ''); const fid = rest[1] || ''; const f = FACTIONS.get(fid);
+      if (!(t > 0) || !f) return personal(a, 'Usage: /faction override <player|#TAG> <faction id>   (/faction list)');
+      armOverride(a, t, fid);
+      const lim = limitProblem(t, fid, lowestRank(fid), a);
+      return personal(a, `The faction limits are lifted once for ${nameOf(t)} and ${f.name} for the next ten minutes.${lim ? ` They would have been refused: ${lim.text}` : ' Nothing would refuse them now.'}`);
     }
     if (s === 'remove') {
       if (!isLeadStaff(a)) return personal(a, 'Use the faction menu (F3) to remove members.');
       const fid = rest[1] || ''; const id = findMember(fid, rest[0]); if (!FACTIONS.get(fid) || !id) return personal(a, 'Usage: /faction remove <name|#TAG> <faction id>');
       removeMember(fid, id); return personal(a, 'Removed.');
     }
-    personal(a, 'Usage: /faction [menu|list|accept [id]|invite <player> [id]]  admins: /faction leader <player> <id>, /faction remove <name> <id>, /faction hallmark|hallunmark <id> (at a building\'s door)');
+    personal(a, 'Usage: /faction [menu|list|accept [id]|invite <player> [id]]  admins: /faction leader <player> <id>, /faction remove <name> <id>, /faction override <player> <id> (lifts the limits once), /faction hallmark|hallunmark <id> (at a building\'s door)');
   }, { help: '[menu|list|accept|invite] your factions (F3 opens the menu)' });
 
   // ---- packs: the leader runs with the pale coat, and a packmate who kills them in beast form takes the pack
