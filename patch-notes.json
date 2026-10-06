@@ -26,6 +26,12 @@
           "When the server refuses an enchantment, it now tells you why. Fortify Alchemy and Fortify Enchanting can't be put on items on this server. You may also lack the Enchanter skill, the item may not take an enchantment, or the server may not know the effect. The item always keeps its previous state, and no soul is used.",
           "Dragonborn's Chaos Damage enchantment can now be put on weapons. Like every crafted enchantment, it is held to the base game's limits."
         ]
+      },
+      {
+        "heading": "Spells",
+        "items": [
+          "Summon Will-o-the-Wisp is still switched off because the wisp crashes the game. Anyone who still had it loses the spell the first time they try it, it can't be prepared again, and its tome is no longer sold."
+        ]
       }
     ]
   },

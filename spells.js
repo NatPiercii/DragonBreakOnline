@@ -55,7 +55,8 @@ module.exports = (api) => {
     shopTreasury: 'bruma',
     shopPreferPlugins: ['BSHeartland.esm', 'BSAssets.esm'],
     shopExcludePlugins: ['Gray Fox Cowl.esm', 'SurWR.esp'],
-    shopExcludePattern: '^(dun|MGR)|quest|FF\\d\\d',
+    // WillotheWisp: the summon crashes the game (gamemode.js castBlocks)
+    shopExcludePattern: '^(dun|MGR)|quest|FF\\d\\d|WillotheWisp',
     shopProvince: 'cyrodiil',
     // Workshops the guilds keep for their own (a ref's CYRBlockedFactionWorkshop script, which the server never runs)
     guildWorkshops: ['651cb:BSHeartland.esm'],
@@ -438,6 +439,7 @@ module.exports = (api) => {
   const changePrepared = (a, spellId, want) => {
     if (!atCollege(a)) return { ok: false, text: COLLEGE_HINT };
     if (!inBook(a, spellId)) return { ok: false, text: 'That spell is not in your spellbook.' };
+    if (want && typeof globalThis.__dboCastBlocked === 'function' && globalThis.__dboCastBlocked(spellId)) return { ok: false, text: 'That spell is disabled for now.' };
     const sp = classifySpell(spellId) || { id: spellId, name: descOf(spellId) };
     const prep = preparedIds(a);
     if (want) {

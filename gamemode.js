@@ -4695,6 +4695,7 @@ for (const [desc, why] of Object.entries(cfg.castBlocks || {})) {
   let id = 0; try { id = mp.getIdFromDesc(desc) >>> 0; } catch (e) { id = 0; }
   if (id) CAST_BLOCKS.set(id, String(why || '')); else log(`castBlocks: ${desc} is not in the load order`);
 }
+globalThis.__dboCastBlocked = (spellId) => CAST_BLOCKS.has(Number(spellId) >>> 0);
 const shoutRefusedAt = globalThis.__dboShoutRefusedAt instanceof Map ? globalThis.__dboShoutRefusedAt : (globalThis.__dboShoutRefusedAt = new Map());
 const castHook = (casterId, spellId, ...rest) => {
   try { if (racial) racial.onCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('racial cast failed', e.message); }
@@ -4712,6 +4713,11 @@ const castHook = (casterId, spellId, ...rest) => {
   const blocked = CAST_BLOCKS.get(Number(spellId) >>> 0);
   if (blocked !== undefined) {
     try { if (profileOf(Number(casterId) >>> 0) >= 0) personal(Number(casterId) >>> 0, blocked || 'That spell does not work right now.'); } catch (e) { /* not a player */ }
+    // The cast already runs in the caster's own game, so the refusal alone cannot stop the summon there (the wisp
+    // crashed its caster on 6 Oct despite the refusal): the spell is taken off the character so it is not cast again
+    try {
+      if (profileOf(Number(casterId) >>> 0) >= 0) mp.callPapyrusFunction('method', 'Actor', 'RemoveSpell', { type: 'form', desc: mp.getDescFromId(Number(casterId) >>> 0) }, [{ type: 'espm', desc: mp.getDescFromId(Number(spellId) >>> 0) }]);
+    } catch (e) { log('castBlocks: RemoveSpell failed', e.message); }
     log(`castBlocks: refused ${(Number(spellId) >>> 0).toString(16)} from ${display(Number(casterId) >>> 0)}`);
     return false;
   }
