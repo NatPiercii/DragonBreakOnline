@@ -29,6 +29,7 @@ const gameversion = require('./gameversion')
 const downgrade = require('./downgrade')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
+const selfRepair = require('./selfRepair')
 const nxmLinks = require('./nxm')
 const legalLib = require('./legal')
 const installProgress = require('./renderer/installProgress')
@@ -2120,6 +2121,7 @@ ipcMain.handle('launch:skse', () => guardLaunch(async () => {
     }
     stepAsideForGame()
     watchGameExit()
+    watchClientStart()
     return { success: true, loadOrderFixed: prep.loadOrderFixed, warning: prep.warning }
   } catch (err) {
     return { success: false, error: err.message }
@@ -2133,7 +2135,7 @@ ipcMain.handle('launch:viaMO2', () => guardLaunch(async () => {
   if (!mo2.isInstalled()) return { success: false, error: 'MO2 is not installed - use Repair MO2 first.' }
   const prep = await prepareForLaunch(skyrimPath, true)
   if (!prep.success) return prep
-  try { mo2.launchGame(skyrimPath); stepAsideForGame(); watchGameExit(); return { success: true } }
+  try { mo2.launchGame(skyrimPath); stepAsideForGame(); watchGameExit(); watchClientStart(); return { success: true } }
   catch (err) { return { success: false, error: err.message } }
 }))
 
@@ -2150,9 +2152,70 @@ ipcMain.handle('launch:direct', () => guardLaunch(async () => {
     spawn(exe, [], { detached: true, stdio: 'ignore', cwd: skyrimPath }).unref()
     stepAsideForGame()
     watchGameExit()
+    watchClientStart()
     return { success: true }
   } catch (err) { return { success: false, error: err.message } }
 }))
+
+// Before every launch: a failed start last time, or a start file that differs from the server's, reinstalls the client
+// files; stray files in the platform's folders (and its DLLs in MO2's overwrite) go to "DragonBreak Quarantine".
+// The server's list unreachable means nothing is judged and the launch goes on.
+async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
+  let vd = null
+  try { vd = await fetchJSON(`${config.apiUrl}/api/files/version`) } catch (err) { log(`[selfRepair] server file list unavailable (${err.message}); skipped`) }
+  const files = vd && Array.isArray(vd.files) ? vd.files : []
+  const quarantine = path.join(skyrimPath, 'DragonBreak Quarantine')
+  const moved = selfRepair.moveAside(skyrimPath, selfRepair.strayFiles(skyrimPath, files), quarantine, { log: m => log(`[selfRepair] ${m}`) })
+  if (moved.length) log(`[selfRepair] moved ${moved.length} stray file(s) to ${quarantine}: ${moved.join(', ')}`)
+  if (viaMO2) {
+    const overwrite = path.join(mo2.getRoot(), 'overwrite')
+    const dlls = selfRepair.moveAside(overwrite, selfRepair.overwritePlatformDlls(overwrite), path.join(quarantine, 'MO2 overwrite'), { log: m => log(`[selfRepair] ${m}`) })
+    if (dlls.length) log(`[selfRepair] moved platform DLLs out of MO2's overwrite: ${dlls.join(', ')}`)
+  }
+  const failed = store.get('clientStartFailed')
+  const bad = selfRepair.checkClient(skyrimPath, files)
+  if (!failed && bad.length === 0) return { success: true }
+  log(`[selfRepair] reinstalling the client files: ${failed ? `the last start failed (${failed.reason})` : bad.map(b => `${b.path} (${b.why})`).join(', ')}`)
+  send('install:progress', { phase: 'download', file: 'Repairing your client files…', index: 0, total: 0, skipped: false })
+  const core = await installClientFilesCore(skyrimPath, srv, serverInfo, true)
+  if (!core.success) return { success: false, error: `Your client files are damaged and the automatic repair failed: ${core.error}` }
+  store.delete('clientStartFailed')
+  const still = selfRepair.checkClient(skyrimPath, files)
+  if (still.length) return { success: false, error: `Your client files are still damaged after a repair (${still.map(b => b.path).join(', ')}). Use Report a Problem so staff can see your logs.` }
+  log('[selfRepair] client files repaired')
+  return { success: true }
+}
+
+// After a launch: a client that died at start (the main menu shows only the logo) is remembered, so the next PLAY
+// repairs first, and the player is told at once instead of waiting on a frozen menu.
+let startWatchRunning = false
+function watchClientStart() {
+  if (process.platform !== 'win32' || startWatchRunning) return
+  const docs = documentsDirOrNull()
+  if (!docs) return
+  startWatchRunning = true
+  selfRepair.watchBoot({ logDirs: MYGAMES_VARIANTS.map(v => path.join(docs, 'My Games', v, 'SKSE')), launchedAt: Date.now() })
+    .then(async (fail) => {
+      if (!fail) return
+      log(`[selfRepair] the client failed to start: ${fail.reason} (${fail.line})`)
+      store.set('clientStartFailed', { reason: fail.reason, at: new Date().toISOString() })
+      if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus() }
+      const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+        type: 'warning',
+        title: 'DragonBreak could not start',
+        message: 'DragonBreak could not start inside Skyrim, so the main menu will stay on the logo.',
+        detail: `Cause: ${fail.reason}.\n\nClose Skyrim and press PLAY again: the launcher will repair your client files first.`,
+        buttons: ['Close Skyrim now', 'Leave it open'],
+        defaultId: 0,
+        noLink: true,
+      })
+      if (response === 0) {
+        require('child_process').execFile('taskkill', ['/IM', 'SkyrimSE.exe', '/F'], { windowsHide: true }, err => log(err ? `[selfRepair] could not close Skyrim: ${err.message}` : '[selfRepair] closed Skyrim for a repair'))
+      }
+    })
+    .catch(err => log(`[selfRepair] start watch failed: ${err.message}`))
+    .finally(() => { startWatchRunning = false })
+}
 
 /**
  * Common pre-launch pipeline:
@@ -2478,6 +2541,9 @@ async function prepareForLaunch(skyrimPath, viaMO2) {
   if (skyrimPath === store.get('skyrimPath')) {
     mo2.disableCcContent(skyrimPath, serverInfo?.loadOrder)
   }
+
+  const healed = await selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo)
+  if (!healed.success) return healed
 
   // Staging gate: surface everything missing before we write settings or launch
   const notReady = verifyLaunchReadiness(skyrimPath, viaMO2, serverInfo)
