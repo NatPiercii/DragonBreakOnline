@@ -3017,6 +3017,9 @@ const appointCheck = (a, z, rank, tg, override) => {
     if (held && !appointCap(a, z, held)) return { error: `${tg.label} already holds ${rankTitle(held, z.id)} of ${z.name}; you cannot replace that.` };
     if (((zo[rank] || []).map(Number).filter((x) => x !== tg.pid)).length >= cap) return { error: `${z.name} already has ${cap} ${rankTitle(rank, z.id)}s. Dismiss one first.` };
   }
+  // The faction limits (guilds.js, court.js): an office in a hold's court takes the allegiance slot; a Lead GM's
+  // /faction override lifts it once
+  try { const lim = typeof globalThis.__dboCourtSeatLimit === 'function' ? globalThis.__dboCourtSeatLimit(a, z, rank, tg) : null; if (lim) return { error: lim }; } catch (e) { log('faction limit check failed', e.message); }
   return { cap, overridden };
 };
 // court.js: an office change also sets the household (hold faction) rank, with the office as the source of truth

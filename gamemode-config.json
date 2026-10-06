@@ -959,5 +959,145 @@
   "_comment": "Coin purses (gamemode.js PURSE): goldMin..goldMax per purse before the Harvesting multiplier, a purse rests restMinutes for everyone (in a claimed dungeon it is full again for the next claim). Gold cut (Nate, 4 Oct; gold-cut-1004): was 8-30.",
   "goldMin": 3,
   "goldMax": 12
- }
+ },
+ "factions": {
+   "limits": {
+    "_comment": "Faction membership limits (server\\guilds.js, Nate 6 Oct): at most one faction per category, per character; ids listed by name, never from guild-defs kind. allegiance counts a hold's or county's court officials only (officialsOnly + exemptRoles: a Citizen or Guard takes no slot), so a Legion soldier may live in a hold but not sit in its court. conflicts: refused whatever the category (supernatural: refused for that kind too, supernatural.js). Unplaced, so unlimited: the six Orc clans, the Silver Hand, the four vampire clans, the two Hircine packs, charter factions. Checked on a new membership or a rank that newly takes a slot; nobody is removed. A Lead GM lifts it once with /faction override <player> <id> (audited).",
+    "enabled": true,
+    "categories": {
+     "allegiance": {
+      "ids": [
+       "hold-whiterun",
+       "hold-riften",
+       "hold-solitude",
+       "hold-windhelm",
+       "hold-markarth",
+       "hold-falkreath",
+       "hold-morthal",
+       "hold-dawnstar",
+       "hold-winterhold",
+       "county-bruma",
+       "imperial-legion",
+       "stormcloaks",
+       "thalmor",
+       "blades",
+       "house-hlaalu",
+       "house-redoran",
+       "house-telvanni",
+       "house-indoril",
+       "house-dres",
+       "house-sadras"
+      ],
+      "officialsOnly": [
+       "hold-whiterun",
+       "hold-riften",
+       "hold-solitude",
+       "hold-windhelm",
+       "hold-markarth",
+       "hold-falkreath",
+       "hold-morthal",
+       "hold-dawnstar",
+       "hold-winterhold",
+       "county-bruma"
+      ],
+      "exemptRoles": [
+       "member"
+      ]
+     },
+     "guild": {
+      "ids": [
+       "companions",
+       "fighters-guild",
+       "college-of-winterhold",
+       "college-of-whispers",
+       "bards-college",
+       "synod",
+       "vigil-of-stendarr",
+       "dawnguard"
+      ]
+     },
+     "secret": {
+      "ids": [
+       "thieves-guild",
+       "dark-brotherhood",
+       "cult-azura",
+       "cult-boethiah",
+       "cult-clavicus-vile",
+       "cult-hermaeus-mora",
+       "cult-hircine",
+       "cult-mehrunes-dagon",
+       "cult-mephala",
+       "cult-meridia",
+       "cult-molag-bal",
+       "cult-namira",
+       "cult-nocturnal",
+       "cult-peryite",
+       "cult-sanguine",
+       "cult-sheogorath",
+       "cult-vaermina"
+      ]
+     }
+    },
+    "conflicts": [
+     {
+      "a": [
+       "imperial-legion"
+      ],
+      "b": [
+       "stormcloaks"
+      ]
+     },
+     {
+      "a": [
+       "thalmor"
+      ],
+      "b": [
+       "blades"
+      ]
+     },
+     {
+      "a": [
+       "dawnguard"
+      ],
+      "b": [
+       "clan-volkihar",
+       "cyrodiil-vampyrum-order",
+       "crimson-scars",
+       "bloodmist-clan"
+      ],
+      "supernatural": "vampire"
+     },
+     {
+      "a": [
+       "vigil-of-stendarr"
+      ],
+      "b": [
+       "cult-azura",
+       "cult-boethiah",
+       "cult-clavicus-vile",
+       "cult-hermaeus-mora",
+       "cult-hircine",
+       "cult-mehrunes-dagon",
+       "cult-mephala",
+       "cult-meridia",
+       "cult-molag-bal",
+       "cult-namira",
+       "cult-nocturnal",
+       "cult-peryite",
+       "cult-sanguine",
+       "cult-sheogorath",
+       "cult-vaermina"
+      ]
+     },
+     {
+      "a": [
+       "synod"
+      ],
+      "b": [
+       "college-of-whispers"
+      ]
+     }
+    ]
+   }
+  }
 }

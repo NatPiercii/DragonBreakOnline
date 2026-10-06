@@ -79,6 +79,9 @@ module.exports = (api) => {
   };
   // guilds.js: the household rank titles an office sets keep their title and cannot be removed
   globalThis.__dboCourtTiedTitles = () => Array.from(new Set([].concat(...Object.values(C.factionRanks || {})).filter((t) => t && t !== '@leader').map((t) => String(t).toLowerCase())));
+  // gamemode.js appointCheck: the household rank an office brings must fit the faction limits (guilds.js, Nate 6 Oct)
+  globalThis.__dboCourtSeatLimit = (a, z, rank, tg) => (typeof globalThis.__dboFactionLimitSeat === 'function' && z && tg
+    ? globalThis.__dboFactionLimitSeat(a, z.id, tg.actor, C.factionRanks[rank] || []) : null);
   // ---- the office keeps the household in step (gamemode.js seatOfficial / unseatOfficial) ---------------------------
   globalThis.__dboCourtOfficeSync = (z, tg, rank, seated) => {
     if (typeof globalThis.__dboCourtSync !== 'function' || !z || !tg) return;

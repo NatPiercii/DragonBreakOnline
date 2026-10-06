@@ -1,5 +1,21 @@
 [
   {
+    "title": "Faction limits",
+    "date": "2026-10-06",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "A character now serves one faction of each kind: one allegiance (a hold's court, the County of Bruma's court, the Imperial Legion, the Stormcloaks, the Thalmor, the Blades or a Great House), one guild, and one secret society or Daedric cult. Living in a hold as a Citizen or a Guard does not count: a Legion soldier may be a citizen of Bruma, but not sit in its court.",
+          "Some loyalties can never mix: the Legion and the Stormcloaks, the Thalmor and the Blades, the Dawnguard and vampires, the Vigil of Stendarr and the Daedric cults, the Synod and the College of Whispers. If you are refused, you are told which faction to leave first. Nobody loses a membership they already hold.",
+          "Officers, leaders and sergeants of the Imperial Legion, the Stormcloaks, the Thalmor, the Blades and the Great Houses, and every hold Guard, Guard Sergeant and Guard Captain, may now restrain and arrest."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Fixes",
     "date": "2026-10-06",
     "version": "Server update",
