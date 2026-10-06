@@ -8,6 +8,17 @@ import { AdminBans } from "./adminBans";
 import * as fs from "fs";
 import * as path from "path";
 
+// 10/8, 127/8, 169.254/16, 172.16/12, 192.168/16, and IPv6 loopback/link/unique-local: never a player's own address here
+export const isPrivateAddress = (ip: string): boolean => {
+  const s = String(ip || "").trim().toLowerCase();
+  if (!s) return true;
+  if (s === "::1" || s.startsWith("fe80:") || s.startsWith("fc") || s.startsWith("fd")) return true;
+  const m = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(s.replace(/^::ffff:/, ""));
+  if (!m) return false;
+  const a = Number(m[1]), b = Number(m[2]);
+  return a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+};
+
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
 
@@ -534,6 +545,13 @@ export class AdminSystem implements System {
         let ip = "";
         try { ip = String(mp.getUserIp(target.userId) || "").split(":")[0]; } catch { }
         if (action === "ipBan" && !ip) { this.reply(mp, userId, false, "Their ip is unknown"); return; }
+        // The host's port forward shows every player as one internal address (10.10.10.1 on 6 Oct): an IP ban on it bans
+        // the whole server. Refused until the server sees real addresses; a Discord ban and a temp ban still work
+        if (action === "ipBan" && isPrivateAddress(ip)) {
+          this.log(`AdminSystem: profile ${adminProfile} IP ban on ${target.name} refused: ${ip} is an internal address every player shares`);
+          this.reply(mp, userId, false, "IP bans are off: the server sees every player at the same internal address, so this would ban everyone. Use a ban or a temp ban.");
+          return;
+        }
         const ban = this.bans.add({
           profileId: target.profileId, name: target.name, ip: action === "ipBan" ? ip : "",
           until: action === "tempBan" ? Date.now() + Math.round(hours * 3600000) : 0,
