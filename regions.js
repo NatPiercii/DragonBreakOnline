@@ -238,6 +238,42 @@ module.exports = (api) => {
     } catch (e) { return ''; }
   };
   const isTemper = (recipeId) => TEMPER_BENCHES.has(benchOf(recipeId));
+  // Only an Orc makes Orcish armour (Nate, 2026-10-06), whatever the province or faction rule says; staff pass with
+  // adminBypass, as the province rule. Told by the product: an ARMO (and a WEAP when weapons is on) whose editor id
+  // matches edid or which carries one of the material keywords. Tempering stays open to all: it improves a piece, it
+  // does not make one. Config "orcishCraft": { enabled, races, weapons, edid, keywords }.
+  const ORCISH = Object.assign({ enabled: true, races: ['orc'], weapons: false, edid: 'Orcish',
+    keywords: ['ArmorMaterialOrcish', 'WeapMaterialOrcish'] }, cfg.orcishCraft || {});
+  const keywordsOf = (r) => {
+    const f = r && r.record && (r.record.fields || []).find((x) => x && x.type === 'KWDA' && x.data);
+    if (!f) return [];
+    const out = [];
+    const dv = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength);
+    for (let i = 0; i + 4 <= f.data.byteLength; i += 4) {
+      let kw = dv.getUint32(i, true);
+      if (typeof r.toGlobalRecordId === 'function') kw = r.toGlobalRecordId(kw) >>> 0;
+      try { const k = mp.lookupEspmRecordById(kw >>> 0); if (k && k.record) out.push(String(k.record.editorId || '').toLowerCase()); } catch (e) { /* next */ }
+    }
+    return out;
+  };
+  const isOrcishWork = (itemId) => {
+    try {
+      const r = mp.lookupEspmRecordById(itemId >>> 0);
+      const type = r && r.record ? String(r.record.type) : '';
+      if (type !== 'ARMO' && !(ORCISH.weapons && type === 'WEAP')) return false;
+      const want = rx(ORCISH.edid);
+      if (want && want.test(String(r.record.editorId || ''))) return true;
+      const kws = new Set((ORCISH.keywords || []).map((k) => String(k).toLowerCase()));
+      return keywordsOf(r).some((k) => kws.has(k));
+    } catch (e) { return false; }
+  };
+  // The refusal's text, or '' when the craft may go on
+  const orcishRefusal = (a, itemId, recipeId) => {
+    if (!ORCISH.enabled || !isOrcishWork(itemId) || isTemper(recipeId) || bypass(a)) return '';
+    const race = raceOf(a);
+    if (race && (ORCISH.races || []).includes(race)) return '';
+    return 'Only an Orc smith knows how to make Orcish armour. Your materials come back when you close the menu.';
+  };
   // A smelter burns firewood: firewoodPerIngot for each item a craft at a smelter makes (Nate, 2026-10-06: "Firewood is
   // fine. Do 2 per ingot right now"), a stopgap until the charcoal tiers. Firewood01 (6f993:Skyrim.esm) is the only
   // playable firewood in the load order and what woodcutting gives (labour.js). Config "smelting": { firewoodPerIngot: 0 } turns it off.
@@ -291,6 +327,17 @@ module.exports = (api) => {
         personal(a, text);
         try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
         audit(`DRAGON MATERIAL craft refused ${who(a)} recipe ${(Number(recipeId) >>> 0).toString(16)} -> ${descOf(Number(itemId) >>> 0)}`);
+      }
+      return false;
+    }
+    // Orcish armour is an Orc's work (before the faction rule, so a non-Orc hears why)
+    const orcish = orcishRefusal(a, Number(itemId) >>> 0, Number(recipeId) >>> 0);
+    if (orcish) {
+      if (Date.now() - (dragonToldAt.get(a) || 0) > 3000) {
+        dragonToldAt.set(a, Date.now());
+        personal(a, orcish);
+        try { sendPacket(a, { customPacketType: 'dboNotice', text: orcish }); } catch (e) { /* the chat line is enough */ }
+        audit(`ORCISH craft refused ${who(a)} (${raceOf(a) || 'unknown race'}) recipe ${edidOf(descOf(Number(recipeId) >>> 0)) || (Number(recipeId) >>> 0).toString(16)} -> ${edidOf(descOf(Number(itemId) >>> 0))}`);
       }
       return false;
     }

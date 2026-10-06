@@ -12,6 +12,12 @@
           "Some loyalties can never mix: the Legion and the Stormcloaks, the Thalmor and the Blades, the Dawnguard and vampires, the Vigil of Stendarr and the Daedric cults, the Synod and the College of Whispers. If you are refused, you are told which faction to leave first. Nobody loses a membership they already hold.",
           "Officers, leaders and sergeants of the Imperial Legion, the Stormcloaks, the Thalmor, the Blades and the Great Houses, and every hold Guard, Guard Sergeant and Guard Captain, may now restrain and arrest."
         ]
+      },
+      {
+        "heading": "Crafting",
+        "items": [
+          "Orcish armour is an Orc's work: only Orc characters (vampire Orcs included) can make it at a forge. Anyone can still temper Orcish armour they own, and a refused craft gives your materials back when you close the menu."
+        ]
       }
     ]
   },
