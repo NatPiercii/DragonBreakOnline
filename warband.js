@@ -34,6 +34,7 @@ const path = require('path');
 
 module.exports = (api) => {
   const { mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg, onUi } = api;
+  const onlineActors = () => { try { return typeof api.onlineActors === 'function' ? api.onlineActors() : []; } catch (e) { return []; } };
   const C = Object.assign({ maxBand: 25, maxRaise: 10, ringRadius: 160, bodySeconds: 300, chargeRange: 4096, avoidGmHost: true }, cfg.warband || {});
   // released: [{ id, name, by, gm, profile, at, hostile, diedAt }]
   const S = globalThis.__dboWarband || (globalThis.__dboWarband = { npcs: null, names: new Map(), released: [] });
@@ -56,6 +57,47 @@ module.exports = (api) => {
   const crashy = (base) => { try { return CRASHY ? CRASHY.check(base) : null; } catch (e) { return null; } };
   const recordFactions = (baseId) => {
     try { const src = FACTIONS && FACTIONS.factionSource(Number(baseId) >>> 0); return src ? { f: src.factions.map((x) => [x.id, x.rank]), c: src.crime } : null; } catch (e) { return null; }
+  };
+
+  // An unleashed raid shares its factions with its GM (Nate, 6 Oct: "with unleashed they didnt attack who unleashed
+  // them"). Who an NPC fights is decided in the game that runs its AI, so the hit refusal below only stopped the blows
+  // landing. The GM's character carries every faction of their standing raiders in ff_factions (formView.applyFactions,
+  // on every other client's copy of the GM; a player copy's base has no factions of its own, so an empty list puts it
+  // back), and each raider carries them all too, so a Dremora and a Skeleton of one raid stop fighting each other.
+  // Unproven in game when written: that the engine treats members of one faction as allies.
+  if (!(S.raidKeys instanceof Map)) S.raidKeys = new Map();   // GM actor -> the faction list last sent
+  const syncRaidFactions = () => {
+    const byGm = new Map();
+    for (const r of S.released) {
+      if (!r.hostile || !r.baseId || !r.gm) continue;
+      let dead = true; try { dead = mp.get(r.id, 'isDead') === true; } catch (e) { continue; }
+      if (dead) continue;
+      if (!byGm.has(r.gm)) byGm.set(r.gm, []);
+      byGm.get(r.gm).push(r);
+    }
+    // A GM left with raid factions by an earlier run (a restart forgets raidKeys) is put back
+    for (const a of onlineActors()) {
+      const id = a >>> 0;
+      if (byGm.has(id) || S.raidKeys.has(id) || profileOf(id) < 0) continue;
+      let v = null; try { v = mp.get(id, 'ff_factions'); } catch (e) { continue; }
+      if (v && Array.isArray(v.f) && v.f.length) S.raidKeys.set(id, 'stale');
+    }
+    for (const gm of new Set([...byGm.keys(), ...S.raidKeys.keys()])) {
+      const raiders = byGm.get(gm) || [];
+      const own = new Map(), ids = new Set();
+      for (const r of raiders) { const f = recordFactions(r.baseId); own.set(r.id, f); for (const e of (f && f.f) || []) ids.add(Number(e[0]) >>> 0); }
+      const list = [...ids].sort((x, y) => x - y);
+      const key = list.join(',');
+      if ((S.raidKeys.get(gm) || '') === key) continue;
+      try { mp.set(gm, 'ff_factions', { f: list.map((id) => [id, 0]), c: 0 }); } catch (e) { S.raidKeys.delete(gm); continue; }
+      if (list.length) S.raidKeys.set(gm, key); else S.raidKeys.delete(gm);
+      for (const r of raiders) {
+        const f = own.get(r.id) || { f: [], c: 0 };
+        const rank = new Map((f.f || []).map((e) => [Number(e[0]) >>> 0, Number(e[1]) || 0]));
+        try { mp.set(r.id, 'ff_factions', { f: list.map((id) => [id, rank.has(id) ? rank.get(id) : 0]), c: f.c || 0 }); } catch (e) { /* gone */ }
+      }
+      log(`warband: raid factions of ${who(gm)}: ${list.length ? list.map((x) => x.toString(16)).join(',') : 'none'} (${raiders.length} raider(s))`);
+    }
   };
 
   const profileOf = (a) => {
@@ -201,10 +243,11 @@ module.exports = (api) => {
       // A raider gets its own factions back, a garrison the player faction
       try { mp.set(id, 'ff_factions', hostile ? recordFactions(c.baseId) : FRIENDLY_FACTIONS); } catch (e) { log('warband: ff_factions failed', e.message); }
       if (!comp().release(id, hostile)) continue;
-      S.released.push({ id, name: nameOfNpc(id), by: who(a), gm: a >>> 0, profile, at: Date.now(), hostile, diedAt: 0 });
+      S.released.push({ id, name: nameOfNpc(id), by: who(a), gm: a >>> 0, profile, at: Date.now(), hostile, diedAt: 0, baseId: c.baseId });
       S.owners.set(id, { gm: a >>> 0, profile, by: who(a), released: true, hostile });
       done++;
     }
+    if (hostile) { try { syncRaidFactions(); } catch (e) { log('warband: raid factions failed', e.message); } }
     audit(`WARBAND ${who(a)} ${hostile ? 'UNLEASHED a raid of' : 'settled'} ${done} NPC(s)${gone.length ? `; dismissed ${gone.length} (crashyCreatures)` : ''}`);
     if (gone.length) personal(a, `Dismissed ${gone.length} (${[...new Set(gone)].join(', ')}) instead. ${CRASHY ? CRASHY.message : ''}`.trim());
     if (kept.length) {
@@ -345,6 +388,7 @@ module.exports = (api) => {
       for (const r of list) { try { mp.destroyActor(r.id); n++; } catch (e) { /* already gone */ } S.owners.delete(r.id >>> 0); }
       const gone = new Set(list.map((r) => r.id));
       S.released = S.released.filter((r) => !gone.has(r.id));
+      try { syncRaidFactions(); } catch (e) { log('warband: raid factions failed', e.message); }
       audit(`WARBAND ${who(a)} cleared ${n} unleashed or settled NPC(s) and bodies${all ? ' of every GM' : ''}`);
       return personal(a, `Removed ${n}${all ? ' (every GM\'s)' : ''}.`);
     }
@@ -378,6 +422,7 @@ module.exports = (api) => {
       S.owners.delete(r.id >>> 0);
     }
     S.released = keep;
+    try { syncRaidFactions(); } catch (e) { log('warband: raid factions failed', e.message); }
     if (removed) log(`warband: removed ${removed} body(ies) of unleashed or settled NPCs, ${C.bodySeconds} s after they fell`);
     for (const [id, o] of S.owners) {
       if (o.released) continue;

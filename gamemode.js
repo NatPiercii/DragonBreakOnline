@@ -6095,7 +6095,7 @@ try {
 try {
   const WARBAND_JS = path.resolve('warband.js');
   delete require.cache[WARBAND_JS];
-  require(WARBAND_JS)({ mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg, onUi, every, profileOf, runChat: (a, line) => handleChat(userOf(a), line) });
+  require(WARBAND_JS)({ mp, log, personal, audit, who, isAdmin, registerChatCommand, findByName, cfg, onUi, every, profileOf, onlineActors, runChat: (a, line) => handleChat(userOf(a), line) });
 } catch (e) { log('warband.js failed to load:', e.stack || e.message); }
 
 // ---- the F7 Place tab: NPCs and world objects placed by GMs (server\placement.js, admin-placeables.json) --------
