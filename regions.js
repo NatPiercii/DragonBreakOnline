@@ -238,11 +238,11 @@ module.exports = (api) => {
     } catch (e) { return ''; }
   };
   const isTemper = (recipeId) => TEMPER_BENCHES.has(benchOf(recipeId));
-  // Only an Orc makes Orcish armour (Nate, 2026-10-06), whatever the province or faction rule says; staff pass with
-  // adminBypass, as the province rule. Told by the product: an ARMO (and a WEAP when weapons is on) whose editor id
+  // Only an Orc makes Orcish armour and weapons (Nate, 2026-10-06), whatever the province or faction rule says; staff pass
+  // with adminBypass, as the province rule. Told by the product: an ARMO (and a WEAP when weapons is on) whose editor id
   // matches edid or which carries one of the material keywords. Tempering stays open to all: it improves a piece, it
   // does not make one. Config "orcishCraft": { enabled, races, weapons, edid, keywords }.
-  const ORCISH = Object.assign({ enabled: true, races: ['orc'], weapons: false, edid: 'Orcish',
+  const ORCISH = Object.assign({ enabled: true, races: ['orc'], weapons: true, edid: 'Orcish',
     keywords: ['ArmorMaterialOrcish', 'WeapMaterialOrcish'] }, cfg.orcishCraft || {});
   const keywordsOf = (r) => {
     const f = r && r.record && (r.record.fields || []).find((x) => x && x.type === 'KWDA' && x.data);
@@ -272,7 +272,7 @@ module.exports = (api) => {
     if (!ORCISH.enabled || !isOrcishWork(itemId) || isTemper(recipeId) || bypass(a)) return '';
     const race = raceOf(a);
     if (race && (ORCISH.races || []).includes(race)) return '';
-    return 'Only an Orc smith knows how to make Orcish armour. Your materials come back when you close the menu.';
+    return 'Only an Orc smith knows how to make Orcish gear. Your materials come back when you close the menu.';
   };
   // A smelter burns firewood: firewoodPerIngot for each item a craft at a smelter makes (Nate, 2026-10-06: "Firewood is
   // fine. Do 2 per ingot right now"), a stopgap until the charcoal tiers. Firewood01 (6f993:Skyrim.esm) is the only

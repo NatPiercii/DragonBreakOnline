@@ -1,6 +1,6 @@
-// Only an Orc makes Orcish armour (Nate, 2026-10-06). regions.js craftHook refuses an Orcish ARMO (by editor id or the
+// Only an Orc makes Orcish armour and weapons (Nate, 2026-10-06). regions.js craftHook refuses an Orcish ARMO (by editor id or the
 // ArmorMaterialOrcish keyword) to every other race, before the faction rule; staff pass with adminBypass; tempering
-// stays open to all; Orcish weapons only when config orcishCraft.weapons is on. Loads the real regions.js against fake
+// stays open to all; Orcish weapons too (orcishCraft.weapons, on by default). Loads the real regions.js against fake
 // plugin records and drives mp.onCraft.
 //   node tests/orcish-craft-harness.js   (from server/)
 'use strict';
@@ -84,10 +84,13 @@ ok(craft(NORD, ORC_CUIRASS, R_TEMPER) !== false && chain.includes(R_TEMPER), 'a 
 chain.length = 0;
 ok(craft(NORD, STEEL_CUIRASS) !== false && chain.includes(R_FORGE), 'other armour is untouched');
 chain.length = 0;
-ok(craft(NORD, ORC_SWORD) !== false && chain.includes(R_FORGE), 'Orcish weapons stay open by default (Nate said armour)');
+ok(craft(NORD, ORC_SWORD) === false, 'a Nord cannot make an Orcish sword either');
+chain.length = 0;
+ok(craft(ORC, ORC_SWORD) !== false && chain.includes(R_FORGE), 'an Orc makes it');
 
-load({ weapons: true });
-ok(craft(NORD, ORC_SWORD) === false && craft(ORC, ORC_SWORD) !== false, 'with orcishCraft.weapons on, Orcish weapons are an Orc\'s work too');
+load({ weapons: false });
+chain.length = 0;
+ok(craft(NORD, ORC_SWORD) !== false && chain.includes(R_FORGE) && craft(NORD, ORC_CUIRASS) === false, 'orcishCraft.weapons false opens the weapons and keeps the armour an Orc\'s');
 load({ enabled: false });
 chain.length = 0;
 ok(craft(NORD, ORC_CUIRASS) !== false && chain.includes(R_FORGE), 'orcishCraft.enabled false turns the rule off');
