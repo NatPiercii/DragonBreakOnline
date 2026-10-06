@@ -4555,6 +4555,7 @@ const hitDamageHook = (aggressorId, targetId, sourceId, damage, ...rest) => {
   try { dealt += superBonusDamage(agg, tgt, Number(sourceId) >>> 0, dealt); } catch (e) { log('supernatural damage failed', e.message); }
   try { if (globalThis.__dboSuperHit && dealt > 0) globalThis.__dboSuperHit(agg, tgt); } catch (e) { log('supernatural hit failed', e.message); }
   try { if (globalThis.__dboAggroHit && dealt > 0) globalThis.__dboAggroHit(agg, tgt); } catch (e) { log('aggro hit failed', e.message); }
+  try { if (globalThis.__dboCompanionHitLanded) globalThis.__dboCompanionHitLanded(agg, tgt); } catch (e) { log('companion hit log failed', e.message); }
   const prev = globalThis.__dboPrevHitDamage;
   if (prev) { try { return prev(aggressorId, targetId, sourceId, dealt, ...rest); } catch (e) { log('hit damage chain failed', e.message); } }
   return undefined;
@@ -5739,8 +5740,45 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
   } catch (e) { /* not an actor */ }
   return true;
 };
-hitDamageAttemptHook.__dbo = true;
-mp.onHitDamageAttempt = hitDamageAttemptHook;
+// ---- companion hits, measured (#mod-0075, 6 Oct: a Conjure Familiar's bites "do 0 damage") ---------------------------
+// One line per summon or raised corpse hit (ff_companionOf names a player), at most one a second per companion: the
+// engine's damage as this hook receives it, whether the gameplay refused it, and the target's health before and after
+// the hit lands (onHitDamage). Config "companionHitLog": false turns it off.
+const companionHitNotes = globalThis.__dboCompanionHitNotes instanceof Map ? globalThis.__dboCompanionHitNotes : (globalThis.__dboCompanionHitNotes = new Map());
+const companionOwnerOf = (a) => { try { const o = Number(mp.get(a, 'ff_companionOf')) >>> 0; return o && profileOf(o) >= 0 ? o : 0; } catch (e) { return 0; } };
+const healthOf = (a) => { try { const p = mp.get(a, 'percentages'); return p && Number.isFinite(Number(p.health)) ? Number(p.health) : NaN; } catch (e) { return NaN; } };
+const companionHitLine = (n, after) => {
+  const pct = (h) => (Number.isFinite(h) ? (h * 100).toFixed(1) + '%' : '?');
+  let base = ''; try { base = String(mp.get(n.agg, 'baseDesc') || ''); } catch (e) { /* gone */ }
+  log(`companion hit ${display(n.owner)}'s ${base || n.agg.toString(16)} -> ${display(n.tgt)}${profileOf(n.tgt) >= 0 ? ' (player)' : ''}: source ${n.src.toString(16)} engine ${n.dmg.toFixed(1)}`
+    + (n.refused ? ' REFUSED by the gameplay' : ` landed ${Number.isFinite(after) ? '' : '(no onHitDamage) '}health ${pct(n.before)} -> ${pct(after)}`)
+    + (n.skipped ? ` (+${n.skipped} more hits since the last line)` : ''));
+};
+const companionHitAttempt = (agg, tgt, src, dmg, verdict) => {
+  if (cfg.companionHitLog === false || agg === tgt) return;
+  const owner = companionOwnerOf(agg);
+  if (!owner) return;
+  const now = Date.now();
+  const last = companionHitNotes.get(agg);
+  if (last && now - last.at < 1000) { last.dropped = (last.dropped || 0) + 1; return; }
+  const n = { agg, tgt, src, dmg, owner, at: now, before: healthOf(tgt), refused: verdict === false, skipped: last ? (last.dropped || 0) : 0, open: true };
+  companionHitNotes.set(agg, n);
+  if (companionHitNotes.size > 256) for (const [k, v] of companionHitNotes) if (now - v.at > 60000) companionHitNotes.delete(k);
+  if (n.refused) { n.open = false; companionHitLine(n, NaN); }
+};
+globalThis.__dboCompanionHitLanded = (agg, tgt) => {
+  const n = companionHitNotes.get(agg);
+  if (!n || !n.open || n.tgt !== tgt || Date.now() - n.at > 2000) return;
+  n.open = false;
+  companionHitLine(n, healthOf(tgt));
+};
+const hitDamageAttemptLogged = (aggressorId, targetId, sourceId, damage, flags) => {
+  const verdict = hitDamageAttemptHook(aggressorId, targetId, sourceId, damage, flags);
+  try { companionHitAttempt(Number(aggressorId) >>> 0, Number(targetId) >>> 0, Number(sourceId) >>> 0, Number(damage) || 0, verdict); } catch (e) { log('companion hit log failed', e.message); }
+  return verdict;
+};
+hitDamageAttemptLogged.__dbo = true;
+mp.onHitDamageAttempt = hitDamageAttemptLogged;
 
 // ---- the numbers the inventory shows are the ones the server uses (client StatDisplayService) ------------------------
 // The inventory draws a weapon as (base + tempering) x (1 + skill/200) and armor as (base + tempering) x (1 + 0.4 x
