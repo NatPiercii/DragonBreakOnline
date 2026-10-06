@@ -32,6 +32,12 @@
         "items": [
           "Summon Will-o-the-Wisp is still switched off because the wisp crashes the game. Anyone who still had it loses the spell the first time they try it, it can't be prepared again, and its tome is no longer sold."
         ]
+      },
+      {
+        "heading": "Restraints",
+        "items": [
+          "Bound hands stay bound: if a captive's pose breaks (a hit, a door, water, a seat), it comes back within a few seconds, for shackles and rope alike."
+        ]
       }
     ]
   },

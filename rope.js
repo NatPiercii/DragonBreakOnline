@@ -42,6 +42,7 @@ module.exports = (api) => {
   const { mp, log, personal, audit, display, nameOf, cfg, onlineActors, every, sendPacket, distanceMeters } = api;
 
   const CFG = Object.assign({
+    poseRefreshSeconds: 4,
     enabled: true,
     // CrownfallRope, "Rope" (DragonBreak.esp, in ccBGSSSE001-Fish.esm's id space)
     item: '90081a:ccBGSSSE001-Fish.esm',
@@ -284,6 +285,21 @@ module.exports = (api) => {
     return true;
   };
 
+  // Bound hands stay bound (Nate, 6 Oct): the client (restraintService.ts) puts the captive pose back only after a jump
+  // or a reload, so a hit, a load door, water or a seat left the hands free for the rest of the binding. Every
+  // poseRefreshSeconds each bound captive who is not carried is sent the pose again on their own client (Papyrus
+  // Debug.SendAnimationEvent, as downed.js does), shackles and rope alike. 0 turns it off. The event is captureSystem's
+  // (server-settings captiveAnimEvent), read from the live settings, else the default.
+  const POSE_EVENT = (() => { try { const s = JSON.parse(require('fs').readFileSync(require('path').resolve('server-settings.json'), 'utf8')); return typeof s.captiveAnimEvent === 'string' && s.captiveAnimEvent ? s.captiveAnimEvent : 'OffsetBoundStandingStart'; } catch (e) { return 'OffsetBoundStandingStart'; } })();
+  const poseRefresh = () => {
+    for (const a of onlineActors()) {
+      let r = null; try { r = mp.get(a, 'private.restrained'); } catch (e) { continue; }
+      if (!r || !r.boundHands || r.carried) continue;
+      try { if (mp.get(a, 'isDead')) continue; } catch (e) { continue; }
+      try { mp.callPapyrusFunction('global', 'Debug', 'SendAnimationEvent', null, [{ type: 'form', desc: mp.getDescFromId(a) }, POSE_EVENT]); } catch (e) { log(`rope: bound pose for ${display(a)} failed: ${e.message}`); }
+    }
+  };
+  if (Number(CFG.poseRefreshSeconds) > 0) every('ropePose', Math.max(1000, Number(CFG.poseRefreshSeconds) * 1000), poseRefresh);
   every('ropeClock', Math.max(250, Number(CFG.tickMs) || 1000), tick);
   every('ropeCut', 250, cutTick);
 
