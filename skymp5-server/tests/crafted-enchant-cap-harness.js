@@ -25,12 +25,12 @@ const f32 = (x) => { const b = new Uint8Array(4); new DataView(b.buffer).setFloa
 const u32s = (...xs) => { const b = new Uint8Array(4 * xs.length); const v = new DataView(b.buffer); xs.forEach((x, i) => v.setUint32(4 * i, x >>> 0, true)); return b; };
 const efit = (mag, area = 0, dur = 0) => { const b = new Uint8Array(12); const v = new DataView(b.buffer); v.setFloat32(0, mag, true); v.setUint32(4, area, true); v.setUint32(8, dur, true); return b; };
 // ENIT: cost, flags, cast type, amount, delivery, enchant type (6 = enchantment), charge time, base, worn restrictions
-const enit = (weapon) => u32s(0, 0, weapon ? 1 : 0, 0, weapon ? 1 : 0, 6, 0, 0, 0);
+const enit = (weapon, baseEnch = 0) => u32s(0, 0, weapon ? 1 : 0, 0, weapon ? 1 : 0, 6, 0, baseEnch, 0);
 const mgefData = (av, baseCost = 1) => { const b = new Uint8Array(152); const v = new DataView(b.buffer); v.setFloat32(4, baseCost, true); v.setInt32(68, av, true); return b; };
 const records = new Map();
 const rec = (id, type, editorId, fields) => records.set(id >>> 0, { record: { type, editorId, fields }, toGlobalRecordId: (x) => x >>> 0 });
-const ench = (id, editorId, weapon, effects) => rec(id, 'ENCH', editorId,
-  [{ type: 'ENIT', data: enit(weapon) }, ...effects.flatMap(([e, m, a, d]) => [{ type: 'EFID', data: u32s(e) }, { type: 'EFIT', data: efit(m, a, d) }])]);
+const ench = (id, editorId, weapon, effects, baseEnch = 0) => rec(id, 'ENCH', editorId,
+  [{ type: 'ENIT', data: enit(weapon, baseEnch) }, ...effects.flatMap(([e, m, a, d]) => [{ type: 'EFID', data: u32s(e) }, { type: 'EFIT', data: efit(m, a, d) }])]);
 
 const FORTIFY_HEALTH = 0x000493aa, FIRE_DAMAGE = 0x0004605a, FORTIFY_ALCHEMY = 0x0008b65c, ROBES_ENCHANTING = 0x00109632;
 const FORTIFY_ALCHEMY_POTION = 0x0003eb18, TRAP_FIRE = 0x0010a0a0, HORSE_HEALTH = 0x01005000, MOD_EFFECT = 0x31000800;
@@ -55,6 +55,15 @@ ench(0x00045f9d, 'EnchWeaponFireDamage06', true, [[FIRE_DAMAGE, 30]]);
 ench(0x0008b65d, 'EnchArmorFortifyAlchemy06', false, [[FORTIFY_ALCHEMY, 25]]);
 ench(0x02010000, 'EnchRobesFortifyEnchanting06', false, [[ROBES_ENCHANTING, 25]]);
 ench(0x00108000, 'EnchArmorFortifyAlchemyPotionLike', false, [[FORTIFY_ALCHEMY_POTION, 25]]);
+// Dragonborn's Chaos Damage family (6 Oct): its Base and a member naming it, both under the DLC2 prefix; and a unique under
+// the same prefix that names no base (Kagrumez's bow), whose effect must stay uncapped and whose Fortify Health must not count
+const CHAOS_FIRE = 0x0402c46b, KAGRUMEZ_ABSORB = 0x0403570c;
+rec(CHAOS_FIRE, 'MGEF', 'DLC2EnchFireDamageFFContact50', [{ type: 'DATA', data: mgefData(24) }]);
+rec(KAGRUMEZ_ABSORB, 'MGEF', 'DLC2EnchAbsorbHealthFFContact50', [{ type: 'DATA', data: mgefData(24) }]);
+ench(0x0402c46e, 'DLC2EnchWeaponChaosDamageBase', true, [[CHAOS_FIRE, 10]]);
+ench(0x0402c472, 'DLC2EnchWeaponChaosDamage06', true, [[CHAOS_FIRE, 30]], 0x0402c46e);
+ench(0x04035529, 'DLC2EnchWeaponKagrumezFateBow', true, [[KAGRUMEZ_ABSORB, 25]]);
+ench(0x0201951a, 'DLC1EnchArmorJiubNecklace', false, [[FORTIFY_HEALTH, 500]]);
 // Base game, but not a player family: a trap rune, a Creation Club horse armor
 ench(0x0010a0a1, 'TrapFireRune', true, [[TRAP_FIRE, 120]]);
 ench(0x01005001, 'CCHorseArmorEnchFortifyHealth', false, [[HORSE_HEALTH, 1000], [FORTIFY_HEALTH, 1000]]);
@@ -66,6 +75,9 @@ ench(0xfe602516, 'BSKEnchArmorWaterWalking02', false, [[BS_WATER_WALKING, 1, 0, 
 ench(0xfe602517, 'BSKWaterWalkingTrap', false, [[BS_NO_FAMILY, 500]]);
 ench(0xfe603001, 'BSKEnchArmorOther', false, [[BS_ELSEWHERE, 500]]);
 
+const HOOD = 0x000cee70, BOUND = 0x0001cb35;
+rec(HOOD, 'ARMO', 'ClothesMGRobesApprentice01Hood', []);
+rec(BOUND, 'ARMO', 'EnchantedRing', [{ type: 'EITM', data: u32s(0x0004950a) }]);
 const RING = 0x0001cb34, SWORD = 0x00012eb7, GEM = 0x0002e4ff, BENCH = 0x000bad0c, BENCH_BASE = 0x000bad0d;
 rec(RING, 'ARMO', 'JewelryRingGold', []);
 rec(SWORD, 'WEAP', 'IronSword', []);
@@ -166,6 +178,36 @@ const LOAD_ORDER = ['Skyrim.esm', 'Update.esm', 'Dawnguard.esm', 'HearthFires.es
   r = enchant(sys, RING, [[HORSE_HEALTH, 900]]);
   check('a base game effect outside the player families (Creation Club horse armor) is refused', !r.made && r.refused);
   check('each refused effect is logged once', logs.filter((l) => /refused an enchantment with armor effect fe602520/.test(l)).length === 1, logs.filter((l) => /refused/.test(l)));
+  // ---- Dragonborn's Chaos Damage (6 Oct) ----
+  r = enchant(sys, SWORD, [[CHAOS_FIRE, 1e6]]);
+  check('Dragonborn\'s Chaos Damage (DLC2EnchWeaponChaosDamage family) is capped at its 30 x 2, not refused', mag(r, CHAOS_FIRE) === 60 && !r.refused, r.made);
+  r = enchant(sys, SWORD, [[KAGRUMEZ_ABSORB, 10]]);
+  check('a DLC unique that names no base enchantment (Kagrumez\'s bow) sets no cap', !r.made && r.refused);
+  r = enchant(sys, RING, [[FORTIFY_HEALTH, 1e6]]);
+  check('...and a DLC unique (Jiub\'s necklace, Fortify Health 500) never raises a cap', mag(r, FORTIFY_HEALTH) === 140, mag(r, FORTIFY_HEALTH));
+
+  // ---- the player is told why (6 Oct: "unable to enchant a hood nor hat" was Fortify Alchemy, told only "not accepted") ----
+  const notice = () => { const n = sent.find(([, p]) => p.customPacketType === 'notification'); return n ? n[1].text : ''; };
+  now += 61000;
+  r = enchant(sys, HOOD, [[FORTIFY_ALCHEMY, 10]]);
+  check('Fortify Alchemy on a hood is refused and the notice names the rule', !r.made && r.refused && r.gemLeft && /Fortify Alchemy and Fortify Enchanting cannot be put on an item/.test(notice()), notice());
+  check('the log says the effect is refused by rule, not that it has no cap', logs.some((l) => /effect 8b65c, an Alchemy or Enchanting effect/.test(l)) && !logs.some((l) => /effect 8b65c, which has no cap/.test(l)), logs.filter((l) => /8b65c/.test(l)));
+  check('the refusal is logged with its reason', logs.some((l) => /ff000014: refused \(ruled\) cee70/.test(l)), logs.filter((l) => /refused \(/.test(l)));
+  now += 61000;
+  r = enchant(sys, HOOD, [[FORTIFY_HEALTH, 30]]);
+  check('Fortify Health on a hood is accepted', mag(r, FORTIFY_HEALTH) === 30 && !r.refused, r.made);
+  now += 61000;
+  props.delete(`${A}|private.mastery`);
+  r = enchant(sys, HOOD, [[FORTIFY_HEALTH, 30]]);
+  check('without the Enchanter skill the notice says to take it up', !r.made && r.refused && /needs the Enchanter skill/.test(notice()), notice());
+  setRank(4);
+  now += 61000;
+  r = enchant(sys, BOUND, [[FORTIFY_HEALTH, 30]]);
+  check('an item that already carries an enchantment is refused with its reason', !r.made && r.refused && /cannot take an enchantment/.test(notice()), notice());
+  now += 61000;
+  r = enchant(sys, RING, [[BS_NO_FAMILY, 10]]);
+  check('an effect with no cap gets its own notice', !r.made && r.refused && /does not know that enchantment/.test(notice()), notice());
+
   check('the caps log names the base game files', logs.some((l) => /enchantment effects known from 5 base game files, 2 of them from their own mod's families/.test(l)), logs.filter((l) => /known/.test(l)));
 
   // ---- the loop: every cycle the client's magnitude grows, the stored one plateaus at the cap ----

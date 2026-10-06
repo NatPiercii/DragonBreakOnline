@@ -68,6 +68,10 @@ const ENCH_TYPE_ENCHANTMENT = 6;
 // raises one. An effect from a mod takes its cap from its own plugin's families (Beyond Skyrim: BSKEnchArmorWaterWalking)
 const BASE_GAME_FILES = new Set(["skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm", "dragonborn.esm"]);
 const PLAYER_ENCHANTMENT = /^Ench(Weapon|Armor|Robes)/;
+// Dragonborn's own player family, Chaos Damage (DLC2EnchWeaponChaosDamageBase and 03-06), carries the DLC prefix. A DLC
+// record counts only as a family's Base or a member naming one in ENIT (offset 28): the uniques under the same prefix
+// (Jiub's necklace, Kagrumez's bow, the dragon-absorb armor) name none (6 Oct: three Chaos effects had no cap)
+const DLC_PLAYER_ENCHANTMENT = /^DLC[12]Ench(Weapon|Armor|Robes)/;
 const MOD_PLAYER_ENCHANTMENT = /^[A-Z]{0,4}Ench(Weapon|Armor|Robes)/;
 // The plugin a form id belongs to: the top byte, or for a light plugin (0xFE) its 12-bit slot too
 const pluginOf = (id: number): number => ((id >>> 24) === 0xfe ? id >>> 12 : id >>> 24);
@@ -83,6 +87,17 @@ const MAX_POISON_CREDITS = 8;
 // the soul spent (petty 1.4 .. grand 3), a temper by the steps it rose (one step 1)
 const ENCHANT_WORK_PER_SOUL = 0.4;
 const TEMPER_WORK_PER_STEP = 0.5;
+
+// Why an enchantment was refused, most telling first, and what the player is told
+type RefusalReason = "ruled" | "skill" | "item" | "uncapped" | "soul";
+const REFUSAL_RANK: RefusalReason[] = ["ruled", "skill", "item", "uncapped", "soul"];
+const REFUSAL_TEXT: Record<RefusalReason, string> = {
+  ruled: "Fortify Alchemy and Fortify Enchanting cannot be put on an item on this server: choose another enchantment",
+  skill: "Enchanting needs the Enchanter skill; take it up at the Wheel of Skills first",
+  item: "That item cannot take an enchantment",
+  uncapped: "The server does not know that enchantment, so it cannot be put on an item",
+  soul: "The server could not find the filled soul gem that enchantment used",
+};
 
 interface Cap {
   magnitude: number;
@@ -242,12 +257,17 @@ export class CraftedExtrasSystem implements System {
 
     const added: InventoryEntry[] = [];
     const refused = new Set<number>();
+    let why: RefusalReason | null = null;
     for (const g of gained) {
       if (emptiedGems.has(g)) continue;
       for (let unit = 0; unit < Math.min(g.count, MAX_UNITS); unit++) {
+        this.refusal = null;
         const plan = this.findPlan(ctx, g, pool, souls, station, credits);
         if (!plan) {
-          if (this.isCraftClaim(g, pool)) refused.add(g.baseId >>> 0);
+          if (this.isCraftClaim(g, pool)) {
+            refused.add(g.baseId >>> 0);
+            if (this.refusal && (!why || REFUSAL_RANK.indexOf(this.refusal) < REFUSAL_RANK.indexOf(why))) why = this.refusal;
+          }
           break;
         }
         this.commit(plan, added);
@@ -265,7 +285,9 @@ export class CraftedExtrasSystem implements System {
     }
     if (refused.size) {
       this.send(ctx, userId, { customPacketType: REFUSED_PACKET, baseIds: Array.from(refused) });
-      this.notify(ctx, userId, "The server did not accept that change to your item, so it keeps its previous state.");
+      const reason = why ? REFUSAL_TEXT[why] : "";
+      if (why) this.log(`[crafted] ${hex(actorId)}: refused (${why}) ${Array.from(refused, (id) => hex(id)).join(", ")}`);
+      this.notify(ctx, userId, reason ? `${reason}. The item keeps its previous state.` : "The server did not accept that change to your item, so it keeps its previous state.");
     }
   }
 
@@ -369,11 +391,14 @@ export class CraftedExtrasSystem implements System {
 
     const enchanting = !sameEffects(s.enchantmentEffects, g.enchantmentEffects);
     if (enchanting) {
-      if (!station.enchanting || !(station.enchantMargin > 0) || !info.enchantable || isEnchanted(s) || !g.enchantmentEffects) return null;
+      if (!station.enchanting || !g.enchantmentEffects) return null;
+      if (!(station.enchantMargin > 0)) return this.refuse("skill");
+      if (!info.enchantable || isEnchanted(s)) return this.refuse("item");
       const weapon = info.type === "WEAP";
       const effects = this.validEnchantment(ctx, g.enchantmentEffects, weapon, station.enchantMargin);
-      soul = effects ? this.takeSoul(souls, weapon ? g.maxCharge || 0 : Infinity) : null;
-      if (!effects || !soul) return null;
+      if (!effects) return null;
+      soul = this.takeSoul(souls, weapon ? g.maxCharge || 0 : Infinity);
+      if (!soul) return this.refuse("soul");
       out.enchantmentEffects = effects;
       if (weapon) {
         const cap = SOUL_CHARGE[soul.size];
@@ -504,8 +529,9 @@ export class CraftedExtrasSystem implements System {
     for (const e of effects) {
       const cap = caps.get((weapon ? "w" : "a") + (e.effectId >>> 0));
       if (!cap) {
-        this.logUncapped(e.effectId, weapon);
-        return null;
+        const ruled = REFUSED_EFFECT_AVS.has(this.primaryAvOf(ctx, e.effectId >>> 0));
+        this.logUncapped(e.effectId, weapon, ruled);
+        return this.refuse(ruled ? "ruled" : "uncapped");
       }
       const clamped: EnchantmentEffect = {
         effectId: e.effectId >>> 0,
@@ -641,10 +667,12 @@ export class CraftedExtrasSystem implements System {
     for (const id of this.baseFiles ? this.recordIds(ctx, "ENCH") : []) {
       const base = (id >>> 24) < this.baseFiles;
       const res = this.lookup(ctx, id);
-      if (!res || !(base ? PLAYER_ENCHANTMENT : MOD_PLAYER_ENCHANTMENT).test(String(res.record.editorId || ""))) continue;
+      const editorId = String((res && res.record.editorId) || "");
+      if (!res || !(base ? PLAYER_ENCHANTMENT.test(editorId) || DLC_PLAYER_ENCHANTMENT.test(editorId) : MOD_PLAYER_ENCHANTMENT.test(editorId))) continue;
       const enit = this.fieldData(res, "ENIT");
       if (!enit || enit.byteLength < 24) continue;
       const view = viewOf(enit);
+      if (base && !PLAYER_ENCHANTMENT.test(editorId) && !/Base$/.test(editorId) && !(enit.byteLength >= 32 && view.getUint32(28, true))) continue;
       const cast = view.getUint32(8, true);
       const delivery = view.getUint32(16, true);
       if (view.getUint32(20, true) !== ENCH_TYPE_ENCHANTMENT) continue;
@@ -675,12 +703,19 @@ export class CraftedExtrasSystem implements System {
     return caps;
   }
 
-  // An effect with no cap is refused; each one is logged once
-  private logUncapped(effectId: number, weapon: boolean): void {
+  // An effect with no cap is refused; each one is logged once. An effect on the Alchemy or Enchanting skill is refused by
+  // rule (the 30 Sep Fortify loop), which the log and the player are told apart from a missing cap
+  private logUncapped(effectId: number, weapon: boolean, ruled = false): void {
     const key = (weapon ? "w" : "a") + (effectId >>> 0);
     if (this.uncappedLogged.has(key) || this.uncappedLogged.size >= 256) return;
     this.uncappedLogged.add(key);
-    this.log(`[crafted] refused an enchantment with ${weapon ? "weapon" : "armor"} effect ${hex(effectId)}, which has no cap`);
+    this.log(`[crafted] refused an enchantment with ${weapon ? "weapon" : "armor"} effect ${hex(effectId)}, ${ruled ? "an Alchemy or Enchanting effect, which is never put on an item" : "which has no cap"}`);
+  }
+
+  // Why the last plan was refused, for the notice: the most telling reason of a report wins
+  private refuse(reason: RefusalReason): null {
+    if (!this.refusal || REFUSAL_RANK.indexOf(reason) < REFUSAL_RANK.indexOf(this.refusal)) this.refusal = reason;
+    return null;
   }
 
   // Constructible objects by created item: bench keyword and ingredients
@@ -777,6 +812,7 @@ export class CraftedExtrasSystem implements System {
   private itemCache = new Map<number, ItemInfo>();
   private keywordCache = new Map<number, number[]>();
   private caps: Map<string, Cap> | null = null;
+  private refusal: RefusalReason | null = null;
   private baseFiles = BASE_GAME_FILES.size;
   private uncappedLogged = new Set<string>();
   private recipes: Map<number, TemperRecipe[]> | null = null;
