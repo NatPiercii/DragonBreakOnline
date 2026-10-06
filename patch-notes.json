@@ -11,7 +11,10 @@
           "Werewolf and Vampire Lord claws hit as hard as they should again. Since the last update they were dealing the damage of a mortal's fists.",
           "A werewolf no longer goes feral or answers the full moon in the first five minutes after logging in.",
           "A werewolf gets 45 seconds' warning, with the ground shaking, before the beast takes them, and a sated werewolf is never taken at all: only hunger and the full moon force the change. /syncenchant resends the enchantments you have learned to your arcane enchanter if they ever go missing.",
-          "Goblins in a claimed dungeon can now be searched: press E on a fallen goblin to take what it carried, as you would a bandit. Until now only goblin bosses and guards could be searched."
+          "Goblins in a claimed dungeon can now be searched: press E on a fallen goblin to take what it carried, as you would a bandit. Until now only goblin bosses and guards could be searched.",
+          "Teaching spells: only a Master (Arcane Arts, or Priest for its schools) can teach a spell, and only spells of Adept rank and above. The student must be able to learn it already, as if reading its tome: the right tier for its rank and enough study of its school.",
+          "The Synod's tome shop shows only tomes you can learn right now, four at a time. The shelf changes every Monday (UTC), and everyone at the shop sees the same shelf that week. It is still one tome a week, at the same prices.",
+          "Smelting burns firewood: each ingot made at a smelter costs 2 Firewood, which woodcutting gives. Without enough, the smelt is refused and your ore comes back when you close the menu."
         ]
       }
     ]

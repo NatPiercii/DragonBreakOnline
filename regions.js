@@ -225,16 +225,48 @@ module.exports = (api) => {
   // A temper recipe is told by its workbench keyword (BNAM), not its name: Immersive Armors' IATShieldYsgramor tempers
   // the shield at the armor table and has no "Temper" in its editor id (Worker A's review)
   const TEMPER_BENCHES = new Set(['craftingsmithingsharpeningwheel', 'craftingsmithingarmortable']);
-  const isTemper = (recipeId) => {
+  // The editor id of a recipe's workbench keyword (BNAM), lowercased, or ''
+  const benchOf = (recipeId) => {
     try {
       const r = mp.lookupEspmRecordById(recipeId >>> 0);
       const f = r && r.record && (r.record.fields || []).find((x) => x && x.type === 'BNAM' && x.data && x.data.byteLength >= 4);
-      if (!f) return false;
+      if (!f) return '';
       let kw = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(0, true);
       if (typeof r.toGlobalRecordId === 'function') kw = r.toGlobalRecordId(kw) >>> 0;
       const k = mp.lookupEspmRecordById(kw >>> 0);
-      return !!k && !!k.record && TEMPER_BENCHES.has(String(k.record.editorId || '').toLowerCase());
-    } catch (e) { return false; }
+      return k && k.record ? String(k.record.editorId || '').toLowerCase() : '';
+    } catch (e) { return ''; }
+  };
+  const isTemper = (recipeId) => TEMPER_BENCHES.has(benchOf(recipeId));
+  // A smelter burns firewood: firewoodPerIngot for each item a craft at a smelter makes (Nate, 2026-10-06: "Firewood is
+  // fine. Do 2 per ingot right now"), a stopgap until the charcoal tiers. Firewood01 (6f993:Skyrim.esm) is the only
+  // playable firewood in the load order and what woodcutting gives (labour.js). Config "smelting": { firewoodPerIngot: 0 } turns it off.
+  const SMELT = Object.assign({ firewoodPerIngot: 2, firewood: '6f993:Skyrim.esm', benches: ['craftingsmelter'] }, cfg.smelting || {});
+  const heldOf = (a, baseId) => {
+    const inv = mp.get(a, 'inventory') || { entries: [] };
+    return (Array.isArray(inv.entries) ? inv.entries : []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === baseId && !e.worn ? Number(e.count) || 0 : 0), 0);
+  };
+  const takeHeld = (a, baseId, n) => {
+    const inv = mp.get(a, 'inventory') || { entries: [] };
+    const entries = (Array.isArray(inv.entries) ? inv.entries : []).map((e) => Object.assign({}, e));
+    let left = n;
+    for (const e of entries) {
+      if (left <= 0) break;
+      if ((Number(e.baseId) >>> 0) !== baseId || e.worn) continue;
+      const k = Math.min(left, Number(e.count) || 0);
+      e.count = (Number(e.count) || 0) - k; left -= k;
+    }
+    if (left > 0) return false;
+    mp.set(a, 'inventory', { entries: entries.filter((e) => (Number(e.count) || 0) > 0) });
+    return true;
+  };
+  // { need, have, wood } when this craft burns firewood, else null
+  const smeltFuel = (a, recipeId, count) => {
+    const per = Math.max(0, Math.floor(Number(SMELT.firewoodPerIngot) || 0));
+    if (!per || !(SMELT.benches || []).map((b) => String(b).toLowerCase()).includes(benchOf(recipeId))) return null;
+    const wood = idOf(SMELT.firewood);
+    if (!wood) return null;
+    return { need: per * Math.max(1, Number(count) || 1), have: heldOf(a, wood), wood, per };
   };
   const artifactCraft = (itemId, recipeId) => {
     const product = edidOf(descOf(itemId));
@@ -270,8 +302,23 @@ module.exports = (api) => {
       if (v.place) refuse(Number(actorId) >>> 0, v);
       return false;
     }
+    // Firewood is checked before masterySystem's chain (a refused smelt earns no credit) and burned only once the craft goes on
+    let fuel = null;
+    try { fuel = smeltFuel(a, Number(recipeId) >>> 0, count); } catch (e) { log('regions: smelting check failed', e.stack || e.message); }
+    if (fuel && fuel.have < fuel.need) {
+      if (Date.now() - (dragonToldAt.get(a) || 0) > 1500) {
+        dragonToldAt.set(a, Date.now());
+        const text = `You need ${fuel.per} firewood for each ingot (you have ${fuel.have}). Your materials come back when you close the menu.`;
+        personal(a, text);
+        try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
+        audit(`SMELT refused ${who(a)} recipe ${edidOf(descOf(Number(recipeId) >>> 0)) || (Number(recipeId) >>> 0).toString(16)}: ${fuel.have}/${fuel.need} firewood`);
+      }
+      return false;
+    }
     const prev = globalThis.__dboPrevCraft;
-    return prev ? prev.call(this, actorId, itemId, count, recipeId, ...rest) : undefined;
+    const verdict = prev ? prev.call(this, actorId, itemId, count, recipeId, ...rest) : undefined;
+    if (fuel && verdict !== false && !takeHeld(a, fuel.wood, fuel.need)) log(`regions: could not burn ${fuel.need} firewood for ${who(a)}`);
+    return verdict;
   };
   craftHook.__dboRegions = true;
   mp.onCraft = craftHook;

@@ -135,6 +135,7 @@ const check = (name, ok, detail) => { checks++; if (!ok) { failures++; console.l
 const ui = (ev, a, args, widgetId) => (handlers.get(ev) || []).forEach((fn) => fn(a, args || [], widgetId || 45));
 const cmd = (name, a, args) => commands.get(name).fn(a, args || '');
 const said = (a) => { const l = out.said.filter((p) => p[0] === a); return l.length ? l[l.length - 1][1] : ''; };
+const offerTo = (a) => { const w = out.widgets.slice().reverse().find((x) => x.a === a); return w && /offers to teach/.test(w.w.targetName || '') && out.widgets.indexOf(w) >= out.widgets.length - 2 ? w.w : null; };
 const lastWidget = (a) => { const l = out.widgets.filter((w) => w.a === a); return l.length ? l[l.length - 1].w : null; };
 const studied = (a, skill) => ((props.get(a + '|private.dboStudied') || {})[skill] || []);
 const prepared = (a) => props.get(a + '|private.dboPrepared') || [];
@@ -258,6 +259,8 @@ cmd('spells', PRIEST);
 check('a character with no studied spells starts with none prepared, quietly', Array.isArray(props.get(PRIEST + '|private.dboPrepared')) && prepared(PRIEST).length === 0);
 
 // ---- /teach ----
+// The lesson's mechanics under the old rule (an Expert teaches any rank); the 6 Oct rule (Master, Adept and above) after
+load({ teacherMinTier: 3, teachMinRank: 0 });
 mastery(MAGE, { arcane: 2 });
 at(STUDENT, SYNOD, [70, 0, 0]);
 mastery(STUDENT, { arcane: 0 });
@@ -295,6 +298,32 @@ check('...and is audited', /SPELL P14 taught P16 12fcd:Skyrim.esm Flames \(book 
 cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.flames[1]}`]);
 check('a spell the student knows is not offered again', /Student already knows Flames/.test(said(MAGE)), said(MAGE));
 
+// Nate, 2026-10-06: only a Master teaches, only spells of Adept rank and above, to a student who could learn it now
+load();
+known(MAGE).add(idOf(T.incinerate[1]));
+cmd('teach', MAGE);
+check('6 Oct: an Expert may no longer teach', /Teaching takes Arcane Arts or Priest at Master or higher/.test(said(MAGE)), said(MAGE));
+check('...the help names the rule', /Adept rank or higher .*at Master/.test(commands.get('teach').opts.help), commands.get('teach').opts.help);
+mastery(MAGE, { arcane: 4 });
+cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']);
+const lessons4 = lastWidget(MAGE).actions.map((x) => x.id);
+check('...a Master is offered only Adept spells and above (Fireball, Incinerate; not Flames)', lessons4.includes(`lesson:16:${T.fireball[1]}`) && lessons4.includes(`lesson:16:${T.incinerate[1]}`) && !lessons4.includes(`lesson:16:${T.flames[1]}`), lessons4);
+ui('spellsChoose', MAGE, [`lesson:16:${T.flames[1]}`]);
+check('...a Novice spell picked by a stale menu is refused', /You cannot teach that spell/.test(said(MAGE)) && !offerTo(STUDENT), said(MAGE));
+mastery(STUDENT, { arcane: 1 });
+cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.fireball[1]}`]);
+check('...the student needs the tier for the rank, as at reading', /Fireball is an Adept spell\. Arcane Arts at Apprentice allows up to Apprentice spells/.test(said(MAGE)) && !offerTo(STUDENT), said(MAGE));
+mastery(STUDENT, { arcane: 2 });
+globalThis.__dboSchoolsRefusal = (a, school, rank, whose) => (school === 'Destruction' && rank > 1 ? `${whose === 'You' ? 'Your' : whose + "'s"} study of Destruction is Apprentice; an Adept spell needs more.` : null);
+cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.fireball[1]}`]);
+check('...and the study of the school, as at reading', /Student's study of Destruction is Apprentice; an Adept spell needs more/.test(said(MAGE)) && !offerTo(STUDENT), said(MAGE));
+delete globalThis.__dboSchoolsRefusal;
+cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.fireball[1]}`]);
+ui('spellsOffer', STUDENT, ['accept']);
+check('...a student who can learn it is taught an Adept spell', studied(STUDENT, 'arcane').includes(T.fireball[1]) && /Mage teaches you Fireball \(Destruction, Adept\)/.test(said(STUDENT)), said(STUDENT));
+mastery(MAGE, { arcane: 3 }); mastery(STUDENT, { arcane: 1 });
+load({ shopStock: 999 });
+
 // ---- the Synod tome shop ----
 const shop = (a) => { const w = lastWidget(a); return w && w.type === 'tomeShop' ? w : null; };
 const buy = (a, tome) => ui('tomeBuy', a, [shop(a).nonce, tome], 44);
@@ -321,7 +350,7 @@ check('...skills list only what they hold', p.skills.length === 1 && p.skills[0]
 check('...tomes only of their schools', p.tomes.length > 0 && p.tomes.every((t) => ['Destruction', 'Conjuration', 'Illusion'].includes(t.school)));
 check('...never above shopMaxRank (no Master tomes)', p.tomes.every((t) => t.rank <= 3) && !p.tomes.some((t) => t.id === T.fireStorm[0]));
 const row = (id) => p.tomes.find((t) => t.id === id);
-check('...Novice and Apprentice tomes open, higher ranks blocked by tier', row(T.firebolt[0]).blocked === '' && row(T.fireball[0]).blocked === 'Needs Arcane Arts Adept' && row(T.incinerate[0]).blocked === 'Needs Arcane Arts Expert', [row(T.firebolt[0]), row(T.fireball[0]), row(T.incinerate[0])]);
+check('...Novice and Apprentice tomes listed open, higher ranks not listed (6 Oct: only what the buyer can learn)', row(T.firebolt[0]).blocked === '' && !row(T.fireball[0]) && !row(T.incinerate[0]) && p.tomes.every((t) => t.blocked === ''), [row(T.firebolt[0]), row(T.fireball[0]), row(T.incinerate[0])]);
 check('...with real names and prices', row(T.frostFlames[0]).name === 'Spell Tome: Frost Flames' && row(T.frostFlames[0]).spell === 'Frost Flames' && row(T.frostFlames[0]).price === 94 && row(T.frostFlames[0]).rankName === 'Novice' && row(T.frostFlames[0]).canAfford === true, row(T.frostFlames[0]));
 check('...quest tomes and other lands are left out', !p.tomes.some((t) => t.id === QUEST_TOME || t.id === HAMMERFELL_TOME));
 check('...Cyrodiil tomes first within a rank', (() => { const d0 = p.tomes.filter((t) => t.school === 'Destruction' && t.rank === 0); return d0[0].id === T.frostFlames[0]; })(), p.tomes.filter((t) => t.school === 'Destruction' && t.rank === 0).map((t) => t.id));
@@ -349,13 +378,14 @@ mastery(OTHER, { arcane: 4, priest: 3 });
 gold(OTHER, 5000);
 cmd('tomes', OTHER);
 check('a Master sees Expert tomes open but still no Master tomes', shop(OTHER).tomes.find((t) => t.id === T.incinerate[0]).blocked === '' && !shop(OTHER).tomes.some((t) => t.rank > 3));
+check('...but not tomes of spells they already hold (Flames, Frostbite)', shop(OTHER).tomes.some((t) => t.id === T.fireball[0]) && !shop(OTHER).tomes.some((t) => t.id === T.flames[0] || t.id === T.frostbite[0]));
 check('...and the Priest schools too', shop(OTHER).skills.length === 2 && shop(OTHER).tomes.some((t) => t.school === 'Restoration'));
 // The study of a school gates its Arcane Arts tomes in the shop as it does at reading (schools.js; ticket #0059)
 globalThis.__dboSchoolsRefusal = (a, school, rank) => (school === 'Destruction' && rank > 2 ? 'Your study of Destruction is Adept; an Expert spell needs more.' : null);
 cmd('tomes', OTHER);
 const inc = () => shop(OTHER).tomes.find((t) => t.id === T.incinerate[0]);
-check('an Expert tome above the study of its school shows the study as the reason', inc().blocked === 'Your study of Destruction is Adept; an Expert spell needs more', inc().blocked);
-check('...a tome the study reaches stays open', shop(OTHER).tomes.find((t) => t.id === T.fireball[0]).blocked === '' && shop(OTHER).tomes.some((t) => t.school === 'Restoration' && t.blocked === ''));
+check('an Expert tome above the study of its school is not listed', !inc(), inc());
+check('...a tome the study reaches stays open', shop(OTHER).tomes.find((t) => t.id === T.firebolt[0]).blocked === '' && shop(OTHER).tomes.some((t) => t.school === 'Restoration' && t.blocked === ''));
 buy(OTHER, T.incinerate[0]);
 check('...and cannot be bought: no gold taken, the week not spent', shop(OTHER).resultKind === 'refused' && /study of Destruction is Adept/.test(shop(OTHER).result) && count(OTHER, 0xf) === 5000 && shop(OTHER).canBuy === true, shop(OTHER).result);
 delete globalThis.__dboSchoolsRefusal;
@@ -363,6 +393,57 @@ cmd('tomes', OTHER);
 load({ shopMaxRank: 2 });
 cmd('tomes', OTHER);
 check('shopMaxRank caps the list', shop(OTHER).tomes.every((t) => t.rank <= 2) && !shop(OTHER).tomes.some((t) => t.id === T.incinerate[0]));
+// ---- the weekly shelf (Nate, 2026-10-06: "only 3-4 at a time, so each week it rotates what is shown") ----
+load();
+const ids = (a) => shop(a).tomes.map((t) => t.id).join();
+const WEEK_MS = 7 * DAY, weekOf = (ms) => Math.floor((ms - 4 * DAY) / WEEK_MS);
+// Into a fresh week with a day to spare, so "later the same week" stays inside it
+wallClock = (weekOf(wallClock) + 1) * WEEK_MS + 4 * DAY + 3600000;
+put(OTHER, 'private.dboTomeBoughtAt', 0);
+cmd('tomes', OTHER);
+const week1 = ids(OTHER);
+check('the shelf holds shopStock (4) tomes, every one the buyer can learn', shop(OTHER).tomes.length === 4 && shop(OTHER).tomes.every((t) => t.blocked === '') && /The shelf changes each Monday/.test(shop(OTHER).result), shop(OTHER).tomes.map((t) => t.id));
+// A second buyer standing exactly where OTHER stands sees the same shelf
+for (const [k, v] of [...props]) if (k.startsWith(OTHER + '|')) props.set(PRIEST + k.slice(String(OTHER).length), JSON.parse(JSON.stringify(v)));
+learned.set(PRIEST, new Set(known(OTHER)));
+cmd('tomes', PRIEST);
+check('...the same for everyone at the shop that week', ids(PRIEST) === week1, [ids(PRIEST), week1]);
+wallClock += 2 * DAY;
+cmd('tomes', OTHER);
+check('...and later the same week', ids(OTHER) === week1, [ids(OTHER), week1]);
+load({ shopStock: 999 });
+cmd('tomes', OTHER);
+const all = shop(OTHER).tomes.map((t) => t.id);
+const offShelf = all.find((id) => !week1.split(',').includes(id));
+load();
+cmd('tomes', OTHER);
+const goldNow = count(OTHER, 0xf);
+buy(OTHER, offShelf);
+check('a learnable tome off this week\'s shelf cannot be bought', shop(OTHER).resultKind === 'refused' && /is not on the Synod's shelf this week/.test(shop(OTHER).result) && count(OTHER, 0xf) === goldNow, shop(OTHER).result);
+buy(OTHER, shop(OTHER).tomes[0].id);
+check('...one on it can, and the 7-day limit still holds', shop(OTHER).resultKind === 'ok' && shop(OTHER).canBuy === false && count(OTHER, 0xf) < goldNow, shop(OTHER).result);
+wallClock += 5 * DAY;
+cmd('tomes', OTHER);
+check('the next week the shelf is different', weekOf(wallClock) === weekOf(wallClock - 5 * DAY) + 1 && ids(OTHER) !== week1 && shop(OTHER).tomes.length === 4, [ids(OTHER), week1]);
+const weeks = new Set();
+for (let w = 0; w < 6; w++) { wallClock += WEEK_MS; cmd('tomes', OTHER); weeks.add(ids(OTHER)); }
+check('...and it keeps rotating week on week', weeks.size >= 5, weeks.size);
+// A buyer whose study takes few tomes is shown all of them
+globalThis.__dboSchoolsRefusal = (a, school, rank) => (school === 'Destruction' && rank === 0 ? null : 'Your study is elsewhere.');
+mastery(OTHER, { arcane: 4 });
+load({ shopStock: 999 });
+cmd('tomes', OTHER);
+const shortPool = shop(OTHER).tomes.map((t) => t.id).sort().join();
+load();
+cmd('tomes', OTHER);
+check('a short pool lists what exists', shop(OTHER).tomes.length > 0 && shop(OTHER).tomes.length < 4 && shop(OTHER).tomes.map((t) => t.id).sort().join() === shortPool && shop(OTHER).tomes.every((t) => t.school === 'Destruction' && t.rank === 0), shop(OTHER).tomes.map((t) => [t.id, t.school, t.rank]));
+globalThis.__dboSchoolsRefusal = () => 'Your study is elsewhere.';
+cmd('tomes', OTHER);
+check('...and an empty one says so', shop(OTHER).tomes.length === 0 && /holds no tome your study can take/.test(shop(OTHER).result), shop(OTHER).result);
+delete globalThis.__dboSchoolsRefusal;
+load({ shopStock: 3 });
+cmd('tomes', OTHER);
+check('shopStock 3 shows three', shop(OTHER).tomes.length === 3);
 ui('tomeClose', OTHER, [shop(OTHER).nonce], 44);
 check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHER && c[1] === 44));
 

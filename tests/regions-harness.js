@@ -129,7 +129,8 @@ const mkApi = (cfg) => ({
   depositToTreasury: (zone, n) => n,
 });
 let regionsCfg = { craft: true, tomes: true, adminBypass: true, failOpen: true, defaultPlace: 'skyrim' };
-let spellsCfg = {};
+// The shelf's weekly stock is spells-harness's; here it holds every tome, so the province filter is seen whole
+let spellsCfg = { shopStock: 999 };
 const load = () => {
   handlers.clear(); commands.clear();
   const cfg = { regions: regionsCfg, spells: spellsCfg };
@@ -198,10 +199,10 @@ check('...Skyrim and Solstheim tomes are not', !row(MAGE, INCINERATE_BOOK) && !r
 check('the boot line counts the Cyrodiil stock', out.logs.some((l) => /tomes in the Synod shop, .*, 51 stocked for Cyrodiil/.test(l)), out.logs.filter((l) => /spells on/.test(l)));
 ui('tomeBuy', MAGE, [shop(MAGE).nonce, INCINERATE_BOOK]);
 check('a forged buy of a Skyrim tome is refused and costs nothing', shop(MAGE).resultKind === 'refused' && shop(MAGE).result === 'The Synod does not stock Incinerate; it is sold in Skyrim.' && count(MAGE, 'f:Skyrim.esm') === 5000 && count(MAGE, INCINERATE_BOOK) === 0, shop(MAGE).result);
-spellsCfg = { shopShowForeign: true }; load();
+spellsCfg = { shopStock: 999, shopShowForeign: true }; load();
 cmd('tomes', MAGE);
-check('shopShowForeign lists foreign tomes as blocked rows', row(MAGE, INCINERATE_BOOK) && row(MAGE, INCINERATE_BOOK).blocked === 'Sold in Skyrim' && row(MAGE, ASHSHELL_BOOK).blocked === 'Sold in Solstheim' && row(MAGE, SPARKS_BOOK).blocked === '', [row(MAGE, INCINERATE_BOOK), row(MAGE, ASHSHELL_BOOK)]);
-spellsCfg = {}; load();
+check('shopShowForeign is retired: a foreign tome is never listed (6 Oct: the shelf lists only what the buyer can buy)', !row(MAGE, INCINERATE_BOOK) && !row(MAGE, ASHSHELL_BOOK) && row(MAGE, SPARKS_BOOK) && row(MAGE, SPARKS_BOOK).blocked === '', [row(MAGE, INCINERATE_BOOK), row(MAGE, ASHSHELL_BOOK)]);
+spellsCfg = { shopStock: 999 }; load();
 
 // ---- the craft gate ----
 at(SMITH, BRUMA_WORLD); stock(SMITH, DWARVEN);

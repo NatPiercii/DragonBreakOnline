@@ -95,11 +95,12 @@
   "tickMs": 1000
  },
  "spells": {
-  "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (3 = Expert) teaches a known spell to a player within teachMeters at studentMinTier (1 = Apprentice) or higher; teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays, price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",
+  "_comment": "Spell study (server\\spells.js). A tome is learned only at a skills.json spellStudyPoints entry, by a reader with the school's skill (arcane or priest) taken up, a tier that allows the tome's rank, and a free slot; slots 0 uses the skill's spellSlots (3). /teach: a teacher at teacherMinTier (4 = Master; Nate 2026-10-06) teaches a known spell of teachMinRank (2 = Adept) or higher to a player within teachMeters at studentMinTier (1 = Apprentice) or higher who could learn it now by a tome read's checks (the tier for the rank, the study of the school); teachAtStudyPoint also requires both at a study point. /tomes: the court mage's shop in shopCells (the Synod Conclave and its basement), for members of shopFactions with arcane or priest at shopMinTier or higher, ranks up to their tier and never above shopMaxRank (3 = Expert), one tome per shopCooldownDays; the shelf lists only shopStock (4) tomes the buyer can learn now, chosen per UTC week (from Monday 00:00) by a seed of the week and the shop, so everyone at the shop sees the same rotation (Nate 2026-10-06), price = tome value x shopPriceMultiplier, paid to the shopTreasury zone.",
   "enabled": true,
   "slots": 0,
   "teachMeters": 5,
-  "teacherMinTier": 3,
+  "teacherMinTier": 4,
+  "teachMinRank": 2,
   "studentMinTier": 1,
   "teachAtStudyPoint": false,
   "offerSeconds": 60,
@@ -109,11 +110,15 @@
   "shopMaxRank": 3,
   "shopPriceMultiplier": 1,
   "shopCooldownDays": 7,
+  "shopStock": 4,
   "shopTreasury": "bruma",
   "shopProvince": "cyrodiil",
-  "shopShowForeign": false,
   "_guildWorkshops": "Refs only members of shopFactions may use: the Synod Conclave's enchanting table, whose CYRBlockedFactionWorkshop script (faction: the Synod) the server never runs (Nate, 2026-09-30).",
   "guildWorkshops": []
+ },
+ "smelting": {
+  "_comment": "Smelters burn firewood (server\\regions.js craft hook; Nate 2026-10-06: \"Firewood is fine. Do 2 per ingot right now\", until the charcoal tiers): a craft at a bench with keyword CraftingSmelter costs firewoodPerIngot Firewood (6f993:Skyrim.esm, what woodcutting gives) per item made; short of it the craft is refused and the materials come back. 0 turns it off.",
+  "firewoodPerIngot": 2
  },
  "charters": {
   "_comment": "Faction charters (server\\charters.js, Jake's to-do \"Faction button\", 1 Oct): a player founds a faction (a company or a cult) by charter; a GM approves it. Founder, Officer and Sergeant on three accounts before it is submitted, up to maxFounders (5); the ranks are the seven roles of the faction guide; a seat only a property a founding member owns; no fee (fee 0); the lore's factions refused; disbanding by a GM's approval, its treasury to the Founder. Every other key (charters.js DEFAULTS) may be set here too. Off until switched on.",

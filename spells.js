@@ -35,7 +35,10 @@ module.exports = (api) => {
     prepareCells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm',                             // the Synod Conclave, Bruma
       '1380e:Skyrim.esm', '1380f:Skyrim.esm', 'cab91:Skyrim.esm', '13810:Skyrim.esm', 'cab92:Skyrim.esm'], // College of Winterhold halls
     teachMeters: 5,
-    teacherMinTier: 3,
+    // Only a Master teaches, and only spells of Adept rank and above (Nate, 2026-10-06); the student must be able to learn
+    // the spell now by the checks a tome read applies (slotRefusal: the tier for the rank, the study of the school)
+    teacherMinTier: 4,
+    teachMinRank: 2,
     studentMinTier: 1,
     teachAtStudyPoint: false,
     offerSeconds: 60,
@@ -45,12 +48,15 @@ module.exports = (api) => {
     shopMaxRank: 3,
     shopPriceMultiplier: 1,
     shopCooldownDays: 7,
+    // The shelf: shopStock tomes the buyer can learn now, chosen by a seed of the UTC week (Monday 00:00) and the shop, so
+    // everyone at the shop sees the same rotation that week (Nate, 2026-10-06: "only 3-4 at a time ... so Scholar is still
+    // worth it")
+    shopStock: 4,
     shopTreasury: 'bruma',
     shopPreferPlugins: ['BSHeartland.esm', 'BSAssets.esm'],
     shopExcludePlugins: ['Gray Fox Cowl.esm', 'SurWR.esp'],
     shopExcludePattern: '^(dun|MGR)|quest|FF\\d\\d',
     shopProvince: 'cyrodiil',
-    shopShowForeign: false,
     // Workshops the guilds keep for their own (a ref's CYRBlockedFactionWorkshop script, which the server never runs)
     guildWorkshops: ['651cb:BSHeartland.esm'],
   }, cfg.spells || {});
@@ -508,11 +514,14 @@ module.exports = (api) => {
     if (!skills.length) return [];
     const ids = new Set(learnedIds(a) || []);
     for (const s of skills) for (const id of studiedIds(a, s.id)) ids.add(id);
-    return [...ids].map(classifySpell).filter((sp) => sp && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
+    return [...ids].map(classifySpell).filter((sp) => sp && Number(sp.rank) >= CFG.teachMinRank && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
   };
   const near = (a, b) => distanceMeters(a, b) <= CFG.teachMeters;
-  // Why the student cannot take this spell from this teacher now, or null
+  const rankWord = (r) => RANKS[Math.max(0, Math.min(RANKS.length - 1, Number(r) || 0))];
+  // Why the student cannot take this spell from this teacher now, or null. The student's checks are a tome read's
+  // (slotRefusal: the tier for the rank, the study of the school), without the study point: the teacher stands in for it.
   const teachRefusal = (teacher, student, sp) => {
+    if (Number(sp.rank) < CFG.teachMinRank) return `Only spells of ${rankWord(CFG.teachMinRank)} rank and above may be taught; ${sp.name} is ${/^[AEIOU]/.test(rankWord(sp.rank)) ? 'an' : 'a'} ${rankWord(sp.rank)} spell.`;
     if (!onlineActors().includes(student)) return `${display(student)} is not here.`;
     if (!near(teacher, student)) return `${display(student)} must stand within ${CFG.teachMeters} m.`;
     if (CFG.teachAtStudyPoint && !(studyPointAt(teacher, sp.school) && studyPointAt(student, sp.school))) return 'Teaching happens at a spell study point.';
@@ -526,11 +535,11 @@ module.exports = (api) => {
   registerChatCommand('teach', (a) => {
     if (!CFG.enabled) return personal(a, 'Spell teaching is closed.');
     if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= CFG.teacherMinTier)) return personal(a, `Teaching takes ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[CFG.teacherMinTier]} or higher.`);
-    if (!teachable(a).length) return personal(a, 'You know no spell of your schools to teach.');
+    if (!teachable(a).length) return personal(a, `You know no spell of ${rankWord(CFG.teachMinRank)} rank or higher in your schools to teach. Only spells of ${rankWord(CFG.teachMinRank)} rank and above may be taught.`);
     const students = onlineActors().filter((p) => p !== (a >>> 0) && near(a, p)).slice(0, MAX_ROWS);
     if (!students.length) return personal(a, `Nobody stands within ${CFG.teachMeters} m to teach.`);
     menu(a, MENU_ID, 'Teach whom?', students.map((p) => ({ id: `student:${p.toString(16)}`, label: display(p) })), { kind: 'teach' });
-  }, { help: 'Teach a spell to a player beside you (Arcane Arts or Priest at Expert)' });
+  }, { help: `Teach a spell of ${rankWord(CFG.teachMinRank)} rank or higher to a player beside you (Arcane Arts or Priest at ${TIER_NAMES[CFG.teacherMinTier]})` });
 
   const offerTeach = (teacher, student, spellId) => {
     const sp = teachable(teacher).find((x) => x.id === spellId);
@@ -609,6 +618,34 @@ module.exports = (api) => {
     if (paths.some((skill) => tierOk(skill))) return String(schoolRefusal(a, t, 'You')).replace(/\.$/, '');
     return `Needs ${paths.map((skill) => `${skill.label} ${TIER_NAMES[tierFor(skill.id, t.rank)]}`).join(' or ')}`;
   };
+  // ---- the weekly shelf ----
+  const WEEK = 7 * DAY;
+  const weekNo = (ms) => Math.floor((ms - 4 * DAY) / WEEK); // weeks from Monday 00:00 UTC (1 Jan 1970 was a Thursday)
+  const SHOP_KEY = `${CFG.shopTreasury}:${CFG.shopProvince}`;
+  const seedOf = (text) => { let h = 2166136261; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  // SHOP in this week's order (mulberry32 over a Fisher-Yates shuffle), the same for every buyer at this shop
+  let shelfCache = { week: NaN, order: [] };
+  const shelfOrder = (week) => {
+    if (shelfCache.week === week) return shelfCache.order;
+    let x = seedOf(`${SHOP_KEY}:${week}`) | 0;
+    const rnd = () => { x = (x + 0x6d2b79f5) | 0; let t = Math.imul(x ^ (x >>> 15), 1 | x); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const order = SHOP.slice();
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const k = order[i]; order[i] = order[j]; order[j] = k; }
+    shelfCache = { week, order };
+    return order;
+  };
+  const stockSize = () => Math.max(1, Math.round(Number(CFG.shopStock) || 4));
+  // The tomes on the shelf for this buyer this week: the first shopStock of the week's order that are sold here (or any,
+  // for an admin) and that the buyer can learn now (tomeBlock, as at reading, and not a spell they hold). Listed in SHOP order.
+  const stockFor = (a, R, admin) => {
+    const learned = new Set(learnedIds(a) || []), book = new Set(knownIds(a));
+    const picked = [];
+    for (const t of shelfOrder(weekNo(Date.now()))) {
+      if (picked.length >= stockSize()) break;
+      if ((soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t)) picked.push(t);
+    }
+    return SHOP.filter((t) => picked.includes(t));
+  };
   const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + CFG.shopCooldownDays * DAY; return at > Date.now() ? at : 0; };
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };
   // Why this actor cannot buy now, or ''
@@ -632,18 +669,19 @@ module.exports = (api) => {
     const whyNot = shopRefusal(a);
     const R = regions();
     const admin = !!R && R.bypass(a);
+    const shelfLine = `The shelf changes each Monday. This week ${stockFor(a, R, admin).length ? 'it holds tomes chosen for your study' : 'it holds no tome your study can take'}.`;
     openWidget(a, {
       type: 'tomeShop', id: SHOP_ID, nonce, title: R ? `The Synod: Spell Tomes of ${R.provinceName(CFG.shopProvince)}` : 'The Synod: Spell Tomes', gold,
       canBuy: !whyNot, nextPurchaseAt: nextBuyAt(a), whyNot,
       skills: held.map((x) => ({ id: x.s.id, label: x.s.label, tier: x.tier, tierName: TIER_NAMES[x.tier], schools: (x.s.vanillaSkills || []).slice() })),
-      tomes: SHOP.filter((t) => schools.has(t.school) && (soldHere(R, t) || admin || CFG.shopShowForeign)).map((t) => {
+      tomes: stockFor(a, R, admin).filter((t) => schools.has(t.school)).map((t) => {
         const foreign = !soldHere(R, t);
         return {
           id: descOf(t.bookId), name: foreign && admin ? `${t.title} (${soldIn(R, t) || 'sold nowhere'})` : t.title, spell: t.name, school: t.school, rank: t.rank, rankName: RANKS[t.rank],
           price: priceOf(t), canAfford: gold >= priceOf(t), blocked: foreign && !admin ? (soldIn(R, t) ? `Sold in ${soldIn(R, t)}` : 'Not sold anywhere') : tomeBlock(a, t),
         };
       }),
-      result: result || '', resultKind: resultKind || '',
+      result: result || shelfLine, resultKind: result ? (resultKind || '') : '',
     }, true);
   };
   registerChatCommand('tomes', (a) => {
@@ -662,6 +700,8 @@ module.exports = (api) => {
     if (!soldHere(R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
     const block = tomeBlock(a, t);
     if (block) return { ok: false, text: `${t.title}: ${block}.` };
+    if (knows(a, t.spellId) || inBook(a, t.spellId)) return { ok: false, text: `You already know ${t.name}.` };
+    if (!stockFor(a, R, !!R && R.bypass(a)).includes(t)) return { ok: false, text: `${t.title} is not on the Synod's shelf this week.` };
     const price = priceOf(t);
     if (!takeGold(a, price)) return { ok: false, text: `${t.title} costs ${price} gold, and you do not have it.` };
     if (!giveItem(a, t.bookId, 1)) { giveItem(a, GOLD, price); return { ok: false, text: 'The court mage could not hand you the tome. Your gold is returned.' }; }
