@@ -1284,7 +1284,9 @@ void ActionListener::OnPutItem(const RawMessageData& rawMsgData,
 
   const auto owned = actor->GetInventory().FindEntriesFor(entry);
   if (owned.empty()) {
-    return ref.PutItem(*actor, entry);
+    spdlog::warn("ActionListener::OnPutItem - actor {:x} does not own baseId {:x}",
+                 actor->GetFormId(), entry.baseId);
+    return;
   }
   for (const auto& e : owned) {
     ref.PutItem(*actor, e);

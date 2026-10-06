@@ -8,14 +8,11 @@ export class LoadGameService extends ClientListener {
     }
 
     public loadGame(pos: number[], rot: number[], worldOrCell: number, changeFormNpc?: ChangeFormNpc, loadOrder?: string[], time?: { seconds: number, minutes: number, hours: number }) {
-        try {
-            // @ts-ignore
-            this.sp.loadGame(pos, rot, worldOrCell, changeFormNpc, loadOrder, time);
-        } catch (e) {
-            // Hotfix non-vanilla headparts bug
-            // @ts-ignore
-            this.sp.loadGame(pos, rot, worldOrCell, undefined, loadOrder, time);
-        }
+        // Passing changeFormNpc injects corrupted changeforms into template.ess (stream desync),
+        // causing SkyrimSE.exe BGSLoadFormBuffer access violations (0x06253A5).
+        // Passing undefined ensures template.ess loads cleanly; appearance is applied in memory by applyAppearanceToPlayer.
+        // @ts-ignore
+        this.sp.loadGame(pos, rot, worldOrCell, undefined, loadOrder, time);
         this._isCausedBySkyrimPlatform = true;
     }
 

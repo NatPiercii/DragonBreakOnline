@@ -140,8 +140,9 @@ const applyAppearanceCommon = (appearance: Appearance, npc: ActorBase): void => 
   headparts.forEach((v, i) => npc.setNthHeadPart(v, i));
   npc.setFaceTextureSet(TextureSet.from(Game.getFormEx(appearance.headTextureSetId))); // setFaceTextureSet supports null argument
   npc.setVoiceType(VoiceType.from(Game.getFormEx(silentVoiceTypeId)));
-  appearance.options.forEach((v, i) => npc.setFaceMorph(v, i));
+  // Apply presets first so that they do not overwrite fine face morph sliders (options)
   appearance.presets.forEach((v, i) => npc.setFacePreset(v, i));
+  appearance.options.forEach((v, i) => npc.setFaceMorph(v, i));
   if (appearance.name) {
     npc.setName(appearance.name);
   } else {

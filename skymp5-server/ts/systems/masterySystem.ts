@@ -578,28 +578,29 @@ export class MasterySystem implements System {
   }
 
   // Unskilled: slim chance, half yield. Skilled: tier chance, extra units from the node's ingredient.
+  // The Skyrim client engine unconditionally adds the base unit on activation; we must return true
+  // so GivePickupItemsToActivationSource records the base unit on the server to prevent inventory desync.
+  // The harvesting perk/tier roll determines whether extra bonus yield is gathered.
   private rollHarvest(ctx: SystemContext, actorId: number, userId: number, rec: MasteryRecord, base: BaseInfo): boolean {
     const prog = rec.skills["harvesting"];
     const tier = prog ? prog.rank : -1;
     const chance = tier >= 0 ? (this.harvestChance[Math.min(tier, this.harvestChance.length - 1)] ?? 1) : this.unskilledChance;
     const mult = tier >= 0 ? (this.harvestMult[Math.min(tier, this.harvestMult.length - 1)] ?? 1) : this.unskilledMult;
-    if (Math.random() > chance) {
-      if (Date.now() - (this.lastDenyMs.get(actorId) || 0) > 1500) { this.lastDenyMs.set(actorId, Date.now()); this.notice(ctx, userId, "You find nothing worth taking."); }
-      return false;
-    }
-    // Extra yield beyond the engine's own single unit.
-    const extra = Math.max(0, Math.round(mult) - 1);
-    if (extra > 0) {
-      const ingr = this.fieldFormIds(this.lookup(ctx, base.id), "PFIG")[0] || 0;
-      if (ingr) {
-        try {
-          const mp = ctx.svr as Mp;
-          const inv = mp.get(actorId, "inventory") || { entries: [] };
-          const entries = Array.isArray(inv.entries) ? inv.entries.slice() : [];
-          const hit = entries.find((e: any) => e && Number(e.baseId) === ingr && !e.worn);
-          if (hit) hit.count = (Number(hit.count) || 0) + extra; else entries.push({ baseId: ingr, count: extra });
-          mp.set(actorId, "inventory", { entries });
-        } catch (e) { this.log(`[skills] extra harvest failed: ${e}`); }
+    if (tier >= 0 && Math.random() <= chance) {
+      // Extra yield beyond the engine's own single unit.
+      const extra = Math.max(0, Math.round(mult) - 1);
+      if (extra > 0) {
+        const ingr = this.fieldFormIds(this.lookup(ctx, base.id), "PFIG")[0] || 0;
+        if (ingr) {
+          try {
+            const mp = ctx.svr as Mp;
+            const inv = mp.get(actorId, "inventory") || { entries: [] };
+            const entries = Array.isArray(inv.entries) ? inv.entries.slice() : [];
+            const hit = entries.find((e: any) => e && Number(e.baseId) === ingr && !e.worn);
+            if (hit) hit.count = (Number(hit.count) || 0) + extra; else entries.push({ baseId: ingr, count: extra });
+            mp.set(actorId, "inventory", { entries });
+          } catch (e) { this.log(`[skills] extra harvest failed: ${e}`); }
+        }
       }
     }
     return true;

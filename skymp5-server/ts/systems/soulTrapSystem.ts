@@ -155,6 +155,7 @@ export class SoulTrapSystem implements System {
     const kind = soul.black ? "black" : `size ${soul.size}`;
     if (!gemId) {
       this.log(`[soultrap] ${hex(targetId)} died soul trapped by ${hex(casterId)}, no empty gem holds its ${kind} soul`);
+      this.notify(ctx, casterId, soul.black ? "You do not have a black soul gem to hold this soul." : "You do not have a soul gem large enough.");
       return;
     }
     this.notify(ctx, casterId, "Soul captured!");
