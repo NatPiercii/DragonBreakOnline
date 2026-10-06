@@ -3436,9 +3436,11 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
   try {
     // 1. Check whether a download is needed
     let serverVersion = null
+    let serverFiles = []
     try {
       const vd = await fetchJSON(`${config.apiUrl}/api/files/version`)
       serverVersion = vd.version
+      serverFiles = Array.isArray(vd.files) ? vd.files : []
     } catch (err) {
       if (err.statusCode === 404) {
         return { success: false, error: 'Client files have not been packaged on the server yet. Ask the server admin to run `npm run build-client`.' }
@@ -3495,6 +3497,11 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     }
     log(`[install] extracted ${extracted} files`)
     ensureClientDirs(skyrimPath)
+    // A repair also clears files the package does not list from the platform's folders, which re-extracting never did
+    if (force) {
+      const moved = selfRepair.moveAside(skyrimPath, selfRepair.strayFiles(skyrimPath, serverFiles), path.join(skyrimPath, 'DragonBreak Quarantine'), { log: m => log(`[selfRepair] ${m}`) })
+      if (moved.length) log(`[install] moved ${moved.length} stray file(s) to DragonBreak Quarantine: ${moved.join(', ')}`)
+    }
 
     if (!preloaderPresent(skyrimPath)) {
       return {
