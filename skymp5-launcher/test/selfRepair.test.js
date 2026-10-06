@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
-const { checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir } = require('../src/selfRepair')
+const { checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir, inProgramFiles, canWriteDir, installLocationCheck } = require('../src/selfRepair')
 
 const sha = s => crypto.createHash('sha256').update(s).digest('hex')
 function game(files) {
@@ -129,4 +129,33 @@ test('ensureSkseLogDir creates a missing registered Documents folder and the SKS
   assert.ok(gog.created.some(p => p.replace(/\\/g, '/').endsWith('My Games/Skyrim Special Edition GOG/SKSE')))
   assert.ok(/could not say/.test(ensureSkseLogDir({ docs: null, registered: null, ...io }).error))
   assert.ok(/could not be created/.test(ensureSkseLogDir({ docs: null, registered: 'Z:/gone/Documents', exists: () => false, mkdir: () => { throw new Error('no drive') } }).error))
+})
+
+test('inProgramFiles finds a Program Files folder on any drive, and nothing that only resembles one', () => {
+  assert.ok(inProgramFiles('A:\\Program Files (x86)\\Games\\DragonBreak\\skyrim'), 'the CarloftFhang install')
+  assert.ok(inProgramFiles('C:\\Program Files\\DragonBreak'))
+  assert.ok(inProgramFiles('c:/program files (x86)/Steam/steamapps/common/Skyrim Special Edition'))
+  assert.ok(!inProgramFiles('D:\\Games\\DragonBreak'))
+  assert.ok(!inProgramFiles('C:\\MyProgram Files\\DragonBreak'))
+  assert.ok(!inProgramFiles('C:\\Program Files Backup\\DragonBreak'))
+  assert.ok(!inProgramFiles(''))
+})
+
+test('canWriteDir creates and removes a probe file, and says false where it cannot', () => {
+  const dir = game({})
+  assert.strictEqual(canWriteDir(dir), true)
+  assert.deepStrictEqual(fs.readdirSync(dir), [], 'the probe file is removed')
+  assert.strictEqual(canWriteDir(path.join(dir, 'missing', 'deeper')), false)
+  assert.strictEqual(canWriteDir(dir, { fsx: { writeFileSync: () => { throw new Error('EPERM') }, unlinkSync: () => {} } }), false)
+})
+
+test('installLocationCheck: an unwritable folder stops PLAY, a Program Files folder only warns, a missing one is skipped', () => {
+  const dirs = [{ label: 'the game folder', dir: 'A:/Program Files (x86)/Games/DragonBreak/skyrim' }, { label: "Mod Organizer's folder", dir: 'C:/Users/c/AppData/Local/DragonBreak/MO2' }, { label: 'gone', dir: 'Z:/nothing' }]
+  const exists = d => !d.startsWith('Z:')
+  const writable = installLocationCheck(dirs, { exists, canWrite: () => true })
+  assert.deepStrictEqual(writable.unwritable, [])
+  assert.deepStrictEqual(writable.programFiles.map(d => d.label), ['the game folder'])
+  const locked = installLocationCheck(dirs, { exists, canWrite: d => !/Program Files/.test(d) })
+  assert.deepStrictEqual(locked.unwritable.map(d => d.label), ['the game folder'])
+  assert.deepStrictEqual(installLocationCheck(dirs, { exists: () => false, canWrite: () => false }), { unwritable: [], programFiles: [] })
 })
