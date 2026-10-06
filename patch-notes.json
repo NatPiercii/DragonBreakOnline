@@ -1,5 +1,35 @@
 [
   {
+    "title": "Faction gear evened out",
+    "date": "2026-10-06",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "Every faction's armour and weapons now match, ready for wars: light faction armour is as good as Glass, heavy as Steel Plate, shields as Orcish (heavy) or Glass (light), and faction weapons hit like the Glass weapon of their type. The Imperial Legion goes up; the Dawnguard, Blades and the Orc clans come down to the same level.",
+          "Only Orcs can forge Orcish armour and weapons."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Fixes",
+    "date": "2026-10-06",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Enchanting",
+        "items": [
+          "When the server refuses an enchantment, it now tells you why. Fortify Alchemy and Fortify Enchanting can't be put on items on this server. You may also lack the Enchanter skill, the item may not take an enchantment, or the server may not know the effect. The item always keeps its previous state, and no soul is used.",
+          "Dragonborn's Chaos Damage enchantment can now be put on weapons. Like every crafted enchantment, it is held to the base game's limits."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Faction limits",
     "date": "2026-10-06",
     "version": "Server update",
