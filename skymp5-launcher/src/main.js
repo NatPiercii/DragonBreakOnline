@@ -2074,6 +2074,9 @@ ipcMain.handle('app:installUpdate', async () => {
 // Launch SKSE
 
 // Files that must exist before we allow launching
+// Mod archives downloaded at once on an automatic (Premium or direct URL) install
+const PARALLEL_DOWNLOADS = 3
+
 const REQUIRED_FILES = [
   path.join('Data', 'Platform', 'Plugins', 'skymp5-client.js'),
   path.join('Data', 'SKSE', 'Plugins', 'SkyrimPlatform.dll'),
@@ -3841,7 +3844,7 @@ async function runMO2Install(opts = {}) {
     const modBytes = m => Math.max(1, (m.files || []).reduce((n, f) => n + (Number(f.size) || 0), 0))
     installTrack.plan({ archives: needed.map(a => ({ id: a.id, size: a.size })), installBytes: modsToInstall.reduce((n, m) => n + modBytes(m), 0) })
     installStep('download', { index: 0, total: needed.length })
-    const gotArchive = (a, k) => {
+    const gotArchiveAt = (a, k) => {
       installTrack.acquired(a.id)
       installTrack.step('download', { index: k + 1, total: needed.length })
       sendInstallState()
@@ -3866,49 +3869,70 @@ async function runMO2Install(opts = {}) {
     }
     let reused = 0
 
-    for (const [k, a] of needed.entries()) {
+    // Archives already on disk first; then the downloads run PARALLEL_DOWNLOADS at a time (Nate, 6 Oct: streamline the download)
+    let got = 0
+    const gotArchive = (a) => { gotArchiveAt(a, got++) }
+    const toFetch = []
+    for (const a of needed) {
       const existing = await locate(a)
-      if (existing) { archivePaths[a.id] = existing; gotArchive(a, k); continue }
-
-      if (a.source.type === 'url') {
-        send('install:progress', { phase: 'mods', file: `Downloading ${a.name}…`, index: 0, total: 0, skipped: false })
-        const name = await mo2.downloadToDownloads(a.source.url, a.name, (r, t) => {
-          const pct = t > 0 ? ` (${Math.round(r / t * 100)}%)` : ''
-          installTrack.file(a.name, r, t, a.id)
-          send('install:progress', { phase: 'mods', file: `Downloading ${a.name}… ${mb(r)} MB${pct}`, index: 0, total: 0, skipped: false })
-        })
-        const p = path.join(downloadsDir, name)
-        if (!(await mo2.verifyArchiveAsync(p, a.hash))) return fail(`${a.name}: downloaded file failed verification (hash mismatch).`)
-        archivePaths[a.id] = p
-        gotArchive(a, k)
-      } else if (a.source.type === 'nexus' && premium) {
-        send('install:progress', { phase: 'mods', file: `Downloading ${a.name}…`, index: 0, total: 0, skipped: false })
-        let name = null
-        try {
-          name = await nexus.downloadFileEntry(nexusAuth, a.source.modId, { fileId: a.source.fileId, fileName: a.name }, downloadsDir, (r, t) => {
-            const pct = t > 0 ? ` (${Math.round(r / t * 100)}%)` : ''
-            installTrack.file(a.name, r, t, a.id)
-            send('install:progress', { phase: 'mods', file: `Downloading ${a.name}… ${mb(r)} / ${mb(t)} MB${pct}`, index: 0, total: 0, skipped: false })
-          })
-        } catch (err) {
-          // A dead pin (HTTP 404 = the file was removed or archived on Nexus)
-          // must not abort the whole install: fall back to the manual browser
-          // flow, which also accepts an already-downloaded copy by sha256.
-          log(`[install] auto-download failed for ${a.name} (mod ${a.source.modId}, file ${a.source.fileId}): ${err.message} - falling back to manual download`)
-          send('install:progress', { phase: 'mods', file: `${a.name}: auto-download failed (${err.message}) - queued for manual download`, index: 0, total: 0, skipped: false })
-          needBrowser.push(a)
-          continue
+      if (existing) { archivePaths[a.id] = existing; gotArchive(a); continue }
+      if (a.source.type === 'url' || (a.source.type === 'nexus' && premium)) toFetch.push(a)
+      else if (a.source.type === 'nexus') needBrowser.push(a)
+      else return fail(`${a.name}: no download source. Add a URL in data/manifest-sources.json on the backend.`)
+    }
+    const active = new Map()   // archive name -> progress text, for one status line over every download running
+    const showActive = () => {
+      const lines = [...active.values()]
+      if (lines.length) send('install:progress', { phase: 'mods', file: lines.length === 1 ? lines[0] : `Downloading ${lines.length} mods at once: ${lines.join(' | ')}`, index: got, total: needed.length, skipped: false })
+    }
+    const progressOf = a => (r, t) => {
+      const pct = t > 0 ? ` (${Math.round(r / t * 100)}%)` : ''
+      installTrack.file(a.name, r, t, a.id)
+      active.set(a.name, `${a.name} ${mb(r)}${t > 0 ? ` / ${mb(t)}` : ''} MB${pct}`)
+      showActive()
+    }
+    const fetchOne = async (a) => {
+      active.set(a.name, `${a.name}…`)
+      showActive()
+      try {
+        let name
+        if (a.source.type === 'url') {
+          name = await mo2.downloadToDownloads(a.source.url, a.name, progressOf(a))
+        } else {
+          try {
+            name = await nexus.downloadFileEntry(nexusAuth, a.source.modId, { fileId: a.source.fileId, fileName: a.name }, downloadsDir, progressOf(a))
+          } catch (err) {
+            // A dead pin (HTTP 404 = the file was removed or archived on Nexus) must not abort the whole install: the manual
+            // browser flow below also accepts an already-downloaded copy by sha256
+            log(`[install] auto-download failed for ${a.name} (mod ${a.source.modId}, file ${a.source.fileId}): ${err.message} - falling back to manual download`)
+            send('install:progress', { phase: 'mods', file: `${a.name}: auto-download failed (${err.message}) - queued for manual download`, index: 0, total: 0, skipped: false })
+            needBrowser.push(a)
+            return null
+          }
         }
         const p = path.join(downloadsDir, name)
-        if (!(await mo2.verifyArchiveAsync(p, a.hash))) return fail(`${a.name}: downloaded file failed verification (hash mismatch - the version pin may have changed).`)
+        if (!(await mo2.verifyArchiveAsync(p, a.hash))) {
+          return a.source.type === 'url'
+            ? `${a.name}: downloaded file failed verification (hash mismatch).`
+            : `${a.name}: downloaded file failed verification (hash mismatch - the version pin may have changed).`
+        }
         archivePaths[a.id] = p
-        gotArchive(a, k)
-      } else if (a.source.type === 'nexus') {
-        needBrowser.push(a)
-      } else {
-        return fail(`${a.name}: no download source. Add a URL in data/manifest-sources.json on the backend.`)
+        gotArchive(a)
+        return null
+      } finally { active.delete(a.name) }
+    }
+    const failures = []
+    let next = 0
+    const worker = async () => {
+      while (next < toFetch.length && failures.length === 0 && !installAbort?.signal?.aborted) {
+        const a = toFetch[next++]
+        const bad = await fetchOne(a)
+        if (bad) failures.push(bad)
       }
     }
+    await Promise.all(Array.from({ length: Math.min(PARALLEL_DOWNLOADS, toFetch.length) }, worker))
+    if (failures.length) return fail(failures[0])
+    if (installAbort?.signal?.aborted) return fail('Install cancelled.')
 
     if (reused) send('install:log', `Used ${reused} mod archive(s) you already had (${store.get('archiveDir') ? `in ${store.get('archiveDir')} or Vortex's downloads` : "Vortex's downloads"}), without copying them or downloading them again.`)
 

@@ -36,15 +36,16 @@
   function fresh(kind) {
     return {
       kind, step: 'prepare', detail: '', item: null, file: null, waiting: null,
-      archives: new Map(), acquired: new Map(), installBytes: 0, installed: 0,
+      archives: new Map(), acquired: new Map(), partial: new Map(), installBytes: 0, installed: 0,
     }
   }
 
-  // Bytes of the archives already in hand, counting the one downloading now by what has arrived
+  // Bytes of the archives already in hand, counting those downloading now (several at once) by what has arrived
   function acquiredBytes(s) {
     let n = 0
     for (const [id, bytes] of s.archives) {
       if (s.acquired.has(id)) n += bytes
+      else if (s.partial.has(id)) n += bytes * s.partial.get(id)
       else if (s.file && s.file.id === id && s.file.total > 0) n += bytes * clamp01(s.file.done / s.file.total)
     }
     return n
@@ -96,11 +97,14 @@
       },
       // The file being downloaded or read now: done and total in bytes (total 0 when unknown)
       file(name, done, total, id) {
-        if (s) s.file = { name: String(name || ''), done: Math.max(0, Number(done) || 0), total: Math.max(0, Number(total) || 0), id: id === undefined ? null : id }
+        if (!s) return
+        s.file = { name: String(name || ''), done: Math.max(0, Number(done) || 0), total: Math.max(0, Number(total) || 0), id: id === undefined ? null : id }
+        if (s.file.id !== null && s.file.total > 0 && !s.acquired.has(s.file.id)) s.partial.set(s.file.id, clamp01(s.file.done / s.file.total))
       },
       acquired(id) {
         if (!s || !s.archives.has(id)) return
         s.acquired.set(id, true)
+        s.partial.delete(id)
         if (s.file && s.file.id === id) s.file = null
       },
       waiting(w) { if (s) s.waiting = w ? { page: w.page, pages: w.pages, name: String(w.name || '') } : null },
