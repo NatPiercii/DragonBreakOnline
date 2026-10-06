@@ -25,7 +25,8 @@ VAMPIRES = ['clan-volkihar', 'cyrodiil-vampyrum-order', 'crimson-scars', 'bloodm
 
 # (set name, factions, name regex, extra test on (name, recipe edid, plugin))
 SETS = [
-    ('Imperial Legion', ['imperial-legion'], r"^(Imperial (?!City Stew)|Heroic Imperial|General Tullius|Steel Imperial|Penitus Oculatus)", None),
+    # Not 'Steel Imperial': those gauntlets are plain steel (ArmorSteelGauntletsB), not Legion work (faction parity, 6 Oct)
+    ('Imperial Legion', ['imperial-legion'], r"^(Imperial (?!City Stew)|Heroic Imperial|General Tullius|Penitus Oculatus)", None),
     ('Stormcloaks', ['stormcloaks'], r"^(Stormcloak|Heroic Stormcloak|Ulfric's)", None),
     ('Dawnguard', ['dawnguard'], r"^Dawng(ua|au)rd", None),
     ('Blades', ['blades'], r"^(Blades |Akaviri Samurai|Dragonguard)", None),
@@ -82,7 +83,8 @@ out = {
     '_comment': 'Faction gear (server/factiongear.js; built by tools/faction_gear.py from regions.json, edit the SETS there '
                 'and re-run, or edit an entry here by hand). An item listed here may be crafted only by a member of one of '
                 'its factions whose rank role is its role (blacksmith for forge work, tailor for the loom and tanning rack) '
-                'or leader. Nate, 2026-09-28: faction armor and weapons.',
+                'or leader. Nate, 2026-09-28: faction armor and weapons. The Orcish Clan set (no recipe; staff hand it out) and '
+                'later sets were added here by hand: this script no longer reproduces the file, so edit the file.',
     'items': dict(sorted(items.items(), key=lambda kv: (kv[1]['set'], kv[1]['name']))),
     '_uniformsComment': 'War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their '
                         "faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only "
