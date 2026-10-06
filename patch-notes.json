@@ -18,6 +18,12 @@
         "items": [
           "Orcish armour and weapons are an Orc's work: only Orc characters (vampire Orcs included) can make them at a forge. Anyone can still temper Orcish gear they own, and a refused craft gives your materials back when you close the menu."
         ]
+      },
+      {
+        "heading": "Faction gear",
+        "items": [
+          "Every faction's armour and weapons are now on one level, so no side outguns another in a war: light armour is as strong as Glass, heavy armour as Steel Plate, and weapons hit like Glass. Legion gear comes up; Dawnguard, Blades and Orcish Clan gear come down. Clan gear stays the strongholds' own."
+        ]
       }
     ]
   },

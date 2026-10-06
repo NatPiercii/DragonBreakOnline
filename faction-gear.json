@@ -1028,17 +1028,6 @@
     "8d3:MoreCraftableEquipment.esp"
    ]
   },
-  "f6f23:Skyrim.esm": {
-   "name": "Steel Imperial Gauntlets",
-   "set": "Imperial Legion",
-   "factions": [
-    "imperial-legion"
-   ],
-   "role": "blacksmith",
-   "recipes": [
-    "f6f2e:Skyrim.esm"
-   ]
-  },
   "2df3:Cloaks&Capes.esp": {
    "name": "Markarth Guard Cloak",
    "set": "Markarth Guard",
@@ -3376,6 +3365,384 @@
    "recipes": [
     "857:DragonBreak Nexus Patches.esp"
    ]
+  },
+  "6e0f9:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Boots",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7325b:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Boots Medium",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "9bcdb:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Buckler",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73214:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Cuirass",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73259:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Cuirass Light",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73258:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Cuirass Medium",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7325a:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Cuirass Studded",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73218:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Gauntlets",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7325c:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Gauntlets Heavy",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7321c:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Helmet",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7325d:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Helmet Medium",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "78388:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Mask Helmet",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7321f:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Shield",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7322c:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Battleaxe",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7322d:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Bow",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73263:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Crippler Spear",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "7322f:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Dagger",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73230:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Greatsword",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73262:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Longsword",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73231:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Mace",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "9bcd8:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Malacaths Cleaver",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "9bcd9:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Orsimer Chieftain Bow",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73261:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Sabre",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "9bcdd:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Scourge",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73232:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Sword",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73233:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan War Axe",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "73234:DragonBreak Online Edits.esp": {
+   "name": "Orcish Clan Warhammer",
+   "set": "Orcish Clan",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": []
   }
  },
  "_uniformsComment": "War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only extras; a faction with neither (the Fighters Guild today) is not held to it.",

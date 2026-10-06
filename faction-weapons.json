@@ -1,0 +1,461 @@
+{
+ "_comment": "Faction weapons at Glass's material bonus (Nate, 2026-10-06: faction armour and weapons on one level for war). gamemode.js materialBonusOf gives every weapon listed here exactly 'bonus', instead of its material keyword's (weaponMaterials.byKeyword), whose keywords these weapons share with ordinary ones (an Imperial Ebony Sword carries Ebony's 0.17, the Imperial Sword Imperial's 0). From the PC session's faction parity package (change.json, type WEAP: faction, enchanted variants and the Orcish Clan), whose records give them the Glass weapon's damage of their type.",
+ "bonus": 0.13,
+ "items": {
+  "3aeb9:Skyrim.esm": {
+   "edid": "AkaviriKatana",
+   "set": "Blades",
+   "type": "Sword"
+  },
+  "640d63:Immersive Weapons.esp": {
+   "edid": "IWDragonguardKatana",
+   "set": "Blades",
+   "type": "Sword"
+  },
+  "d098:Dawnguard.esm": {
+   "edid": "DLC1DawnguardAxe",
+   "set": "Dawnguard",
+   "type": "WarAxe"
+  },
+  "dd55:Dawnguard.esm": {
+   "edid": "DLC1DawnguardHammer",
+   "set": "Dawnguard",
+   "type": "Warhammer"
+  },
+  "601aa4:BSAssets.esm": {
+   "edid": "BSK74wSwordEbony",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "d3837:BSHeartland.esm": {
+   "edid": "CYRFortPalePassPreciliusVaroSword",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "abb0d:Skyrim.esm": {
+   "edid": "EnchImperialBowFear1",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb0e:Skyrim.esm": {
+   "edid": "EnchImperialBowFear2",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb0f:Skyrim.esm": {
+   "edid": "EnchImperialBowFear3",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb10:Skyrim.esm": {
+   "edid": "EnchImperialBowFire1",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb11:Skyrim.esm": {
+   "edid": "EnchImperialBowFire2",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb12:Skyrim.esm": {
+   "edid": "EnchImperialBowFire3",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb13:Skyrim.esm": {
+   "edid": "EnchImperialBowFrost01",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb14:Skyrim.esm": {
+   "edid": "EnchImperialBowFrost02",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb15:Skyrim.esm": {
+   "edid": "EnchImperialBowFrost03",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb16:Skyrim.esm": {
+   "edid": "EnchImperialBowMagicka01",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb17:Skyrim.esm": {
+   "edid": "EnchImperialBowMagicka02",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb18:Skyrim.esm": {
+   "edid": "EnchImperialBowMagicka03",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb19:Skyrim.esm": {
+   "edid": "EnchImperialBowShock01",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb1a:Skyrim.esm": {
+   "edid": "EnchImperialBowShock02",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb1b:Skyrim.esm": {
+   "edid": "EnchImperialBowShock03",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb1c:Skyrim.esm": {
+   "edid": "EnchImperialBowSoulTrap01",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb1d:Skyrim.esm": {
+   "edid": "EnchImperialBowSoulTrap02",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb1e:Skyrim.esm": {
+   "edid": "EnchImperialBowSoulTrap03",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb1f:Skyrim.esm": {
+   "edid": "EnchImperialBowStamina01",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb20:Skyrim.esm": {
+   "edid": "EnchImperialBowStamina02",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb21:Skyrim.esm": {
+   "edid": "EnchImperialBowStamina03",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb22:Skyrim.esm": {
+   "edid": "EnchImperialBowTurn01",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb23:Skyrim.esm": {
+   "edid": "EnchImperialBowTurn02",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "abb24:Skyrim.esm": {
+   "edid": "EnchImperialBowTurn03",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "c3df7:Skyrim.esm": {
+   "edid": "EnchImperialSwordFear1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df6:Skyrim.esm": {
+   "edid": "EnchImperialSwordFear2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df5:Skyrim.esm": {
+   "edid": "EnchImperialSwordFear3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df4:Skyrim.esm": {
+   "edid": "EnchImperialSwordFire1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df3:Skyrim.esm": {
+   "edid": "EnchImperialSwordFire2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "5990:DragonBreak.esp": {
+   "edid": "EnchImperialSwordFire2A",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df2:Skyrim.esm": {
+   "edid": "EnchImperialSwordFire3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df1:Skyrim.esm": {
+   "edid": "EnchImperialSwordFrost1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df0:Skyrim.esm": {
+   "edid": "EnchImperialSwordFrost2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3def:Skyrim.esm": {
+   "edid": "EnchImperialSwordFrost3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3dee:Skyrim.esm": {
+   "edid": "EnchImperialSwordMagicka1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3ded:Skyrim.esm": {
+   "edid": "EnchImperialSwordMagicka2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3dec:Skyrim.esm": {
+   "edid": "EnchImperialSwordMagicka3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3deb:Skyrim.esm": {
+   "edid": "EnchImperialSwordShock1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3dea:Skyrim.esm": {
+   "edid": "EnchImperialSwordShock2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3de9:Skyrim.esm": {
+   "edid": "EnchImperialSwordShock3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3de8:Skyrim.esm": {
+   "edid": "EnchImperialSwordSoulTrap1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df8:Skyrim.esm": {
+   "edid": "EnchImperialSwordSoulTrap2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3df9:Skyrim.esm": {
+   "edid": "EnchImperialSwordSoulTrap3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3dfa:Skyrim.esm": {
+   "edid": "EnchImperialSwordStamina1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3de5:Skyrim.esm": {
+   "edid": "EnchImperialSwordStamina2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3dfb:Skyrim.esm": {
+   "edid": "EnchImperialSwordStamina3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3de6:Skyrim.esm": {
+   "edid": "EnchImperialSwordTurn1",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3de7:Skyrim.esm": {
+   "edid": "EnchImperialSwordTurn2",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "c3de4:Skyrim.esm": {
+   "edid": "EnchImperialSwordTurn3",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "747b7:Immersive Weapons.esp": {
+   "edid": "IWImperialEbonySword",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "13841:Skyrim.esm": {
+   "edid": "ImperialBow",
+   "set": "Imperial Legion",
+   "type": "Bow"
+  },
+  "135b8:Skyrim.esm": {
+   "edid": "Imperialsword",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "478cf:Immersive Weapons.esp": {
+   "edid": "IWCNightingaleBlade",
+   "set": "Nightingales",
+   "type": "Sword"
+  },
+  "478d0:Immersive Weapons.esp": {
+   "edid": "IWCNightingaleBow",
+   "set": "Nightingales",
+   "type": "Bow"
+  },
+  "7322c:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanBattleaxe",
+   "set": "Orcish Clan",
+   "type": "Battleaxe"
+  },
+  "7322d:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanBow",
+   "set": "Orcish Clan",
+   "type": "Bow"
+  },
+  "73263:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanCripplerSpear",
+   "set": "Orcish Clan",
+   "type": "Battleaxe"
+  },
+  "7322f:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanDagger",
+   "set": "Orcish Clan",
+   "type": "Dagger"
+  },
+  "73230:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanGreatsword",
+   "set": "Orcish Clan",
+   "type": "Greatsword"
+  },
+  "73262:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanLongsword",
+   "set": "Orcish Clan",
+   "type": "Greatsword"
+  },
+  "73231:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanMace",
+   "set": "Orcish Clan",
+   "type": "Mace"
+  },
+  "9bcd8:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanMalacathsCleaver",
+   "set": "Orcish Clan",
+   "type": "Greatsword"
+  },
+  "9bcd9:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanOrsimerChieftanBow",
+   "set": "Orcish Clan",
+   "type": "Bow"
+  },
+  "73261:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanSabre",
+   "set": "Orcish Clan",
+   "type": "Sword"
+  },
+  "9bcdd:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanScourge",
+   "set": "Orcish Clan",
+   "type": "Warhammer"
+  },
+  "73232:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanSword",
+   "set": "Orcish Clan",
+   "type": "Sword"
+  },
+  "73233:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanWarAxe",
+   "set": "Orcish Clan",
+   "type": "WarAxe"
+  },
+  "73234:DragonBreak Online Edits.esp": {
+   "edid": "OrcishClanWarhammer",
+   "set": "Orcish Clan",
+   "type": "Warhammer"
+  },
+  "747bb:Immersive Weapons.esp": {
+   "edid": "IWAntiqueHonedSilverSword",
+   "set": "Silver Hand",
+   "type": "Sword"
+  },
+  "747de:Immersive Weapons.esp": {
+   "edid": "IWAntiqueSilverSword",
+   "set": "Silver Hand",
+   "type": "Sword"
+  },
+  "747b1:Immersive Weapons.esp": {
+   "edid": "IWHonedSilverBattleStaff",
+   "set": "Silver Hand",
+   "type": "Warhammer"
+  },
+  "747bf:Immersive Weapons.esp": {
+   "edid": "IWHonedSilverBattleaxe",
+   "set": "Silver Hand",
+   "type": "Battleaxe"
+  },
+  "747ab:Immersive Weapons.esp": {
+   "edid": "IWHonedSilverLongsword",
+   "set": "Silver Hand",
+   "type": "Greatsword"
+  },
+  "747c6:Immersive Weapons.esp": {
+   "edid": "IWHonedSilverScimitar",
+   "set": "Silver Hand",
+   "type": "Sword"
+  },
+  "747be:Immersive Weapons.esp": {
+   "edid": "IWHonedSilverWarAxe",
+   "set": "Silver Hand",
+   "type": "WarAxe"
+  },
+  "747dd:Immersive Weapons.esp": {
+   "edid": "IWSilverBattleStaff",
+   "set": "Silver Hand",
+   "type": "Warhammer"
+  },
+  "747e0:Immersive Weapons.esp": {
+   "edid": "IWSilverBattleaxe",
+   "set": "Silver Hand",
+   "type": "Battleaxe"
+  },
+  "b9d7:Immersive Weapons.esp": {
+   "edid": "IWSilverHawkBow",
+   "set": "Silver Hand",
+   "type": "Bow"
+  },
+  "747c2:Immersive Weapons.esp": {
+   "edid": "IWSilverKatana",
+   "set": "Silver Hand",
+   "type": "Sword"
+  },
+  "747dc:Immersive Weapons.esp": {
+   "edid": "IWSilverLongsword",
+   "set": "Silver Hand",
+   "type": "Greatsword"
+  },
+  "747a3:Immersive Weapons.esp": {
+   "edid": "IWSilverNodachi",
+   "set": "Silver Hand",
+   "type": "Greatsword"
+  },
+  "747e1:Immersive Weapons.esp": {
+   "edid": "IWSilverScimitar",
+   "set": "Silver Hand",
+   "type": "Sword"
+  },
+  "747d5:Immersive Weapons.esp": {
+   "edid": "IWSilverTanto",
+   "set": "Silver Hand",
+   "type": "Dagger"
+  },
+  "747d0:Immersive Weapons.esp": {
+   "edid": "IWSilverWakizashi",
+   "set": "Silver Hand",
+   "type": "Sword"
+  },
+  "747df:Immersive Weapons.esp": {
+   "edid": "IWSilverWarAxe",
+   "set": "Silver Hand",
+   "type": "WarAxe"
+  }
+ }
+}

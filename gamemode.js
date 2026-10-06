@@ -5159,10 +5159,25 @@ const arcaneDamageMult = (aggressorId, sourceId) => {
 // gear to hit clearly harder. The weapon's material keyword (KWDA, matched by editor id, so no form id is assumed) adds
 // its share on top of the base damage. Config "weaponMaterials": { enabled, playersOnly, byKeyword: { editorId: bonus } }.
 const MATERIALS = Object.assign({ enabled: true, playersOnly: true, byKeyword: {} }, cfg.weaponMaterials || {});
+// Faction weapons (faction-weapons.json; Nate, 2026-10-06: faction gear on one level for war) take its bonus exactly,
+// whatever their keyword says: the keywords are shared with ordinary weapons, so the bonus is per item, by desc.
+const FACTION_WEAPONS = (() => {
+  try {
+    const f = JSON.parse(fs.readFileSync(path.resolve('faction-weapons.json'), 'utf8'));
+    const bonus = Number(f.bonus);
+    if (!Number.isFinite(bonus)) return { bonus: 0, items: new Set() };
+    return { bonus, items: new Set(Object.keys(f.items || {}).filter((k) => k[0] !== '_').map(normPlace)) };
+  } catch (e) { log('faction-weapons.json unreadable:', e.message); return { bonus: 0, items: new Set() }; }
+})();
 const materialBonusCache = globalThis.__dboMaterialBonusCache instanceof Map ? globalThis.__dboMaterialBonusCache : (globalThis.__dboMaterialBonusCache = new Map());
-if (globalThis.__dboMaterialCfg !== JSON.stringify(MATERIALS.byKeyword)) { materialBonusCache.clear(); globalThis.__dboMaterialCfg = JSON.stringify(MATERIALS.byKeyword); }
+{
+  const key = JSON.stringify(MATERIALS.byKeyword) + '|' + FACTION_WEAPONS.bonus + '|' + [...FACTION_WEAPONS.items].sort().join(',');
+  if (globalThis.__dboMaterialCfg !== key) { materialBonusCache.clear(); globalThis.__dboMaterialCfg = key; }
+}
 const materialBonusOf = (sourceId) => {
   if (materialBonusCache.has(sourceId)) return materialBonusCache.get(sourceId);
+  let desc = ''; try { desc = normPlace(mp.getDescFromId(sourceId >>> 0)); } catch (e) { /* not a plugin form */ }
+  if (desc && FACTION_WEAPONS.items.has(desc)) { materialBonusCache.set(sourceId, FACTION_WEAPONS.bonus); return FACTION_WEAPONS.bonus; }
   let bonus = 0;
   const r = recordOf(sourceId);
   if (r && String(r.record.type) === 'WEAP') {

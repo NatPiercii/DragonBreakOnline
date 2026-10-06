@@ -24019,14 +24019,6 @@
 "kind": "weapon WarAxe",
 "province": "skyrim"
 },
-"6e0f9:dragonbreak online edits.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "ArmorOrcishClanBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "orcish",
-"kind": "heavy feet",
-"province": "skyrim"
-},
 "6e4d:immersive weapons.esp": {
 "to": "1398a:Skyrim.esm",
 "edid": "IWDwarvenQuarterstaff",
@@ -24081,174 +24073,6 @@
 "toEdid": "ArmorHideShield",
 "family": "chitin",
 "kind": "light shield",
-"province": "skyrim"
-},
-"73214:dragonbreak online edits.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "ArmorOrcishClanCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "orcish",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"73218:dragonbreak online edits.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "ArmorOrcishClanGauntlets",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "orcish",
-"kind": "heavy hands",
-"province": "skyrim"
-},
-"7321c:dragonbreak online edits.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "ArmorOrcishClanHelmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "orcish",
-"kind": "heavy head",
-"province": "skyrim"
-},
-"7321f:dragonbreak online edits.esp": {
-"to": "13955:Skyrim.esm",
-"edid": "ArmorOrcishClanShield",
-"toEdid": "ArmorSteelShield",
-"family": "orcish",
-"kind": "heavy shield",
-"province": "skyrim"
-},
-"7322c:dragonbreak online edits.esp": {
-"to": "13984:Skyrim.esm",
-"edid": "OrcishClanBattleaxe",
-"toEdid": "SteelBattleaxe",
-"family": "orcish",
-"kind": "weapon Battleaxe",
-"province": "skyrim"
-},
-"7322d:dragonbreak online edits.esp": {
-"to": "13985:Skyrim.esm",
-"edid": "OrcishClanBow",
-"toEdid": "HuntingBow",
-"family": "orcish",
-"kind": "weapon Bow",
-"province": "skyrim"
-},
-"7322f:dragonbreak online edits.esp": {
-"to": "13986:Skyrim.esm",
-"edid": "OrcishClanDagger",
-"toEdid": "SteelDagger",
-"family": "orcish",
-"kind": "weapon Dagger",
-"province": "skyrim"
-},
-"73230:dragonbreak online edits.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "OrcishClanGreatsword",
-"toEdid": "SteelGreatsword",
-"family": "orcish",
-"kind": "weapon Greatsword",
-"province": "skyrim"
-},
-"73231:dragonbreak online edits.esp": {
-"to": "13988:Skyrim.esm",
-"edid": "OrcishClanMace",
-"toEdid": "SteelMace",
-"family": "orcish",
-"kind": "weapon Mace",
-"province": "skyrim"
-},
-"73232:dragonbreak online edits.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "OrcishClanSword",
-"toEdid": "SteelSword",
-"family": "orcish",
-"kind": "weapon Sword",
-"province": "skyrim"
-},
-"73233:dragonbreak online edits.esp": {
-"to": "13983:Skyrim.esm",
-"edid": "OrcishClanWarAxe",
-"toEdid": "SteelWarAxe",
-"family": "orcish",
-"kind": "weapon WarAxe",
-"province": "skyrim"
-},
-"73234:dragonbreak online edits.esp": {
-"to": "1398a:Skyrim.esm",
-"edid": "OrcishClanWarhammer",
-"toEdid": "SteelWarhammer",
-"family": "orcish",
-"kind": "weapon Warhammer",
-"province": "skyrim"
-},
-"73258:dragonbreak online edits.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "ArmorOrcishClanCuirassMedium",
-"toEdid": "ArmorSteelCuirassA",
-"family": "orcish",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"73259:dragonbreak online edits.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "ArmorOrcishClanCuirassLight",
-"toEdid": "ArmorLeatherCuirass",
-"family": "orcish",
-"kind": "light body",
-"province": "skyrim"
-},
-"7325a:dragonbreak online edits.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "ArmorOrcishClanCuirassStudded",
-"toEdid": "ArmorLeatherCuirass",
-"family": "orcish",
-"kind": "light body",
-"province": "skyrim"
-},
-"7325b:dragonbreak online edits.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "ArmorOrcishClanBootsMedium",
-"toEdid": "ArmorLeatherBoots",
-"family": "orcish",
-"kind": "light feet",
-"province": "skyrim"
-},
-"7325c:dragonbreak online edits.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "ArmorOrcishClanGauntletsHeavy",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "orcish",
-"kind": "light hands",
-"province": "skyrim"
-},
-"7325d:dragonbreak online edits.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "ArmorOrcishClanHelmetMedium",
-"toEdid": "ArmorLeatherHelmet",
-"family": "orcish",
-"kind": "light head",
-"province": "skyrim"
-},
-"73261:dragonbreak online edits.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "OrcishClanSabre",
-"toEdid": "SteelSword",
-"family": "orcish",
-"kind": "weapon Sword",
-"province": "skyrim"
-},
-"73262:dragonbreak online edits.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "OrcishClanLongsword",
-"toEdid": "SteelGreatsword",
-"family": "orcish",
-"kind": "weapon Greatsword",
-"province": "skyrim"
-},
-"73263:dragonbreak online edits.esp": {
-"to": "13984:Skyrim.esm",
-"edid": "OrcishClanCripplerSpear",
-"toEdid": "SteelBattleaxe",
-"family": "orcish",
-"kind": "weapon Battleaxe",
 "province": "skyrim"
 },
 "73b6:immersive weapons.esp": {
@@ -24457,14 +24281,6 @@
 "toEdid": "SteelSword",
 "family": "DAEDRIC",
 "kind": "weapon Sword",
-"province": "skyrim"
-},
-"78388:dragonbreak online edits.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "ArmorOrcishClanMaskHelmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "orcish",
-"kind": "heavy head",
 "province": "skyrim"
 },
 "78dfe:bsheartland.esm": {
@@ -27609,38 +27425,6 @@
 "toEdid": "SteelMace",
 "family": "DRAGON",
 "kind": "weapon Mace",
-"province": "skyrim"
-},
-"9bcd8:dragonbreak online edits.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "OrcishClanMalacathsCleaver",
-"toEdid": "SteelGreatsword",
-"family": "orcish",
-"kind": "weapon Greatsword",
-"province": "skyrim"
-},
-"9bcd9:dragonbreak online edits.esp": {
-"to": "13985:Skyrim.esm",
-"edid": "OrcishClanOrsimerChieftanBow",
-"toEdid": "HuntingBow",
-"family": "orcish",
-"kind": "weapon Bow",
-"province": "skyrim"
-},
-"9bcdb:dragonbreak online edits.esp": {
-"to": "13914:Skyrim.esm",
-"edid": "ArmorOrcishClanBuckler",
-"toEdid": "ArmorHideShield",
-"family": "orcish",
-"kind": "light shield",
-"province": "skyrim"
-},
-"9bcdd:dragonbreak online edits.esp": {
-"to": "1398a:Skyrim.esm",
-"edid": "OrcishClanScourge",
-"toEdid": "SteelWarhammer",
-"family": "orcish",
-"kind": "weapon Warhammer",
 "province": "skyrim"
 },
 "9d9:ccbgssse001-fish.esm": {
