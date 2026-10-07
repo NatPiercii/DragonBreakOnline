@@ -114,9 +114,24 @@ function moveAside(file, now, tag) {
  * Checks the custom map and the Data maps down to the first complete one, moving incomplete ones aside.
  * Returns the lines to log: one per map read, so a report shows which map the game was given.
  */
+// Launchers before 2.1.42 moved the game's remap file aside as incomplete; with no custom map now, the newest of those
+// that holds only remaps (fewer than half the contexts) goes back, so players get their rebinds again
+function restoreRemaps(gameDir, lines) {
+  const live = path.join(gameDir, CUSTOM)
+  if (fs.existsSync(live)) return
+  let names = []
+  try { names = fs.readdirSync(gameDir).filter(n => n.startsWith(`${CUSTOM}.incomplete-`)) } catch { return }
+  const remaps = names.map(n => path.join(gameDir, n)).filter(p => {
+    try { const r = analyzeControlmap(fs.readFileSync(p, 'utf8')); return r.found < r.expected / 2 } catch { return false }
+  }).sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)
+  if (!remaps.length) return
+  try { fs.renameSync(remaps[0], live); lines.push(`controlmap: restored the player's remaps from ${path.basename(remaps[0])}`) } catch (err) { lines.push(`controlmap: could not restore ${path.basename(remaps[0])}: ${err.message}`) }
+}
+
 function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
   if (!gameDir) return []
   const lines = []
+  restoreRemaps(gameDir, lines)
   const { custom, data } = controlmapFiles(gameDir, mo2)
   // true when the file is complete (or unreadable, so left to the game)
   const check = (file, isCustom = false) => {
