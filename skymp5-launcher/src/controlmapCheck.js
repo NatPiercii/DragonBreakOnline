@@ -119,13 +119,19 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
   const lines = []
   const { custom, data } = controlmapFiles(gameDir, mo2)
   // true when the file is complete (or unreadable, so left to the game)
-  const check = file => {
+  const check = (file, isCustom = false) => {
     let text
     try { text = fs.readFileSync(file, 'utf8') } catch (err) {
       lines.push(`controlmap: could not read ${file}: ${err.message}`)
       return true
     }
     const r = analyzeControlmap(text)
+    // The game's ControlMap_Custom.txt holds only the contexts a player remapped; only a full map copied from an older game
+    // version (most contexts, some missing) is the broken kind. Moving the game's own file aside lost every in-game rebind.
+    if (isCustom && !r.ok && r.found < r.expected / 2) {
+      lines.push(`controlmap: ${file} holds the player's remaps (${r.found} context(s)), kept`)
+      return true
+    }
     if (r.ok) {
       lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts`)
       return true
@@ -138,7 +144,7 @@ function checkControlmaps({ gameDir, mo2 = null, now = new Date() } = {}) {
     lines.push(`controlmap: ${file} has ${r.found} of ${r.expected} contexts (${why}), moved aside to ${path.basename(aside)}`)
     return false
   }
-  if (custom) check(custom)
+  if (custom) check(custom, true)
   let settled = false
   for (const file of data) if ((settled = check(file))) break
   if (!settled) lines.push('controlmap: no loose controlmap.txt is left in Data; the game\'s own applies until the launcher seeds one')

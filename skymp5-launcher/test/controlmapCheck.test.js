@@ -81,7 +81,7 @@ test('the files the game reads: the root custom map, then overwrite, the enabled
   fs.rmSync(root, { recursive: true, force: true })
 })
 
-test('before launch: a short custom map and a short winning mod map are moved aside, and the next map down is checked', () => {
+test('before launch: the game\'s short custom map (the player\'s remaps) is kept, a short winning mod map is moved aside', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'controlmap-test-'))
   const game = path.join(root, 'skyrim')
   const mo2 = { overwriteDir: path.join(root, 'overwrite'), modsDir: path.join(root, 'mods'), mods: ['Keys'] }
@@ -93,18 +93,25 @@ test('before launch: a short custom map and a short winning mod map are moved as
   put(ours, full)
   const lines = cm.checkControlmaps({ gameDir: game, mo2, now })
   assert.deepStrictEqual(lines, [
-    `controlmap: ${custom} has 3 of 18 contexts (missing Item Menus, Inventory, Debug Text, Favorites, Map, Stats, Cursor, ` +
-      'Book, Debug Overlay, Journal, TFC Mode, Map Debug, Lockpicking, Creations Menu, Favor), moved aside to ' +
-      'ControlMap_Custom.txt.incomplete-20260929T160000Z',
+    `controlmap: ${custom} holds the player's remaps (3 context(s)), kept`,
     `controlmap: ${modMap} has 16 of 18 contexts (missing Creations Menu, Favor), moved aside to controlmap.txt.incomplete-20260929T160000Z`,
     `controlmap: ${ours} has 18 of 18 contexts`,
   ])
-  assert.ok(!fs.existsSync(custom) && !fs.existsSync(modMap))
-  assert.strictEqual(fs.readFileSync(`${custom}.incomplete-20260929T160000Z`, 'utf8'), truncated)
+  assert.ok(fs.existsSync(custom) && !fs.existsSync(modMap))
+  assert.strictEqual(fs.readFileSync(custom, 'utf8'), truncated)
   assert.strictEqual(fs.readFileSync(ours, 'utf8'), full)
-  // Checked again: nothing more to move, and a second bad custom map gets its own name
-  put(custom, truncated)
-  assert.match(cm.checkControlmaps({ gameDir: game, mo2, now })[0], /aside to ControlMap_Custom\.txt\.incomplete-20260929T160000Z-2$/)
+  fs.rmSync(root, { recursive: true, force: true })
+})
+
+test('before launch: a custom map that is an old full map (pre-1.6.1130, 16 of 18 contexts) is still moved aside', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'controlmap-test-'))
+  const game = path.join(root, 'skyrim')
+  const custom = path.join(game, 'ControlMap_Custom.txt')
+  put(custom, pre1130)
+  put(path.join(game, 'Data', DATA_REL), full)
+  const lines = cm.checkControlmaps({ gameDir: game, now })
+  assert.match(lines[0], /has 16 of 18 contexts \(missing Creations Menu, Favor\), moved aside to ControlMap_Custom\.txt\.incomplete-20260929T160000Z$/)
+  assert.ok(!fs.existsSync(custom))
   fs.rmSync(root, { recursive: true, force: true })
 })
 
