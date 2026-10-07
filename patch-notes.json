@@ -1,5 +1,35 @@
 [
   {
+    "title": "Recipes Follow Your Rank",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "The forge",
+        "items": [
+          "Every metal can be forged now. Before, most recipes past iron and leather needed old Skyrim perks that nobody on DragonBreak can get, so they never showed at the forge.",
+          "What you can forge follows your Blacksmith rank. A Novice works iron, hide, fur and leather; steel, silver, dwarven, elven, chainmail and mithril open at Apprentice; orcish, steel plate, scaled and Nordic at Journeyman; ebony, glass and stalhrim at Expert; dragonbone, dragonscale and Daedric at Master.",
+          "Every metal past iron also needs its smithing manual. Read it once and its recipes appear at the forge. The Synod sells the Apprentice manuals at the Scholars' Ledger in the Synod Conclave, harder ones turn up in boss chests, and a Scholar can copy a manual they have learned.",
+          "Tier 5 gear now always outclasses tier 4: a few ebony, glass, stalhrim and Amber pieces are a little weaker, and a few Daedric, dragon and Madness pieces a little stronger. Amber weapons hit as hard as glass."
+        ]
+      },
+      {
+        "heading": "Faction gear",
+        "items": [
+          "A faction's smiths and tailors can make its gear at any Blacksmith rank, with no manual. Your place in the faction is what counts.",
+          "The old quest requirements are gone: Legion, Stormcloak, hold guard, Blades, Companions, Dawnguard, Thieves Guild, Dark Brotherhood, Nightingale and other faction sets no longer ask for Skyrim's questlines. Orcish gear is still made only by Orcs, and vampire armour by vampires."
+        ]
+      },
+      {
+        "heading": "The cooking pot",
+        "items": [
+          "Cooking follows your Cook rank too: simple meals at Novice, hearty ones at Apprentice, feast dishes at Journeyman, restorative dishes at Expert and banquet fare at Master."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Less coin from fighting",
     "date": "2026-10-04",
     "version": "Server update",
