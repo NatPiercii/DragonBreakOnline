@@ -3265,7 +3265,11 @@ ipcMain.handle('install:uninstall', async () => {
 // 184 MB zip for a one-file release took the downloads down). null means "use the zip": no list, a file the server
 // does not serve one by one, or most of the package changed anyway. Launcher-owned files (settings, logs) are left alone.
 async function perFileClientUpdate(skyrimPath, version, files, directRun) {
-  const list = (Array.isArray(files) ? files : []).filter(f => f && typeof f.path === 'string' && f.sha256 && !f.path.split('/').includes('..') && !CLIENT_OWN_FILE_RES.some(re => re.test(f.path.toLowerCase())))
+  // The extra files own every path they list (the plugins), so the client list never fetches those
+  let ev = null
+  try { ev = await fetchExtraManifest() } catch { /* no extra list: nothing excluded */ }
+  const owned = new Set(extraEntries(ev, skyrimPath).map(x => x.path.toLowerCase()))
+  const list = (Array.isArray(files) ? files : []).filter(f => f && typeof f.path === 'string' && f.sha256 && !f.path.split('/').includes('..') && !CLIENT_OWN_FILE_RES.some(re => re.test(f.path.toLowerCase())) && !owned.has(f.path.toLowerCase()))
   if (!list.length || !version) return null
   const changed = []
   for (let i = 0; i < list.length; i++) {
