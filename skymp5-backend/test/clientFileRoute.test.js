@@ -1,18 +1,19 @@
 'use strict'
 // GET /api/files/client/* (sources/clientFiles.js): only the current version, only exactly listed paths, R2 only when
 // asked and listed with the same zip size, disk only with a matching .verified marker, its own per-visitor limit; the
-// /version "omitExtras" switch (default off)
+// /version "omitExtras" switch (default off); and scripts/unpack-client.js on a tiny zip, including every failure path
 
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
+const { spawnSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const http = require('http')
 const express = require('express')
 const { createR2Files } = require('../sources/r2Files')
-const { createClientFiles, visitorKey, requestedPath, FILE_ROUTE } = require('../sources/clientFiles')
-const { FILES, RANGE_BODY, versionJson, writeVerifiedCopy } = require('./helpers/clientPackage')
+const { createClientFiles, visitorKey, requestedPath, listSha256, FILE_ROUTE } = require('../sources/clientFiles')
+const { FILES, RANGE_BODY, sha256, versionJson, makeZip, zipOf, writeVerifiedCopy } = require('./helpers/clientPackage')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clientfiles-'))
 const dataDir = path.join(root, 'data')
@@ -263,4 +264,164 @@ test('/version is files-version.json as it is unless "omitExtras" is on', async 
   assert.deepEqual(JSON.parse((await get('/api/files/version')).body), V)
   drop('files-version.json')
   assert.equal((await get('/api/files/version')).status, 404)
+})
+
+// scripts/unpack-client.js
+
+const SCRIPT = path.join(__dirname, '..', 'scripts', 'unpack-client.js')
+function unpack(dir, args) {
+  const r = spawnSync(process.execPath, [SCRIPT, '--out', path.join(dir, 'unpacked'), '--live-version-file', path.join(dir, 'no-live.json'), '--min-free-mb', '0', ...args], { encoding: 'utf8' })
+  return { code: r.status, out: r.stdout, err: r.stderr }
+}
+// A zip and its files-version.json in a fresh folder
+function stage(name, version, files = FILES, entries = null) {
+  const dir = path.join(root, name)
+  fs.mkdirSync(dir, { recursive: true })
+  const zip = path.join(dir, `${version}.zip`)
+  if (entries) makeZip(zip, entries); else zipOf(zip, files)
+  const vf = path.join(dir, `${version}.json`)
+  fs.writeFileSync(vf, JSON.stringify(versionJson(version, files, zip)))
+  return { dir, zip, vf, args: ['--zip', zip, '--version-file', vf] }
+}
+const listing = dir => (fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [])
+
+test('unpack-client.js unpacks, verifies every file, writes the marker last and serves it at once', async () => {
+  const s = stage('unpack-ok', '0.3.90')
+  const r = unpack(s.dir, s.args)
+  assert.equal(r.code, 0, r.err)
+  const out = path.join(s.dir, 'unpacked')
+  assert.deepEqual(listing(out), ['0.3.90'])
+  const dir = path.join(out, '0.3.90')
+  for (const [p, b] of Object.entries(FILES)) assert.deepEqual(fs.readFileSync(path.join(dir, p)), b, p)
+  const m = JSON.parse(fs.readFileSync(path.join(dir, '.verified'), 'utf8'))
+  const v = JSON.parse(fs.readFileSync(s.vf, 'utf8'))
+  assert.equal(m.version, '0.3.90')
+  assert.equal(m.fileCount, 4)
+  assert.equal(m.zipSize, v.zipSize)
+  assert.equal(m.zipSha256, sha256(fs.readFileSync(s.zip)))
+  assert.equal(m.listSha256, listSha256(v.files))
+  assert.equal(JSON.parse(r.out.trim().split('\n').pop()).version, '0.3.90')
+  assert.equal((fs.statSync(path.join(dir, 'Data', 'DragonBreak.esp')).mode & 0o777), 0o644)
+
+  // The route serves this copy as soon as files-version.json names it
+  const cf = createClientFiles({ dataDir: s.dir, clientFilesDir: s.dir })
+  fs.copyFileSync(s.vf, path.join(s.dir, 'files-version.json'))
+  assert.equal(cf.verifiedDir(cf.currentPackage()), dir)
+
+  // A second run finds it done; --check and --files read it
+  const again = unpack(s.dir, s.args)
+  assert.equal(again.code, 0, again.err)
+  assert.match(again.out, /already unpacked/)
+  const check = unpack(s.dir, ['--check', '--version-file', s.vf])
+  assert.equal(check.code, 0, check.err)
+  assert.equal(JSON.parse(check.out).fileCount, 4)
+  const list = unpack(s.dir, ['--files', '--version-file', s.vf])
+  assert.equal(list.code, 0, list.err)
+  assert.ok(list.out.includes(`${FILES['Data/a b [x].esp'].length}\tclient/0.3.90/files/Data/a%20b%20%5Bx%5D.esp\tData/a b [x].esp\n`))
+  assert.equal(list.out.trim().split('\n').length, 4)
+})
+
+test('unpack-client.js: a file that does not match the list fails and leaves nothing half done', () => {
+  const s = stage('unpack-bad', '0.3.91')
+  assert.equal(unpack(s.dir, s.args).code, 0)
+  const out = path.join(s.dir, 'unpacked')
+  const before = fs.readFileSync(path.join(out, '0.3.91', '.verified'), 'utf8')
+
+  // 0.3.92 whose list says one file has other bytes than the zip holds
+  const bad = stage('unpack-bad', '0.3.92')
+  const v = JSON.parse(fs.readFileSync(bad.vf, 'utf8'))
+  v.files[1].sha256 = sha256(Buffer.from('something else'))
+  fs.writeFileSync(bad.vf, JSON.stringify(v))
+  const r = unpack(s.dir, bad.args)
+  assert.equal(r.code, 1)
+  assert.match(r.err, /Data\/a b \[x\]\.esp \(sha256/)
+  assert.deepEqual(listing(out), ['0.3.91'])
+  assert.equal(fs.readFileSync(path.join(out, '0.3.91', '.verified'), 'utf8'), before)
+  assert.equal(unpack(s.dir, ['--check', '--version-file', bad.vf]).code, 1)
+
+  // A size that differs fails the same way
+  v.files[1].sha256 = sha256(FILES['Data/a b [x].esp'])
+  v.files[0].size += 1
+  fs.writeFileSync(bad.vf, JSON.stringify(v))
+  const r2 = unpack(s.dir, bad.args)
+  assert.equal(r2.code, 1)
+  assert.match(r2.err, /DragonBreak\.esp \(size/)
+  assert.deepEqual(listing(out), ['0.3.91'])
+})
+
+test('unpack-client.js refuses a zip of another release, a missing file, unsafe names and links', () => {
+  const out = s => path.join(s.dir, 'unpacked')
+  // The zip size files-version.json records is not this zip's
+  const other = stage('unpack-size', '0.3.93')
+  const v = JSON.parse(fs.readFileSync(other.vf, 'utf8'))
+  fs.writeFileSync(other.vf, JSON.stringify({ ...v, zipSize: v.zipSize + 7 }))
+  const r = unpack(other.dir, other.args)
+  assert.equal(r.code, 1)
+  assert.match(r.err, /not the same release/)
+  assert.deepEqual(listing(out(other)), [])
+
+  // A listed file the zip lacks
+  const files = { ...FILES }
+  const missing = stage('unpack-missing', '0.3.94', files, Object.entries(FILES).slice(1).map(([name, data]) => ({ name, data })))
+  const rm = unpack(missing.dir, missing.args)
+  assert.equal(rm.code, 1)
+  assert.match(rm.err, /lacks 1 listed file/)
+  assert.deepEqual(listing(out(missing)), [])
+
+  // A '..' entry: refused before anything is written, and nothing lands outside
+  const entries = Object.entries(FILES).map(([name, data]) => ({ name, data }))
+  const dots = stage('unpack-dots', '0.3.95', FILES, [...entries, { name: '../escaped.txt', data: Buffer.from('x') }])
+  const rd = unpack(dots.dir, dots.args)
+  assert.equal(rd.code, 1)
+  assert.match(rd.err, /not a safe path/)
+  assert.equal(fs.existsSync(path.join(dots.dir, 'escaped.txt')), false)
+  assert.deepEqual(listing(out(dots)), [])
+
+  // An absolute name and a backslash name
+  for (const [i, name] of ['/abs.txt', 'Data\\win.txt'].entries()) {
+    const s = stage(`unpack-name-${i}`, '0.3.96', FILES, [...entries, { name, data: Buffer.from('x') }])
+    const rn = unpack(s.dir, s.args)
+    assert.equal(rn.code, 1, name)
+    assert.deepEqual(listing(out(s)), [], name)
+  }
+
+  // A symlink, even an unlisted one
+  const link = stage('unpack-link', '0.3.97', FILES, [...entries, { name: 'Data/link.esp', symlinkTo: '/etc/passwd' }])
+  const rl = unpack(link.dir, link.args)
+  assert.equal(rl.code, 1)
+  assert.match(rl.err, /not a plain file/)
+  assert.deepEqual(listing(out(link)), [])
+
+  // --out must be the unpacked folder (old versions are deleted from it)
+  const wrong = spawnSync(process.execPath, [SCRIPT, '--out', path.join(root, 'elsewhere'), ...other.args], { encoding: 'utf8' })
+  assert.equal(wrong.status, 2)
+})
+
+test('unpack-client.js keeps the current version and one previous (and the live one while staging)', () => {
+  const s = stage('unpack-prune', '1.0.1')
+  const out = path.join(s.dir, 'unpacked')
+  for (const ver of ['1.0.1', '1.0.2', '1.0.3']) {
+    const st = stage('unpack-prune', ver)
+    assert.equal(unpack(s.dir, st.args).code, 0, ver)
+  }
+  assert.deepEqual(listing(out), ['1.0.2', '1.0.3'])
+
+  // Leftovers of an interrupted run and a stale lock of a dead process are cleared
+  fs.mkdirSync(path.join(out, '.tmp-1.0.9'))
+  fs.writeFileSync(path.join(out, '.lock'), '999999999')
+  const st4 = stage('unpack-prune', '1.0.4')
+  // Staging 1.0.4 while 1.0.2 is the live version: 1.0.2 stays, 1.0.3 goes
+  const live = path.join(s.dir, 'live.json')
+  fs.writeFileSync(live, JSON.stringify({ version: '1.0.2' }))
+  const r = spawnSync(process.execPath, [SCRIPT, '--out', out, '--live-version-file', live, '--min-free-mb', '0', ...st4.args], { encoding: 'utf8' })
+  assert.equal(r.status, 0, r.stderr)
+  assert.deepEqual(listing(out), ['1.0.2', '1.0.4'])
+
+  // A lock held by a live process stops the run
+  fs.writeFileSync(path.join(out, '.lock'), String(process.pid))
+  const st5 = stage('unpack-prune', '1.0.5')
+  const held = unpack(s.dir, st5.args)
+  assert.equal(held.code, 1)
+  assert.match(held.err, /holds/)
+  fs.rmSync(path.join(out, '.lock'))
 })
