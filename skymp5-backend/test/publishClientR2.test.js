@@ -68,7 +68,12 @@ after(() => fs.rmSync(root, { recursive: true, force: true }))
 const URLS = Object.fromEntries(Object.entries(FILES).map(([p, b]) => [
   `https://files.example.com/client/0.4.1/files/${p.split('/').map(encodeURIComponent).join('/')}`, b.length]))
 function setSizes(sizes) { fs.writeFileSync(path.join(fake, 'sizes'), Object.entries(sizes).map(([u, s]) => `${u}\t${s}\n`).join('')) }
-function setR2(value) { fs.writeFileSync(path.join(dataDir, 'r2.json'), JSON.stringify(value, null, 1)) }
+// 0644 whatever the umask of the user running the tests (root 022, nate 002): the script keeps r2.json's mode
+function setR2(value) {
+  const f = path.join(dataDir, 'r2.json')
+  fs.writeFileSync(f, JSON.stringify(value, null, 1))
+  fs.chmodSync(f, 0o644)
+}
 const r2Text = () => fs.readFileSync(path.join(dataDir, 'r2.json'), 'utf8')
 
 function publish(args, env = {}) {
