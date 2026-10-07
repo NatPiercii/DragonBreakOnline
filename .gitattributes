@@ -1,0 +1,4 @@
+# The game's controlmap parser needs CRLF: with LF-only line endings it stops reading at the first
+# context break and every input context after Gameplay is lost (keybinds, the menu cursor, voice keys).
+# Launcher builds on Linux have shipped an LF-only seed twice, so pin the working-tree form here.
+skymp5-launcher/assets/controlmap.txt text eol=crlf
