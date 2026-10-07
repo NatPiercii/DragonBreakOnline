@@ -2235,65 +2235,9 @@
 "kind": "weapon Battleaxe",
 "province": "skyrim"
 },
-"119135:journey to baan malur.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "RedoranGuardCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "bonemold",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"119136:journey to baan malur.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "RedoranGuardCuirassCloth",
-"toEdid": "ArmorSteelCuirassA",
-"family": "bonemold",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"119137:journey to baan malur.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "RedoranGuardBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "bonemold",
-"kind": "heavy feet",
-"province": "skyrim"
-},
-"119138:journey to baan malur.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "RedoranGuardGauntlets",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "bonemold",
-"kind": "heavy hands",
-"province": "skyrim"
-},
-"119139:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "RedoranGuardHelmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "bonemold",
-"kind": "heavy head",
-"province": "skyrim"
-},
-"11913a:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "RedoranGuardHelmetCloth",
-"toEdid": "ArmorSteelHelmetA",
-"family": "bonemold",
-"kind": "heavy head",
-"province": "skyrim"
-},
 "11913b:journey to baan malur.esp": {
 "to": "13954:Skyrim.esm",
 "edid": "RedoranEliteHelmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "bonemold",
-"kind": "heavy head",
-"province": "skyrim"
-},
-"11913c:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "RedoranGuardTempleHelmet",
 "toEdid": "ArmorSteelHelmetA",
 "family": "bonemold",
 "kind": "heavy head",
@@ -2353,14 +2297,6 @@
 "toEdid": "SteelSword",
 "family": "bonemold",
 "kind": "weapon Sword",
-"province": "skyrim"
-},
-"12d60d:journey to baan malur.esp": {
-"to": "13955:Skyrim.esm",
-"edid": "RedoranGuardShield",
-"toEdid": "ArmorSteelShield",
-"family": "bonemold",
-"kind": "heavy shield",
 "province": "skyrim"
 },
 "12f3:immersive weapons.esp": {
@@ -7177,38 +7113,6 @@
 "toEdid": "ArmorSteelShield",
 "family": "orcish",
 "kind": "heavy shield",
-"province": "skyrim"
-},
-"2177b3:journey to baan malur.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "HlaaluGuardBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "bonemold",
-"kind": "heavy feet",
-"province": "skyrim"
-},
-"2177b4:journey to baan malur.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "HlaaluGuardCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "bonemold",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"2177b5:journey to baan malur.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "HlaaluGuardGauntlets",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "bonemold",
-"kind": "heavy hands",
-"province": "skyrim"
-},
-"2177b6:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "HlaaluGuardHelmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "bonemold",
-"kind": "heavy head",
 "province": "skyrim"
 },
 "21c8e5:journey to baan malur.esp": {
@@ -22779,46 +22683,6 @@
 "kind": "light hands",
 "province": "skyrim"
 },
-"5a16:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "IndorilGuardHelm",
-"toEdid": "ArmorSteelHelmetA",
-"family": "bonemold",
-"kind": "heavy head",
-"province": "skyrim"
-},
-"5a17:journey to baan malur.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "IndorilGuardBracers",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "bonemold",
-"kind": "heavy hands",
-"province": "skyrim"
-},
-"5a18:journey to baan malur.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "IndorilGuardBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "bonemold",
-"kind": "heavy feet",
-"province": "skyrim"
-},
-"5a19:journey to baan malur.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "IndorilGuardCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "bonemold",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"5a20:journey to baan malur.esp": {
-"to": "13955:Skyrim.esm",
-"edid": "IndorilGuardShield",
-"toEdid": "ArmorSteelShield",
-"family": "bonemold",
-"kind": "heavy shield",
-"province": "skyrim"
-},
 "5a26:hothtrooper44_armorcompilation.esp": {
 "to": "13951:Skyrim.esm",
 "edid": "IADwarvenMageHBoots",
@@ -22843,52 +22707,12 @@
 "kind": "heavy hands",
 "province": "skyrim"
 },
-"5a28:journey to baan malur.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "DresGuardHelm01",
-"toEdid": "ArmorLeatherHelmet",
-"family": "chitin",
-"kind": "light head",
-"province": "skyrim"
-},
 "5a29:hothtrooper44_armorcompilation.esp": {
 "to": "13954:Skyrim.esm",
 "edid": "IADwarvenMageHHood",
 "toEdid": "ArmorSteelHelmetA",
 "family": "dwarven",
 "kind": "heavy head",
-"province": "skyrim"
-},
-"5a29:journey to baan malur.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "DresGuardHelm02",
-"toEdid": "ArmorLeatherHelmet",
-"family": "chitin",
-"kind": "light head",
-"province": "skyrim"
-},
-"5a2a:journey to baan malur.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "DresGuardBracers",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "chitin",
-"kind": "light hands",
-"province": "skyrim"
-},
-"5a2b:journey to baan malur.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "DresGuardBoots",
-"toEdid": "ArmorLeatherBoots",
-"family": "chitin",
-"kind": "light feet",
-"province": "skyrim"
-},
-"5a2c:journey to baan malur.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "DresGuardCuirass",
-"toEdid": "ArmorLeatherCuirass",
-"family": "chitin",
-"kind": "light body",
 "province": "skyrim"
 },
 "5a3d:hothtrooper44_armorcompilation.esp": {
@@ -24731,44 +24555,12 @@
 "kind": "weapon Bow",
 "province": "skyrim"
 },
-"80f:journey to baan malur.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "SadrasGuardBoots",
-"toEdid": "ArmorLeatherBoots",
-"family": "chitin",
-"kind": "light feet",
-"province": "skyrim"
-},
 "810:ccbgssse025-advdsgs.esm": {
 "to": "13984:Skyrim.esm",
 "edid": "ccBGSSSE025_GoldenSaintBattleaxe",
 "toEdid": "SteelBattleaxe",
 "family": "DAEDRIC",
 "kind": "weapon Battleaxe",
-"province": "skyrim"
-},
-"810:journey to baan malur.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "SadrasGuardCuirass",
-"toEdid": "ArmorLeatherCuirass",
-"family": "chitin",
-"kind": "light body",
-"province": "skyrim"
-},
-"811:journey to baan malur.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "SadrasGuardGloves",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "chitin",
-"kind": "light hands",
-"province": "skyrim"
-},
-"812:journey to baan malur.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "SadrasGuardHelmet",
-"toEdid": "ArmorLeatherHelmet",
-"family": "chitin",
-"kind": "light head",
 "province": "skyrim"
 },
 "817:armors of the velothi.esp": {
@@ -24819,14 +24611,6 @@
 "kind": "heavy head",
 "province": "skyrim"
 },
-"81c:journey to baan malur.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "TelvanniGuardBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "chitin",
-"kind": "heavy feet",
-"province": "skyrim"
-},
 "81d:armors of the velothi.esp": {
 "to": "13954:Skyrim.esm",
 "edid": "RhinoBeetleHelmet1",
@@ -24835,44 +24619,12 @@
 "kind": "heavy head",
 "province": "skyrim"
 },
-"81d:journey to baan malur.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "TelvanniGuardCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "chitin",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"81e:journey to baan malur.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "TelvanniGuardBracers",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "chitin",
-"kind": "heavy hands",
-"province": "skyrim"
-},
 "81f:armors of the velothi.esp": {
 "to": "13952:Skyrim.esm",
 "edid": "RhinoBeetleCuirass",
 "toEdid": "ArmorSteelCuirassA",
 "family": "chitin",
 "kind": "heavy body",
-"province": "skyrim"
-},
-"81f:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "TelvanniGuardHelmFull",
-"toEdid": "ArmorSteelHelmetA",
-"family": "chitin",
-"kind": "heavy head",
-"province": "skyrim"
-},
-"820:journey to baan malur.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "TelvanniGuardHelmOpen",
-"toEdid": "ArmorSteelHelmetA",
-"family": "chitin",
-"kind": "heavy head",
 "province": "skyrim"
 },
 "821:armors of the velothi.esp": {
@@ -26835,132 +26587,12 @@
 "kind": "light head",
 "province": "skyrim"
 },
-"8a6:sentinel.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "TH_Thalmor1Boots",
-"toEdid": "ArmorLeatherBoots",
-"family": "elven",
-"kind": "light feet",
-"province": "skyrim"
-},
-"8a7:sentinel.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "TH_Thalmor1Cuirass",
-"toEdid": "ArmorLeatherCuirass",
-"family": "elven",
-"kind": "light body",
-"province": "skyrim"
-},
-"8a8:sentinel.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "TH_Thalmor1CuirassGilded",
-"toEdid": "ArmorLeatherCuirass",
-"family": "elven",
-"kind": "light body",
-"province": "skyrim"
-},
-"8a9:sentinel.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "TH_Thalmor1Gauntlets",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "elven",
-"kind": "light hands",
-"province": "skyrim"
-},
-"8aa:sentinel.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "TH_Thalmor1Helmet",
-"toEdid": "ArmorLeatherHelmet",
-"family": "elven",
-"kind": "light head",
-"province": "skyrim"
-},
-"8ab:sentinel.esp": {
-"to": "13914:Skyrim.esm",
-"edid": "TH_Thalmor1Shield",
-"toEdid": "ArmorHideShield",
-"family": "elven",
-"kind": "light shield",
-"province": "skyrim"
-},
-"8ac:sentinel.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "TH_Thalmor2Boots",
-"toEdid": "ArmorLeatherBoots",
-"family": "elven",
-"kind": "light feet",
-"province": "skyrim"
-},
-"8ad:sentinel.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "TH_Thalmor2Cuirass",
-"toEdid": "ArmorLeatherCuirass",
-"family": "elven",
-"kind": "light body",
-"province": "skyrim"
-},
-"8ae:sentinel.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "TH_Thalmor2Gauntlets",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "elven",
-"kind": "light hands",
-"province": "skyrim"
-},
-"8af:sentinel.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "TH_Thalmor2Helmet",
-"toEdid": "ArmorLeatherHelmet",
-"family": "elven",
-"kind": "light head",
-"province": "skyrim"
-},
-"8b0:sentinel.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "TH_Thalmor3Boots",
-"toEdid": "ArmorLeatherBoots",
-"family": "glass",
-"kind": "light feet",
-"province": "skyrim"
-},
 "8b0e:hothtrooper44_armorcompilation.esp": {
 "to": "13955:Skyrim.esm",
 "edid": "IAGildergreenHAegis",
 "toEdid": "ArmorSteelShield",
 "family": "DAEDRIC",
 "kind": "heavy shield",
-"province": "skyrim"
-},
-"8b1:sentinel.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "TH_Thalmor3Cuirass",
-"toEdid": "ArmorLeatherCuirass",
-"family": "glass",
-"kind": "light body",
-"province": "skyrim"
-},
-"8b2:sentinel.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "TH_Thalmor3Gauntlets",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "glass",
-"kind": "light hands",
-"province": "skyrim"
-},
-"8b3:sentinel.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "TH_Thalmor3Helmet",
-"toEdid": "ArmorLeatherHelmet",
-"family": "glass",
-"kind": "light head",
-"province": "skyrim"
-},
-"8b4:sentinel.esp": {
-"to": "13914:Skyrim.esm",
-"edid": "TH_Thalmor3Shield",
-"toEdid": "ArmorHideShield",
-"family": "glass",
-"kind": "light shield",
 "province": "skyrim"
 },
 "8b65a:skyrim.esm": {
@@ -42401,22 +42033,6 @@
 "toEdid": "HuntingBow",
 "family": "DAEDRIC",
 "kind": "weapon Bow",
-"province": "skyrim"
-},
-"df7:sentinel.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "TH_Vigilant1Cuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "steelplate",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"e0e:sentinel.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "TH_Vigilant1Helmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "steelplate",
-"kind": "heavy head",
 "province": "skyrim"
 },
 "e41d8:skyrim.esm": {
