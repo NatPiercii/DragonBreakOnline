@@ -23,6 +23,7 @@ FORK_SERVER=${FORK_SERVER:-$FORK}
 export FORK FORK_SERVER
 ESBUILD=$FORK_SERVER/skymp5-server/node_modules/.bin/esbuild
 [ -x "$ESBUILD" ] || ESBUILD=$FORK/skymp5-server/node_modules/.bin/esbuild
+export ESBUILD
 # Every harness writes its throwaway files under os.tmpdir(), and two of them about 350 MB a run each (loot-tiers and
 # expedition-loot-budget, measured 4 Oct). That disk is the live game server's too, and a disk stall freezes its main
 # loop (latency test, 4 Oct: 0.5-7 s freezes at 86% IO pressure). So a run keeps them in RAM (/dev/shm) while 2 GB of it

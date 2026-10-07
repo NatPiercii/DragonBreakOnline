@@ -28,7 +28,7 @@ const read = (root, rel) => fs.readFileSync(path.join(root, 'skymp5-client/src',
 if (!hasHarvest) console.log(`(no sync/harvest.ts in ${FLORA}: the harvest half is not run)`);
 else {
 const H = bundle(path.join(FLORA, 'skymp5-client/src/sync/harvest.ts'), 'harvest');
-const dts = fs.readFileSync(path.join(os.homedir(), 'dragonbreak/fork/skymp5-client/node_modules/@skyrim-platform/skyrim-platform/index.d.ts'), 'utf8');
+const dts = fs.readFileSync(path.join(FLORA, 'skymp5-client/node_modules/@skyrim-platform/skyrim-platform/index.d.ts'), 'utf8');
 const enumVal = (n) => Number((dts.match(new RegExp(`\\n\\s+${n} = (\\d+),`)) || [])[1]);
 check('Flora and Tree ids match SkyrimPlatform\'s FormType', H.FLORA_FORM_TYPE === enumVal('Flora') && H.TREE_FORM_TYPE === enumVal('Tree'), [enumVal('Flora'), enumVal('Tree')]);
 check('plants and trees are server-harvested', H.isServerHarvested(39) && H.isServerHarvested(38));
