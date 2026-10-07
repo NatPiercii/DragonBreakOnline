@@ -3313,6 +3313,16 @@ async function perFileClientUpdate(skyrimPath, version, files, directRun) {
   return { count: done }
 }
 
+// Partial client zips of other packages in the temp folder (download.js keeps <zip>.part to resume)
+function clearStaleZipParts(keepZip) {
+  const keep = path.basename(`${keepZip}.part`)
+  try {
+    for (const f of fs.readdirSync(os.tmpdir())) {
+      if (/^alduinak-client.*\.part$/i.test(f) && f !== keep) { try { fs.rmSync(path.join(os.tmpdir(), f), { force: true }) } catch {} }
+    }
+  } catch { /* temp folder unreadable: nothing to clear */ }
+}
+
 // The backend sends the zip to R2 only when asked (X-DBO-Accept-Redirect), so an old launcher keeps the disk copy
 async function downloadClientZip(tempPath, onProgress) {
   try {
@@ -3482,17 +3492,19 @@ async function syncExtraFiles(skyrimPath, force = false, track = false) {
 // Shared by the direct and MO2 installers: version check, download, extract, client settings.
 
 async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false) {
-  const tempZip = path.join(os.tmpdir(), 'alduinak-client.zip')
+  let tempZip = path.join(os.tmpdir(), 'alduinak-client.zip')
   const clientSettingsPath = path.join(skyrimPath, 'Data', 'Platform', 'Plugins', 'skymp5-client-settings.txt')
 
   try {
     // 1. Check whether a download is needed
     let serverVersion = null
     let serverFiles = []
+    let serverZipSize = 0
     try {
       const vd = await fetchJSON(`${config.apiUrl}/api/files/version`)
       serverVersion = vd.version
       serverFiles = Array.isArray(vd.files) ? vd.files : []
+      serverZipSize = Number(vd.zipSize) || 0
     } catch (err) {
       if (err.statusCode === 404) {
         return { success: false, error: 'Client files have not been packaged on the server yet. Ask the server admin to run `npm run build-client`.' }
@@ -3527,6 +3539,10 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
       // 2. Download
       if (directRun) installStep('client')
       send('install:progress', { phase: 'download', file: 'Connecting to server…', index: 0, total: 0, skipped: false })
+      // The zip has no checksum, so a part left by an earlier package (another version, or a rebuilt one under the same
+      // number) must never be resumed into this one: the temp name carries the version and size, and other parts go
+      tempZip = path.join(os.tmpdir(), `alduinak-client-${String(serverVersion || 'x').replace(/[^0-9A-Za-z.]/g, '_')}-${serverZipSize}.zip`)
+      clearStaleZipParts(tempZip)
       await downloadClientZip(tempZip, (received, total) => {
         if (directRun) installTrack.file('The client files', received, total)
         const mb  = n => (n / 1024 / 1024).toFixed(1)
@@ -3537,6 +3553,10 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
           index: received, total, skipped: false,
         })
       })
+
+      if (serverZipSize && fs.statSync(tempZip).size !== serverZipSize) {
+        throw new Error('the client package arrived incomplete. Press PLAY to try again')
+      }
 
       // 3. Extract directly into Skyrim directory.
       // The zip's stock skymp5-client-settings.txt would clobber hotkey rebinds; snapshot it so writeClientSettings sees the pre-extract file.
