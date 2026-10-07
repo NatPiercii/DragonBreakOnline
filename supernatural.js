@@ -1411,7 +1411,22 @@ module.exports = (api) => {
     if (p && f.hp !== null && p.health < f.hp - Number(C.feed.struckAt)) return 'you were struck';
     return '';
   };
-  const stopFeedAnim = (a, f) => { if (f.ev && !f.beast) playAnim(a, C.feedAnims.stop); };
+  // The crouching feed leaves the weapon draw stuck until the player re-equips (Catticus, 7 Oct), so the server does that:
+  // each right-hand weapon is taken off and put back once the stop event has played
+  const reequipHands = (a) => {
+    let entries = [];
+    try { const eq = mp.get(a, 'equipment'); entries = eq && eq.inv && Array.isArray(eq.inv.entries) ? eq.inv.entries : []; } catch (e) { return; }
+    const self = { type: 'form', desc: mp.getDescFromId(a) };
+    for (const e of entries) {
+      if (!e || !e.worn || e.wornLeft) continue;
+      const r = recordOf(Number(e.baseId) >>> 0);
+      if (!r || String(r.type) !== 'WEAP') continue;
+      const item = [{ type: 'espm', desc: mp.getDescFromId(Number(e.baseId) >>> 0) }, false, true];
+      try { mp.callPapyrusFunction('method', 'Actor', 'UnequipItem', self, item); } catch (err) { log(`supernatural: unequip after feed failed for ${display(a)}: ${err.message}`); continue; }
+      setTimeout(() => { try { mp.callPapyrusFunction('method', 'Actor', 'EquipItem', self, item); } catch (err) { log(`supernatural: re-equip after feed failed for ${display(a)}: ${err.message}`); } }, 300);
+    }
+  };
+  const stopFeedAnim = (a, f) => { if (f.ev && !f.beast) { playAnim(a, C.feedAnims.stop); setTimeout(() => reequipHands(a), 500); } };
   const cancelFeed = (a, f, why) => {
     feeds.delete(a);
     stopFeedAnim(a, f);

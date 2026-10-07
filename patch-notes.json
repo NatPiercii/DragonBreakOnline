@@ -54,7 +54,14 @@
       {
         "heading": "Smelting and woodcutting",
         "items": [
-          "Smelting now needs charcoal as well as firewood: 1 per ingot for iron, copper and tin, 2 for steel, silver, corundum and dwarven, 3 for gold, orichalcum, moonstone, quicksilver and malachite, 4 for ebony and stalhrim. Woodcutters make charcoal at the chopping block, more at each tier (1 at Novice up to 5 at Master)."
+          "Smelting steel-tier and better metals needs charcoal: 1 per ingot for steel, silver, corundum and dwarven, 2 for gold, orichalcum, moonstone, quicksilver and malachite, 3 for ebony and stalhrim. Iron, copper and tin need none. Short of charcoal, the smelter burns 3 firewood for each one missing. Woodcutters make charcoal at the chopping block, more at each tier.",
+          "Ore veins and chopping blocks now rest for each player separately: when you work one out, others can still work it, so nobody has to race for the same seam."
+        ]
+      },
+      {
+        "heading": "Vampires",
+        "items": [
+          "After feeding, you can draw your weapon again straight away instead of having to re-equip it."
         ]
       }
     ]

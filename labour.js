@@ -159,11 +159,14 @@ module.exports = (api) => {
   // character could work the same seam (salt and soul-gem geodes included) each 45 minutes (loot review, 2026-09-29).
   // Kept on the reference, which survives restarts; only a won round sets it.
   const SHARED_REST = 'private.dboWorkedUntil';
-  const sharedRest = (ref) => { try { return Number(mp.get(ref, SHARED_REST)) || 0; } catch (e) { return 0; } };
+  // Nate, 7 Oct: nodes rest per player again (labour.perPlayerNodes, default on), so blacksmiths stop racing each other and
+  // macros for the one mine; off brings back the shared rest and the one-worker lock of 29 Sep
+  const perPlayer = () => CFG.perPlayerNodes !== false;
+  const sharedRest = (ref) => { if (perPlayer()) return 0; try { return Number(mp.get(ref, SHARED_REST)) || 0; } catch (e) { return 0; } };
   // One worker per seam or block at a time: the shared rest is set only when a round is won, so two workers who
   // started together were both paid (economy review, 2026-09-29). ref -> { a, until }
   const working = globalThis.__dboLabourWorking instanceof Map ? globalThis.__dboLabourWorking : (globalThis.__dboLabourWorking = new Map());
-  const workedByOther = (ref, a) => { const w = working.get(ref); return !!w && w.a !== a && w.until > Date.now() && sessions.has(w.a); };
+  const workedByOther = (ref, a) => { if (perPlayer()) return false; const w = working.get(ref); return !!w && w.a !== a && w.until > Date.now() && sessions.has(w.a); };
   const reserve = (ref, a, round) => {
     working.set(ref, { a, until: Date.now() + (Number(round.totalMs) || 60000) + Math.max(Number(CFG.lagGraceMs) || 0, Number(CFG.reserveSlackMs) || 0) });
     if (working.size > 2000) for (const [k, w] of working) if (w.until <= Date.now()) working.delete(k);
@@ -430,7 +433,7 @@ module.exports = (api) => {
     if (rest !== false) writeRest(a, round, win ? winRestOf(round) : CFG.failRestMinutes);
     if (win && rest !== false) {
       const minutes = winRestOf(round);
-      try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); }
+      if (!perPlayer()) { try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); } }
     }
     // A round walked away from before its report landed (see closing below) has no widget left to show the verdict in
     if (sessions.get(a) === round) { openWidget(a, packetFor(round, text, kind), false); sessions.delete(a); } else personal(a, text);

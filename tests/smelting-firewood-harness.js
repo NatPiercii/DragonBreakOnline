@@ -37,7 +37,7 @@ const RECORDS = {
   [idOf(IRON_INGOT[0])]: { type: 'COBJ', editorId: 'RecipeIngotIron', fields: [bnam(SMELTER_KW)] },
   [idOf(IRON_DAGGER[0])]: { type: 'COBJ', editorId: 'RecipeWeaponIronDagger', fields: [bnam(FORGE_KW)] },
   [idOf(SMELTER_KW)]: { type: 'KYWD', editorId: 'CraftingSmelter', fields: [] },
-  [idOf(IRON_INGOT[1])]: { type: 'MISC', editorId: 'IngotIron', fields: [] },
+  [idOf(IRON_INGOT[1])]: { type: 'MISC', editorId: 'IngotSteel', fields: [] }, // steel-tier, so it takes 1 charcoal
   [idOf(FORGE_KW)]: { type: 'KYWD', editorId: 'CraftingSmithingForge', fields: [] },
 };
 
@@ -90,11 +90,11 @@ give(SMITH, CHARCOAL, 3);
 check('a smelt with firewood enough goes on', craft(SMITH, IRON_INGOT, 2) !== false && count(SMITH, IRON_INGOT[1]) === 2, count(SMITH, IRON_INGOT[1]));
 check('...and burns 2 firewood per ingot (4 for 2)', count(SMITH, FIREWOOD) === 1, count(SMITH, FIREWOOD));
 check('...and earns its mastery credit', credits.length === 1);
-check('...and burns 1 charcoal per iron ingot (2 for 2)', count(SMITH, CHARCOAL) === 1, count(SMITH, CHARCOAL));
+check('...and burns 1 charcoal per steel-tier ingot (2 for 2)', count(SMITH, CHARCOAL) === 1, count(SMITH, CHARCOAL));
 wallClock += 2000;
 const before = count(SMITH, IRON_INGOT[2][0][0]);
 check('short of firewood the smelt is refused', craft(SMITH, IRON_INGOT, 1) === false);
-check('...with the reason and how many are held', /^Smelting this needs 2 firewood and 1 charcoal for each ingot \(you have 1 firewood, 1 charcoal\)\. Woodcutters make charcoal at the chopping block\. Your materials come back when you close the menu\.$/.test(said()) && out.notices.length === 1, said());
+check('...with the reason and how many are held', /^Smelting this needs 2 firewood and 1 charcoal for each ingot \(you have 1 firewood, 1 charcoal\); 3 firewood can stand in for each missing charcoal\. Woodcutters make charcoal at the chopping block\. Your materials come back when you close the menu\.$/.test(said()) && out.notices.length === 1, said());
 check('...keeping the ore, the firewood and no credit', count(SMITH, IRON_INGOT[2][0][0]) === before && count(SMITH, FIREWOOD) === 1 && credits.length === 1);
 check('...and is audited', /^SMELT refused P14 recipe RecipeIngotIron: 1\/2 firewood, 1\/1 charcoal$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 check('forge work burns no firewood', craft(SMITH, IRON_DAGGER, 1) !== false && count(SMITH, FIREWOOD) === 1 && credits.length === 2);
@@ -114,7 +114,12 @@ load(undefined);
 put(SMITH, 'inventory', { entries: inv(SMITH).filter((e) => e.baseId !== idOf(CHARCOAL)) });
 give(SMITH, FIREWOOD, 10);
 wallClock += 2000;
-check('short of charcoal the smelt is refused', craft(SMITH, IRON_INGOT, 1) === false && /1 charcoal for each ingot \(you have \d+ firewood, 0 charcoal\)/.test(said()), said());
+const woodBefore = count(SMITH, FIREWOOD);
+check('without charcoal, 3 firewood stand in for each missing charcoal', craft(SMITH, IRON_INGOT, 1) !== false && count(SMITH, FIREWOOD) === woodBefore - 5, [woodBefore, count(SMITH, FIREWOOD)]);
+put(SMITH, 'inventory', { entries: inv(SMITH).filter((e) => e.baseId !== idOf(FIREWOOD)) });
+give(SMITH, FIREWOOD, 4);
+wallClock += 2000;
+check('short of charcoal and of the firewood to replace it, the smelt is refused', craft(SMITH, IRON_INGOT, 1) === false && /you have 4 firewood, 0 charcoal/.test(said()), said());
 // Woodcutting gives the very item the smelter asks for
 const labour = fs.readFileSync(path.join(SERVER, 'labour.js'), 'utf8');
 check('woodcutting (labour.js) gives Firewood 6f993:Skyrim.esm', /firewood:\s*'6f993:Skyrim\.esm'/.test(labour) && /giveItem\(a, idOf\(ITEMS\.firewood\), count\)/.test(labour));

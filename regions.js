@@ -281,8 +281,10 @@ module.exports = (api) => {
   const SMELT = Object.assign({
     firewoodPerIngot: 2, firewood: '6f993:Skyrim.esm', benches: ['craftingsmelter'],
     charcoal: '33760:Skyrim.esm',
-    charcoalByMetal: { iron: 1, copper: 1, tin: 1, steel: 2, silver: 2, corundum: 2, dwarven: 2, gold: 3, orichalcum: 3, moonstone: 3, quicksilver: 3, malachite: 3, ebony: 4, stalhrim: 4 },
-    charcoalDefault: 1,
+    // Eased 7 Oct (Fabian's feedback): no charcoal for iron, copper and tin; firewood stands in for missing charcoal
+    charcoalByMetal: { iron: 0, copper: 0, tin: 0, steel: 1, silver: 1, corundum: 1, dwarven: 1, gold: 2, orichalcum: 2, moonstone: 2, quicksilver: 2, malachite: 2, ebony: 3, stalhrim: 3 },
+    charcoalDefault: 0,
+    firewoodPerCharcoal: 3,
   }, cfg.smelting || {});
   const charcoalPerIngot = (itemId) => {
     const e = String(edidOf(descOf(itemId)) || '').toLowerCase();
@@ -315,7 +317,12 @@ module.exports = (api) => {
     const wood = idOf(SMELT.firewood), coal = idOf(SMELT.charcoal);
     const coalPer = coal ? charcoalPerIngot(itemId) : 0;
     if ((!per || !wood) && !coalPer) return null;
-    return { need: per && wood ? per * n : 0, have: wood ? heldOf(a, wood) : 0, wood, per, coal, coalPer, coalNeed: coalPer * n, coalHave: coalPer ? heldOf(a, coal) : 0 };
+    const coalNeed = coalPer * n, coalHave = coalPer ? heldOf(a, coal) : 0;
+    // Charcoal short: the smelter burns firewood in its place (firewoodPerCharcoal each)
+    const swap = Math.max(0, Math.floor(Number(SMELT.firewoodPerCharcoal) || 0));
+    const short = Math.max(0, coalNeed - coalHave);
+    const fromWood = swap && wood ? short : 0;
+    return { need: (per && wood ? per * n : 0) + fromWood * swap, have: wood ? heldOf(a, wood) : 0, wood, per, coal, coalPer, coalNeed: coalNeed - fromWood, coalHave, swapped: fromWood, swap };
   };
   const artifactCraft = (itemId, recipeId) => {
     const product = edidOf(descOf(itemId));
@@ -368,8 +375,8 @@ module.exports = (api) => {
     if (fuel && (fuel.have < fuel.need || fuel.coalHave < fuel.coalNeed)) {
       if (Date.now() - (dragonToldAt.get(a) || 0) > 1500) {
         dragonToldAt.set(a, Date.now());
-        const want = [fuel.need ? `${fuel.per} firewood` : '', fuel.coalNeed ? `${fuel.coalPer} charcoal` : ''].filter(Boolean).join(' and ');
-        const text = `Smelting this needs ${want} for each ingot (you have ${fuel.have} firewood, ${fuel.coalHave} charcoal). Woodcutters make charcoal at the chopping block. Your materials come back when you close the menu.`;
+        const want = [fuel.per ? `${fuel.per} firewood` : '', fuel.coalPer ? `${fuel.coalPer} charcoal` : ''].filter(Boolean).join(' and ');
+        const text = `Smelting this needs ${want} for each ingot (you have ${fuel.have} firewood, ${fuel.coalHave} charcoal); ${fuel.swap || 3} firewood can stand in for each missing charcoal. Woodcutters make charcoal at the chopping block. Your materials come back when you close the menu.`;
         personal(a, text);
         try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
         audit(`SMELT refused ${who(a)} recipe ${edidOf(descOf(Number(recipeId) >>> 0)) || (Number(recipeId) >>> 0).toString(16)}: ${fuel.have}/${fuel.need} firewood, ${fuel.coalHave}/${fuel.coalNeed} charcoal`);

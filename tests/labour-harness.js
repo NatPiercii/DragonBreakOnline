@@ -55,7 +55,7 @@ const api = {
   who: () => 'Tester #ABCD (profile 1)',
   // The cases above are the server-judged rules: they run with the rollback switch, so they also prove clientJudged
   // false behaves exactly as before. The client-judged cases are at the end.
-  cfg: { labour: { clientJudged: false } },
+  cfg: { labour: { clientJudged: false, perPlayerNodes: false } },
   distanceMeters: () => nearM,
   openWidget: (a, w) => { out.widgets.push(w); return true; },
   closeWidget: () => true,
@@ -438,7 +438,7 @@ check('closing it with Escape still rests the seam', Number((props.get(ACTOR + '
 // ---- client-judged rounds (labour.clientJudged true): the widget's verdict stands, latency refuses nothing ----------
 console.log('');
 console.log('client-judged:');
-api.cfg = { labour: { clientJudged: true } };
+api.cfg = { labour: { clientJudged: true, perPlayerNodes: false } };
 load();
 const claimOf = (win, hits) => JSON.stringify({ v: 1, win, hits });
 const reportC = (w, strikes, at, lagMs, start, claim) => {
@@ -559,7 +559,7 @@ check('a round unreported for the full timeout expires (logged) and a new one op
 }
 
 // replayCheck 'refuse': the same mismatched win is refused
-api.cfg = { labour: { clientJudged: true, replayCheck: 'refuse' } };
+api.cfg = { labour: { clientJudged: true, replayCheck: 'refuse', perPlayerNodes: false } };
 load();
 w = fresh();
 const slowEven = Array.from({ length: w.strikes }, (_, i) => 1000 + i * 3000);
@@ -571,7 +571,7 @@ check("...and an honest win at 2.5 s of lag still wins under it", verdictOf(res.
 
 // ---- the task's cases, over a fake network (tests/lib/netsim.js) ----------------------------------------------------
 const NET = require(path.join(__dirname, 'lib', 'netsim.js'));
-api.cfg = { labour: { clientJudged: true } };
+api.cfg = { labour: { clientJudged: true, perPlayerNodes: false } };
 load();
 // The widget's verdict is the replay of its own strikes, so any honest round must get the same verdict at every level
 {
@@ -678,7 +678,7 @@ w = fresh(); { const fp3 = fastestPossible(w);
 }
 
 // Rollback: clientJudged false refuses on lag exactly as before
-api.cfg = { labour: { clientJudged: false } };
+api.cfg = { labour: { clientJudged: false, perPlayerNodes: false } };
 load();
 w = fresh(); p = play(w, { aim: 0.5 });
 res = reportC(w, p.strikes, p.at, 4000, T, claimOf(true, p.hits));
@@ -687,7 +687,7 @@ check('rollback (clientJudged false): the same 4 s lag is refused(late) again', 
 // ---- "Read the stone": a UI that names 'pickRound' gets a pick round, every other UI today's timing round --------------
 console.log('');
 console.log('pick rounds:');
-api.cfg = { labour: { clientJudged: true } };
+api.cfg = { labour: { clientJudged: true, perPlayerNodes: false } };
 load();
 {
   const TIMING_KEYS = 'type,id,nonce,kind,title,strikes,band,bands,sweepMs,totalMs,hitMs,missMs,judge';
@@ -763,7 +763,7 @@ load();
   load();
   w = fresh('mining', 2);
   check('labour.pick.enabled false gives every UI the timing round again', Object.keys(w).join(',') === TIMING_KEYS, Object.keys(w).join(','));
-  api.cfg = { labour: { clientJudged: true } };
+  api.cfg = { labour: { clientJudged: true, perPlayerNodes: false } };
   load();
   pickUi = false;
 }
@@ -771,3 +771,4 @@ load();
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);
+
