@@ -1,0 +1,13 @@
+{
+  "smp": {
+    "skipDeadActors": true,
+    "budgetMs": 2.0,
+    "minCullingDistance": 300.0,
+    "minScreenSizePercent": 1.0,
+    "autoAdjustMaxSkeletons": true
+  },
+  "solver": {
+    "numIterations": 8,
+    "maxSubSteps": 1
+  }
+}
