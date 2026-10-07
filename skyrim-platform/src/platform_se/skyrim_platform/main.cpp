@@ -1003,6 +1003,20 @@ private:
   // The main thread's instruction pointer, then code addresses found on its
   // stack (likely callers). The thread is suspended only while its context
   // and 1 KB of stack are copied.
+  // A game in the background renders no frames, so the stall watchdog below reported an alt-tab exactly like a freeze:
+  // 2 of 14 reports from 6-7 Oct were players who had tabbed out. The foreground window's process is enough to tell
+  // them apart, and no game window handle has to be plumbed in here.
+  static bool OursInFront()
+  {
+    DWORD pid = 0;
+    const HWND foreground = GetForegroundWindow();
+    if (!foreground) {
+      return false;
+    }
+    GetWindowThreadProcessId(foreground, &pid);
+    return pid == GetCurrentProcessId();
+  }
+
   static std::string MainThreadWhere()
   {
     const DWORD id = CEFUtils::InputDiag::Get().mainThreadId.load();
@@ -1077,9 +1091,10 @@ private:
     }
     lastStallReport = now;
     ++stallReports;
-    spdlog::info("InputDiag: no frame for {} ms (browser focused {}), main "
-                 "thread at {}",
-                 gap, CEFUtils::DInputHook::ChromeFocus(), MainThreadWhere());
+    spdlog::info("InputDiag: no frame for {} ms (browser focused {}, ours in "
+                 "front {}), main thread at {}",
+                 gap, CEFUtils::DInputHook::ChromeFocus(), OursInFront(),
+                 MainThreadWhere());
   }
 
   void Tick()
