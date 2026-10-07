@@ -1,5 +1,20 @@
 [
   {
+    "title": "Learned enchantments stay learned",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Enchanting",
+        "items": [
+          "Disenchanting something no longer makes you forget the enchantments you had already learned. They come back on their own a moment later, so there's no need for /syncenchant after each one.",
+          "Disenchanting now trains the Enchanter skill, as it does in Skyrim."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Faction smiths",
     "date": "2026-10-07",
     "version": "Server update",

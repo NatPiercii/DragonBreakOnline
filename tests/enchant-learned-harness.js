@@ -93,5 +93,22 @@ const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 ok(/globalThis\.__dboEnchLearnedLogin\(a\)/.test(gm) && /require\(ALCHEMY_JS\)\(\{[^}]*cfg, sendPacket \}\)/.test(gm), 'gamemode.js calls it at login and hands alchemy.js cfg and sendPacket');
 const sync = gm.slice(gm.indexOf("registerChatCommand('syncenchant'"), gm.indexOf("registerChatCommand('load'"));
 ok(/__dboEnchLearnedResend\(a\)/.test(sync) && !/__dboEnchLearnedLogin/.test(sync) && !/sent=/.test(sync), '/syncenchant uses the resend, never the login, and answers in words');
+// A disenchant sends the whole list again once its inventory write has landed (SMJ, 7 Oct: the game forgot the restored
+// ones at the table), and credits the Enchanter once per enchantment taken
+{
+  const timers = [], realTimeout = globalThis.setTimeout, awards = [];
+  globalThis.setTimeout = (f, ms) => { timers.push([f, ms]); return 0; };
+  globalThis.__alduinakMasteryAward = (a, skill, value, key) => { awards.push([a, skill, value, key]); return 1; };
+  load({ learnedEnchantments: { enabled: true } });
+  place(P, [{ baseId: DAGGER, count: 1 }]);
+  packets.length = 0;
+  disenchant(P, [DAGGER]);
+  ok(!packets.length && timers.length === 1 && timers[0][1] === 2000, 'a disenchant schedules the resend, 2 s on', timers.map((t) => t[1]));
+  timers.forEach(([f]) => f());
+  ok(packets.length === 1 && packets[0][0] === P && packets[0][1].customPacketType === 'dboEnchLearned' && packets[0][1].effects.length === learned(P).length,
+    '...which sends every learned effect, not only the new one', packets);
+  ok(awards.length === 1 && awards[0][0] === P && awards[0][1] === 'enchanter' && awards[0][2] === 1, 'disenchanting credits the Enchanter, 1 for the enchantment', awards);
+  globalThis.setTimeout = realTimeout; delete globalThis.__alduinakMasteryAward;
+}
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);
