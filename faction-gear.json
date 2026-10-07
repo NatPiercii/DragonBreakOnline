@@ -1550,7 +1550,8 @@
    "name": "Antique Honed Silver Sword",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1561,7 +1562,8 @@
    "name": "Antique Silver Sword",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1572,7 +1574,8 @@
    "name": "Honed Silver Battle Staff",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1583,7 +1586,8 @@
    "name": "Honed Silver Battleaxe",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1594,7 +1598,8 @@
    "name": "Honed Silver Longsword",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1605,7 +1610,8 @@
    "name": "Honed Silver Scimitar",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1616,7 +1622,8 @@
    "name": "Honed Silver War Axe",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1649,7 +1656,8 @@
    "name": "Silver Battle Staff",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1660,7 +1668,8 @@
    "name": "Silver Battleaxe",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1671,7 +1680,8 @@
    "name": "Silver Hawk Bow",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1682,7 +1692,8 @@
    "name": "Silver Katana",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1693,7 +1704,8 @@
    "name": "Silver Longsword",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1704,7 +1716,8 @@
    "name": "Silver Nodachi",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1715,7 +1728,8 @@
    "name": "Silver Scimitar",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1726,7 +1740,8 @@
    "name": "Silver Tanto",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1737,7 +1752,8 @@
    "name": "Silver Wakizashi",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1748,7 +1764,8 @@
    "name": "Silver War Axe",
    "set": "Silver Hand",
    "factions": [
-    "silver-hand"
+    "silver-hand",
+    "dawnguard"
    ],
    "role": "blacksmith",
    "recipes": [

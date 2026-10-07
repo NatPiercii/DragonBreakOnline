@@ -363,8 +363,14 @@ module.exports = (api) => {
     }
     // Faction gear first (factiongear.js): a faction's own work is refused to anyone but its smiths and tailors
     if (typeof globalThis.__dboFactionCraft === 'function' && globalThis.__dboFactionCraft(actorId, itemId) === false) return false;
+    // A faction's own gear, made by its own smith or leader, is not held to the province: the Dawnguard's recipes are Skyrim's
+    // and its members craft in Bruma (Nate, 7 Oct)
+    let ownGear = false;
+    try { ownGear = typeof globalThis.__dboFactionGearMember === 'function' && globalThis.__dboFactionGearMember(a, Number(itemId) >>> 0) === true; } catch (e) { ownGear = false; }
     let v = null;
-    try { v = recipeOk(Number(actorId) >>> 0, Number(itemId) >>> 0, Number(recipeId) >>> 0); } catch (e) { log('regions: craft check failed', e.stack || e.message); }
+    if (!ownGear) {
+      try { v = recipeOk(Number(actorId) >>> 0, Number(itemId) >>> 0, Number(recipeId) >>> 0); } catch (e) { log('regions: craft check failed', e.stack || e.message); }
+    }
     if (v && !v.ok) {
       if (v.place) refuse(Number(actorId) >>> 0, v);
       return false;

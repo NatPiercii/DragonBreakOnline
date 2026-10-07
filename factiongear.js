@@ -121,6 +121,11 @@ module.exports = (api) => {
   globalThis.__dboHasUniform = (fid) => !!uniformOf(fid);
 
   // Called by regions.js's craft hook: false refuses the craft (and says why), true lets it on
+  // True when a makes their own faction's gear as a member of the right rank (not as staff): regions.js lets that craft skip
+  // the province rule, since the faction rule already says who makes it (Nate, 7 Oct: the Dawnguard in Bruma)
+  globalThis.__dboFactionGearMember = (actorId, itemId) => {
+    try { return check(Number(actorId) >>> 0, Number(itemId) >>> 0).why === 'member'; } catch (e) { return false; }
+  };
   globalThis.__dboFactionCraft = (actorId, itemId) => {
     const a = Number(actorId) >>> 0;
     let v = null;
