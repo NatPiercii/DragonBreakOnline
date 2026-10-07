@@ -25,7 +25,7 @@ import {
 } from "skyrimPlatform";
 import { baseIsPlayers } from "./appearance";
 // @ts-expect-error (TODO: Remove in 2.10.0)
-import { createEnchantment } from "skyrimPlatform";
+import { createEnchantment, once } from "skyrimPlatform";
 import { queueCopyNiNodeUpdate, queuePlayerNiNodeUpdate } from "../view/niNodeQueue";
 
 // Vanilla boundArrow, added by bound bow effects
@@ -504,10 +504,30 @@ export const applyInventory = (
     }
   }
   const res0 = applyInventoryInner(refr, newInventory, enableCrashProtection, ignoreWorn);
-  if (playerActor && equippedAmmo && !playerActor.isEquipped(equippedAmmo)) {
-    try { playerActor.equipItem(equippedAmmo, false, true); } catch { /* next apply */ }
+  if (equippedAmmo) {
+    reequipAmmoLater(equippedAmmo.getFormID());
   }
   return res0;
+};
+
+// addItemEx changes the stack in a later game-thread task, so the quiver is checked over the next frames
+const REEQUIP_AMMO_FRAMES = 10;
+
+const reequipAmmoLater = (ammoId: number, frames = REEQUIP_AMMO_FRAMES): void => {
+  once("update", () => {
+    const player = Game.getPlayer();
+    const ammo = Game.getFormEx(ammoId);
+    if (!player || !ammo) {
+      return;
+    }
+    if (!player.isEquipped(ammo) && player.getItemCount(ammo) > 0) {
+      try { player.equipItem(ammo, false, true); } catch { /* next apply */ }
+      return;
+    }
+    if (frames > 1) {
+      reequipAmmoLater(ammoId, frames - 1);
+    }
+  });
 };
 
 const applyInventoryInner = (
