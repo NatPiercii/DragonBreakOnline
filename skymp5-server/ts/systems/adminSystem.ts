@@ -5,6 +5,7 @@ import { NpcSpawnSystem } from "./npcSpawnSystem";
 import { MasterySystem, MAX_GRANT } from "./masterySystem";
 import { kickWithReason } from "./kickUtil";
 import { AdminBans } from "./adminBans";
+import { guidOf } from "./actorUtil";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -147,7 +148,8 @@ export class AdminSystem implements System {
         // Shouts live only in the client's game, so a character given all shouts is taught them again at every login
         let shouts = false;
         try { shouts = mp.get(actorId, "private.dboAllShouts") === true; } catch { }
-        if (shouts) setTimeout(() => this.teachShouts(mp, userId), 15000);
+        // The userId may hold another player by then, so the lesson goes only to the same character
+        if (shouts) setTimeout(() => { try { if (mp.getUserActor(userId) === actorId) this.teachShouts(mp, userId); } catch { } }, 15000);
       } catch (e) {
         this.log(`AdminSystem: assign hook failed: ${e}`);
       }
@@ -947,6 +949,7 @@ export class AdminSystem implements System {
       this.reply(mp, userId, false, "Ban unavailable: target has no profile id");
       return;
     }
+    const targetGuid = guidOf(mp, target.userId);
     fetch(`${this.masterUrl}/api/servers/${this.masterKey}/ban`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Auth-Token": this.authToken },
@@ -959,7 +962,10 @@ export class AdminSystem implements System {
       if (res.ok) {
         // Boot AND drop the connection; connection-check refuses the reconnect
         try { ctx.svr.setEnabled(target.actorId, false); } catch { }
-        try { kickWithReason(mp, target.userId, "You were banned from the server."); } catch { }
+        // The POST outlives the packet handler; a reused userId holds another player, who must not be kicked as banned
+        if (guidOf(mp, target.userId) === targetGuid) {
+          try { kickWithReason(mp, target.userId, "You were banned from the server."); } catch { }
+        }
         this.log(`AdminSystem: profile ${adminProfile} (${tier}) banned profile ${target.profileId} (${target.name})`);
         this.adminLog(`profile ${adminProfile} (${tier}) banned ${target.name} (profile ${target.profileId})`);
         this.replyIfSameAdmin(mp, userId, adminActorId, true, `Banned ${target.name}`);
