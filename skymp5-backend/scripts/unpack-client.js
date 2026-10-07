@@ -177,8 +177,13 @@ function takeLock(out) {
 }
 
 // Keeps the current version, the live one (when this run unpacked a staged package) and the newest other verified ones
-// up to keep in all; deletes other version folders and leftovers of interrupted runs
+// up to keep in all; deletes other version folders and leftovers of interrupted runs. Runs after the new version is in
+// place, so a folder it cannot delete is reported and the run still succeeds.
 function prune(out, keepVersions, keep, log) {
+  try { pruneOld(out, keepVersions, keep, log) } catch (err) { log(`WARNING: old versions not cleared (${err.message})`) }
+}
+
+function pruneOld(out, keepVersions, keep, log) {
   const others = []
   for (const e of fs.readdirSync(out, { withFileTypes: true })) {
     if (e.name === '.lock') continue
@@ -303,4 +308,4 @@ async function main(argv = process.argv.slice(2)) {
 
 if (require.main === module) main().then(code => { process.exitCode = code })
 
-module.exports = { main, unpack, check, parseArgs, readPackage }
+module.exports = { main, unpack, check, parseArgs, readPackage, prune }

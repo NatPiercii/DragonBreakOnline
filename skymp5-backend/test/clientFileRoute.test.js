@@ -417,6 +417,11 @@ test('unpack-client.js keeps the current version and one previous (and the live 
   assert.equal(r.status, 0, r.stderr)
   assert.deepEqual(listing(out), ['1.0.2', '1.0.4'])
 
+  // Clearing old versions runs after the new one is in place: a failure there is a warning, not a failed run
+  const logs = []
+  assert.doesNotThrow(() => require(SCRIPT).prune(path.join(s.dir, 'gone', 'unpacked'), ['1.0.4'], 2, m => logs.push(m)))
+  assert.match(logs.join('\n'), /WARNING: old versions not cleared/)
+
   // A lock held by a live process stops the run
   fs.writeFileSync(path.join(out, '.lock'), String(process.pid))
   const st5 = stage('unpack-prune', '1.0.5')
