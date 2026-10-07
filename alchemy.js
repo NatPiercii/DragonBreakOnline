@@ -380,6 +380,14 @@ module.exports = (api) => {
     const detail = taken.map(([id, e, ench]) => { const note = copyNote(e); return `${ingredientName(id)} [${enchName(ench)}${note ? `; ${note}` : ''}]`; }).join(', ');
     log(`disenchant: ${display(a)} disenchanted ${detail} at ${workbenchId.toString(16)}; taken`);
     rememberLearned(a, taken.map(([, , ench]) => ench));
+    // The game forgets the enchantments restored at login when a disenchant goes through (SMJ, 7 Oct: only the new one
+    // was left; players had taken to /syncenchant after each one), so the whole list goes back once the inventory write
+    // above has reached the client
+    const again = a;
+    setTimeout(() => { try { sendLearned(again); } catch (e) { log(`disenchant: resend failed for ${display(again)}: ${e.message}`); } }, RESEND_MS);
+    // Disenchanting is Enchanter work, as in the base game: 1 for each enchantment learned, the same one again within
+    // the hour less (masterySystem's repeat ring, keyed on the enchantment)
+    for (const [, , ench] of taken) creditDisenchant(a, ench);
     audit(`DISENCHANT ${who(a)} used up ${detail}`);
     tell(a, `Disenchanting uses up the item: ${what} ${taken.length > 1 ? 'are' : 'is'} gone.`);
   };
@@ -400,6 +408,12 @@ module.exports = (api) => {
     for (const f of er.record.fields || []) if (f.type === 'EFID') { try { const g = er.toGlobalRecordId(u32(f, 0)) >>> 0; if (g && !out.includes(g)) out.push(g); } catch (e) { /* unmapped */ } }
     return out;
   }
+  const RESEND_MS = 2000;
+  const creditDisenchant = (a, ench) => {
+    const award = globalThis.__alduinakMasteryAward;
+    if (typeof award !== 'function' || typeof ench !== 'number' || !ench) return 0;
+    try { return Number(award(a, 'enchanter', 1, ench >>> 0)) || 0; } catch (e) { log(`disenchant: mastery award failed for ${display(a)}: ${e.message}`); return 0; }
+  };
   const learnedOf = (a) => { try { const v = mp.get(a, LEARNED_PROP); return Array.isArray(v) ? v.map((x) => Number(x) >>> 0).filter(Boolean) : []; } catch (e) { return []; } };
   const rememberLearned = (a, enchIds) => {
     const list = learnedOf(a);
