@@ -3261,6 +3261,58 @@ ipcMain.handle('install:uninstall', async () => {
  * Stream the client zip from the backend to a local temp file.
  * Calls onProgress(bytesReceived, totalBytes) as data arrives.
  */
+// A client update downloads only the files whose size or sha256 differs from the server's list (Jake, 7 Oct: the
+// 184 MB zip for a one-file release took the downloads down). null means "use the zip": no list, a file the server
+// does not serve one by one, or most of the package changed anyway. Launcher-owned files (settings, logs) are left alone.
+async function perFileClientUpdate(skyrimPath, version, files, directRun) {
+  const list = (Array.isArray(files) ? files : []).filter(f => f && typeof f.path === 'string' && f.sha256 && !f.path.split('/').includes('..') && !CLIENT_OWN_FILE_RES.some(re => re.test(f.path.toLowerCase())))
+  if (!list.length || !version) return null
+  const changed = []
+  for (let i = 0; i < list.length; i++) {
+    const f = list[i]
+    const full = path.join(skyrimPath, ...f.path.split('/'))
+    let size = -1
+    try { size = fs.statSync(full).size } catch { /* missing */ }
+    if (size === f.size) {
+      let sha = ''
+      try { sha = await mo2.sha256FileAsync(full) } catch { /* unreadable: fetch it */ }
+      if (sha.toLowerCase() === String(f.sha256).toLowerCase()) continue
+    }
+    changed.push(f)
+    if ((i + 1) % 25 === 0) send('install:progress', { phase: 'download', file: `Checking client files… ${i + 1}/${list.length}`, index: 0, total: 0, skipped: false })
+  }
+  const all = list.reduce((n, f) => n + (Number(f.size) || 0), 0)
+  const need = changed.reduce((n, f) => n + (Number(f.size) || 0), 0)
+  if (!changed.length) { log('[install] client files already match the server list'); return { count: 0 } }
+  if (need > all * 0.6) return null
+  log(`[install] updating ${changed.length} changed client file(s), ${(need / 1048576).toFixed(1)} MB, instead of the whole zip`)
+  if (directRun) installStep('client')
+  store.set('filesVersion', '')
+  let done = 0
+  for (const f of changed) {
+    const full = path.join(skyrimPath, ...f.path.split('/'))
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+    const url = `${config.apiUrl}/api/files/client/${f.path.split('/').map(encodeURIComponent).join('/')}?v=${encodeURIComponent(version)}`
+    const tmpFile = `${full}.dbo-new`
+    try {
+      await downloadLib.download(url, tmpFile, {
+        headers: { 'X-DBO-Accept-Redirect': '1' }, validate: assertSecureDownloadUrl, onQueued: queuedNote,
+        onProgress: (r, tot) => send('install:progress', { phase: 'download', file: `Downloading ${path.basename(f.path)} (${done + 1}/${changed.length})… ${(r / 1048576).toFixed(1)} MB`, index: r, total: tot, skipped: false }),
+      })
+      if ((await mo2.sha256FileAsync(tmpFile)).toLowerCase() !== String(f.sha256).toLowerCase()) throw new Error(`${f.path}: checksum mismatch`)
+      await writeRetry(full, fs.readFileSync(tmpFile))
+    } catch (err) {
+      try { fs.rmSync(tmpFile, { force: true }) } catch {}
+      log(`[install] per-file update stopped at ${f.path} (${err.message}); falling back to the zip`)
+      return null
+    }
+    try { fs.rmSync(tmpFile, { force: true }) } catch {}
+    done++
+  }
+  log(`[install] updated ${done} client file(s) one by one`)
+  return { count: done }
+}
+
 // The backend sends the zip to R2 only when asked (X-DBO-Accept-Redirect), so an old launcher keeps the disk copy
 async function downloadClientZip(tempPath, onProgress) {
   try {
@@ -3469,35 +3521,39 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
       return { success: true, upToDate: true }
     }
 
-    // 2. Download
-    if (directRun) installStep('client')
-    send('install:progress', { phase: 'download', file: 'Connecting to server…', index: 0, total: 0, skipped: false })
-    await downloadClientZip(tempZip, (received, total) => {
-      if (directRun) installTrack.file('The client files', received, total)
-      const mb  = n => (n / 1024 / 1024).toFixed(1)
-      const pct = total > 0 ? ` (${Math.round(received / total * 100)}%)` : ''
-      send('install:progress', {
-        phase: 'download',
-        file:  `Downloading update… ${mb(received)} / ${mb(total)} MB${pct}`,
-        index: received, total, skipped: false,
+    // 2. Only the files that changed, when the server lists them and serves them one by one; else the whole zip
+    const perFile = await perFileClientUpdate(skyrimPath, serverVersion, serverFiles, directRun)
+    if (!perFile) {
+      // 2. Download
+      if (directRun) installStep('client')
+      send('install:progress', { phase: 'download', file: 'Connecting to server…', index: 0, total: 0, skipped: false })
+      await downloadClientZip(tempZip, (received, total) => {
+        if (directRun) installTrack.file('The client files', received, total)
+        const mb  = n => (n / 1024 / 1024).toFixed(1)
+        const pct = total > 0 ? ` (${Math.round(received / total * 100)}%)` : ''
+        send('install:progress', {
+          phase: 'download',
+          file:  `Downloading update… ${mb(received)} / ${mb(total)} MB${pct}`,
+          index: received, total, skipped: false,
+        })
       })
-    })
 
-    // 3. Extract directly into Skyrim directory.
-    // The zip's stock skymp5-client-settings.txt would clobber hotkey rebinds; snapshot it so writeClientSettings sees the pre-extract file.
-    let settingsSnapshot = null
-    try { settingsSnapshot = fs.readFileSync(clientSettingsPath, 'utf8') } catch { /* first install */ }
-    // An interrupted extract must show as an update on the next Play
-    store.set('filesVersion', '')
-    if (directRun) installStep('unpack')
-    const extracted = await extractClientZip(tempZip, skyrimPath, (file, i, total) => {
-      if (directRun) installTrack.step('unpack', { index: i, total })
-      send('install:progress', { phase: 'extract', file, index: i, total, skipped: false })
-    })
-    if (settingsSnapshot !== null) {
-      try { fs.writeFileSync(clientSettingsPath, settingsSnapshot) } catch { /* fall back to zip copy */ }
+      // 3. Extract directly into Skyrim directory.
+      // The zip's stock skymp5-client-settings.txt would clobber hotkey rebinds; snapshot it so writeClientSettings sees the pre-extract file.
+      let settingsSnapshot = null
+      try { settingsSnapshot = fs.readFileSync(clientSettingsPath, 'utf8') } catch { /* first install */ }
+      // An interrupted extract must show as an update on the next Play
+      store.set('filesVersion', '')
+      if (directRun) installStep('unpack')
+      const extracted = await extractClientZip(tempZip, skyrimPath, (file, i, total) => {
+        if (directRun) installTrack.step('unpack', { index: i, total })
+        send('install:progress', { phase: 'extract', file, index: i, total, skipped: false })
+      })
+      if (settingsSnapshot !== null) {
+        try { fs.writeFileSync(clientSettingsPath, settingsSnapshot) } catch { /* fall back to zip copy */ }
+      }
+      log(`[install] extracted ${extracted} files`)
     }
-    log(`[install] extracted ${extracted} files`)
     ensureClientDirs(skyrimPath)
     // A repair also clears files the package does not list from the platform's folders, which re-extracting never did
     if (force) {
