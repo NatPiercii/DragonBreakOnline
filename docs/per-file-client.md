@@ -41,6 +41,14 @@ downloads now come from Cloudflare R2 (`files.dragonbreakonline.com`). This page
 | Anything else | 404, so the launcher uses the zip |
 
 - **Nothing is unpacked inside a request.**
+- **No edge caching.** Every answer of the route carries `Cache-Control: no-store`: the 200 and 206 from disk, every
+  404, the 302 and the limiter's 429. Cloudflare in front of the API host caches by file extension (`.js`, `.png`,
+  `.svg`, `.bin`, `.swf`, `.ttf`, `.mp3` and more; about 175 of the 287 listed files) when the origin says nothing about
+  caching. A 404 was measured staying at the edge for about 3 minutes (and Cloudflare's default for a 200 is about
+  2 hours). Without `no-store`, a 404 from the minutes between the zip swap and `unpack-client.js` would keep
+  launchers on the zip after the unpack, an old 200 would outlive a rebuilt package under the same version number, and
+  the kill switches would not reach cached URLs. For extra safety a Cloudflare Cache Rule can bypass the cache for
+  `/api/files/client/*`; it is not needed while the backend sends `no-store`.
 - **Rate limit.** The route has its own limiter: 1500 requests per 15 minutes per Cloudflare visitor. It uses the same
   key as the zip limiter (`visitorKey`: `CF-Connecting-IP`, IPv6 grouped by /56). One update of about 300 files fits
   easily. A `429` makes that launcher fall back to the zip.
@@ -153,7 +161,8 @@ there and verified, and `clientFiles` still lists it. Per-file updates of `PREV`
 
 ## Kill switches
 
-None of these needs a restart; each is read again when the file changes.
+None of these needs a restart; each is read again when the file changes. Because every answer of the route is
+`no-store`, each takes effect at the next request; no Cloudflare purge is needed for `/api/files/client/*`.
 
 | To stop | Do this | Effect |
 |---|---|---|

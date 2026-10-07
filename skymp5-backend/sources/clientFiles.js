@@ -13,6 +13,11 @@
 //   GET /api/files/version, with the optional data/client-files.json switch "omitExtras": true, leaves out the files
 //   data/extra-files.json also lists (Data/*.esp that the extra-files sync owns); default off. docs/per-file-client.md.
 //
+//   Every answer of the route, the limiter's 429 included, carries Cache-Control: no-store. Cloudflare in front of the API
+//   caches by file extension (.js, .png, .svg, .bin, ...) when the origin says nothing: a 404 from the minutes between the
+//   zip swap and unpack-client.js, or a 200 of a version number later reused for a rebuild, would otherwise be served from
+//   the edge after the disk copy, the marker or a kill switch changed.
+//
 //   data/client-files.json (optional; read again whenever it changes, no restart)
 //     { "perFile": false }    every /api/files/client/* answers 404, so every launcher downloads the zip as before
 //     { "omitExtras": true }  /api/files/version leaves out what extra-files.json lists (outside Data/Platform, Data/SKSE)
@@ -154,10 +159,13 @@ function createClientFiles({ dataDir = DATA_DIR, clientFilesDir, r2 = null, wind
     legacyHeaders: false,
     keyGenerator: visitorKey,
     message: { error: 'Too many file requests. Please try again later.' },
+    handler: (_req, res, _next, options) => { res.set('Cache-Control', 'no-store'); res.status(options.statusCode).json(options.message) },
   })
 
   // GET /api/files/client/*: never unpacks anything; R2, a verified copy on disk, or 404 (the launcher then uses the zip)
   function fileHandler(req, res) {
+    // Never kept by Cloudflare or any other cache: every answer here depends on files that change at release time
+    res.set('Cache-Control', 'no-store')
     if (!switches().perFile) return res.status(404).json(NOT_SERVED)
     const pkg = currentPackage()
     if (!pkg) return res.status(404).json(NOT_BUILT)
@@ -166,7 +174,7 @@ function createClientFiles({ dataDir = DATA_DIR, clientFilesDir, r2 = null, wind
     if (!rel || !pkg.paths.has(rel)) return res.status(404).json(NOT_SERVED)
 
     const r2Url = r2 ? r2.clientFileUrl(req, rel, pkg.version) : null
-    if (r2Url) { res.set('Cache-Control', 'no-store'); return res.redirect(302, r2Url) }
+    if (r2Url) return res.redirect(302, r2Url)
 
     const dir = verifiedDir(pkg)
     if (!dir) return res.status(404).json(NOT_SERVED)
@@ -174,7 +182,7 @@ function createClientFiles({ dataDir = DATA_DIR, clientFilesDir, r2 = null, wind
     if (!full.startsWith(dir + path.sep)) return res.status(404).json(NOT_SERVED)
     res.sendFile(full, {
       headers: { 'Content-Type': 'application/octet-stream' },
-      cacheControl: false,
+      cacheControl: false, // keeps the no-store set above (send only writes its own when this is on)
       dotfiles: 'allow',
     }, err => { if (err && !res.headersSent) res.status(err.status || 500).end(); else if (err) res.destroy() })
   }

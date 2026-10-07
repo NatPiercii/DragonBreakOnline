@@ -66,6 +66,9 @@ const get = (p, headers = {}, method = 'GET') => new Promise((resolve, reject) =
   req.end()
 })
 
+// Cloudflare caches .js/.png/.svg/... answers that say nothing about caching, so every answer of the route says no-store
+const noStore = (r, what) => assert.equal(r.headers['cache-control'], 'no-store', `${what}: ${r.status} without no-store`)
+
 // Every test starts from: no r2.json, no switches, and a verified copy of V on disk
 function reset() {
   drop('r2.json'); drop('client-files.json'); drop('extra-files.json')
@@ -97,6 +100,53 @@ test('a listed file of the current version is served from the verified copy as o
   const head = await get(ESP, {}, 'HEAD')
   assert.equal(head.status, 200)
   assert.equal(Number(head.headers['content-length']), FILES['Data/DragonBreak.esp'].length)
+})
+
+test('every answer says Cache-Control: no-store, so no edge cache keeps a 404 or an old copy', async () => {
+  reset()
+  const js = '/api/files/client/Data/Platform/Plugins/skymp5-client.js?v=0.3.82'
+  noStore(await get(js), '200')
+  noStore(await get(js, {}, 'HEAD'), 'HEAD')
+  const part = await get(js, { range: 'bytes=0-9' })
+  assert.equal(part.status, 206)
+  noStore(part, '206')
+  // A conditional request still gets no-store on its 304
+  const etag = (await get(js)).headers.etag
+  const cond = await get(js, { 'if-none-match': etag })
+  assert.equal(cond.status, 304)
+  noStore(cond, '304')
+
+  // The 404s: another version, an unlisted path, a bad escape, the release window before unpack-client.js has run,
+  // a listed file missing from the verified copy, and the kill switch
+  for (const p of ['/api/files/client/Data/Platform/Plugins/skymp5-client.js?v=0.3.81', '/api/files/client/x.js?v=0.3.82',
+    '/api/files/client/%E0%A4%A.js?v=0.3.82']) {
+    const r = await get(p)
+    assert.equal(r.status, 404, p)
+    noStore(r, p)
+  }
+  fs.rmSync(path.join(cfDir, 'unpacked', '0.3.82', '.verified'))
+  const window = await get(js)
+  assert.equal(window.status, 404)
+  noStore(window, 'not unpacked yet')
+  reset()
+  fs.rmSync(path.join(cfDir, 'unpacked', '0.3.82', 'Data', 'Platform', 'Plugins', 'skymp5-client.js'))
+  const gone = await get(js)
+  assert.equal(gone.status, 404)
+  noStore(gone, 'file missing on disk')
+  reset()
+  put('client-files.json', { perFile: false })
+  const off = await get(js)
+  assert.equal(off.status, 404)
+  noStore(off, 'perFile: false')
+  drop('files-version.json')
+  noStore(await get(js), 'no files-version.json')
+
+  // The redirect to R2
+  reset()
+  put('r2.json', R2)
+  const moved = await get(js, REDIRECT)
+  assert.equal(moved.status, 302)
+  noStore(moved, '302')
 })
 
 test('a version other than files-version.json, a missing v or a repeated v: 404', async () => {
@@ -220,6 +270,8 @@ test('the limiter counts per Cloudflare visitor, like the zip limiter', async ()
   for (let i = 0; i < 3; i++) assert.equal((await get(p, a)).status, 200)
   const over = await get(p, a)
   assert.equal(over.status, 429)
+  noStore(over, '429')
+  assert.match(over.body.toString(), /Too many file requests/)
   // Probes of unlisted paths count too
   assert.equal((await get('/limited/client/x?v=0.3.82', a)).status, 429)
   assert.equal((await get(p, { 'cf-connecting-ip': '203.0.113.6' })).status, 200)
