@@ -186,7 +186,7 @@ const widgetsOf = (a, id) => out.widgets.filter((w) => w.a === a && w.w.id === i
 // Everyone online is first seen here, and has been in the world long enough for a first spell by the first pick below
 tick('schools.first'); advance(91000);
 
-check('the boot line names the school at 25 and every first spell', out.logs.some((l) => /school at Arcane Arts 25; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing\)/.test(l)), out.logs.filter((l) => /schools on/.test(l)));
+check('the boot line names the school at 25 and every first spell', out.logs.some((l) => /school at Arcane Arts 25; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing, Lesser Ward or Insect Swarm\)/.test(l)), out.logs.filter((l) => /schools on/.test(l)));
 check('the tracked config leaves firstSchoolAt to the code (25)', CONFIG.schools.firstSchoolAt === undefined);
 
 // ---- before Arcane Arts 25 ----

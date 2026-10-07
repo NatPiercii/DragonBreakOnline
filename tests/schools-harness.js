@@ -173,7 +173,7 @@ const advance = (ms) => { wallClock += ms; };
 (async () => {
 
 // ---- boot and the client gate ----
-check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; school at Arcane Arts any level; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing\); casts 0\.2 a day 40, classes 25; change school every 7 days at 0\.5; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
+check('boot line names the four schools, the study refs and the lectern', out.logs.some((l) => /schools on: Destruction, Illusion, Conjuration, Alteration; school at Arcane Arts any level; first spell at 25 \(Destruction Flames, Sparks or Frostbite; Illusion Courage or Fury; Conjuration Bound Sword or Conjure Familiar; Alteration Oakflesh or Candlelight; Restoration Healing, Lesser Ward or Insect Swarm\); casts 0\.2 a day 40, classes 25; change school every 7 days at 0\.5; secondary at Arcane Arts 76 from 33; study 20 min per 4 h at StudyMagic \+ 7 refs; classes 30 min at ClassLectern \+ 6 refs, 0 running; school spells 4; Alteration both/.test(l)), out.logs.filter((l) => /schools/.test(l)));
 // On from 30 Sep (Nate), with client 0.3.71: only a client that reports the 'schools' capability gets the gate and the panels
 check('the tracked config ships it on, for clients that draw the panels', CONFIG.schools.enabled === true && CONFIG.schools.requireClient === true);
 check('...and leaves the Synod Conclave\'s enchanting table open until the guilds have members (Nate: "leave the table open")', Array.isArray(CONFIG.spells.guildWorkshops) && CONFIG.spells.guildWorkshops.length === 0);
@@ -582,6 +582,8 @@ check('/schools reset clears them to choose again', !rec(ILLUSIONIST).primary &&
     const studying = (a) => globalThis.__dboSchoolsState.studying.has(a);
     const P = DEVOUT;
     put(P, 'private.dboStudied', null); put(P, 'private.dboSchools', null);
+    // Restoration's first spell already chosen, so the panels below are about sittings, not the pick
+    put(P, 'private.dboSchools', { v: 1, picks: { Restoration: { spell: String(HEALING), how: 'chose', at: Date.now() } } });
     at(P, SYNOD, [0, 0, 0]);
     activate(BOOKCASE, P);
     ui('schoolChoose', P, [lastWidget(P, 'studyMagic').nonce, 'Illusion', 'primary']);

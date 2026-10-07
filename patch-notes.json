@@ -44,6 +44,12 @@
         "items": [
           "Serpent's Trail: walking into its closed exit towards Skyrim no longer freezes you; you are taken back to Bruma."
         ]
+      },
+      {
+        "heading": "Priest",
+        "items": [
+          "At Priest 25 you now choose your first Restoration spell from Healing, Lesser Ward and Insect Swarm. If you passed 25 and were told there was nothing to choose, you will be offered the choice now."
+        ]
       }
     ]
   },

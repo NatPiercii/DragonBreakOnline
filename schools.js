@@ -93,7 +93,7 @@ module.exports = (api) => {
     starterResendSeconds: 120,
     firstSpells: {
       Destruction: ['12fcd:Skyrim.esm', '2dd2a:Skyrim.esm', '2b96b:Skyrim.esm'], // Flames, Sparks, Frostbite
-      Restoration: ['12fcc:Skyrim.esm'],                                        // Healing
+      Restoration: ['12fcc:Skyrim.esm', '13018:Skyrim.esm', '4e53:BSAssets.esm'], // Healing, Lesser Ward, Insect Swarm (mod-0088)
       Alteration: ['5ad5c:Skyrim.esm', '43324:Skyrim.esm'],                     // Oakflesh, Candlelight
       Conjuration: ['211eb:Skyrim.esm', '640b6:Skyrim.esm'],                    // Bound Sword, Conjure Familiar
       Illusion: ['4dee8:Skyrim.esm', '4deeb:Skyrim.esm'],                       // Courage, Fury
@@ -297,6 +297,10 @@ module.exports = (api) => {
   const beforeFirst = (a, s) => !!FIRST_AT && !s.primary && arcaneOf(a).level < FIRST_AT;
   const notYet = (level) => `Your first spell and your school of magic open at Arcane Arts ${FIRST_AT}; yours is ${level}. Study Magic at a place of learning, or cast what you know, to get there.`;
   const PICK_AT = Math.max(1, Number(C.firstSpellAt) || 25);
+  // Restoration offered only Healing until 7 Oct (mod-0088), so Priests past 25 were recorded as having nothing to choose;
+  // such a pick from before this code first loaded opens once more
+  const REOPEN_NONE_BEFORE = globalThis.__dboRestorationListAt || (globalThis.__dboRestorationListAt = Date.now());
+  const pickOpen = (s, school) => { const p = s.picks[school]; return !p || (school === RESTORATION && p.how === 'none' && (Number(p.at) || 0) < REOPEN_NONE_BEFORE); };
   const RESTORATION = 'Restoration';
   // One line for each first spell, in the panel's choice
   const SPELL_BLURB = {
@@ -318,9 +322,9 @@ module.exports = (api) => {
   // Schools whose first spell waits to be chosen, in the order they are offered
   const pickSchools = (a, s) => {
     const out = [];
-    for (const school of SCHOOLS) if (active(s, school) && !s.picks[school] && levelOf(s, school) >= PICK_AT && (C.firstSpells[school] || []).length) out.push(school);
+    for (const school of SCHOOLS) if (active(s, school) && pickOpen(s, school) && levelOf(s, school) >= PICK_AT && (C.firstSpells[school] || []).length) out.push(school);
     const pr = priestOf(a);
-    if (pr.held && pr.level >= PICK_AT && !s.picks[RESTORATION] && (C.firstSpells[RESTORATION] || []).length) out.push(RESTORATION);
+    if (pr.held && pr.level >= PICK_AT && pickOpen(s, RESTORATION) && (C.firstSpells[RESTORATION] || []).length) out.push(RESTORATION);
     return out;
   };
   // A school's first spells the character does not know yet: [{ id, desc, name }]
