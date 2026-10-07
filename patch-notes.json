@@ -1,5 +1,20 @@
 [
   {
+    "title": "Faction smiths",
+    "date": "2026-10-07",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Crafting",
+        "items": [
+          "A faction's own smiths and its leader can now make the faction's gear at any forge, wherever its designs come from: the Dawnguard can make Dawnguard armour and weapons in Bruma. Other gear still follows the province rules.",
+          "The Dawnguard's smiths can also make the silver weapons of the Silver Hand (silver longswords, katanas, war axes and the rest). The Mantle of the Silver Hand stays the Silver Hand's."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Faction gear evened out",
     "date": "2026-10-06",
     "version": "Server update",
