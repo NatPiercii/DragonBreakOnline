@@ -16,6 +16,7 @@
 # environment variables. rclone never runs with -v, and everything it prints goes through a sed that masks those values.
 # Overrides (tests): CLIENT_FILES_DIR, DATA_DIR, VERSION_FILE, R2_ENV_FILE, R2_REMOTE.
 set -uo pipefail
+umask 077   # everything this script writes is private: the file list, the r2.json temp file and, above all, the sed mask
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BACKEND=$(dirname "$HERE")
@@ -43,7 +44,8 @@ done
 [[ "$V" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]] || die "version '$V' is not a plain version string"
 for c in node curl rclone sed; do command -v "$c" >/dev/null || die "$c is not installed"; done
 
-WORK=$(mktemp -d)   # 0700: holds the file list and, during the upload, the sed mask
+# 0700: holds the file list and, during the upload, the sed mask. Without it every "$WORK/..." would be a file in /.
+WORK=$(mktemp -d) && [ -n "$WORK" ] && [ -d "$WORK" ] || die "cannot create a private temp folder (mktemp -d failed; check TMPDIR and free space)"
 trap 'rm -rf "$WORK"' EXIT
 
 # 1. The verified copy, for the version files-version.json names now
@@ -88,7 +90,11 @@ R2_HOST=${R2_ENDPOINT#*://}; R2_HOST=${R2_HOST%%/*}
   [ -n "$R2_HOST" ] && printf 's/%s/<R2_ENDPOINT>/g\n' "$(esc "$R2_HOST")"
   printf 's/%s/<R2_ACCESS_KEY_ID>/g\n' "$(esc "$R2_ACCESS_KEY_ID")"
   printf 's/%s/<R2_SECRET_ACCESS_KEY>/g\n' "$(esc "$R2_SECRET_ACCESS_KEY")"
-} > "$WORK/mask.sed"
+} > "$WORK/mask.sed" || die "cannot write the output mask; nothing uploaded"
+# rclone runs only behind a complete mask that sed accepts
+MASKLINES=$(grep -c '^s/..*/<R2_[A-Z_]*>/g$' "$WORK/mask.sed")
+[ "$MASKLINES" -ge 3 ] && [ "$MASKLINES" -eq "$(wc -l < "$WORK/mask.sed")" ] || die "the output mask is incomplete; nothing uploaded"
+printf 'x\n' | sed -f "$WORK/mask.sed" >/dev/null 2>&1 || die "sed cannot read the output mask; nothing uploaded"
 export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare RCLONE_CONFIG_R2_NO_HEAD=true RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 export RCLONE_CONFIG_R2_ENDPOINT="$R2_ENDPOINT" RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 unset R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY

@@ -29,7 +29,13 @@ const RCLONE = `#!/bin/bash
 printf '%s\\n' "$@" > "$FAKE/rclone.args"
 env | grep '^RCLONE_CONFIG_R2_' | sort > "$FAKE/rclone.env"
 env | grep -cE '^R2_(ENDPOINT|ACCESS_KEY_ID|SECRET_ACCESS_KEY)=' > "$FAKE/r2vars.count"
-prev=""; for a in "$@"; do [ "$prev" = "--files-from-raw" ] && cp "$a" "$FAKE/files-from"; prev=$a; done
+prev=""; for a in "$@"; do
+  if [ "$prev" = "--files-from-raw" ]; then
+    cp "$a" "$FAKE/files-from"
+    w=$(dirname "$a"); stat -c '%a %n' "$w" "$w/mask.sed" | sed "s|$w|WORK|" > "$FAKE/modes"
+  fi
+  prev=$a
+done
 echo "connecting to $RCLONE_CONFIG_R2_ENDPOINT as $RCLONE_CONFIG_R2_ACCESS_KEY_ID with $RCLONE_CONFIG_R2_SECRET_ACCESS_KEY"
 echo "host \${RCLONE_CONFIG_R2_ENDPOINT#https://} answered" >&2
 exit "\${FAKE_RCLONE_EXIT:-0}"
@@ -130,8 +136,13 @@ test('upload, check every file, then list the version in r2.json; credentials on
   // Every file checked on the public URL, anonymously
   assert.deepEqual(fs.readFileSync(path.join(fake, 'curl.urls'), 'utf8').trim().split('\n').sort(), Object.keys(URLS).sort())
 
+  // The folder and the mask (which holds the credentials while rclone runs) are private
+  assert.deepEqual(fs.readFileSync(path.join(fake, 'modes'), 'utf8').trim().split('\n'), ['700 WORK', '600 WORK/mask.sed'])
+
   const after = JSON.parse(r2Text())
   assert.deepEqual(after, { ...R2, clientFiles: { '0.4.0': 99, '0.4.1': zipSize } })
+  // The private umask does not carry over to r2.json, which the backend user reads
+  assert.equal(fs.statSync(path.join(dataDir, 'r2.json')).mode & 0o777, 0o644)
   assert.ok(r.out.includes(r2Text().trim()), 'the new r2.json is printed')
   assert.deepEqual(fs.readdirSync(dataDir).filter(f => f.includes('tmp')), [])
 })
@@ -186,6 +197,19 @@ test('rclone failing, another current version, no r2.json or incomplete credenti
   assert.equal(missing.code, 1)
   assert.match(missing.all, /switched off/)
   assert.equal(fs.existsSync(path.join(dataDir, 'r2.json')), false)
+})
+
+test('no private temp folder: stops at once, before anything is listed, read or uploaded', () => {
+  setR2(R2)
+  setSizes(URLS)
+  const before = r2Text()
+  // A TMPDIR that no longer exists makes mktemp fail. The version file is missing too, so a script that went on anyway
+  // would stop at the next step (the check) instead of writing its file list into /
+  const r = publish(['0.4.1'], { TMPDIR: path.join(root, 'no-such-tmp'), VERSION_FILE: path.join(root, 'no-such.json') })
+  assert.equal(r.code, 1)
+  assert.match(r.all, /cannot create a private temp folder/)
+  assert.equal(fs.existsSync(path.join(fake, 'rclone.args')), false)
+  assert.equal(r2Text(), before)
 })
 
 test('--no-copy-dest uploads everything; with no earlier version there is nothing to copy from', () => {

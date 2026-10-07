@@ -124,6 +124,8 @@ Run these as root on CT 115. Claim and log as the ops ledger readme says (`clien
      - The credentials come only from `/root/.r2.env`, passed as `RCLONE_CONFIG_R2_*` environment.
      - rclone never runs with `-v`.
      - All of rclone's output goes through a sed that masks the endpoint, its host, the key id and the secret.
+     - The mask and the file list live in a private temp folder (umask 077, mode 0700). If `mktemp -d` fails, or the
+       mask is incomplete or unreadable, the script stops before rclone runs.
    - Files unchanged since the newest version already in `clientFiles` are copied inside R2 (`--copy-dest`) instead of
      going over the home upload again. A first publish sends all 412 MB, which takes about 2.5 min at 3 MiB/s.
      `--copy-dest` has not yet been run against the real bucket. If it fails, rerun with `--no-copy-dest`.
