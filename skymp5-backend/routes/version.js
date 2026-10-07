@@ -5,11 +5,11 @@ const autoReport = require('../sources/autoReport')
 // Written by the manager Build tab. LATEST_VERSION = launcher app release (GET /api/version, update prompt)
 // CLIENT_VERSION = client files release (baked into data/files-version.json by merge-files.js)
 // SERVER_VERSION = game server release label (informational)
-// DOWNLOAD_URL = installer for LATEST_VERSION (GitHub release asset of NatPiercii/DragonBreakOnline)
-const LATEST_VERSION = '2.1.43'
+// DOWNLOAD_URL = installer for LATEST_VERSION (https; from 2.1.44 the R2 copy at files.dragonbreakonline.com/launcher/<version>/)
+const LATEST_VERSION = '2.1.44'
 const CLIENT_VERSION = '0.3.80'
 const SERVER_VERSION = '0.3.1'
-const DOWNLOAD_URL   = 'https://github.com/NatPiercii/DragonBreakOnline/releases/download/launcher-v2.1.43/DragonBreakLauncher.exe'
+const DOWNLOAD_URL   = 'https://files.dragonbreakonline.com/launcher/2.1.44/DragonBreakLauncher.exe'
 
 router.get('/', (_req, res) => {
   res.json({
