@@ -5747,11 +5747,30 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
 const companionHitNotes = globalThis.__dboCompanionHitNotes instanceof Map ? globalThis.__dboCompanionHitNotes : (globalThis.__dboCompanionHitNotes = new Map());
 const companionOwnerOf = (a) => { try { const o = Number(mp.get(a, 'ff_companionOf')) >>> 0; return o && profileOf(o) >= 0 ? o : 0; } catch (e) { return 0; } };
 const healthOf = (a) => { try { const p = mp.get(a, 'percentages'); return p && Number.isFinite(Number(p.health)) ? Number(p.health) : NaN; } catch (e) { return NaN; } };
+// For a refused hit, which of the side-effect-free checks says no, and what the target is: its id, base, spawn tag, the
+// player it fights for (ff_companionOf), dead or not. A refusal none of these explain came from the fork's chain
+// (companionSystem's PvP rule, an admin's god mode) behind __dboPrevHitDamageAttempt.
+const companionRefusalWhy = (agg, tgt) => {
+  const why = [];
+  const get = (id, k) => { try { return mp.get(id, k); } catch (e) { return undefined; } };
+  try { if (globalThis.__dboBeastEthereal && (globalThis.__dboBeastEthereal(tgt) || globalThis.__dboBeastEthereal(agg))) why.push('ethereal'); } catch (e) { /* not loaded */ }
+  try { if (offlineBodyProtected(tgt)) why.push('offline body'); } catch (e) { /* ignore */ }
+  try { if (profileOf(tgt) >= 0 && inLoginGrace(tgt)) why.push('login grace'); } catch (e) { /* ignore */ }
+  const r = get(agg, 'private.restrained'); if (r && (r.boundHands || r.carried)) why.push('restrained');
+  if ((paralysedUntil.get(agg) || 0) > Date.now()) why.push('paralysed');
+  try { if (dungeonAllies(agg, tgt)) why.push('dungeon allies'); } catch (e) { /* ignore */ }
+  try { if (typeof globalThis.__dboWarbandRefusesHit === 'function' && globalThis.__dboWarbandRefusesHit(agg, tgt)) why.push('warband'); } catch (e) { /* ignore */ }
+  const side = Number(get(tgt, 'ff_companionOf')) >>> 0;
+  const tag = String(get(tgt, 'private.npcSpawner') || '');
+  const target = `target ${tgt.toString(16)} ${String(get(tgt, 'baseDesc') || '?')}${tag ? ' ' + tag : ''}${side ? ` fights for ${side.toString(16)}` : ''}${get(tgt, 'isDead') === true ? ' DEAD' : ''}`;
+  return `${why.length ? why.join(', ') : 'the fork chain (companionSystem PvP rule or god mode)'}; ${target}`;
+};
 const companionHitLine = (n, after) => {
   const pct = (h) => (Number.isFinite(h) ? (h * 100).toFixed(1) + '%' : '?');
   let base = ''; try { base = String(mp.get(n.agg, 'baseDesc') || ''); } catch (e) { /* gone */ }
+  let why = ''; if (n.refused) { try { why = companionRefusalWhy(n.agg, n.tgt); } catch (e) { why = 'unknown'; } }
   log(`companion hit ${display(n.owner)}'s ${base || n.agg.toString(16)} -> ${display(n.tgt)}${profileOf(n.tgt) >= 0 ? ' (player)' : ''}: source ${n.src.toString(16)} engine ${n.dmg.toFixed(1)}`
-    + (n.refused ? ' REFUSED by the gameplay' : ` landed ${Number.isFinite(after) ? '' : '(no onHitDamage) '}health ${pct(n.before)} -> ${pct(after)}`)
+    + (n.refused ? ` REFUSED by the gameplay (${why})` : ` landed ${Number.isFinite(after) ? '' : '(no onHitDamage) '}health ${pct(n.before)} -> ${pct(after)}`)
     + (n.skipped ? ` (+${n.skipped} more hits since the last line)` : ''));
 };
 const companionHitAttempt = (agg, tgt, src, dmg, verdict) => {
