@@ -146,9 +146,9 @@ Run these as root on CT 115. Claim and log as the ops ledger readme says (`clien
 
    It should answer 302 with `Location: https://files.dragonbreakonline.com/client/V/files/Data/DragonBreak.esp`.
 
-**Optional: prepare before the swap.** Both scripts can run on the staged package before step 1, so per-file updates
-work the moment the swap lands. `r2.json` can list `V` early, because the route only redirects once
-`files-version.json` says `V`.
+**Optional: prepare before the swap (a new version number only).** Both scripts can run on the staged package before
+step 1, so per-file updates work the moment the swap lands. `r2.json` can list `V` early, because the route only
+redirects once `files-version.json` says `V`.
 
 ```bash
 node scripts/unpack-client.js --zip /opt/dragonbreak-handover/client-V/skymp-client.zip \
@@ -156,7 +156,22 @@ node scripts/unpack-client.js --zip /opt/dragonbreak-handover/client-V/skymp-cli
 VERSION_FILE=/opt/dragonbreak-handover/client-V/files-version.json bash scripts/publish-client-r2.sh V
 ```
 
-When it unpacks a staged package, `unpack-client.js` also keeps the live version.
+- When it unpacks a staged package, `unpack-client.js` also keeps the live version.
+- **Not for a rebuild that reuses the live version number.** Unpacking it early would replace the verified copy that
+  launchers are being served, and uploading it early would overwrite the R2 files they are redirected to (`r2.json`
+  still lists the live zip size for `V`). Either way every launcher would fall back to the zip until the swap. Both
+  scripts refuse a staged list that has the live version number with other files (`--replace-live` overrides this).
+  A staged copy of exactly the live list is allowed. A same-number rebuild goes swap → unpack → publish, in the order
+  of steps 1 to 4.
+
+**A reused version number.** The route's own answers are `no-store`, so nothing from `/api/files/client/*` outlives the
+rebuild. The files on `files.dragonbreakonline.com` are another matter: they sit behind the same Cloudflare, were
+uploaded without `Cache-Control`, and `rclone` overwrites them in place under the same `client/V/files/` names. After
+`publish-client-r2.sh`, purge `https://files.dragonbreakonline.com/client/V/files/` in Cloudflare (by prefix, or each
+URL). The script prints a warning when `r2.json` listed `V` with another zip size; its own size check may also have
+read cached copies then. Until the purge, a launcher that gets an old file fails its sha256 check and downloads the
+zip, so nothing breaks, but the release costs zip downloads. Whether the edge actually holds these R2 files has not
+been checked; the purge is a precaution. Better still, give every rebuild a new version number.
 
 **Rollback.** If a release goes back to the previous version (`files-version.json` restored), `unpacked/PREV` is still
 there and verified, and `clientFiles` still lists it. Per-file updates of `PREV` work again at once.

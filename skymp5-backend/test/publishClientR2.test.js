@@ -212,6 +212,57 @@ test('no private temp folder: stops at once, before anything is listed, read or 
   assert.equal(r2Text(), before)
 })
 
+test('a staged list that reuses the live version number with other files is refused unless --replace-live', () => {
+  // The live 0.4.1 is in dataDir and cfDir; a rebuild also numbered 0.4.1 is staged and unpacked elsewhere
+  const staged = path.join(root, 'staged')
+  const rebuilt = { ...FILES, 'Data/DragonBreak.esp': Buffer.from('a rebuilt main plugin, longer than before') }
+  const zip = zipOf(path.join(staged, 'client.zip'), rebuilt)
+  const vf = path.join(staged, 'files-version.json')
+  fs.writeFileSync(vf, JSON.stringify(versionJson('0.4.1', rebuilt, zip)))
+  const cf2 = path.join(staged, 'client-files')
+  const u = spawnSync(process.execPath, [UNPACK, '--zip', zip, '--version-file', vf, '--out', path.join(cf2, 'unpacked'),
+    '--live-version-file', vf, '--min-free-mb', '0'], { encoding: 'utf8' })
+  assert.equal(u.status, 0, u.stderr)
+  const stagedEnv = { CLIENT_FILES_DIR: cf2, VERSION_FILE: vf }
+
+  // r2.json lists the live 0.4.1, so launchers are being redirected to client/0.4.1/files/ right now
+  setR2({ ...R2, clientFiles: { '0.4.1': zipSize } })
+  setSizes(URLS)
+  const before = r2Text()
+  for (const args of [['0.4.1'], ['--dry-run', '0.4.1']]) {
+    const r = publish(args, stagedEnv)
+    assert.equal(r.code, 1, args.join(' '))
+    assert.match(r.all, /reuses the live version number 0\.4\.1 with other files/)
+    assert.equal(fs.existsSync(path.join(fake, 'rclone.args')), false)
+    assert.equal(r2Text(), before)
+  }
+
+  // --replace-live goes ahead, says so, and says the old files may still be at the edge
+  const stagedUrls = Object.fromEntries(Object.entries(rebuilt).map(([p, b]) => [
+    `https://files.example.com/client/0.4.1/files/${p.split('/').map(encodeURIComponent).join('/')}`, b.length]))
+  setSizes(stagedUrls)
+  const forced = publish(['--replace-live', '0.4.1'], stagedEnv)
+  assert.equal(forced.code, 0, forced.all)
+  assert.match(forced.all, /WARNING: --replace-live/)
+  assert.match(forced.all, new RegExp(`WARNING: 0\\.4\\.1 was published before with zip size ${zipSize}\\. Purge`))
+  assert.deepEqual(JSON.parse(r2Text()).clientFiles, { '0.4.1': fs.statSync(zip).size })
+
+  // A staged copy of the live list (the same files) is no rebuild, and a new version number is never refused
+  setR2(R2)
+  setSizes(URLS)
+  const same = path.join(staged, 'same.json')
+  fs.copyFileSync(path.join(dataDir, 'files-version.json'), same)
+  const ok = publish(['0.4.1'], { VERSION_FILE: same })
+  assert.equal(ok.code, 0, ok.all)
+  assert.doesNotMatch(ok.all, /WARNING/)
+  const next = path.join(staged, 'next.json')
+  const nextZip = zipOf(path.join(staged, 'next.zip'), rebuilt)
+  fs.writeFileSync(next, JSON.stringify(versionJson('0.4.2', rebuilt, nextZip)))
+  assert.equal(spawnSync(process.execPath, [UNPACK, '--zip', nextZip, '--version-file', next, '--out', path.join(cf2, 'unpacked'),
+    '--live-version-file', path.join(dataDir, 'files-version.json'), '--min-free-mb', '0'], { encoding: 'utf8' }).status, 0)
+  assert.equal(publish(['--dry-run', '0.4.2'], { CLIENT_FILES_DIR: cf2, VERSION_FILE: next }).code, 0)
+})
+
 test('--no-copy-dest uploads everything; with no earlier version there is nothing to copy from', () => {
   setR2(R2)
   setSizes(URLS)

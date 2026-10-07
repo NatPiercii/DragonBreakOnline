@@ -10,8 +10,12 @@
 //   5. only the current version and the one verified before it are kept (plus the live version when unpacking a staged one)
 // Any mismatch exits 1 and removes the temp folder; whatever was in <out> before is left as it was.
 //
+// A staged list (--version-file other than the live data/files-version.json) is refused when it reuses the live version
+// number with other files: its unpack would replace the verified copy launchers are being served. A same-number rebuild
+// is unpacked after the swap, from the live list. --replace-live overrides this.
+//
 //   node scripts/unpack-client.js [--zip <zip>] [--version-file <files-version.json>] [--out <dir named "unpacked">]
-//                                 [--keep 2] [--min-free-mb 2048] [--force]
+//                                 [--keep 2] [--min-free-mb 2048] [--force] [--replace-live]
 //   node scripts/unpack-client.js --check [--version-file ...] [--out ...]
 //       exit 0 and print the marker summary (JSON) when <out>/<version> is verified for this file list, else exit 1
 //   node scripts/unpack-client.js --files [--version-file ...] [--out ...]
@@ -38,7 +42,7 @@ const fail = msg => { throw new Failure(msg) }
 function parseArgs(argv) {
   const o = {
     zip: path.join(CLIENT_FILES_DIR, ZIP_NAME), versionFile: LIVE_VERSION_FILE, out: path.join(CLIENT_FILES_DIR, UNPACKED_DIR),
-    liveVersionFile: LIVE_VERSION_FILE, keep: 2, minFreeMb: 2048, force: false, mode: 'unpack',
+    liveVersionFile: LIVE_VERSION_FILE, keep: 2, minFreeMb: 2048, force: false, replaceLive: false, mode: 'unpack',
   }
   const value = (i, name) => { if (i + 1 >= argv.length) throw new Failure(`${name} needs a value`); return argv[i + 1] }
   for (let i = 0; i < argv.length; i++) {
@@ -50,6 +54,7 @@ function parseArgs(argv) {
     else if (a === '--keep') o.keep = Number(value(i++, a))
     else if (a === '--min-free-mb') o.minFreeMb = Number(value(i++, a))
     else if (a === '--force') o.force = true
+    else if (a === '--replace-live') o.replaceLive = true
     else if (a === '--check') o.mode = 'check'
     else if (a === '--files') o.mode = 'files'
     else throw new Failure(`unknown argument ${a}`)
@@ -73,6 +78,20 @@ function readPackage(file) {
   if (files.length !== all.length) fail(`${file}: ${all.length - files.length} file entr(y/ies) without a safe path, size or sha256`)
   if (new Set(files.map(f => f.path)).size !== files.length) fail(`${file} lists a path twice`)
   return { version: v.version, zipSize: Number.isSafeInteger(v.zipSize) ? v.zipSize : null, files, listSha256: listSha256(files) }
+}
+
+// The live list's version and fingerprint, or null when it is missing or unusable
+function readLive(file) {
+  try {
+    const v = JSON.parse(fs.readFileSync(file, 'utf8'))
+    return safeVersion(v.version) ? { version: v.version, listSha256: listSha256(listedFiles(v)) } : null
+  } catch { return null }
+}
+
+// The same file, through links too
+function samePath(a, b) {
+  const real = p => { try { return fs.realpathSync(p) } catch { return path.resolve(p) } }
+  return real(a) === real(b)
 }
 
 function readMarker(dir) {
@@ -209,6 +228,15 @@ function summary(dir, marker) {
 
 async function unpack(o, log = m => console.log(`[unpack] ${m}`)) {
   const pkg = readPackage(o.versionFile)
+  const live = readLive(o.liveVersionFile)
+  if (live && live.version === pkg.version && live.listSha256 !== pkg.listSha256 && !samePath(o.versionFile, o.liveVersionFile)) {
+    if (!o.replaceLive) {
+      fail(`${o.versionFile} reuses the live version number ${pkg.version} with other files. Unpacking it now would replace the ` +
+        `copy launchers are served until the swap. Swap the release in first (release-client.sh), then run this without ` +
+        `--zip/--version-file; --replace-live does it anyway`)
+    }
+    log(`WARNING: --replace-live: the verified copy of the live ${pkg.version} is replaced by this staged rebuild`)
+  }
   const final = path.join(o.out, pkg.version)
   const tmp = path.join(o.out, `.tmp-${pkg.version}`)
   fs.mkdirSync(o.out, { recursive: true, mode: 0o755 })
@@ -218,11 +246,9 @@ async function unpack(o, log = m => console.log(`[unpack] ${m}`)) {
     try { st = fs.statSync(o.zip) } catch (err) { fail(`cannot read ${o.zip}: ${err.message}`) }
     if (pkg.zipSize !== null && st.size !== pkg.zipSize) fail(`the zip is ${st.size} bytes but files-version.json says ${pkg.zipSize}: not the same release`)
     const zipSha256 = await sha256File(o.zip)
+    // Unpacking a staged package keeps the live version as well (no live list: nothing more to keep)
     const keepVersions = [pkg.version]
-    try {
-      const live = JSON.parse(fs.readFileSync(o.liveVersionFile, 'utf8')).version
-      if (safeVersion(live) && live !== pkg.version) keepVersions.push(live)
-    } catch { /* no live list: nothing more to keep */ }
+    if (live && live.version !== pkg.version) keepVersions.push(live.version)
 
     const existing = readMarker(final)
     if (!o.force && markerMatches(existing, pkg) && existing.zipSha256 === zipSha256) {

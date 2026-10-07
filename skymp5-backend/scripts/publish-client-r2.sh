@@ -8,9 +8,13 @@
 #   4. only then data/r2.json gets "clientFiles": { "<version>": <zip size> } (written to a temp file, then mv) and is
 #      printed. Until that line exists the backend serves the files from disk, so a failed run changes nothing live.
 #
-#   bash scripts/publish-client-r2.sh [--dry-run] [--no-copy-dest] <version>
+#   bash scripts/publish-client-r2.sh [--dry-run] [--no-copy-dest] [--replace-live] <version>
 #     --dry-run       show what would be uploaded and written; reads no credentials, contacts nothing
 #     --no-copy-dest  upload every file instead of copying unchanged ones inside R2
+#     --replace-live  publish a staged list (VERSION_FILE) even though it reuses the live version number with other files
+#
+# A staged list that reuses the live version number with other files is refused: the upload would overwrite the R2 files
+# launchers are redirected to until the swap. A same-number rebuild is published after the swap, from the live list.
 #
 # Credentials come only from /root/.r2.env (R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY), given to rclone as
 # environment variables. rclone never runs with -v, and everything it prints goes through a sed that masks those values.
@@ -31,11 +35,12 @@ R2_JSON=$DATA_DIR/r2.json
 say(){ echo "[publish-client-r2] $*"; }
 die(){ echo "[publish-client-r2] FAILED: $*" >&2; exit 1; }
 
-DRY=""; COPY_DEST=1; V=""
+DRY=""; COPY_DEST=1; REPLACE_LIVE=""; V=""
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --no-copy-dest) COPY_DEST="" ;;
+    --replace-live) REPLACE_LIVE=1 ;;
     -*) echo "unknown option $a" >&2; exit 2 ;;
     *) [ -z "$V" ] || { echo "one version only" >&2; exit 2; }; V=$a ;;
   esac
@@ -58,6 +63,22 @@ node "$HERE/unpack-client.js" --files --version-file "$VERSION_FILE" --out "$UNP
 cut -f3 "$WORK/files.tsv" > "$WORK/files.txt"
 [ "$(wc -l < "$WORK/files.txt")" -eq "$COUNT" ] || die "the file list has $(wc -l < "$WORK/files.txt") lines, the marker says $COUNT"
 
+# A staged list (not the live files-version.json) must not reuse the live version number with other files: r2.json still
+# lists the live zip size for it, so launchers are redirected to client/$V/files/ until the swap and would get the rebuild
+LIVE_FILE=$DATA_DIR/files-version.json
+if [ "$(realpath -m "$VERSION_FILE")" != "$(realpath -m "$LIVE_FILE")" ]; then
+  LIVE=$(node -e '
+    const [file, mod] = process.argv.slice(1)
+    const { safeVersion, listedFiles, listSha256 } = require(mod)
+    let v
+    try { v = JSON.parse(require("fs").readFileSync(file, "utf8")) } catch { process.exit(0) }
+    if (v && safeVersion(v.version)) process.stdout.write(v.version + "\t" + listSha256(listedFiles(v)))' "$LIVE_FILE" "$BACKEND/sources/clientFiles.js") || die "cannot read $LIVE_FILE"
+  if [ "$(cut -f1 <<<"$LIVE")" = "$V" ] && [ "$(cut -f2 <<<"$LIVE")" != "$(field listSha256)" ]; then
+    [ -n "$REPLACE_LIVE" ] || die "$VERSION_FILE reuses the live version number $V with other files; uploading it now would replace the files launchers are redirected to. Swap the release in first, then publish without VERSION_FILE (or pass --replace-live)"
+    say "WARNING: --replace-live: the R2 files of the live $V are replaced by this staged rebuild"
+  fi
+fi
+
 # r2.json must exist: without it R2 is switched off, and this script never switches it on
 [ -f "$R2_JSON" ] || die "$R2_JSON is missing (R2 is switched off); add it by hand first"
 R2INFO=$(node -e '
@@ -65,8 +86,9 @@ R2INFO=$(node -e '
   if (typeof s.baseUrl !== "string" || !/^https:\/\/[^/]+/i.test(s.baseUrl)) { console.error("r2.json has no https baseUrl"); process.exit(1) }
   const m = s.clientFiles && typeof s.clientFiles === "object" && !Array.isArray(s.clientFiles) ? s.clientFiles : {}
   const prev = Object.keys(m).filter(k => k !== process.argv[2] && /^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$/.test(k)).pop() || ""
-  console.log(s.baseUrl.replace(/\/+$/, "") + "\t" + prev)' "$R2_JSON" "$V") || die "cannot read $R2_JSON"
-BASE=$(cut -f1 <<<"$R2INFO"); PREV=$(cut -f2 <<<"$R2INFO")
+  const listed = Object.prototype.hasOwnProperty.call(m, process.argv[2]) ? String(m[process.argv[2]]) : ""
+  console.log(s.baseUrl.replace(/\/+$/, "") + "\t" + prev + "\t" + listed)' "$R2_JSON" "$V") || die "cannot read $R2_JSON"
+BASE=$(cut -f1 <<<"$R2INFO"); PREV=$(cut -f2 <<<"$R2INFO"); LISTED=$(cut -f3 <<<"$R2INFO")
 DEST="$R2_REMOTE/$V/files"
 ARGS=(copy "$SRC" "$DEST" --files-from-raw "$WORK/files.txt" --checksum --bwlimit 3M --stats 30s --stats-one-line --stats-log-level NOTICE)
 [ -n "$COPY_DEST" ] && [ -n "$PREV" ] && ARGS+=(--copy-dest "$R2_REMOTE/$PREV/files")
@@ -75,6 +97,11 @@ say "client $V: $COUNT files, $((BYTES / 1048576)) MB from $SRC"
 say "upload: rclone ${ARGS[*]}"
 say "check:  HEAD $BASE/client/$V/files/<path> for each file (size)"
 say "then:   $R2_JSON clientFiles[\"$V\"] = $ZIPSIZE"
+# The same version number published before from another build: Cloudflare may still hold those files at the edge
+REUSED=""
+[ -n "$LISTED" ] && [ "$LISTED" != "$ZIPSIZE" ] && REUSED=1
+reused_note(){ say "WARNING: $V was published before with zip size $LISTED. Purge $BASE/client/$V/files/ in Cloudflare (by prefix, or each URL) so no edge serves the old files; the size check may also read cached copies"; }
+[ -n "$REUSED" ] && reused_note
 if [ -n "$DRY" ]; then say "dry run: nothing uploaded or written"; exit 0; fi
 
 # 2. Upload. The credentials go to rclone as environment only; the mask script never appears on a command line.
@@ -137,3 +164,5 @@ chown --reference="$R2_JSON" "$TMPJ" 2>/dev/null || true
 mv -f "$TMPJ" "$R2_JSON" || { rm -f "$TMPJ"; die "cannot replace $R2_JSON"; }
 say "$R2_JSON now lists client files $V (zip size $ZIPSIZE):"
 cat "$R2_JSON"
+[ -n "$REUSED" ] && reused_note
+exit 0

@@ -449,6 +449,52 @@ test('unpack-client.js refuses a zip of another release, a missing file, unsafe 
   assert.equal(wrong.status, 2)
 })
 
+test('unpack-client.js will not let a staged rebuild under the live version number replace the live copy', () => {
+  const s = stage('unpack-reuse', '0.4.1')
+  const out = path.join(s.dir, 'unpacked')
+  const liveFile = path.join(s.dir, 'files-version.json')
+  fs.copyFileSync(s.vf, liveFile)
+  const run = args => spawnSync(process.execPath, [SCRIPT, '--out', out, '--live-version-file', liveFile, '--min-free-mb', '0', ...args], { encoding: 'utf8' })
+  assert.equal(run(['--zip', s.zip, '--version-file', liveFile]).status, 0)
+  const cf = createClientFiles({ dataDir: s.dir, clientFilesDir: s.dir })
+  const liveDir = cf.verifiedDir(cf.currentPackage())
+  assert.equal(liveDir, path.join(out, '0.4.1'))
+  const liveMarker = fs.readFileSync(path.join(liveDir, '.verified'), 'utf8')
+
+  // The same number, one plugin changed, staged in its own folder
+  const rebuilt = { ...FILES, 'Data/DragonBreak.esp': Buffer.from('rebuilt main plugin') }
+  const st = stage('unpack-reuse/staged', '0.4.1', rebuilt)
+  for (const extra of [[], ['--force']]) {
+    const r = run([...st.args, ...extra])
+    assert.equal(r.status, 1, extra.join(' '))
+    assert.match(r.stderr, /reuses the live version number 0\.4\.1 with other files/)
+    assert.equal(cf.verifiedDir(cf.currentPackage()), liveDir, 'the live copy is still served')
+    assert.equal(fs.readFileSync(path.join(liveDir, '.verified'), 'utf8'), liveMarker)
+    assert.deepEqual(listing(out), ['0.4.1'])
+  }
+
+  // A staged copy of exactly the live list is no rebuild
+  const same = path.join(s.dir, 'same.json')
+  fs.copyFileSync(liveFile, same)
+  const r = run(['--zip', s.zip, '--version-file', same])
+  assert.equal(r.status, 0, r.stderr)
+  assert.match(r.stdout, /already unpacked/)
+
+  // --replace-live does it anyway, and says so
+  const forced = run([...st.args, '--replace-live'])
+  assert.equal(forced.status, 0, forced.stderr)
+  assert.match(forced.stdout, /WARNING: --replace-live/)
+  assert.equal(cf.verifiedDir(cf.currentPackage()), null)
+
+  // The documented order for a same-number rebuild: swap the list in, then unpack from the live list
+  fs.copyFileSync(st.vf, liveFile)
+  const t = new Date(Date.now() + 5000)
+  fs.utimesSync(liveFile, t, t)
+  assert.equal(run(['--zip', st.zip, '--version-file', liveFile]).status, 0)
+  assert.equal(cf.verifiedDir(cf.currentPackage()), liveDir)
+  assert.deepEqual(fs.readFileSync(path.join(liveDir, 'Data', 'DragonBreak.esp')), rebuilt['Data/DragonBreak.esp'])
+})
+
 test('unpack-client.js keeps the current version and one previous (and the live one while staging)', () => {
   const s = stage('unpack-prune', '1.0.1')
   const out = path.join(s.dir, 'unpacked')
