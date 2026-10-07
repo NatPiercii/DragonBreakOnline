@@ -530,6 +530,23 @@ const reequipAmmoLater = (ammoId: number, frames = REEQUIP_AMMO_FRAMES): void =>
   });
 };
 
+const isPropertyKey = (e: Entry): boolean => (e.baseId >>> 0) === PROPERTY_KEY_BASE_ID;
+
+// addItemEx removes through a new extra list, never the held one, so the engine may take another key of the base;
+// any key removal takes every key off and adds the server's set back
+const withKeysRebuilt = (refr: ObjectReference, target: Inventory, diff: Entry[]): Entry[] => {
+  if (!diff.some((e) => isPropertyKey(e) && e.count < 0)) {
+    return diff;
+  }
+  const key = Game.getFormEx(PROPERTY_KEY_BASE_ID);
+  const held = key ? refr.getItemCount(key) : 0;
+  if (!key || held <= 0) {
+    return diff;
+  }
+  refr.removeItem(key, held, true, null);
+  return diff.filter((e) => !isPropertyKey(e)).concat(target.entries.filter(isPropertyKey).map((e) => ({ ...e })));
+};
+
 const applyInventoryInner = (
   refr: ObjectReference,
   newInventory: Inventory,
@@ -541,7 +558,7 @@ const applyInventoryInner = (
   if (reverted) {
     revertBaseIds.clear();
   }
-  const diff = getDiff(target, getInventory(refr), ignoreWorn, "apply", reverted).entries;
+  const diff = withKeysRebuilt(refr, target, getDiff(target, getInventory(refr), ignoreWorn, "apply", reverted).entries);
 
   let res = true;
 
