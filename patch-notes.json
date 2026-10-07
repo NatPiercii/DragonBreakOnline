@@ -70,6 +70,12 @@
         "items": [
           "Skeletons and zombies can now be searched: they often carry bone meal, and sometimes a few coins or an ingredient."
         ]
+      },
+      {
+        "heading": "Storage",
+        "items": [
+          "Gear kept in a chest outside the dungeons is no longer changed: crafted Steel Plate (and anything above steel) stays as it is. Only dungeon loot is capped at steel."
+        ]
       }
     ]
   },

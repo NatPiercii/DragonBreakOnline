@@ -152,8 +152,10 @@ loginAll();
 check('a staff character (admin tier from the roles source) is left alone', store[S1].inventory.entries[0].baseId === ID.GlassSword && !store[S1]['private.dboGearSwap'] && !said.length);
 // containers, swapped once as they are opened
 const CH = 0x0800f001, BAR = 0x0800f002;
-store[CH] = { baseDesc: descOf(CHEST_BASE), inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }, { baseId: ID.ElvenArrow, count: 12 }, { baseId: ID.DA08EbonyBlade, count: 1 }] } };
-store[BAR] = { baseDesc: descOf(BARREL_BASE), inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+// Only dungeon chests are loot pools: these stand in a dungeon cell
+globalThis.__dboDungeonCells = new Set(['a1:skyrim.esm']);
+store[CH] = { baseDesc: descOf(CHEST_BASE), worldOrCellDesc: 'a1:Skyrim.esm', inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }, { baseId: ID.ElvenArrow, count: 12 }, { baseId: ID.DA08EbonyBlade, count: 1 }] } };
+store[BAR] = { baseDesc: descOf(BARREL_BASE), worldOrCellDesc: 'a1:Skyrim.esm', inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
 audits.length = 0; said.length = 0;
 globalThis.__dboGearSwapContainer(CH);
 const cinv = store[CH].inventory.entries;
@@ -194,13 +196,17 @@ check('a left-hand piece is put on again in the left hand (EquipItemEx slot 2)',
   globalThis.__dboGearSwapLogin(ME);
   check('loot only: a character keeps a glass sword at login', ((store[ME].inventory || {}).entries || []).some((e) => e.baseId === ID.GlassSword) && !said.length && !audits.length);
   const HOUSE = 0xff00a001, WORLD = 0xff00a002;
-  store[HOUSE] = { baseDesc: descOf(CHEST_BASE), inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
-  store[WORLD] = { baseDesc: descOf(CHEST_BASE), inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+  store[HOUSE] = { baseDesc: descOf(CHEST_BASE), worldOrCellDesc: 'a1:Skyrim.esm', inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+  store[WORLD] = { baseDesc: descOf(CHEST_BASE), worldOrCellDesc: 'a1:Skyrim.esm', inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
+  const OUTSIDE = 0xff00a003;
+  store[OUTSIDE] = { baseDesc: descOf(CHEST_BASE), worldOrCellDesc: '3c:Skyrim.esm', inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }] } };
   globalThis.__dboHousing = { recordOf: (ref) => ((ref >>> 0) === HOUSE ? { owner: 52 } : null) };
   globalThis.__dboGearSwapContainer(HOUSE);
   check('loot only: a chest inside a property keeps its glass sword', store[HOUSE].inventory.entries.some((e) => e.baseId === ID.GlassSword));
   globalThis.__dboGearSwapContainer(WORLD);
-  check('loot only: a world chest is still swapped', !store[WORLD].inventory.entries.some((e) => e.baseId === ID.GlassSword));
+  check('loot only: a chest in a dungeon is still swapped', !store[WORLD].inventory.entries.some((e) => e.baseId === ID.GlassSword));
+  globalThis.__dboGearSwapContainer(OUTSIDE);
+  check('loot only: a chest outside the dungeons keeps its glass sword (crafted Steel Plate in a storage chest, 7 Oct)', store[OUTSIDE].inventory.entries.some((e) => e.baseId === ID.GlassSword));
   globalThis.__dboHousing = { recordOf: () => { throw new Error('housing not ready'); } };
   store[WORLD].inventory = { entries: [{ baseId: ID.GlassSword, count: 1 }] }; delete store[WORLD]['private.dboGearSwap'];
   globalThis.__dboGearSwapContainer(WORLD);

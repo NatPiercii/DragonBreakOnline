@@ -328,6 +328,13 @@ module.exports = (api) => {
     if (C.housing !== true) {
       try { const h = globalThis.__dboHousing; const r = h && typeof h.recordOf === 'function' ? h.recordOf(ref) : null; if (r && r.owner) return; } catch (e) { /* no housing: a world chest */ }
     }
+    // Only dungeon chests are loot pools (Nate, 5 Oct): a world chest players keep gear in turned crafted Steel Plate into
+    // steel (bug tracker, 7 Oct, DragonBreak Online Edits chest 3c12ae15). containersInDungeonsOnly: false sweeps every one again
+    if (C.containersInDungeonsOnly !== false) {
+      const cells = globalThis.__dboDungeonCells;
+      let here = ''; try { const d = String(mp.get(ref, 'worldOrCellDesc') || ''); const i = d.indexOf(':'); const n = parseInt(d.slice(0, i), 16); here = (Number.isFinite(n) ? n.toString(16) : d.slice(0, i).toLowerCase()) + ':' + d.slice(i + 1).toLowerCase(); } catch (e) { return; }
+      if (!cells || !cells.has(here)) return;
+    }
     // The base form comes from 'baseDesc': the server has no 'baseId' property, and asking for one throws
     let base = 0; try { base = idOf(String(mp.get(ref, 'baseDesc') || '')) >>> 0; } catch (e) { return; }
     const r = base && recordOf(base);
