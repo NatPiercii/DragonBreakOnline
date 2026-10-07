@@ -562,3 +562,9 @@ $admin-row-gutter: 16px;
   background: rgba(8, 25, 28, 0.8); border: 1px solid $admin-border; color: $admin-gold;
   font-family: inherit; font-size: 14px; padding: 5px 8px; margin-left: 8px; max-width: 260px;
 }
+
+// A character's #TAG beside the name in the Players list
+.admin-panel__tag {
+  opacity: 0.6;
+  font-size: 0.9em;
+}

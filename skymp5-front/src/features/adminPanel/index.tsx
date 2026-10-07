@@ -10,6 +10,7 @@ interface PanelPlayer {
   a?: string; // actor/form id hex, online only
   p: number; // profileId
   n: string; // character name
+  t?: string; // the character's #TAG, online rows only
   d: string; // discordId
   dn: string; // discord name
   ip: string; // masked server-side
@@ -256,6 +257,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   // The one character every tab acts on: '' is the admin, otherwise an online actor id hex
   const [actingOn, setActingOn] = useState('');
   const [zoneSearch, setZoneSearch] = useState('');
+  const [renameTo, setRenameTo] = useState('');
   const [now, setNow] = useState(Date.now());
 
   // The zone countdown and the debug clocks tick locally between server pushes
@@ -289,7 +291,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
   const shownPlayers = players.filter((pl) => {
     if (onlineOnly && !pl.online) return false;
     if (!filter) return true;
-    const hay = [pl.n, pl.dn, pl.d, String(pl.p), pl.a || '', pl.ip, pl.hwid].join(' ').toLowerCase();
+    const hay = [pl.n, pl.t ? '#' + pl.t : '', pl.dn, pl.d, String(pl.p), pl.a || '', pl.ip, pl.hwid].join(' ').toLowerCase();
     return hay.indexOf(filter) !== -1;
   });
 
@@ -303,6 +305,14 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
 
   const act = (key: string): void => {
     if (selectedPlayer && selectedPlayer.a) send(key, selectedPlayer.a);
+  };
+  // The server checks the name (as /rename does) and answers; the roster is asked again so the new name shows
+  const renameName = renameTo.trim();
+  const rename = (): void => {
+    if (!ev.action || !selectedPlayer || !selectedPlayer.a || !renameName) return;
+    send(ev.action, 'rename', JSON.stringify({ target: selectedPlayer.a, name: renameName }));
+    setRenameTo('');
+    if (ev.refresh) setTimeout(() => send(ev.refresh), 500);
   };
 
   // Mastery rows: the admin's own character (actor id from the debug packet) and the selected online row
@@ -444,6 +454,21 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
               {canBan ? <Button text="Ban" width={104} height={32} disabled={!actionsEnabled} onClick={() => act(ev.ban)} /> : null}
             </div>
             {ev.action ? (
+              <div className="admin-panel__actions">
+                <input
+                  className="admin-panel__input"
+                  type="text"
+                  maxLength={31}
+                  placeholder={selectedPlayer && selectedPlayer.online ? 'New name for ' + (selectedPlayer.n || 'this character') : 'Select an online player to rename'}
+                  value={renameTo}
+                  disabled={!actionsEnabled}
+                  onChange={(e) => setRenameTo(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') rename(); }}
+                />
+                <Button text="Rename" width={104} height={32} disabled={!actionsEnabled || !renameName} onClick={rename} />
+              </div>
+            ) : null}
+            {ev.action ? (
               <PlayerPunish
                 events={ev}
                 target={actionsEnabled && selectedPlayer && selectedPlayer.a ? selectedPlayer.a : null}
@@ -530,7 +555,7 @@ const AdminPanel = ({ data }: { data: AdminPanelData }) => {
                       {pl.online && pl.ping != null ? pl.ping + 'ms' : '-'}
                     </span>
                     <span className="admin-panel__cell admin-panel__cell--profile">{pl.p}</span>
-                    <span className="admin-panel__cell admin-panel__cell--name">{pl.n || '-'}</span>
+                    <span className="admin-panel__cell admin-panel__cell--name">{pl.n || '-'}{pl.t ? <span className="admin-panel__tag"> #{pl.t}</span> : null}</span>
                     <span className="admin-panel__cell admin-panel__cell--form">{pl.a ? '0x' + pl.a : '-'}</span>
                     <span className="admin-panel__cell admin-panel__cell--discord">{pl.dn || '-'}</span>
                     <span className="admin-panel__cell admin-panel__cell--discord-id">{pl.d || '-'}</span>
