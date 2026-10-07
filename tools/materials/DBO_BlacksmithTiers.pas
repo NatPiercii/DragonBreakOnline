@@ -17,8 +17,8 @@
                         marker) == 1 and, for a forge recipe of a material with a manual, HasSpell(manual marker) == 1.
                         A recipe whose HasPerk sits in an OR group with another condition is listed, never edited.
     - faction_recipes.tsv  every recipe of faction-gear.json's items (forge and tailor) loses each OR group holding a
-                        condition that names a quest, a faction or a race: the server's factiongear.js decides by faction
-                        and role instead. Runs before the tier gates. Every copy into a target adds the masters it needs.
+                        condition that names a quest or a faction: the server's factiongear.js decides by faction and
+                        role instead. Race checks stay (only Orcs craft Orcish). Runs before the tier gates. Every copy into a target adds the masters it needs.
 
   Vanilla, DLC and USSEP records are overridden into DragonBreak Online Edits.esp; everything third-party, Creation
   Club included, into DragonBreak Nexus Patches.esp. A mod's own file is never edited.
@@ -605,9 +605,9 @@ end;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Faction gear (faction_recipes.tsv, from faction-gear.json): factiongear.js decides on the server who makes it, by
-// faction and role, so the vanilla locks go. A lock is a condition naming a quest, a faction or a race (quest stages,
-// the civil war side, a vampire race); its whole OR group goes with it, so an "or this mod setting" beside it goes too.
-// Every other condition stays: mod settings, "owns a Nightingale blade".
+// faction and role, so the vanilla locks go. A lock is a condition naming a quest or a faction (quest stages, the civil
+// war side); its whole OR group goes with it, so an "or this mod setting" beside it goes too. Race checks stay (Nate,
+// 6 Oct: only Orcs craft Orcish; a vampire wears the vampire race), and so does every other condition.
 function LockCondition(c: IInterface): Boolean;
 var
   r: IInterface;
@@ -617,7 +617,7 @@ begin
   r := LinksTo(ElementByPath(c, 'CTDA\Parameter #1'));
   if not Assigned(r) then Exit;
   s := Signature(r);
-  Result := (s = 'QUST') or (s = 'FACT') or (s = 'RACE');
+  Result := (s = 'QUST') or (s = 'FACT');
 end;
 
 // The indices (ascending) of every condition in an OR group that holds a lock

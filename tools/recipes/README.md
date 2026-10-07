@@ -18,8 +18,9 @@ ladder (`tools/materials/BLACKSMITH_LADDER_README.md`):
 3. **Faction gear without the old quests** (Nate, 5 Oct: "make sure this applies for other factions"). Every recipe of a
    `faction-gear.json` item (210: the Legion, the six strongholds, Stormcloaks, Dawnguard, Thieves Guild, Blades, Dark
    Brotherhood, the vampire orders, the College, Companions, Nightingales, Thalmor, Silver Hand, the hold guards; forge
-   and tailor) loses each OR group holding a condition that names a quest, a faction or a race: `GetQuestCompleted CWFinale`,
-   `GetStageDone Favor258`, `GetInFaction CWImperialFaction` or `IAGNoQuestCrafting`, the vampire races. `factiongear.js`
+   and tailor) loses each OR group holding a condition that names a quest or a faction: `GetQuestCompleted CWFinale`,
+   `GetStageDone Favor258`, `GetInFaction CWImperialFaction` or `IAGNoQuestCrafting`. Race checks stay (Nate: only Orcs
+   craft Orcish; a vampire wears the vampire race), except where one shares an OR group with a quest. `factiongear.js`
    already refuses the craft to anyone outside the faction or its role, so those locks only hid the recipes. Mod settings
    (`CCO_*`, `IACT*`, all 1 on the server) and "owns a Nightingale blade" stay. The forge ones also get their tier gates.
 4. **Tier 5 out-stats tier 4.** `t4_below_t5.py` finds the tier 4 gear (glass, ebony, stalhrim, amber) above the tier 4

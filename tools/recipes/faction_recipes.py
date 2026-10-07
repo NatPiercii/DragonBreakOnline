@@ -3,7 +3,7 @@
 
 faction-gear.json names, per faction item, the recipes that make it; factiongear.js refuses the craft to anyone outside
 the faction or role. The vanilla and mod locks on those recipes (quest stages, the civil war side, a vampire race) are
-then only in the way, so the PC run removes every OR group holding a condition that names a quest, a faction or a race.
+then only in the way, so the PC run removes every OR group holding a condition that names a quest or a faction.
 
   python3 tools/recipes/faction_recipes.py tsv      writes faction_recipes.tsv (what the PC script reads)
   python3 tools/recipes/faction_recipes.py check    reads the server's plugins and prints, per recipe, the conditions
@@ -21,7 +21,7 @@ SERVER = os.path.abspath(os.path.join(HERE, '..', '..'))
 TSV = os.path.join(HERE, 'faction_recipes.tsv')
 DATA = '/opt/skyrim-data/'
 LOADORDER = os.path.expanduser('~/dragonbreak/fork/deploy/skyrim-data/loadorder.txt')
-LOCK_TYPES = (b'QUST', b'FACT', b'RACE')
+LOCK_TYPES = (b'QUST', b'FACT')   # race checks stay: only Orcs craft Orcish, a vampire wears the vampire race
 # Only for printing: the census's names (recipe_census.py FUNCS) and the ones it leaves as numbers
 FUNCS = {448: 'HasPerk', 264: 'HasSpell', 47: 'GetItemCount', 74: 'GetGlobalValue', 543: 'GetQuestCompleted',
          59: 'GetStageDone', 58: 'GetStage', 182: 'GetEquipped', 130: 'GetPCIsRace', 132: 'GetInFaction', 71: 'GetFactionRank'}
