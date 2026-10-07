@@ -1,5 +1,9 @@
 // /appearance (appearance.js): a player reopens the appearance editor for gold; race, sex and name are kept, the gold is
 // taken only for a changed look, once per cooldown, and never while busy. Stub mp, the real module.
+// Also the head guard (7 Oct): RaceMenu reopened on an existing non-Nord character puts the Nord default head on them;
+// the head from before goes back, a head-only swap costs nothing, and the look is written again after the client's
+// settle window. Real head ids from the affected characters' saved looks (backups 4-6 Oct, live 7 Oct), names left out.
+// And a GM's /chargen on an existing character, which gets the same head guard.
 //   node tests/appearance-command-harness.js   (from server/)
 'use strict';
 const path = require('path');
@@ -8,22 +12,27 @@ let fails = 0;
 const ok = (c, label, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${label}${c || got === undefined ? '' : '   ' + JSON.stringify(got)}`); if (!c) fails++; };
 
 const A = 0xff000101;
-let props, said, sys, audits, cmds, opened;
+let props, said, sys, audits, cmds, opened, timers, user, writes, retakes;
 const look = () => ({ raceId: 0x13746, isFemale: false, name: 'Brand Stoneborn', weight: 50, skinColor: 1, hairColor: 2, headpartIds: [1, 2], headTextureSetId: 3, options: [0], presets: [0], tints: [] });
-const reset = (gold) => {
-  props = new Map([[`${A}|appearance`, look()], [`${A}|inventory`, { entries: [{ baseId: 0xf, count: gold }, { baseId: 0x1d4ec, count: 1 }] }]]);
-  said = []; sys = []; audits = []; cmds = new Map(); opened = 0;
+const reset = (gold, start) => {
+  props = new Map([[`${A}|inventory`, { entries: [{ baseId: 0xf, count: gold }, { baseId: 0x1d4ec, count: 1 }] }]]);
+  if (start !== null) props.set(`${A}|appearance`, start === undefined ? look() : start);
+  said = []; sys = []; audits = []; cmds = new Map(); opened = 0; timers = []; user = 3; writes = []; retakes = [];
   delete require.cache[MOD];
   globalThis.__dboCombatAt = new Map(); globalThis.__dboIsDowned = null; globalThis.__dboBeastOriginalRace = null; globalThis.__dboDungeonCells = new Set();
+  globalThis.__dboTellsRetake = (a, before) => retakes.push([a, before]);
   return require(MOD)({
-    mp: { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => props.set(`${id}|${k}`, v), setRaceMenuOpen: () => { opened++; } },
+    mp: { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => { if (k === 'appearance') writes.push(JSON.parse(JSON.stringify(v))); props.set(`${id}|${k}`, v); }, setRaceMenuOpen: () => { opened++; } },
     log: () => {}, personal: (a, t) => said.push(t), system: (a, t) => sys.push(t), audit: (t) => audits.push(t), who: () => 'Brand',
     registerChatCommand: (n, fn) => cmds.set(n, fn), cfg: { appearance: { cost: 500, cooldownHours: 24 } },
+    userOf: () => user, profileOf: () => 7, later: (fn, ms) => timers.push({ fn, ms }),
   });
 };
 const gold = () => props.get(`${A}|inventory`).entries.filter((e) => e.baseId === 0xf).reduce((s, e) => s + e.count, 0);
 const run = () => cmds.get('appearance')(A, '');
-const finish = (app) => globalThis.__dboAppearanceEdit.finish(A, app);
+// The engine stores an allowed editor result before the hook hears of it (ActionListener::OnUpdateAppearance)
+const engineStores = (app) => { if (app && typeof app === 'object') props.set(`${A}|appearance`, JSON.parse(JSON.stringify(app))); };
+const finish = (app) => { engineStores(app); return globalThis.__dboAppearanceEdit.finish(A, app); };
 
 // 1. Open, change the hair, save: 500 gold, cooldown set, audited
 let m = reset(800);
@@ -78,6 +87,135 @@ ok(globalThis.__dboAppearanceEdit.finish(A, look()) === false && gold() === 800,
 const src = require('fs').readFileSync(path.resolve(__dirname, '..', 'gamemode.js'), 'utf8');
 const hook = src.slice(src.indexOf('const appearanceHook ='), src.indexOf('appearanceHook.__dbo = true'));
 ok(hook.indexOf('__dboAppearanceEdit.pending') > 0 && hook.indexOf('__dboAppearanceEdit.pending') < hook.indexOf('moveToHubWhenReady') && /require\(APPEARANCE_JS\)/.test(src), 'gamemode.js hands a pending edit to appearance.js before creation\'s steps');
+
+// 10. The head guard. Looks as saved (ids from the affected characters; names left out)
+const NORD_M = 0x5162f, NORD_F = 0x51623;
+const char = (raceId, isFemale, headpartIds, extra) => Object.assign(look(), { raceId, isFemale, headpartIds }, extra || {});
+const stored = () => props.get(`${A}|appearance`);
+const parts = (x) => x.headpartIds.map((h) => h.toString(16)).join(' ');
+const edit = (start, after, gold) => { reset(gold === undefined ? 800 : gold, start); run(); timers = []; writes = []; audits = []; return finish(after); };
+// A Breton man (4 Oct look): the editor took his head (51633) out and put the Nord one in a later slot, nothing else
+const bretonM = () => char(0x13741, false, [0x51633, 0x51631, 0x8555f, 0x220064cb, 0x24238, 0x1e0adc53, 0x1e0adc52, 0x20001d96, 0x1f005451], { skinColor: 13021352 });
+const swapOnly = char(0x13741, false, [0x51631, 0x8555f, 0x220064cb, 0x24238, 0x1e0adc53, 0x1e0adc52, 0x20001d96, 0x1f005451, NORD_M], { skinColor: 13021352 });
+edit(bretonM(), swapOnly);
+ok(gold() === 800 && !props.get(`${A}|private.dboAppearanceAt`), 'a head-only swap costs nothing and starts no cooldown', gold());
+ok(JSON.stringify(stored()) === JSON.stringify(bretonM()), 'the look from before is stored, head in its old slot', parts(stored()));
+ok(/unchanged, so nothing was charged/.test(sys.at(-1)) && /another race's face; your own was kept/.test(sys.at(-1)), 'the player is told the look is unchanged and why', sys.at(-1));
+ok(audits.some((t) => t === "APPEARANCE Brand editor swapped in Nord's default head; kept their own"), 'audited', audits);
+ok(retakes.length === 0, 'an unchanged look is no new look for the tells');
+// The settle window: the corrected look again once the client applies echoes
+ok(timers.length === 1 && timers[0].ms === 3500 && writes.length === 1, 'written at once and once more after 3.5 s', timers.map((t) => t.ms));
+timers[0].fn();
+ok(writes.length === 2 && JSON.stringify(writes[1]) === JSON.stringify(bretonM()), 'the second write is the corrected look', writes.length);
+// The client's settle window is still 3 s (the fork's client, when there is one)
+const fork = process.env.FORK || path.resolve(__dirname, '..', '..', 'fork');
+const rs = path.join(fork, 'skymp5-client/src/services/services/remoteServer.ts');
+const settle = require('fs').existsSync(rs) ? Number((require('fs').readFileSync(rs, 'utf8').match(/const RACE_MENU_SETTLE_MS = (\d+)/) || [])[1]) : NaN;
+ok(!Number.isFinite(settle) || (settle < 3500 && settle >= 2000), `the write lands after the client's RACE_MENU_SETTLE_MS (${Number.isFinite(settle) ? settle : 'no client here'})`, settle);
+
+// The same edit with the hair changed too: paid, the new hair kept, the head put back
+const swapHair = Object.assign(JSON.parse(JSON.stringify(swapOnly)), { hairColor: 9 });
+edit(bretonM(), swapHair);
+ok(gold() === 300 && stored().hairColor === 9 && stored().headpartIds.includes(0x51633) && !stored().headpartIds.includes(NORD_M), 'a real edit with the swap: paid, the new hair kept, their own head back', parts(stored()));
+ok(/new look is saved. 500 gold paid. The editor had given you another race's face/.test(sys.at(-1)), 'and told', sys.at(-1));
+ok(retakes.length === 1 && retakes[0][1].skinColor === 13021352, 'a paid save hands the new look to the tells, with the look before');
+ok(timers.length === 1, 'the corrected look is sent again after the settle window');
+
+// Real pairs. 303 (Breton man, 4 Oct -> 6 Oct): hair, scars and skin changed, head swapped
+edit(bretonM(), char(0x13741, false, [0x51631, 0x8555f, 0x1e0adc53, 0x1e0adc52, 0x1f005451, NORD_M, 0x20001d96, 0x21008a33], { skinColor: 7364950 }));
+ok(parts(stored()) === '51633 51631 8555f 1e0adc53 1e0adc52 1f005451 20001d96 21008a33' && stored().skinColor === 7364950 && gold() === 300, 'a Breton man: own head back in slot 0, the rest of the edit kept and paid', parts(stored()));
+// 30e7 (Dark Elf man, 4 Oct -> 6 Oct): parts reordered, skin changed
+edit(char(0x13742, false, [0x51631, 0xc716f, 0xec3b3, 0xec1b5, 0xc3cd8, 0x5162c, 0x2200cd45, 0xe4e2c, 0xe4dca], { skinColor: 5398635 }),
+  char(0x13742, false, [0x51631, 0xe4e2c, 0xe4dca, 0xec3b3, 0xec1b5, 0xc3cd8, 0x2200cd45, 0xc716f, NORD_M], { skinColor: 8755875 }));
+ok(stored().headpartIds.includes(0x5162c) && !stored().headpartIds.includes(NORD_M) && stored().headpartIds.length === 9 && gold() === 300, 'a Dark Elf man: own head back', parts(stored()));
+// The same without the skin change: only reordered and swapped, so unchanged and free
+edit(char(0x13742, false, [0x51631, 0xc716f, 0xec3b3, 0xec1b5, 0xc3cd8, 0x5162c, 0x2200cd45, 0xe4e2c, 0xe4dca], { skinColor: 5398635 }),
+  char(0x13742, false, [0x51631, 0xe4e2c, 0xe4dca, 0xec3b3, 0xec1b5, 0xc3cd8, 0x2200cd45, 0xc716f, NORD_M], { skinColor: 5398635 }));
+ok(gold() === 800 && /unchanged/.test(sys.at(-1)) && parts(stored()) === '51631 c716f ec3b3 ec1b5 c3cd8 5162c 2200cd45 e4e2c e4dca', 'parts only reordered plus the swap: unchanged, free, the look from before stored', parts(stored()));
+// 17 (Breton woman, 4 Oct -> 5 Oct): the female Nord head
+edit(char(0x13741, true, [0x1e015c9f, 0x51621, 0x5150f, 0xec1b2, 0x1f002e2b, 0x2100b05b, 0x1e084999, 0x1e084998]),
+  char(0x13741, true, [0x1e015c9f, 0x5150f, 0xec1b2, 0x220064b7, 0x1f002e2b, NORD_F, 0x1e09f8d7, 0x1e09f8d6]));
+ok(parts(stored()) === '1e015c9f 51621 5150f ec1b2 220064b7 1f002e2b 1e09f8d7 1e09f8d6', 'a Breton woman: own head (51621) back in slot 1', parts(stored()));
+// 4cb (a Dark Elf woman turned vampire, DarkElfRaceVampire 8883d, 5 Oct -> 6 Oct): the vampire race wears the Dark Elf heads
+edit(char(0x8883d, true, [0x5150f, 0x5161c, 0xec1b2, 0x1e0ab0ae, 0x1e0ab0ad, 0x1e08340d, 0x7291e, 0xe4d7c], { skinColor: 11186614 }),
+  char(0x8883d, true, [0x5150f, 0xec1b2, 0x1e0ab0ae, 0x1e0ab0ad, 0x1e08340d, 0x2006f90, 0xe4d7c, NORD_F], { skinColor: 8958406 }));
+ok(parts(stored()) === '5150f 5161c ec1b2 1e0ab0ae 1e0ab0ad 1e08340d 2006f90 e4d7c' && audits.some((t) => /swapped in Nord's default head/.test(t)), 'a Dark Elf vampire woman: own head back, her new eyes kept', parts(stored()));
+ok(retakes.length === 1, '...and her new look goes to the tells');
+
+// No false fire
+const noFire = (label, start, after) => { edit(start, after); ok(!audits.some((t) => /swapped in/.test(t)) && JSON.stringify(stored()) === JSON.stringify(after) && gold() === 300, label, parts(stored())); };
+noFire('a Nord keeps the Nord head (hair changed)', char(0x13746, false, [NORD_M, 0x51631, 0x8555f]), char(0x13746, false, [0x51631, 0x8555f, NORD_M], { hairColor: 9 }));
+noFire('an Orc who kept the Orc head (5162a, in a later slot)', char(0x13747, false, [0x5162a, 0x51631, 0x8555f]), char(0x13747, false, [0x51631, 0x8555f, 0x5162a], { hairColor: 9 }));
+noFire('a Breton who chose a head that is no race default', bretonM(), char(0x13741, false, [0x22001234, 0x51631, 0x8555f, 0x220064cb, 0x24238, 0x1e0adc53, 0x1e0adc52, 0x20001d96, 0x1f005451], { skinColor: 13021352 }));
+noFire('a Breton man given the Breton woman\'s head (his own race\'s)', bretonM(), char(0x13741, false, [0x51621, 0x51631, 0x8555f, 0x220064cb, 0x24238, 0x1e0adc53, 0x1e0adc52, 0x20001d96, 0x1f005451], { skinColor: 13021352 }));
+noFire('a Nord head already there before (an older swap) is left alone', char(0x13741, false, [0x51631, 0x8555f, NORD_M]), char(0x13741, false, [0x51631, 0x8555f, NORD_M], { hairColor: 9 }));
+noFire('a race not in the table (Falmer) is never guarded', char(0x131f4, false, [0x51631, 0x8555f]), char(0x131f4, false, [0x51631, 0x8555f, NORD_M], { hairColor: 9 }));
+// A plain paid edit leaves the client's look as it is: nothing to send again
+edit(bretonM(), Object.assign(bretonM(), { hairColor: 9 }));
+ok(timers.length === 0 && writes.length === 0, 'a paid edit with nothing put back is not written again', timers.length);
+// A race change still puts the old look back, and that too is sent again after the window
+edit(bretonM(), char(0x13746, false, [0x51631, NORD_M]));
+ok(JSON.stringify(stored()) === JSON.stringify(bretonM()) && timers.length === 1, 'a refused race change: previous look, sent again after the window');
+
+// 11. The settled write checks again before it writes
+const settled = (label, meanwhile, writesExpected) => {
+  edit(bretonM(), swapOnly);
+  const n = writes.length;
+  meanwhile();
+  timers[0].fn();
+  ok(writes.length - n === writesExpected, label, writes.length - n);
+};
+settled('the player logged out: no second write', () => props.set(`${A}|isOnline`, false), 0);
+settled('another session has the character: no second write', () => { user = 4; }, 0);
+settled('a newer /appearance is open: no second write', () => props.set(`${A}|private.dboAppearanceEdit`, { at: Date.now(), before: bretonM() }), 0);
+settled('a GM /chargen is open: no second write', () => props.set(`${A}|private.dboChargenEdit`, { at: Date.now(), before: bretonM() }), 0);
+settled('the stored look changed meanwhile: the newer one stands', () => props.set(`${A}|appearance`, Object.assign(bretonM(), { hairColor: 7 })), 0);
+settled('still online, same session, nothing newer: written', () => {}, 1);
+
+// 12. A GM's /chargen on an existing character
+const E = globalThis.__dboAppearanceEdit;
+const chargen = (start, after, setup) => {
+  reset(800, start); if (setup) setup();
+  const snap = E.chargenOpened(A);
+  timers = []; writes = []; audits = []; sys = [];
+  engineStores(after);
+  const handled = E.chargenFinish(A, after);
+  return { snap, handled };
+};
+let r = chargen(bretonM(), swapOnly);
+ok(r.snap && r.handled && JSON.stringify(stored()) === JSON.stringify(bretonM()), 'a head-only swap under /chargen: the look from before', parts(stored()));
+ok(audits.some((t) => /editor swapped in Nord's default head; kept their own \(GM \/chargen\)/.test(t)) && /another race's face/.test(sys.at(-1) || ''), 'audited and the player told', audits);
+ok(gold() === 800 && timers.length === 1 && retakes.length === 0 && !props.get(`${A}|private.dboChargenEdit`), 'nothing charged, sent again after the window, the snapshot gone');
+r = chargen(bretonM(), swapHair);
+ok(stored().hairColor === 9 && stored().headpartIds.includes(0x51633) && !stored().headpartIds.includes(NORD_M) && retakes.length === 1, 'a /chargen edit with the swap: the edit kept, own head back, the tells retaken');
+r = chargen(bretonM(), char(0x13746, false, [0x51631, NORD_M]));
+ok(r.handled && !audits.some((t) => /swapped in/.test(t)) && writes.length === 0, 'a GM may change race: no guard', audits);
+r = chargen(bretonM(), JSON.parse(JSON.stringify(bretonM())));
+ok(r.handled && writes.length === 0 && timers.length === 0 && retakes.length === 0, 'closed unchanged: nothing written, nothing retaken');
+r = chargen(null, swapOnly);
+ok(!r.snap && !r.handled, 'a character with no look yet (creation) gets no snapshot');
+r = chargen(bretonM(), swapOnly, () => props.set(`${A}|private.creationPending`, true));
+ok(!r.snap && !r.handled && writes.length === 0, 'nor one still in creation');
+r = chargen(bretonM(), swapOnly, () => props.set(`${A}|private.rerollPending`, true));
+ok(!r.snap && !r.handled, 'nor one rerolling');
+reset(800, bretonM()); props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() });
+ok(E.chargenFinish(A, swapOnly) === false && !props.get(`${A}|private.dboChargenEdit`), 'a snapshot a day old is dropped, not trusted');
+reset(800, bretonM()); run();
+ok(E.chargenOpened(A) === false && !props.get(`${A}|private.dboChargenEdit`), 'no /chargen snapshot while the player\'s own /appearance is open (finish takes that close)');
+
+reset(800, bretonM()); E.chargenOpened(A); props.set(`${A}|private.rerollPending`, true); engineStores(swapOnly);
+ok(E.chargenFinish(A, swapOnly) === false && !props.get(`${A}|private.dboChargenEdit`) && !audits.some((t) => /swapped in/.test(t)), 'a reroll begun since the snapshot: that close is creation\'s, the snapshot dropped');
+reset(800, bretonM()); E.chargenOpened(A); props.set(`${A}|private.dboAppearanceEdit`, { at: Date.now(), before: bretonM() }); finish(swapOnly);
+ok(!props.get(`${A}|private.dboChargenEdit`) && JSON.stringify(stored()) === JSON.stringify(bretonM()) && timers.length === 1, 'an /appearance close ends a /chargen opened over it too, so its settled write is not held back');
+
+// 13. gamemode.js: /chargen snapshots before it opens the editor; the hook guards its close and passes refusals on
+const chargenCmd = src.slice(src.indexOf("registerChatCommand('chargen'"), src.indexOf("const NAME_RE"));
+ok(chargenCmd.indexOf('chargenOpened(t)') > 0 && chargenCmd.indexOf('chargenOpened(t)') < chargenCmd.indexOf('mp.setRaceMenuOpen(t, true)'), '/chargen takes the snapshot before it opens the editor');
+const afterEdit = hook.slice(hook.indexOf('return result;'));
+ok(/if \(isAllowed\) \{\s*try \{ if \(globalThis\.__dboAppearanceEdit && typeof globalThis\.__dboAppearanceEdit\.chargenFinish === 'function'\)/.test(afterEdit)
+  && afterEdit.indexOf('chargenFinish') < afterEdit.indexOf('__dboCreatorName'), 'the hook guards an allowed close after the /appearance branch and before creation\'s steps');
+ok(/if \(!isAllowed\) \{\s*try \{ if \(globalThis\.__dboAppearanceEdit && typeof globalThis\.__dboAppearanceEdit\.refused === 'function'\)/.test(hook), 'the hook hands a refused close to appearance.js');
+ok(/require\(APPEARANCE_JS\)\(\{[^}]*\buserOf\b/.test(src), 'appearance.js gets userOf (the settled write checks the session)');
 
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

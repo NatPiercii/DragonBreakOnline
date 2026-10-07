@@ -745,6 +745,8 @@ registerChatCommand('kick', (a, args) => {
 registerChatCommand('chargen', (a, args) => {
   const t = findByName(args.trim()); if (!t) return personal(a, 'No such player. Use their name or #TAG.');
   try {
+    // An existing character's look as it stands, so the close can undo the editor's swapped-in head (appearance.js)
+    try { if (globalThis.__dboAppearanceEdit && typeof globalThis.__dboAppearanceEdit.chargenOpened === 'function') globalThis.__dboAppearanceEdit.chargenOpened(t); } catch (e) { log('chargen look snapshot failed', e.message); }
     mp.setRaceMenuOpen(t, true);
     personal(a, `Character creation opened for ${display(t)}.`);
     system(t, `${nameOf(a)} opened character creation for you.`);
@@ -1922,6 +1924,16 @@ const appearanceHook = (actorId, appearance, isAllowed) => {
       return result;
     }
   }
+  // A GM's /chargen on an existing character (appearance.js): the editor's swapped-in head is undone and a vampire's
+  // tells laid over the new look; creation's steps below still run as they always did
+  if (isAllowed) {
+    try { if (globalThis.__dboAppearanceEdit && typeof globalThis.__dboAppearanceEdit.chargenFinish === 'function') globalThis.__dboAppearanceEdit.chargenFinish(actorId >>> 0, appearance); } catch (e) { log('chargen look check failed', e.message); }
+  }
+  // An editor the server did not open (the console's showracemenu): the engine kept the stored look, and a real change
+  // is explained to the player, since it is gone at their next login (appearance.js refused)
+  if (!isAllowed) {
+    try { if (globalThis.__dboAppearanceEdit && typeof globalThis.__dboAppearanceEdit.refused === 'function') globalThis.__dboAppearanceEdit.refused(actorId >>> 0, appearance); } catch (e) { log('refused look check failed', e.message); }
+  }
   // The race menu's name, held to the creation rules before spawn.ts finishes creation (naming.js); never refused here
   if (isAllowed) {
     try {
@@ -2536,7 +2548,7 @@ const onUi = (event, fn) => {
 try {
   const APPEARANCE_JS = path.resolve('appearance.js');
   delete require.cache[APPEARANCE_JS];
-  require(APPEARANCE_JS)({ mp, log, personal, system, audit, who, registerChatCommand, cfg });
+  require(APPEARANCE_JS)({ mp, log, personal, system, audit, who, registerChatCommand, cfg, userOf, profileOf });
 } catch (e) { log('appearance.js failed to load:', e.stack || e.message); globalThis.__dboAppearanceEdit = null; }
 try {
   const NAMING_JS = path.resolve('naming.js');

@@ -11,17 +11,98 @@
 // and tells the neighbours, then fires the event), so a locked change is undone here by setting the appearance back. The
 // edit waits on the character (private.dboAppearanceEdit, with the look before it), so a relog or a restart in the
 // middle neither loses the charge nor makes the change free.
+//
+// Three guards on the look an editor hands back (7 Oct):
+// 1. The Nord head. RaceMenu reopened on an existing non-Nord character (this command, or a GM's /chargen on one) can
+//    swap the race's own Face head part for the Nord default head (male 5162f, female 51623) while the race stays: 9 of
+//    the 10 non-Nord re-edits from 4 to 7 Oct were saved with it. With race and sex unchanged, a head in the result that
+//    is another race's default head (racedefaultheads.json, written by tools/racedefaultheads.js) and was not in the look
+//    before is taken out, and the head from before goes back in its old slot. An edit that only swapped the head is then
+//    unchanged and costs nothing. Config appearance.headGuard (default on).
+//    Whatever the server puts back is written at once (the neighbours see it) and again 3.5 s later: the player's own
+//    client drops its appearance echoes while RaceMenu settles, RACE_MENU_SETTLE_MS = 3000 from the close it sends the
+//    result with (fork skymp5-client remoteServer.ts isRaceMenuSettling and sendInputsService.ts, client-0380
+//    f25da5f0), so without the second write the player would see the editor's version until a relog.
+// 2. The silent drop. The engine stores an editor result only while the server has RaceMenu open (ActionListener.cpp
+//    OnUpdateAppearance, IsRaceMenuOpen); the console's showracemenu is not, so its edit shows on the player's own screen
+//    and is gone at the next login. The hook still hears it, with isAllowed false: when it differs from the stored look
+//    the player is told, at most once a minute (refused below). The client sends its look on every RaceSex Menu close,
+//    so a close with no change says nothing; creation, /appearance and /chargen are opened by the server (isAllowed
+//    true) and never come here. Config appearance.refusedNotice (default on).
+// 3. A vampire's or werewolf's tells. supernatural.js keeps the look the tells hide (eyes, skin colour, skin tone) and
+//    gives it back on a feed, which undid an edit saved while the tells showed (Selena #PXVM, 5 Oct). After a saved edit
+//    the new look goes to globalThis.__dboTellsRetake (supernatural.js), which takes what the player changed as the look
+//    under the tells and lays the tells back over it when they are due.
+const fs = require('fs');
+const path = require('path');
+
 const GOLD = 0x0000000f;
 const EDIT = 'private.dboAppearanceEdit';
 const LAST = 'private.dboAppearanceAt';
+// A GM's /chargen on a character that already exists: the look as it was when the GM opened it
+const CHARGEN = 'private.dboChargenEdit';
+// A /chargen snapshot older than this is not trusted as the look before (that editor never closed through the server)
+const CHARGEN_MAX_MS = 24 * 3600000;
+// The client's settle window (RACE_MENU_SETTLE_MS, 3000 from the close) and a margin
+const SETTLE_RESEND_MS = 3500;
+const REFUSED_EVERY_MS = 60000;
+const HEADS_JSON = path.join(__dirname, 'racedefaultheads.json');
+
+const u32 = (v) => Number(v) >>> 0;
+// The race default heads: race id -> race, head -> the first race it is the default of, race -> its own heads (both
+// sexes), race -> { male, female }
+const loadHeads = (log) => {
+  const raceOf = new Map(); const owner = new Map(); const own = new Map(); const defaults = new Map();
+  try {
+    const j = JSON.parse(fs.readFileSync(HEADS_JSON, 'utf8'));
+    for (const [edid, r] of Object.entries((j && j.races) || {})) {
+      const male = parseInt(r.male, 16) >>> 0; const female = parseInt(r.female, 16) >>> 0;
+      own.set(edid, new Set([male, female].filter(Boolean)));
+      defaults.set(edid, { male, female });
+      for (const h of [male, female]) if (h && !owner.has(h)) owner.set(h, edid);
+      for (const id of r.ids || []) raceOf.set(parseInt(id, 16) >>> 0, edid);
+    }
+  } catch (e) { log('appearance: racedefaultheads.json could not be read, so the head guard is off:', e.message); }
+  return { raceOf, owner, own, defaults };
+};
+// NordRace -> Nord, DarkElfRace -> Dark Elf, BretonRaceChild -> Breton Child
+const raceName = (edid) => String(edid || 'another race').replace(/Race/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+
+// The same look: head parts in any order (RaceMenu reorders them), fractions to float precision, whole numbers exactly
+const sameVal = (p, q) => {
+  if (typeof p === 'number' && typeof q === 'number') {
+    if (p === q) return true;
+    if (Number.isInteger(p) && Number.isInteger(q)) return Math.abs(p) <= 0xffffffff && Math.abs(q) <= 0xffffffff && (p >>> 0) === (q >>> 0);
+    return Math.abs(p - q) <= 1e-5 * Math.max(1, Math.abs(p), Math.abs(q));
+  }
+  if (Array.isArray(p) || Array.isArray(q)) return Array.isArray(p) && Array.isArray(q) && p.length === q.length && p.every((v, i) => sameVal(v, q[i]));
+  if (p && q && typeof p === 'object' && typeof q === 'object') {
+    for (const k of new Set([...Object.keys(p), ...Object.keys(q)])) if (!sameVal(p[k], q[k])) return false;
+    return true;
+  }
+  return p === q;
+};
+const partsOf = (x) => (Array.isArray(x.headpartIds) ? x.headpartIds.map(u32).sort((m, n) => m - n) : x.headpartIds);
+const sameLook = (x, y) => {
+  if (!x || !y || typeof x !== 'object' || typeof y !== 'object') return x === y;
+  return sameVal(Object.assign({}, x, { headpartIds: partsOf(x) }), Object.assign({}, y, { headpartIds: partsOf(y) }));
+};
 
 module.exports = (api) => {
   const { mp, log, personal, system, audit, who, registerChatCommand, cfg } = api;
-  const C = Object.assign({ enabled: true, cost: 500, cooldownHours: 24, allowRace: false, allowSex: false, combatSeconds: 30 },
+  const C = Object.assign({ enabled: true, cost: 500, cooldownHours: 24, allowRace: false, allowSex: false, combatSeconds: 30, headGuard: true, refusedNotice: true },
     (cfg && cfg.appearance) || {});
   const cost = Math.max(0, Math.floor(Number(C.cost) || 0));
+  // The harness passes its own clock for the settle write
+  const later = typeof api.later === 'function' ? api.later : (fn, ms) => setTimeout(fn, ms);
+  const HEADS = loadHeads(log);
 
   const get = (a, k) => { try { return mp.get(a, k); } catch (e) { return undefined; } };
+  const userOf = (a) => {
+    if (typeof api.userOf === 'function') return api.userOf(a);
+    try { const u = mp.getUserByActor(a); return u === 65535 ? -1 : u; } catch (e) { return -1; }
+  };
+  const profileOf = (a) => (typeof api.profileOf === 'function' ? api.profileOf(a) : Number(get(a, 'profileId')));
   const copy = (v) => JSON.parse(JSON.stringify(v));
   const entriesOf = (a) => { const inv = get(a, 'inventory'); return inv && Array.isArray(inv.entries) ? inv.entries : []; };
   const goldOf = (a) => entriesOf(a).reduce((n, e) => n + ((Number(e && e.baseId) >>> 0) === GOLD ? Number(e.count) || 0 : 0), 0);
@@ -87,6 +168,56 @@ module.exports = (api) => {
 
   const pending = (a) => { const e = get(a >>> 0, EDIT); return !!(e && e.before); };
 
+  // Guard 1: the look with the head from before back in place of another race's default head, and that race; null when
+  // the editor swapped none in. Only with race and sex unchanged, and only for a race in the table (its own heads known).
+  const guardHead = (before, after) => {
+    if (C.headGuard === false || !before || !after || !Array.isArray(before.headpartIds) || !Array.isArray(after.headpartIds)) return null;
+    if (u32(after.raceId) !== u32(before.raceId) || !!after.isFemale !== !!before.isFemale) return null;
+    const race = HEADS.raceOf.get(u32(after.raceId)); if (!race) return null;
+    const own = HEADS.own.get(race) || new Set();
+    const had = new Set(before.headpartIds.map(u32));
+    const foreign = after.headpartIds.map(u32).filter((h) => HEADS.owner.has(h) && !own.has(h) && !had.has(h));
+    if (!foreign.length) return null;
+    const drop = new Set(foreign);
+    // The head before: the default head the look had (as a rule its own race's), else its race's own for that sex
+    const at = before.headpartIds.findIndex((h) => HEADS.owner.has(u32(h)));
+    const mine = at >= 0 ? before.headpartIds[at] : (HEADS.defaults.get(race) || {})[after.isFemale ? 'female' : 'male'];
+    if (!mine) return null;
+    const firstAt = after.headpartIds.findIndex((h) => drop.has(u32(h)));
+    const ids = after.headpartIds.filter((h) => !drop.has(u32(h)));
+    if (!ids.some((h) => u32(h) === u32(mine))) ids.splice(Math.min(at >= 0 ? at : firstAt, ids.length), 0, mine);
+    return { look: Object.assign({}, after, { headpartIds: ids }), from: HEADS.owner.get(foreign[0]) };
+  };
+
+  // A look the server put back (or laid tells on) inside the client's settle window reaches everyone but the player: it
+  // is sent again once the window is over. Nothing when the stored look is what the client sent (it shows it already),
+  // and nothing if by then the player has left, another session has the character, another edit is open, or the stored
+  // look has changed (the newer write stands).
+  const resendAfterSettle = (a, sent) => {
+    const now = get(a, 'appearance');
+    if (!now || typeof now !== 'object') return false;
+    if (sent && typeof sent === 'object' && JSON.stringify(now) === JSON.stringify(sent)) return false;
+    const user = userOf(a);
+    if (!(user >= 0)) return false;
+    const want = JSON.stringify(now);
+    later(() => {
+      try {
+        if (get(a, 'isOnline') === false || userOf(a) !== user) return;
+        if (get(a, EDIT) || get(a, CHARGEN)) return;
+        const cur = get(a, 'appearance');
+        if (!cur || JSON.stringify(cur) !== want) return;
+        mp.set(a, 'appearance', cur);
+      } catch (e) { log('appearance: the settled look could not be sent again to', who(a), e.message); }
+    }, SETTLE_RESEND_MS);
+    return true;
+  };
+  // Guard 3: the new look becomes what a vampire's or werewolf's tells hide (supernatural.js)
+  const retakeTells = (a, before) => {
+    try { if (typeof globalThis.__dboTellsRetake === 'function') globalThis.__dboTellsRetake(a, before); }
+    catch (e) { log('appearance: tells retake failed for', who(a), e.message); }
+  };
+  const HEAD_NOTE = 'The editor had given you another race\'s face; your own was kept.';
+
   // The editor closed with this appearance (gamemode.js appearanceHook, the engine has already applied it). True when it
   // was ours to handle.
   const finish = (a, appearance) => {
@@ -94,6 +225,8 @@ module.exports = (api) => {
     const e = get(a, EDIT);
     if (!e || !e.before) return false;
     mp.set(a, EDIT, null);
+    // A GM's /chargen opened over it ends with this close too
+    if (get(a, CHARGEN)) mp.set(a, CHARGEN, null);
     const before = e.before;
     const after = appearance && typeof appearance === 'object' ? copy(appearance) : null;
     if (!after) return true;
@@ -101,31 +234,96 @@ module.exports = (api) => {
     const sexChanged = C.allowSex !== true && !!after.isFemale !== !!before.isFemale;
     if (raceChanged || sexChanged) {
       mp.set(a, 'appearance', before);
+      resendAfterSettle(a, appearance);
       system(a, `${raceChanged ? 'Race' : 'Sex'} can't be changed here, so your previous look was kept. No gold was taken.`);
       audit(`APPEARANCE ${who(a)} tried to change ${raceChanged ? 'race' : 'sex'}: previous look kept, nothing charged`);
       return true;
     }
-    const nameKept = String(after.name || '') !== String(before.name || '');
-    if (nameKept) after.name = before.name;
-    if (JSON.stringify(after) === JSON.stringify(before)) {
-      if (nameKept) mp.set(a, 'appearance', before);
-      system(a, `Your look is unchanged, so nothing was charged.${nameKept ? ' Your name stays the same: a GM can rename you.' : ''}`);
+    const guarded = guardHead(before, after);
+    const look = guarded ? guarded.look : after;
+    if (guarded) audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(guarded.from)}'s default head; kept their own`);
+    const headNote = guarded ? ` ${HEAD_NOTE}` : '';
+    const nameKept = String(look.name || '') !== String(before.name || '');
+    if (nameKept) look.name = before.name;
+    if (sameLook(look, before)) {
+      if (nameKept || guarded) { mp.set(a, 'appearance', before); resendAfterSettle(a, appearance); }
+      system(a, `Your look is unchanged, so nothing was charged.${headNote}${nameKept ? ' Your name stays the same: a GM can rename you.' : ''}`);
       return true;
     }
     if (!takeGold(a, cost)) {
       mp.set(a, 'appearance', before);
+      resendAfterSettle(a, appearance);
       system(a, `You no longer have ${cost} gold, so your previous look was kept.`);
       audit(`APPEARANCE ${who(a)} closed the editor without ${cost} gold: previous look kept`);
       return true;
     }
-    if (nameKept) mp.set(a, 'appearance', after);
+    if (nameKept || guarded) mp.set(a, 'appearance', look);
     mp.set(a, LAST, Date.now());
-    system(a, `Your new look is saved. ${cost} gold paid.${nameKept ? ' Your name stays the same: a GM can rename you.' : ''}`);
+    retakeTells(a, before);
+    resendAfterSettle(a, appearance);
+    system(a, `Your new look is saved. ${cost} gold paid.${headNote}${nameKept ? ' Your name stays the same: a GM can rename you.' : ''}`);
     audit(`APPEARANCE ${who(a)} changed their look for ${cost} gold${nameKept ? ' (a name change in the editor was undone)' : ''}`);
     return true;
   };
 
-  globalThis.__dboAppearanceEdit = { pending, finish, blocked };
-  log(`appearance ${C.enabled ? 'on' : 'off'}: /appearance costs ${cost} gold, every ${Number(C.cooldownHours) || 0} h, race ${C.allowRace === true ? 'free' : 'kept'}, sex ${C.allowSex === true ? 'free' : 'kept'}`);
-  return { pending, finish, blocked, goldOf, takeGold, C };
+  // A GM's /chargen (gamemode.js) on a character that already exists: the look as it stands, so that the close can be
+  // guarded as /appearance's is. Not for a character still being made or rerolled (creation's own path), nor while the
+  // player's own /appearance edit is open (finish() takes that close). True when a snapshot was taken.
+  const chargenOpened = (t) => {
+    t = t >>> 0;
+    const look = get(t, 'appearance');
+    const fresh = !look || typeof look !== 'object' || get(t, 'private.creationPending') === true || get(t, 'private.rerollPending') === true;
+    if (fresh || pending(t)) { if (get(t, CHARGEN)) mp.set(t, CHARGEN, null); return false; }
+    mp.set(t, CHARGEN, { at: Date.now(), before: copy(look) });
+    return true;
+  };
+  // That editor closed (gamemode.js appearanceHook, isAllowed). A GM may change race and sex there, so only the head
+  // guard (which needs both unchanged) and the tells apply; creation's steps in the hook still run after this, as they
+  // always did. True when it was a /chargen close on an existing character.
+  const chargenFinish = (a, appearance) => {
+    a = a >>> 0;
+    const e = get(a, CHARGEN);
+    if (!e || !e.before) return false;
+    mp.set(a, CHARGEN, null);
+    if (!(Date.now() - (Number(e.at) || 0) < CHARGEN_MAX_MS)) return false;
+    // Made or rerolled since the snapshot: that close is creation's
+    if (get(a, 'private.creationPending') === true || get(a, 'private.rerollPending') === true) return false;
+    const after = appearance && typeof appearance === 'object' ? copy(appearance) : null;
+    if (!after) return true;
+    const before = e.before;
+    const guarded = guardHead(before, after);
+    const look = guarded ? guarded.look : after;
+    if (guarded) {
+      mp.set(a, 'appearance', look);
+      system(a, HEAD_NOTE);
+      audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(guarded.from)}'s default head; kept their own (GM /chargen)`);
+    }
+    if (!sameLook(look, before)) retakeTells(a, before);
+    resendAfterSettle(a, appearance);
+    return true;
+  };
+
+  // Guard 2: an editor result the server did not open (isAllowed false: the engine kept the stored look). True when the
+  // player was told. A pure echo (the client sends its look on every RaceSex Menu close) and a character still being made
+  // say nothing, and one notice a minute at most (the audit line with it).
+  const refusedAt = globalThis.__dboAppearanceRefusedAt instanceof Map ? globalThis.__dboAppearanceRefusedAt : (globalThis.__dboAppearanceRefusedAt = new Map());
+  const refused = (a, appearance) => {
+    a = a >>> 0;
+    if (C.refusedNotice === false || !appearance || typeof appearance !== 'object') return false;
+    if (!(profileOf(a) >= 0)) return false;
+    if (get(a, 'private.creationPending') === true || get(a, 'private.rerollPending') === true) return false;
+    const stored = get(a, 'appearance');
+    if (!stored || typeof stored !== 'object' || sameLook(appearance, stored)) return false;
+    const now = Date.now();
+    if (now - (refusedAt.get(a) || 0) < REFUSED_EVERY_MS) return false;
+    refusedAt.set(a, now);
+    if (refusedAt.size > 512) for (const [k, t] of refusedAt) if (now - t >= REFUSED_EVERY_MS) refusedAt.delete(k);
+    personal(a, 'That change to your look wasn\'t saved. Only /appearance (or a GM) can change your saved look, and edits made with the console\'s showracemenu are lost when you log out.');
+    audit(`APPEARANCE ${who(a)} editor result refused (not opened by the server)`);
+    return true;
+  };
+
+  globalThis.__dboAppearanceEdit = { pending, finish, blocked, chargenOpened, chargenFinish, refused };
+  log(`appearance ${C.enabled ? 'on' : 'off'}: /appearance costs ${cost} gold, every ${Number(C.cooldownHours) || 0} h, race ${C.allowRace === true ? 'free' : 'kept'}, sex ${C.allowSex === true ? 'free' : 'kept'}, head guard ${C.headGuard === false ? 'off' : `on (${HEADS.raceOf.size} race ids)`}`);
+  return { pending, finish, blocked, goldOf, takeGold, C, chargenOpened, chargenFinish, refused, guardHead, sameLook, SETTLE_RESEND_MS };
 };

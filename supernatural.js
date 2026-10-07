@@ -268,12 +268,34 @@ module.exports = (api) => {
   const PALE = [0xe8, 0xe6, 0xec];
   const blend = (rgb, t) => [16, 8, 0].reduce((acc, sh, i) => acc | (Math.round(((rgb >> sh) & 0xff) * (1 - t) + PALE[i] * t) << sh), 0);
   const isToneTint = (t) => /SkinTone\.dds$/i.test(String((t && t.texturePath) || ''));
+  // The tell eyes for this look and curse (0 when its race has none), and the race's family
+  const tellEyeFor = (app, s) => {
+    const fam = familyOf(Number(app.raceId) >>> 0);
+    return { fam, want: fam ? ((TELL_EYES[s.kind] || {})[fam] || [])[app.isFemale ? 1 : 0] : 0 };
+  };
+  // The tells laid over a look that does not show them: { next, look } (look is what they hide, s.look), or null when the
+  // look has no eyes to swap
+  const layTells = (app, s, fam, want) => {
+    const idx = app.headpartIds.findIndex((h) => isEyePart(Number(h) >>> 0));
+    if (idx < 0) return null;
+    const prevEye = app.headpartIds[idx];
+    const prevExtras = strayExtras(app.headpartIds, prevEye, want);
+    const drop = new Set(prevExtras);
+    const next = Object.assign({}, app, { headpartIds: app.headpartIds.map((h, i) => (i === idx ? want : h)).filter((h) => !drop.has(Number(h) >>> 0)) });
+    const look = { kind: s.kind, eye: want, prevEye, prevExtras };
+    if (s.kind === 'vampire') {
+      const t = fam === 'khajiit' || fam === 'argonian' ? C.vampirePallorBeast : C.vampirePallor;
+      look.prevSkin = next.skinColor; next.skinColor = blend(Number(next.skinColor) >>> 0, t);
+      next.tints = (next.tints || []).map((x) => { if (!isToneTint(x)) return x; look.prevTone = x.argb; const argb = Number(x.argb) >>> 0; return Object.assign({}, x, { argb: ((argb & 0xff000000) | blend(argb & 0xffffff, t)) | 0 }); });
+    }
+    return { next, look };
+  };
   // Idempotent: run on every slow tick, so a reroll, a relog or a beast revert gets the tells back
   const ensureTells = (a, s) => {
     if (!s || !s.kind || beastForm(a)) return;
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return; }
     if (!app || !Array.isArray(app.headpartIds)) return;
-    const fam = familyOf(Number(app.raceId) >>> 0); const want = fam ? ((TELL_EYES[s.kind] || {})[fam] || [])[app.isFemale ? 1 : 0] : 0;
+    const { fam, want } = tellEyeFor(app, s);
     if (!want) return;
     if (app.headpartIds.includes(want)) {
       // Shown before the eyes' extras went with them (2026-09-29): take the stray overlay off once, keeping it for the cure
@@ -288,20 +310,10 @@ module.exports = (api) => {
       }
       return;
     }
-    const idx = app.headpartIds.findIndex((h) => isEyePart(Number(h) >>> 0));
-    if (idx < 0) return;
-    const prevEye = app.headpartIds[idx];
-    const prevExtras = strayExtras(app.headpartIds, prevEye, want);
-    const drop = new Set(prevExtras);
-    const next = Object.assign({}, app, { headpartIds: app.headpartIds.map((h, i) => (i === idx ? want : h)).filter((h) => !drop.has(Number(h) >>> 0)) });
-    const look = { kind: s.kind, eye: want, prevEye, prevExtras };
-    if (s.kind === 'vampire') {
-      const t = fam === 'khajiit' || fam === 'argonian' ? C.vampirePallorBeast : C.vampirePallor;
-      look.prevSkin = next.skinColor; next.skinColor = blend(Number(next.skinColor) >>> 0, t);
-      next.tints = (next.tints || []).map((x) => { if (!isToneTint(x)) return x; look.prevTone = x.argb; const argb = Number(x.argb) >>> 0; return Object.assign({}, x, { argb: ((argb & 0xff000000) | blend(argb & 0xffffff, t)) | 0 }); });
-    }
-    s.look = look; saveState(a, s);
-    mp.set(a, 'appearance', next);
+    const laid = layTells(app, s, fam, want);
+    if (!laid) return;
+    s.look = laid.look; saveState(a, s);
+    mp.set(a, 'appearance', laid.next);
     log(`supernatural: ${display(a)} shows the ${s.kind}'s tells`);
   };
   // The tells by thirst: a werewolf always; a vampire from vampireTellsStage, or before the first meal
@@ -330,6 +342,57 @@ module.exports = (api) => {
     if (look.prevTone !== undefined) next.tints = (next.tints || []).map((x) => (isToneTint(x) ? Object.assign({}, x, { argb: look.prevTone }) : x));
     mp.set(a, 'appearance', next);
   };
+  // A saved appearance edit (appearance.js: /appearance, or a GM's /chargen on an existing character) on a character with
+  // a curse. s.look keeps the eyes, skin colour and skin tone the tells hide, and a feed gives them back, so an edit saved
+  // while the tells showed was undone at the next feed (Selena #PXVM, 5 Oct), and one that changed the eyes got the tells
+  // laid over again by the next slow tick with the pale skin taken as the mortal one. Here what the editor handed back
+  // unchanged from the tells stays the kept look, what the player changed becomes the new kept look, and the tells go
+  // back over it when they are due. before: the look as the editor opened on it (tells and all); without it, the kept
+  // skin and tone count as unchanged when they still show the pallor. True when the look was taken.
+  const retakeTells = (a, before) => {
+    a = Number(a) >>> 0;
+    const s = stateOf(a);
+    if (!s || !s.kind || beastForm(a)) return false;
+    let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return false; }
+    if (!app || !Array.isArray(app.headpartIds)) return false;
+    const b = before && typeof before === 'object' ? before : null;
+    const mortal = Object.assign({}, app);
+    const look = s.look;
+    if (look) {
+      const ids = app.headpartIds.map((h) => Number(h) >>> 0);
+      // Still the tell eyes: the player kept them, so the eyes they hide stay (with the extras that went with them)
+      if (ids.includes(look.eye)) {
+        const extras = (Array.isArray(look.prevExtras) ? look.prevExtras : []).filter((x) => !ids.includes(x));
+        mortal.headpartIds = app.headpartIds.flatMap((h) => ((Number(h) >>> 0) === look.eye ? [look.prevEye, ...extras] : [h]));
+      }
+      const fam = familyOf(Number(app.raceId) >>> 0);
+      const t = fam === 'khajiit' || fam === 'argonian' ? C.vampirePallorBeast : C.vampirePallor;
+      const toneOf = (x) => { const tt = ((x && x.tints) || []).filter(isToneTint); return tt.length ? Number(tt[tt.length - 1].argb) >>> 0 : undefined; };
+      if (look.prevSkin !== undefined) {
+        const was = b ? Number(b.skinColor) >>> 0 : blend(Number(look.prevSkin) >>> 0, t) >>> 0;
+        if ((Number(app.skinColor) >>> 0) === was) mortal.skinColor = look.prevSkin;
+      }
+      if (look.prevTone !== undefined) {
+        const kept = Number(look.prevTone) >>> 0;
+        const was = b ? toneOf(b) : (((kept & 0xff000000) | blend(kept & 0xffffff, t)) >>> 0);
+        const now = toneOf(app);
+        if (now !== undefined && now === was) mortal.tints = (mortal.tints || []).map((x) => (isToneTint(x) ? Object.assign({}, x, { argb: look.prevTone }) : x));
+      }
+      s.look = null;
+    }
+    let next = mortal;
+    if (tellsShown(s)) {
+      const { fam, want } = tellEyeFor(mortal, s);
+      const laid = want && !mortal.headpartIds.includes(want) ? layTells(mortal, s, fam, want) : null;
+      if (laid) { s.look = laid.look; next = laid.next; }
+    }
+    if (!look && !s.look) return false;
+    saveState(a, s);
+    if (JSON.stringify(next) !== JSON.stringify(app)) mp.set(a, 'appearance', next);
+    log(`supernatural: ${display(a)} saved a new look; the ${s.kind}'s tells now hide it${s.look ? '' : ' (not showing)'}`);
+    return true;
+  };
+  globalThis.__dboTellsRetake = retakeTells;
 
   // ---- a vampire's spells, as vanilla's PlayerVampireQuestScript hands them out by stage -------------------
   // Drain and Raise Thrall grow with the stage; Vampire's Sight from the first, Seduction from the second,
