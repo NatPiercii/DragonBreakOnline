@@ -55,13 +55,20 @@
         "heading": "Smelting and woodcutting",
         "items": [
           "Smelting steel-tier and better metals needs charcoal: 1 per ingot for steel, silver, corundum and dwarven, 2 for gold, orichalcum, moonstone, quicksilver and malachite, 3 for ebony and stalhrim. Iron, copper and tin need none. Short of charcoal, the smelter burns 3 firewood for each one missing. Woodcutters make charcoal at the chopping block, more at each tier.",
-          "Ore veins and chopping blocks now rest for each player separately: when you work one out, others can still work it, so nobody has to race for the same seam."
+          "Chopping blocks and the everyday seams (iron, copper, tin, corundum and salt) now rest for each player separately, so nobody has to race for them. Precious and rare ores and geodes are still shared."
         ]
       },
       {
         "heading": "Vampires",
         "items": [
-          "After feeding, you can draw your weapon again straight away instead of having to re-equip it."
+          "After feeding, you can draw your weapon again straight away instead of having to re-equip it.",
+          "Feeding on bodies can be turned off: /feed off makes E search a body instead, /feed on brings feeding back."
+        ]
+      },
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Skeletons and zombies can now be searched: they often carry bone meal, and sometimes a few coins or an ingredient."
         ]
       }
     ]

@@ -159,14 +159,15 @@ module.exports = (api) => {
   // character could work the same seam (salt and soul-gem geodes included) each 45 minutes (loot review, 2026-09-29).
   // Kept on the reference, which survives restarts; only a won round sets it.
   const SHARED_REST = 'private.dboWorkedUntil';
-  // Nate, 7 Oct: nodes rest per player again (labour.perPlayerNodes, default on), so blacksmiths stop racing each other and
-  // macros for the one mine; off brings back the shared rest and the one-worker lock of 29 Sep
-  const perPlayer = () => CFG.perPlayerNodes !== false;
-  const sharedRest = (ref) => { if (perPlayer()) return 0; try { return Number(mp.get(ref, SHARED_REST)) || 0; } catch (e) { return 0; } };
+  // Nate, 7 Oct: while the alpha is only Bruma, the everyday nodes rest per player (no race for the one mine); rare ores
+  // and geodes keep the shared rest and the one-worker lock of 29 Sep. Swap back to shared when Skyrim opens.
+  // labour.perPlayerNodes: false turns it off; labour.perPlayerOres: the ores ('wood' = chopping blocks) it covers
+  const perPlayer = (ore) => CFG.perPlayerNodes !== false && (CFG.perPlayerOres || ['wood', 'iron', 'copper', 'tin', 'corundum', 'salt']).includes(String(ore || ''));
+  const sharedRest = (ref, ore) => { if (perPlayer(ore)) return 0; try { return Number(mp.get(ref, SHARED_REST)) || 0; } catch (e) { return 0; } };
   // One worker per seam or block at a time: the shared rest is set only when a round is won, so two workers who
   // started together were both paid (economy review, 2026-09-29). ref -> { a, until }
   const working = globalThis.__dboLabourWorking instanceof Map ? globalThis.__dboLabourWorking : (globalThis.__dboLabourWorking = new Map());
-  const workedByOther = (ref, a) => { if (perPlayer()) return false; const w = working.get(ref); return !!w && w.a !== a && w.until > Date.now() && sessions.has(w.a); };
+  const workedByOther = (ref, a, ore) => { if (perPlayer(ore)) return false; const w = working.get(ref); return !!w && w.a !== a && w.until > Date.now() && sessions.has(w.a); };
   const reserve = (ref, a, round) => {
     working.set(ref, { a, until: Date.now() + (Number(round.totalMs) || 60000) + Math.max(Number(CFG.lagGraceMs) || 0, Number(CFG.reserveSlackMs) || 0) });
     if (working.size > 2000) for (const [k, w] of working) if (w.until <= Date.now()) working.delete(k);
@@ -375,9 +376,9 @@ module.exports = (api) => {
     if (ore !== 'geode' && !ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${oreName(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
-    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
+    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId, ore));
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
-    if (workedByOther(targetId, casterId)) return deny(casterId, 'Someone is working this seam. Wait for them to finish.');
+    if (workedByOther(targetId, casterId, ore)) return deny(casterId, 'Someone is working this seam. Wait for them to finish.');
     const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${oreName(ore)} Seam`, targetId);
     round.ore = ore;
     const started = startRound(casterId, round);
@@ -391,9 +392,9 @@ module.exports = (api) => {
     if (tier < 0) return false;   // same first-touch fall-through as mine()
     { const live = liveRound(casterId); if (live) return reshow(casterId, live); }
     const rests = restsOf(casterId, 'private.choppedBlocks');
-    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId));
+    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId, 'wood'));
     if (until > Date.now()) return deny(casterId, `You have split all the logs here. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
-    if (workedByOther(targetId, casterId)) return deny(casterId, 'Someone is splitting logs here. Wait for them to finish.');
+    if (workedByOther(targetId, casterId, 'wood')) return deny(casterId, 'Someone is splitting logs here. Wait for them to finish.');
     const strikes = Math.max(1, Math.round(tierValue(WOODCUTTER.chopStrikesByTier, tier, 4)));
     const round = roundFor(casterId, 'chopping', tier, strikes, 'Chopping Block', targetId);
     const started = startRound(casterId, round);
@@ -433,7 +434,7 @@ module.exports = (api) => {
     if (rest !== false) writeRest(a, round, win ? winRestOf(round) : CFG.failRestMinutes);
     if (win && rest !== false) {
       const minutes = winRestOf(round);
-      if (!perPlayer()) { try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); } }
+      if (!perPlayer(round.kind === 'mining' ? round.ore : 'wood')) { try { mp.set(round.refId, SHARED_REST, Date.now() + minutes * 60000); } catch (e) { log('labour shared rest save failed', e.message); } }
     }
     // A round walked away from before its report landed (see closing below) has no widget left to show the verdict in
     if (sessions.get(a) === round) { openWidget(a, packetFor(round, text, kind), false); sessions.delete(a); } else personal(a, text);
@@ -617,7 +618,7 @@ module.exports = (api) => {
     }
 
     // Won, but someone else's win on this node came first: nothing is left to pay out
-    if (sharedRest(round.refId) > Date.now()) {
+    if (sharedRest(round.refId, round.kind === 'mining' ? round.ore : 'wood') > Date.now()) {
       return finish(a, round, false, round.kind === 'mining' ? 'Someone else worked this seam out before you finished.' : 'Someone else split the last of the logs before you finished.', 'lose', false);
     }
     // A finished round is its own event kind, not a bare 'activate': 'mine' is weighed by the ore band
@@ -677,8 +678,8 @@ module.exports = (api) => {
   // own: the player's rests (private.minedVeins), read once per player; shared: ref -> the shared rest, once per tick
   const saltReady = (ref, a, own, shared) => {
     const mine = Number(own[ref.toString(16)]) || 0;
-    const all = shared && shared.has(ref) ? shared.get(ref) : sharedRest(ref);
-    return Math.max(mine, all) <= Date.now() && !workedByOther(ref, a);
+    const all = shared && shared.has(ref) ? shared.get(ref) : sharedRest(ref, 'salt');
+    return Math.max(mine, all) <= Date.now() && !workedByOther(ref, a, 'salt');
   };
   const saltGlow = (a, shared) => {
     if (typeof sendPacket !== 'function' || !SALT_REFS.length) return;
@@ -709,7 +710,7 @@ module.exports = (api) => {
   if (globalThis.__dboSaltGlowTimer) clearInterval(globalThis.__dboSaltGlowTimer);
   globalThis.__dboSaltGlowTimer = setInterval(() => {
     let online = []; try { online = typeof onlineActors === 'function' ? onlineActors() : []; } catch (e) { return; }
-    const shared = new Map(SALT_REFS.map((ref) => [ref, sharedRest(ref)]));
+    const shared = new Map(SALT_REFS.map((ref) => [ref, sharedRest(ref, 'salt')]));
     for (const a of online) { try { globalThis.__dboSaltGlow(a, shared); } catch (e) { log('salt glow failed', e.message); } }
   }, Math.max(5, Number(saltCfg().seconds) || 30) * 1000);
 

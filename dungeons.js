@@ -1825,6 +1825,9 @@ module.exports = (api) => {
   // An expedition's master (a boss zone of the lease): its body carries the boss chest's roll, handed over with E
   // (Nate, 2026-09-28: "the lich needs good boss loot that drops from him when you loot him")
   function isMasterTag(tag) { const l = leaseOfTag(tag); const d = l ? byId.get(l.id) : null; return !!(l && d && d.expedition && l.bossZones && l.bossZones.has(tag)); }
+  // Skeletons and zombies carried nothing (Catticus, 7 Oct): their bodies give a small undead roll; draugr stay humanoid
+  const UNDEAD = /skeleton|zombie|undead|revenant|bonewalker|lich/i;
+  function isUndeadTag(tag) { const l = leaseOfTag(tag); const kind = l && l.kinds ? l.kinds[tag] || '' : ''; return UNDEAD.test(kind) && !HUMANOID.test(kind) && !ANIMAL.test(kind); }
   function isHumanoidTag(tag) { const l = leaseOfTag(tag); const kind = l && l.kinds ? l.kinds[tag] || '' : ''; return HUMANOID.test(kind) && !ANIMAL.test(kind); }
   const itemName = (baseId) => { const r = recordOf(baseId); return String((r && r.editorId) || 'something').replace(/^(Food|Potion)/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\d+$/, '').trim() || 'something'; };
   const corpseLoot = (diff, ok = ALL_OK, k = NO_TRIM, gear = []) => {
@@ -1836,6 +1839,15 @@ module.exports = (api) => {
     if (p(Math.max(0, Math.min(1, Number(C.bodyGoldChance))))) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)))));
     if (p(Number(POT.body))) addEntry(entries, potionPick(diff.potionTier, ok), 1);
     if (p(0.2)) addEntry(entries, pickFrom(lootIngredients(ok)), rnd(1, 2));
+    return entries;
+  };
+  // Bone meal often, a few coins or an ingredient now and then
+  const undeadLoot = (diff, ok = ALL_OK, k = NO_TRIM) => {
+    const entries = [];
+    const p = (chance) => Math.random() < chance * k.x;
+    if (p(0.6)) addEntry(entries, { id: '34cdd:Skyrim.esm' }, rnd(1, 2));
+    if (p(0.25)) addEntry(entries, { id: 'f:Skyrim.esm' }, Math.max(1, Math.round(rnd(diff.gold[0], diff.gold[1]) * Math.max(0, Number(C.bodyGoldMult)) / 2)));
+    if (p(0.15)) addEntry(entries, pickFrom(lootIngredients(ok)), 1);
     return entries;
   };
   // The plain, playable weapons and armor a humanoid carried, kept until its body is searched (bodies go after 300 s,
@@ -1869,7 +1881,8 @@ module.exports = (api) => {
     let tag = ''; try { tag = String(mp.get(targetId, 'private.npcSpawner') || ''); } catch (e) { return null; }
     if (!tag.startsWith(ZONE_PREFIX)) return null;
     const master = isMasterTag(tag);
-    if (!master && !isHumanoidTag(tag)) return null;
+    const undead = !master && !isHumanoidTag(tag) && isUndeadTag(tag);
+    if (!master && !isHumanoidTag(tag) && !undead) return null;
     try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
     let looted = false; try { looted = mp.get(targetId, 'private.dboLooted') === true; } catch (e) { /* fresh */ }
     if (looted) return deny(casterId, 'Nothing more to find on this one.');
@@ -1883,7 +1896,7 @@ module.exports = (api) => {
     const k = trimFor(d, diff);
     const gear = master ? [] : ((ST.bodyGear.get(targetId >>> 0) || {}).ids || []);
     ST.bodyGear.delete(targetId >>> 0);
-    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k, lease && lease.province) : corpseLoot(diff, lootOk(lease), k, gear))) {
+    for (const en of (master ? bossLoot(diff, lootOk(lease), ayleidLootHere(d), isRaidRuin(d), k, lease && lease.province) : undead ? undeadLoot(diff, lootOk(lease), k) : corpseLoot(diff, lootOk(lease), k, gear))) {
       if (en.baseId === GOLD_BASE) { const kept = splitGold(casterId, lease, en.count); if (kept > 0 && giveItem(casterId, GOLD_BASE, kept)) { raceGold(casterId, kept, master ? 'a master\'s body' : 'a body'); got.push(`${en.count} gold${kept < en.count ? ' (shared)' : ''}`); } continue; }
       if (giveItem(casterId, en.baseId, en.count)) got.push(`${en.count > 1 ? en.count + ' ' : ''}${itemName(en.baseId)}`);
     }

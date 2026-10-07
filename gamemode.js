@@ -597,7 +597,7 @@ const HELP_GROUPS = [
     hints: ['Your god, and turning to another: F3, the Deity tab, or /deity.',
       'Offerings and rites: a shrine. Molag Bal gives the Embrace, Hircine the Great Hunt; Arkay or Stendarr lift a curse for a filled black soul gem.',
       'A fever caught from a vampire or a werewolf: a Cure Disease potion, or prayer at a shrine of the Divines.'] },
-  { key: 'beast', title: 'The beast in you', names: ['beast', 'forms', 'hunt', 'blood'], role: 'beast',
+  { key: 'beast', title: 'The beast in you', names: ['beast', 'forms', 'hunt', 'blood', 'feed'], role: 'beast',
     hints: ['Your curse and its powers: F3, the Supernatural tab.',
       'Silver and fire hurt a vampire more; silver and poison spells hurt a werewolf more in beast form.'] },
   { key: 'work', title: 'Work and the world', names: ['time', 'property'],

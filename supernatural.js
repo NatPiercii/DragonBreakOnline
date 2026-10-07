@@ -1379,6 +1379,16 @@ module.exports = (api) => {
   // /feedpair on|off switches the standing bite for a staff test without a config edit. Kept across hot reloads, never
   // written: a restart goes back to supernatural.feedPair.enabled (off). Lead GM and above (gamemode.js LEAD_ONLY).
   const feedPairOn = () => (typeof globalThis.__dboFeedPairOn === 'boolean' ? globalThis.__dboFeedPairOn : !!C.feedPair.enabled);
+  // Feeding on bodies, per character: on unless the vampire turned it off (private.dboBodyFeed false)
+  const BODY_FEED = 'private.dboBodyFeed';
+  const bodyFeedOn = (a) => { try { return mp.get(a, BODY_FEED) !== false; } catch (e) { return true; } };
+  registerChatCommand('feed', (a, args) => {
+    const v = String(args || '').trim().toLowerCase();
+    if (v === 'on' || v === 'off') { try { mp.set(a, BODY_FEED, v === 'on'); } catch (e) { log('supernatural: feed toggle failed', e.message); } }
+    personal(a, bodyFeedOn(a)
+      ? 'You feed on fresh bodies when you press E on them. /feed off to search them instead.'
+      : 'You search bodies instead of feeding on them. /feed on to feed again.');
+  }, { help: 'on | off: as a vampire, feed on fresh bodies with E, or search them instead' });
   registerChatCommand('feedpair', (a, args) => {
     const v = String(args || '').trim().toLowerCase();
     if (v === 'on' || v === 'off') { globalThis.__dboFeedPairOn = v === 'on'; audit(`SUPERNATURAL GM ${who(a)} set the standing feeding bite ${v}`); }
@@ -1462,6 +1472,8 @@ module.exports = (api) => {
     if (!dead || fedOn.has(t) || (!isHumanoid(t) && !(beastForm(a) === 'werewolf' && typeof globalThis.__dboHuntFed === 'function'))) return false;
     // Only a vampire or a werewolf in beast form feeds; anyone else searches the body as usual
     if (s.kind !== 'vampire' && beastForm(a) !== 'werewolf') return false;
+    // A vampire who turned body feeding off (/feed off) searches the body instead (Fabian, 7 Oct); beasts always feed
+    if (beastForm(a) !== 'werewolf' && !bodyFeedOn(a)) return false;
     startFeed(a, t, { onCorpse: true });
     return true;
   };
