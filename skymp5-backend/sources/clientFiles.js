@@ -10,8 +10,12 @@
 //     200  from <clientFilesDir>/unpacked/<version>/<path> (Range gives 206) when that folder's .verified marker is for
 //          exactly this file list (scripts/unpack-client.js writes it at release time; nothing is ever unpacked here)
 //
+//   GET /api/files/version, with the optional data/client-files.json switch "omitExtras": true, leaves out the files
+//   data/extra-files.json also lists (Data/*.esp that the extra-files sync owns); default off. docs/per-file-client.md.
+//
 //   data/client-files.json (optional; read again whenever it changes, no restart)
 //     { "perFile": false }    every /api/files/client/* answers 404, so every launcher downloads the zip as before
+//     { "omitExtras": true }  /api/files/version leaves out what extra-files.json lists (outside Data/Platform, Data/SKSE)
 
 const crypto = require('crypto')
 const fs     = require('fs')
@@ -96,7 +100,7 @@ function createClientFiles({ dataDir = DATA_DIR, clientFilesDir, r2 = null, wind
   function switches() {
     const s = cached(path.join(dataDir, 'client-files.json'))
     const o = s && typeof s === 'object' && !Array.isArray(s) ? s : {}
-    return { perFile: o.perFile !== false }
+    return { perFile: o.perFile !== false, omitExtras: o.omitExtras === true }
   }
 
   // The current package: version, zip size, the servable files, their paths and the list fingerprint
@@ -114,12 +118,32 @@ function createClientFiles({ dataDir = DATA_DIR, clientFilesDir, r2 = null, wind
     return markerMatches(cached(path.join(dir, MARKER)), pkg) ? dir : null
   }
 
+  // Lower-case paths extra-files.json lists, or an empty set
+  function extraPaths() {
+    return cached(path.join(dataDir, 'extra-files.json'), m => new Set(
+      (Array.isArray(m && m.files) ? m.files : []).map(f => f && f.path).filter(p => typeof p === 'string').map(p => p.toLowerCase()),
+    )) || new Set()
+  }
+
+  // Launchers 2.1.43 and 2.1.44 move files the list does not name out of Data/Platform/{Plugins,UI,Distribution,Modules}
+  // and the platform DLLs out of Data/SKSE/Plugins (selfRepair.strayFiles), so nothing under those is ever left out
+  const omittable = l => l.startsWith('data/') && !l.startsWith('data/platform/') && !l.startsWith('data/skse/')
+
+  // files-version.json as published: unchanged unless "omitExtras" is on
+  function publishedVersion(v) {
+    if (!switches().omitExtras || !v || !Array.isArray(v.files)) return v
+    const owned = extraPaths()
+    if (!owned.size) return v
+    const files = v.files.filter(f => !(f && typeof f.path === 'string' && omittable(f.path.toLowerCase()) && owned.has(f.path.toLowerCase())))
+    return { ...v, files, omittedExtras: v.files.length - files.length }
+  }
+
   // GET /api/files/version: read fresh every time, as before (do NOT use require(); it caches the module)
   function versionHandler(_req, res) {
     if (!fs.existsSync(versionFile)) return res.status(404).json(NOT_BUILT)
     let v
     try { v = JSON.parse(fs.readFileSync(versionFile, 'utf8')) } catch { return res.status(500).json({ error: 'Could not read version file.' }) }
-    res.json(v)
+    res.json(publishedVersion(v))
   }
 
   // One client update is up to ~300 small files (plus resumes and queue retries) per launcher; the zip has its own limiter
@@ -155,7 +179,7 @@ function createClientFiles({ dataDir = DATA_DIR, clientFilesDir, r2 = null, wind
     }, err => { if (err && !res.headersSent) res.status(err.status || 500).end(); else if (err) res.destroy() })
   }
 
-  return { versionHandler, fileHandler, fileLimiter, currentPackage, verifiedDir, switches }
+  return { versionHandler, fileHandler, fileLimiter, currentPackage, verifiedDir, publishedVersion, switches }
 }
 
 module.exports = {

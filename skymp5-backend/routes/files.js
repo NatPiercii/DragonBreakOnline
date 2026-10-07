@@ -39,7 +39,8 @@ const filesRateLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' }
 })
 
-// GET /api/files/version - read fresh every time (sources/clientFiles.js)
+// GET /api/files/version - read fresh every time; data/client-files.json "omitExtras" (default off) leaves out the files
+// extra-files.json owns (sources/clientFiles.js)
 
 router.get('/version', clientFiles.versionHandler)
 

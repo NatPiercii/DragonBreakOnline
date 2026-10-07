@@ -1,6 +1,7 @@
 'use strict'
 // GET /api/files/client/* (sources/clientFiles.js): only the current version, only exactly listed paths, R2 only when
-// asked and listed with the same zip size, disk only with a matching .verified marker, its own per-visitor limit
+// asked and listed with the same zip size, disk only with a matching .verified marker, its own per-visitor limit; the
+// /version "omitExtras" switch (default off)
 
 const { test, before, after } = require('node:test')
 const assert = require('node:assert/strict')
@@ -231,4 +232,35 @@ test('the limiter counts per Cloudflare visitor, like the zip limiter', async ()
   // One IPv6 visitor is one /56, as express-rate-limit's ipKeyGenerator groups it
   assert.equal(visitorKey(req('2001:db8:0:1::1')), visitorKey(req('2001:db8:0:2::9')))
   assert.notEqual(visitorKey(req('2001:db8:0:100::1')), visitorKey(req('2001:db8:0:1::1')))
+})
+
+test('/version is files-version.json as it is unless "omitExtras" is on', async () => {
+  reset()
+  put('extra-files.json', { version: 'x1', files: [
+    { path: 'data/dragonbreak.esp', size: 1, sha256: 'a'.repeat(64) },
+    { path: 'Data/Platform/Plugins/skymp5-client.js', size: 1, sha256: 'b'.repeat(64) },
+    { path: 'Data/Only Extra.esp', size: 1, sha256: 'c'.repeat(64) },
+  ] })
+  const plain = JSON.parse((await get('/api/files/version')).body)
+  assert.deepEqual(plain, V)
+
+  for (const off of [{ omitExtras: false }, { omitExtras: 'true' }, { omitExtras: 1 }, '{ half']) {
+    put('client-files.json', off)
+    assert.deepEqual(JSON.parse((await get('/api/files/version')).body), V, JSON.stringify(off))
+  }
+
+  put('client-files.json', { omitExtras: true })
+  const omitted = JSON.parse((await get('/api/files/version')).body)
+  // Case-insensitive like the launcher's own check; never anything under Data/Platform or Data/SKSE
+  assert.deepEqual(omitted.files.map(f => f.path), ['Data/a b [x].esp', 'Data/Platform/Plugins/skymp5-client.js', 'd3dx9_42.dll'])
+  assert.equal(omitted.omittedExtras, 1)
+  assert.equal(omitted.version, V.version)
+  assert.equal(omitted.zipSize, V.zipSize)
+  // The omitted file is still part of the package, so the per-file route still serves it
+  assert.equal((await get(ESP)).status, 200)
+  // Without an extra list nothing is left out
+  drop('extra-files.json')
+  assert.deepEqual(JSON.parse((await get('/api/files/version')).body), V)
+  drop('files-version.json')
+  assert.equal((await get('/api/files/version')).status, 404)
 })
