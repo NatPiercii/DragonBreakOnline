@@ -40,6 +40,9 @@ produces, and `startPoints` must use the client's index. It is `0x24017482` toda
 Because `data/` and `build/` are untracked, **a fresh backend deploy publishes nothing** until you
 run steps 1 and 2 on that box.
 
+Launcher 2.1.44 can also fetch the client package one file at a time (`/api/files/client/<path>`). Each release then
+needs `scripts/unpack-client.js` and `scripts/publish-client-r2.sh`; see `docs/per-file-client.md`.
+
 ### 1. The install manifest: every third-party mod
 
 `compile-manifest` reads a reference **MO2 install** (Nat's is `C:\DragonBreak`, profile
