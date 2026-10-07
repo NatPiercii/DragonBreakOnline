@@ -76,6 +76,12 @@
         "items": [
           "Gear kept in a chest outside the dungeons is no longer changed: crafted Steel Plate (and anything above steel) stays as it is. Only dungeon loot is capped at steel."
         ]
+      },
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Lootable and locked chests in a dungeon you have claimed are outlined, so you can spot them."
+        ]
       }
     ]
   },
