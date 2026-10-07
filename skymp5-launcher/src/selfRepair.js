@@ -18,8 +18,8 @@ const KEEP_RES = [
   /skymp5-client-settings\.txt$/,
   /\.log$/,
 ]
-// In Data\SKSE\Plugins only the platform's own DLLs (and their ini/pdb companions) are ours to police
-const PLATFORM_DLL_RE = /^data\/skse\/plugins\/(skyrimplatform|mpclientplugin)[^/]*$/
+// In Data\SKSE\Plugins only the platform's own DLLs are ours to police; SkyrimPlatform.ini is its settings and stays
+const PLATFORM_DLL_RE = /^data\/skse\/plugins\/(skyrimplatform|mpclientplugin)[^/]*\.dll$/
 // The files that decide whether the client starts at all
 const CRITICAL_RES = [
   /^data\/skse\/plugins\/[^/]+\.dll$/,

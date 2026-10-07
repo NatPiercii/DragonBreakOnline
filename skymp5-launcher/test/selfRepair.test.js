@@ -87,7 +87,7 @@ test('moveAside keeps each file under a stamped quarantine folder and leaves not
 })
 
 test('overwritePlatformDlls finds only the platform DLLs in MO2\'s overwrite', () => {
-  const dir = game({ 'SKSE/Plugins/SkyrimPlatform.dll': 'x', 'SKSE/Plugins/MpClientPlugin.dll': 'x', 'SKSE/Plugins/Other.dll': 'x' })
+  const dir = game({ 'SKSE/Plugins/SkyrimPlatform.dll': 'x', 'SKSE/Plugins/SkyrimPlatform.ini': 'settings', 'SKSE/Plugins/MpClientPlugin.dll': 'x', 'SKSE/Plugins/Other.dll': 'x' })
   assert.deepStrictEqual(overwritePlatformDlls(dir).sort(), ['SKSE/Plugins/MpClientPlugin.dll', 'SKSE/Plugins/SkyrimPlatform.dll'])
 })
 
