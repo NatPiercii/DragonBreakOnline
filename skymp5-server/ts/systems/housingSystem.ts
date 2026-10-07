@@ -5,6 +5,7 @@ import { espmRefrFieldId, toFormId } from "./formIdUtil";
 import { AdminRoleConfig, readAdminRoleConfig, adminTierOf, TIER_CAPS } from "./adminRoles";
 import { getZones, Zones } from "./zones";
 import { PlaceClaim, PlannedPlace, planPlaces } from "./housingPlaces";
+import { LEGACY_KEY_BASE_ID, allocateKeyBase, isPropertyKeyBase, refreshKeyPool } from "./houseKeys";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
 type Mp = any;
@@ -64,8 +65,8 @@ const REGISTRY_FILE = "./housing.json";
 // A key credential, "(80B5EAC)" or "(80B5EAC-2)": the only alias matched as a suffix
 const CREDENTIAL_RE = /^\([0-9A-F]+(-\d+)?\)$/;
 
-// Vanilla key form; the name extra carries the credential.
-export const KEY_BASE_ID = 0x000db0e2;
+// Vanilla key form; the name extra carries the credential. Locks cut since 7 Oct use a pool record of their own (houseKeys.ts).
+export const KEY_BASE_ID = LEGACY_KEY_BASE_ID;
 
 const MAX_USER_SLOTS = 1024;
 const MAX_NAME_LEN = 32;
@@ -141,6 +142,8 @@ interface PropertyRecord {
   // On a member of a place: the place's root; on an unlocked chest inside a house, kept for its owner and assignees
   memberOf?: number;
   ownerOnly?: boolean;
+  // The KEYM record this lock's keys are cut on (houseKeys.ts pool); absent: the vanilla key
+  keyBase?: number;
 }
 
 // What the migration does with one planned house (refinePlaces), written into the plan for review
@@ -359,6 +362,10 @@ export class HousingSystem implements System {
   // A fresh actor needs the full picture: names and locks for every claim.
   private onActorAssigned(ctx: SystemContext, userId: number): void {
     this.pushDecor(ctx, userId);
+    const actorId = this.actorOf(ctx, userId);
+    if (actorId) {
+      try { this.migrateKeys(ctx, actorId); } catch (e) { this.log(`[housing] key migration failed: ${e}`); }
+    }
   }
 
   // ── Requests ────────────────────────────────────────────────────────────────
@@ -564,8 +571,9 @@ export class HousingSystem implements System {
     issued.push(keyName);
     rec.issued = issued.slice(-MAX_ISSUED_KEY_NAMES);
     // Recorded first, so a failed write never leaves a key nothing answers to
+    const keyBase = this.keyBaseFor(ctx, primary, rec);
     if (!this.commit(ctx, userId, primary, rec)) return;
-    if (!this.giveKey(ctx, actorId, keyName)) {
+    if (!this.giveKey(ctx, actorId, keyName, keyBase)) {
       this.notice(ctx, userId, "You are carrying too many keys.");
       return;
     }
@@ -1187,7 +1195,7 @@ export class HousingSystem implements System {
       const inv = mp.get(actorId, "inventory");
       const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
       for (const e of entries) {
-        if ((Number(e?.baseId) >>> 0) === KEY_BASE_ID && e?.name) keys.add(String(e.name));
+        if (isPropertyKeyBase(Number(e?.baseId)) && e?.name) keys.add(String(e.name));
       }
     } catch { /* actor gone */ }
     return {
@@ -1461,7 +1469,7 @@ export class HousingSystem implements System {
         const inv = mp.get(actorId, "inventory");
         const entries = inv && Array.isArray(inv.entries) ? inv.entries : [];
         const aliases = rec.keyAliases || [];
-        const kept = entries.filter((e: any) => !((Number(e?.baseId) >>> 0) === KEY_BASE_ID && (this.isKeyFor(e?.name, credential, names)
+        const kept = entries.filter((e: any) => !(isPropertyKeyBase(Number(e?.baseId)) && (this.isKeyFor(e?.name, credential, names)
           || (typeof e?.name === "string" && aliases.some((a) => this.aliasOpens(e.name, a))))));
         if (kept.length !== entries.length) mp.set(actorId, "inventory", { entries: kept });
       } catch { /* actor gone */ }
@@ -1482,17 +1490,64 @@ export class HousingSystem implements System {
     }
   }
 
-  private giveKey(ctx: SystemContext, actorId: number, keyName: string): boolean {
+  // The record this lock's keys are cut on: its own from the pool, kept on the record, never one another lock holds
+  private keyBaseFor(ctx: SystemContext, primary: number, rec: PropertyRecord): number {
+    const pool = refreshKeyPool(ctx.svr as Mp);
+    if (!pool.length) return KEY_BASE_ID;
+    const used = new Set<number>();
+    for (const other of this.claimed) {
+      if (other === primary) continue;
+      const o = this.read(ctx, other);
+      if (o && o.keyBase) used.add(o.keyBase >>> 0);
+    }
+    const base = allocateKeyBase(rec.keyBase, used, pool);
+    if (base === KEY_BASE_ID) {
+      delete rec.keyBase;
+      this.log(`[housing] key pool used up (${pool.length}); ${primary.toString(16)} keeps the vanilla key`);
+    } else rec.keyBase = base;
+    return base;
+  }
+
+  // Keys cut on the vanilla record move to their lock's own record at login, so they stop stacking with other locks' keys
+  private migrateKeys(ctx: SystemContext, actorId: number): void {
+    const mp = ctx.svr as Mp;
+    if (!refreshKeyPool(mp).length) return;
+    const inv = mp.get(actorId, "inventory");
+    const entries: any[] = inv && Array.isArray(inv.entries) ? inv.entries.map((e: any) => ({ ...e })) : [];
+    const legacy = entries.filter((e) => (Number(e?.baseId) >>> 0) === KEY_BASE_ID && typeof e?.name === "string");
+    if (!legacy.length) return;
+    let moved = 0;
+    for (const primary of this.claimed) {
+      const rec = this.read(ctx, primary);
+      if (!rec || rec.owner === 0) continue;
+      const credential = this.keyCredential(primary, rec);
+      const names = this.acceptedKeyNames(ctx, primary, rec);
+      const aliases = rec.keyAliases || [];
+      const mine = legacy.filter((e) => (Number(e.baseId) >>> 0) === KEY_BASE_ID
+        && (this.isKeyFor(e.name, credential, names) || aliases.some((a) => this.aliasOpens(e.name, a))));
+      if (!mine.length) continue;
+      const had = rec.keyBase;
+      const base = this.keyBaseFor(ctx, primary, rec);
+      if (base === KEY_BASE_ID) continue;
+      if (had !== base && !this.write(ctx, primary, rec)) continue;
+      for (const e of mine) { e.baseId = base; moved += Number(e.count) || 1; }
+    }
+    if (!moved) return;
+    mp.set(actorId, "inventory", { entries });
+    this.log(`[housing] moved ${moved} key(s) of ${actorId.toString(16)} to their locks' own records`);
+  }
+
+  private giveKey(ctx: SystemContext, actorId: number, keyName: string, keyBase = KEY_BASE_ID): boolean {
     const mp = ctx.svr as Mp;
     try {
       const inv = mp.get(actorId, "inventory") || { entries: [] };
       const entries = Array.isArray(inv.entries) ? inv.entries.slice() : [];
-      const keys = entries.filter((e: any) => (Number(e?.baseId) >>> 0) === KEY_BASE_ID);
+      const keys = entries.filter((e: any) => isPropertyKeyBase(Number(e?.baseId)));
       const carried = keys.reduce((n: number, e: any) => n + (Number(e?.count) || 0), 0);
       if (carried >= MAX_KEYS_CARRIED) return false;
-      const stack = keys.find((e: any) => e?.name === keyName);
+      const stack = keys.find((e: any) => e?.name === keyName && (Number(e?.baseId) >>> 0) === (keyBase >>> 0));
       if (stack) stack.count = (Number(stack.count) || 0) + 1;
-      else entries.push({ baseId: KEY_BASE_ID, count: 1, name: keyName });
+      else entries.push({ baseId: keyBase >>> 0, count: 1, name: keyName });
       mp.set(actorId, "inventory", { entries });
       return true;
     } catch (e) {
@@ -1679,6 +1734,7 @@ export class HousingSystem implements System {
         ...(Array.isArray(r.keyAliases) ? { keyAliases: r.keyAliases.map(String) } : {}),
         ...(Number(r.memberOf) ? { memberOf: Number(r.memberOf) >>> 0 } : {}),
         ...(r.ownerOnly === true ? { ownerOnly: true } : {}),
+        ...(Number(r.keyBase) ? { keyBase: Number(r.keyBase) >>> 0 } : {}),
       };
     } catch {
       return null;

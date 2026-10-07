@@ -1,7 +1,7 @@
 import { Settings } from "../settings";
 import { System, Log, SystemContext, Content } from "./system";
 import { toFormId } from "./formIdUtil";
-import { KEY_BASE_ID } from "./housingSystem";
+import { isPropertyKeyBase } from "./houseKeys";
 import { LAWFUL_PROP, RESTRAINED_PROP, isStruggling } from "./captureSystem";
 
 // The ScampServer / `mp` API is untyped here, same convention as spawn.ts.
@@ -101,7 +101,7 @@ export class SearchSystem implements System {
     const previous = typeof mp.onTakeItem === "function" ? mp.onTakeItem : null;
     mp.onTakeItem = (sourceId: number, actorId: number, baseId: number, count: number): boolean => {
       // A property key's name is the housing credential, so a search never moves one and it never counts
-      if ((baseId >>> 0) === KEY_BASE_ID && this.isSearching(sourceId >>> 0, actorId >>> 0)) {
+      if (isPropertyKeyBase(baseId) && this.isSearching(sourceId >>> 0, actorId >>> 0)) {
         this.resyncInventory(ctx, actorId >>> 0);
         return false;
       }
