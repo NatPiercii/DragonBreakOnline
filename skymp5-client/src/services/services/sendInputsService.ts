@@ -8,7 +8,7 @@ import { getMovement } from "../../sync/movementGet";
 import * as worldViewMisc from "../../view/worldViewMisc";
 
 import { Animation, AnimationSource } from "../../sync/animation";
-import { Actor, EquipEvent, FormType } from "skyrimPlatform";
+import { Actor, ActorBase, EquipEvent, FormType } from "skyrimPlatform";
 import { getAppearance } from "../../sync/appearance";
 import { ActorValues, getActorValues } from "../../sync/actorvalues";
 import { getEquipment } from "../../sync/equipment";
@@ -274,6 +274,28 @@ export class SendInputsService extends ClientListener {
         }
     }
 
+    private preMenuHead: { race: number; baseRace: number; face: number } | null = null;
+
+    // The player's race, its base form's race and the Face head part (HeadPart type 1)
+    private headState(): { race: number; baseRace: number; face: number } {
+        const player = this.sp.Game.getPlayer() as Actor;
+        const base = ActorBase.from(player.getBaseObject());
+        const race = player.getRace();
+        const baseRace = base ? base.getRace() : null;
+        let face = 0;
+        const n = base ? base.getNumHeadParts() : 0;
+        for (let i = 0; i < n; ++i) {
+            const part = base ? base.getNthHeadPart(i) : null;
+            if (part && part.getType() === 1) { face = part.getFormID(); break; }
+        }
+        return { race: race ? race.getFormID() : 0, baseRace: baseRace ? baseRace.getFormID() : 0, face };
+    }
+
+    // Data\Platform\Logs\dbo-diag-logs.txt, which Report a Problem sends
+    private diag(line: string) {
+        try { (this.sp as unknown as { writeLogs: (plugin: string, ...rest: unknown[]) => void }).writeLogs('dbo-diag', `[appearance] ${line}`); } catch { /* older platform */ }
+    }
+
     private sendAppearance(_refrId?: number) {
         if (_refrId) {
           return;
@@ -281,13 +303,26 @@ export class SendInputsService extends ClientListener {
         const shown = this.sp.Ui.isMenuOpen('RaceSex Menu');
         if (shown != this.isRaceSexMenuShown) {
             this.isRaceSexMenuShown = shown;
+            if (shown) {
+                // The head the character had before the menu: RaceMenu swaps in its race's default face on a non-Nord re-edit
+                this.preMenuHead = this.headState();
+                this.diag(`racemenu open: ${JSON.stringify(this.preMenuHead)}`);
+            }
             if (!shown) {
                 this.sp.printConsole('Exited from race menu');
                 // remoteServer holds player rebuilds while the menu tears down its head parts
                 (globalThis as any).__dboRaceMenuClosedAt = Date.now();
 
                 const appearance = getAppearance(this.sp.Game.getPlayer() as Actor);
-                // TODO: log appearance contents to debug appearance issues?
+                const after = this.headState();
+                this.diag(`racemenu close: ${JSON.stringify(after)}`);
+                // Race unchanged but the Face part replaced by another one: put the pre-menu face back (9 characters got the Nord head)
+                const before = this.preMenuHead;
+                if (before && before.face && after.face !== before.face && after.race === before.race && before.race !== 0) {
+                    appearance.headpartIds = appearance.headpartIds.filter((id) => id !== after.face).concat([before.face]);
+                    this.diag(`racemenu: kept the pre-menu face ${before.face.toString(16)} (the menu swapped in ${after.face.toString(16)})`);
+                }
+                this.preMenuHead = null;
                 const message: MessageWithRefrId<UpdateAppearanceMessage> = {
                     t: MsgType.UpdateAppearance,
                     data: appearance,
