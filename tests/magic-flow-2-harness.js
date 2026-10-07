@@ -185,17 +185,17 @@ const view = (a) => globalThis.__dboMagicView(a);
 // starterSettleSeconds; tests/first-spell-harness.js has the wait itself)
 tick('schools.first'); advance(91000);
 
-// ---- Restoration: Healing at Priest 25 ----
+// ---- Restoration: Healing, Lesser Ward or Insect Swarm at Priest 25 (aab0a2ac, mod-0088) ----
 priestOf(PRIESTLY, 24);
 tick('schools.first');
 check('Priest 24: nothing yet', !out.said.some((x) => x[0] === PRIESTLY));
 priestOf(PRIESTLY, 25);
 const pp = widgetsOf(PRIESTLY, 73).length;
 tick('schools.first');
-check('Priest 25 in the field: the line names Healing and where to choose it, no panel thrust open', said(PRIESTLY) === "Priest has reached 25: you may choose your first spell of Restoration (Healing). Choose it at a Study Magic shelf or a Scholars' Ledger, or when you next log in." && widgetsOf(PRIESTLY, 73).length === pp, said(PRIESTLY));
+check('Priest 25 in the field: the line names the three spells and where to choose them, no panel thrust open', said(PRIESTLY) === "Priest has reached 25: you may choose your first spell of Restoration (Healing, Lesser Ward or Insect Swarm). Choose it at a Study Magic shelf or a Scholars' Ledger, or when you next log in." && widgetsOf(PRIESTLY, 73).length === pp, said(PRIESTLY));
 activate(BOOKCASE, PRIESTLY);
 let w = lastWidget(PRIESTLY, 'studyMagic');
-check('...at a Study Magic shelf the pick opens: Healing alone', w.title === 'Your First Spell' && w.lead === 'Priest has reached 25: choose your first spell of Restoration. It goes into your spellbook, no tome needed.' && w.choices.map((c) => c.name).join() === 'Healing' && !/The other/.test(w.choices[0].confirm), w);
+check('...at a Study Magic shelf the pick opens: Healing, Lesser Ward or Insect Swarm', w.title === 'Your First Spell' && w.lead === 'Priest has reached 25: choose your first spell of Restoration. It goes into your spellbook, no tome needed.' && w.choices.map((c) => c.name).join() === 'Healing,Lesser Ward,Insect Swarm' && /The others you can still learn/.test(w.choices[0].confirm), w);
 ui('firstSpellPick', PRIESTLY, [w.nonce, 'Healing']);
 check('...Healing goes into the Priest book, prepared', priestBook(PRIESTLY).includes(HEALING) && (props.get(PRIESTLY + '|private.dboPrepared') || []).includes(HEALING) && !studied(PRIESTLY).length, [priestBook(PRIESTLY), studied(PRIESTLY)]);
 check('...no school of magic is chosen for them', !rec(PRIESTLY).primary && rec(PRIESTLY).picks.Restoration.how === 'chose');

@@ -26,7 +26,7 @@ ok('gamemode loads playtime.js with what it needs', /require\(PLAYTIME_JS\)\(\{[
 ok('a failed load leaves the earned-slot hook alone', /log\('playtime\.js failed to load:', e\.stack \|\| e\.message\); \}/.test(GAMEMODE));
 const note = NOTES.find((n) => n.title === 'A character slot for 150 hours') || {};
 const noteText = JSON.stringify(note.sections || []);
-ok('patch note: a Server update for the next release', note.version === 'Server update' && note.date === 'SHIP_DATE' && note.tag === 'New', [note.version, note.date]);
+ok('patch note: a Server update, dated SHIP_DATE or its release date', note.version === 'Server update' && (note.date === 'SHIP_DATE' || /^\d{4}-\d{2}-\d{2}$/.test(note.date)) && note.tag === 'New', [note.version, note.date]);
 ok('...says 150 hours, all characters together, kept for good', /150 hours/.test(noteText) && /all your characters count together/.test(noteText) && /yours to keep/.test(noteText), noteText);
 ok('...names the 1 October start, the stacking, the next login and /playtime', /1 October/.test(noteText) && /Patreon tier or roles/.test(noteText) && /next time you log in/.test(noteText) && /\/playtime/.test(noteText), noteText);
 

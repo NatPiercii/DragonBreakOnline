@@ -66,7 +66,9 @@ const api = {
   display: () => 'Tester #ABCD',
   who: () => 'Tester #ABCD (profile 1)',
   // Server judging keeps a won round deterministic here; the payout and the rests are the same code either way
-  cfg: { labour: { clientJudged: false } },
+  // The shared rest is what these checks read: pinned off, as tests/labour-harness.js does since 2832fe19 (iron and
+  // corundum rest per player by default since 5a26ae2a)
+  cfg: { labour: { clientJudged: false, perPlayerNodes: false } },
   distanceMeters: () => 2,
   openWidget: (a, w) => { out.widgets.push(w); return true; },
   closeWidget: () => true,

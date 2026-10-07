@@ -56,7 +56,8 @@ const held = { id: 'c1', what: '3 wolves', zone: 'Bruma', progress: 1, count: 3,
 t = text(render(board({ contracts: Object.assign({}, CONTRACTS, { held, list: [Object.assign({}, CONTRACTS.list[0], { state: 'yours' }), CONTRACTS.list[1]] }), tab: 'contracts' })));
 check('the contract held shows above the notices with its progress', /You hold 3 wolves in Bruma 1 of 3 slain · 36 gold · fades in 20 hours/.test(t), t);
 check('...its notice is stamped Yours', /Yours 3 wolves/.test(t), t);
-check('...and the footer offers to give it up', /Give up your contract/.test(t), t);
+// Since front 473a21b3 (7 Oct) each held contract carries its own Give up button; older fronts had one in the footer
+check('...and it can be given up', /You hold 3 wolves in Bruma 1 of 3 slain · 36 gold · fades in 20 hours Give up/.test(t) || /Give up your contract/.test(t), t);
 
 // Closed, empty, and an official
 t = text(render(board({ contracts: Object.assign({}, CONTRACTS, { enabled: false, list: [], note: 'Hunting contracts are closed for now. The expedition boards post no hunting work.' }), tab: 'contracts' })));
