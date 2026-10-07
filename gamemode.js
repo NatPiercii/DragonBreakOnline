@@ -752,25 +752,30 @@ registerChatCommand('chargen', (a, args) => {
   } catch (e) { personal(a, 'Failed: ' + e.message); }
 }, { admin: true, help: '<player|#TAG> reopen character creation for someone' });
 const NAME_RE = /^[A-Za-z][A-Za-z' \-]{1,30}$/;
-registerChatCommand('rename', (a, args) => {
-  const m = args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})\s+(.+)$/);
-  if (!m) return personal(a, 'Usage: /rename <player|#TAG> <new name>');
-  const t = findByName(m[1]); if (!t) return personal(a, 'No such player. Use their name or #TAG.');
-  const newName = m[2].trim().replace(/\s+/g, ' ');
-  if (!NAME_RE.test(newName)) return personal(a, 'Names: 2-31 letters, spaces, apostrophes or hyphens, starting with a letter.');
+// A staff rename, for /rename and the F7 panel's Rename (fork adminSystem.ts calls __dboAdminRename): { ok, text }
+const renameCharacter = (a, t, rawName) => {
+  const newName = String(rawName || '').trim().replace(/\s+/g, ' ');
+  if (!NAME_RE.test(newName)) return { ok: false, text: 'Names: 2-31 letters, spaces, apostrophes or hyphens, starting with a letter.' };
   // One character to a name, as at creation (naming.js): a rename moves the name index too, so the old name is free
   // again and the new one is held (#bugs 1554934638882066532: a renamed character kept its old name taken)
   const key = typeof globalThis.__dboNameKey === 'function' ? globalThis.__dboNameKey(newName) : '';
-  if (key && typeof globalThis.__dboNameTaken === 'function' && globalThis.__dboNameTaken(key, t)) return personal(a, `Someone already carries the name ${newName}. Choose another.`);
+  if (key && typeof globalThis.__dboNameTaken === 'function' && globalThis.__dboNameTaken(key, t)) return { ok: false, text: `Someone already carries the name ${newName}. Choose another.` };
   try {
     const app = Object.assign({}, mp.get(t, 'appearance') || {}); const old = app.name || 'Stranger';
     app.name = newName; mp.set(t, 'appearance', app);
     if (key) mp.set(t, 'private.indexed.charName', key);
     indexName(t);
-    personal(a, `Renamed ${old} #${tagOf(t)} to ${newName}.`);
     system(t, `Your character is now named ${newName}.`);
     audit(`GM ${who(a)} renamed "${old}" -> "${newName}" (#${tagOf(t)}, profile ${profileOf(t)})`);
-  } catch (e) { personal(a, 'Rename failed: ' + e.message); }
+    return { ok: true, text: `Renamed ${old} #${tagOf(t)} to ${newName}.` };
+  } catch (e) { return { ok: false, text: 'Rename failed: ' + e.message }; }
+};
+globalThis.__dboAdminRename = (a, t, name) => (isAdmin(Number(a) >>> 0) ? renameCharacter(Number(a) >>> 0, Number(t) >>> 0, name) : { ok: false, text: 'Only staff can rename a character.' });
+registerChatCommand('rename', (a, args) => {
+  const m = args.trim().match(/^(\S+(?:\s+#[A-Za-z0-9]{4})?|#[A-Za-z0-9]{4})\s+(.+)$/);
+  if (!m) return personal(a, 'Usage: /rename <player|#TAG> <new name>');
+  const t = findByName(m[1]); if (!t) return personal(a, 'No such player. Use their name or #TAG.');
+  personal(a, renameCharacter(a, t, m[2]).text);
 }, { admin: true, help: '<player|#TAG> <new name>' });
 // The staff teleport: /tp, and /gm goto (gmcall.js). '' when it went, else why not
 const staffTeleport = (a, place) => {

@@ -61,9 +61,9 @@ mp.set(OLD, 'appearance', { name: 'Chad Borick' }); mp.set(OLD, 'private.indexed
 mp.set(OTHER, 'appearance', { name: 'Tara Dicoft' }); mp.set(OTHER, 'private.indexed.charName', key('Tara Dicoft'));
 const byName = { chad: OLD, tara: OTHER };
 const indexed = [];
-new Function('mp', 'registerChatCommand', 'findByName', 'personal', 'system', 'audit', 'who', 'tagOf', 'profileOf', 'indexName', gm.slice(from, to))(
+new Function('mp', 'registerChatCommand', 'findByName', 'personal', 'system', 'audit', 'who', 'tagOf', 'profileOf', 'indexName', 'isAdmin', gm.slice(from, to))(
   mp, (n, fn) => commands.set(n, fn), (q) => byName[String(q).toLowerCase()] || 0, (a, t) => said.push(t), () => {}, () => {}, String,
-  () => 'ABCD', () => 1, (t) => indexed.push(t));
+  () => 'ABCD', () => 1, (t) => indexed.push(t), (a) => a === 1);
 const rename = commands.get('rename');
 check('/rename is registered from the lifted code', typeof rename === 'function');
 rename(1, 'chad Tara Dicoft');
@@ -76,6 +76,15 @@ check('...and the new one is held', taken(key('Chad Floran'), OTHER));
 check('...and refreshes the lookup by name (indexName)', indexed.includes(OLD));
 rename(1, 'chad Chad Floran');
 check('renaming a character to its own name is not "taken"', !/Someone already carries/.test(said[said.length - 1] || ''), said[said.length - 1]);
+// The F7 panel's Rename (fork adminSystem.ts -> __dboAdminRename): the same rules, an answer instead of a chat line
+let r = globalThis.__dboAdminRename(1, OLD, '  Chad   Varo ');
+check('the panel rename renames, spaces tidied, and answers ok', r.ok === true && mp.get(OLD, 'appearance').name === 'Chad Varo' && /Renamed Chad Floran #ABCD to Chad Varo/.test(r.text), r);
+r = globalThis.__dboAdminRename(1, OLD, 'Tara Dicoft');
+check('...refuses a name someone carries', r.ok === false && /already carries/.test(r.text) && mp.get(OLD, 'appearance').name === 'Chad Varo', r);
+r = globalThis.__dboAdminRename(1, OLD, '7up');
+check('...and a name the rules refuse', r.ok === false && /2-31 letters/.test(r.text), r);
+r = globalThis.__dboAdminRename(2, OLD, 'Chad Other');
+check('...and anyone who is not staff', r.ok === false && /Only staff/.test(r.text) && mp.get(OLD, 'appearance').name === 'Chad Varo', r);
 
 // ---- fork spawn.ts: deleting a character frees its name --------------------------------------------------------------
 const bundle = process.argv[2];
