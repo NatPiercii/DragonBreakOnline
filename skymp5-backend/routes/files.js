@@ -17,18 +17,21 @@ const sessionEnds = require('../sources/sessionEnds')
 const autoReport = require('../sources/autoReport')
 const { visitorIp } = require('../sources/visitorIp')
 const { lookupSession } = require('./master-api')
+const r2Files = require('../sources/r2Files')
 
 const ZIP_PATH     = path.join(config.clientFilesDir, config.clientZipName)
 const VERSION_PATH = path.join(__dirname, '..', 'data', 'files-version.json')
 
 const NOT_BUILT = { error: 'File package not found. Run `npm run merge` on the server first.' }
 
-// Only the zip is rate-limited: /version is polled every 10s by every open launcher (90 requests/window each), which a router-wide cap of 100 would choke on
+// Only the zip is rate-limited: /version is polled every 10s by every open launcher (90 requests/window each), which a router-wide cap of 100 would choke on.
+// Keyed by Cloudflare's visitor address: every request reaches the backend from the same proxy hop, so req.ip alone made it one cap for all players.
 const filesRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per window
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: req => ipKeyGenerator(visitorIp(req) || req.ip),
   message: { error: 'Too many requests. Please try again later.' }
 })
 
@@ -59,17 +62,17 @@ router.get('/extra', (_req, res) => {
 
 // GET /api/files/zip
 
+// A launcher that follows redirects (X-DBO-Accept-Redirect: 1) gets the zip from R2 when this version is in the bucket
+// (sources/r2Files.js); the rest get it from disk, with Range support so an interrupted download can resume.
 router.get('/zip', filesRateLimiter, (req, res) => {
+  const r2 = r2Files.clientZipUrl(req)
+  if (r2) { res.set('Cache-Control', 'no-store'); return res.redirect(302, r2) }
   if (!fs.existsSync(ZIP_PATH)) return res.status(404).json(NOT_BUILT)
 
-  const stat = fs.statSync(ZIP_PATH)
-  res.setHeader('Content-Type', 'application/zip')
-  res.setHeader('Content-Length', stat.size)
-  res.setHeader('Content-Disposition', 'attachment; filename="SkyMP-client.zip"')
-
-  const stream = fs.createReadStream(ZIP_PATH)
-  stream.on('error', () => res.destroy())
-  stream.pipe(res)
+  res.sendFile(ZIP_PATH, {
+    headers: { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="SkyMP-client.zip"' },
+    cacheControl: false,
+  }, err => { if (err && !res.headersSent) res.status(err.status || 500).end(); else if (err) res.destroy() })
 })
 
 // POST /api/files/report - the launcher's "send logs to staff" button and its crash path; with x-report-kind: auto, automatic reports.

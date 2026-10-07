@@ -71,7 +71,9 @@ app.use(require('./sources/problemReport').parserExcept(OWN_PARSER_PATHS, global
 
 // Static file serving: root/ is installed into Skyrim/ (Data/ sub-dir)
 app.use('/files/root', express.static(path.join(config.clientFilesDir, 'root')))
-// Extra files for the launcher's syncExtraFiles, under /api/files because the public proxy forwards only /api paths
+// Extra files for the launcher's syncExtraFiles, under /api/files because the public proxy forwards only /api paths.
+// A file of a list version that is in the R2 bucket is redirected there first (sources/r2Files.js)
+app.use('/api/files/extra', require('./sources/r2Files').extraRedirect)
 app.use('/api/files/extra', express.static(config.extraFilesDir, { dotfiles: 'deny', index: false, redirect: false }))
 
 // News images: served at /images/<filename>
