@@ -30,6 +30,7 @@ const downgrade = require('./downgrade')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
 const selfRepair = require('./selfRepair')
+const downloadLib = require('./download')
 const nxmLinks = require('./nxm')
 const legalLib = require('./legal')
 const installProgress = require('./renderer/installProgress')
@@ -2007,45 +2008,11 @@ function assertSecureDownloadUrl(url) {
 
 // Download a URL to a local file, following redirects (release URLs hit a CDN).
 // Settles exactly once on every outcome, including an aborted response.
-function downloadToFile(url, dest, onProgress, redirectsLeft = 5) {
-  return new Promise((resolve, reject) => {
-    try { assertSecureDownloadUrl(url) } catch (err) { return reject(err) }
-    let file = null
-    let settled = false
-    const finish = val => { if (!settled) { settled = true; resolve(val) } }
-    // Destroy the stream before unlinking: an open handle leaves the partial file delete-pending on Windows and blocks every retry this session.
-    const fail = err => {
-      if (settled) return
-      settled = true
-      if (file && !file.destroyed) {
-        file.once('close', () => { try { fs.unlinkSync(dest) } catch {} reject(err) })
-        file.destroy()
-      } else {
-        try { fs.unlinkSync(dest) } catch {}
-        reject(err)
-      }
-    }
-    const mod = url.startsWith('https') ? https : http
-    const req = mod.get(url, res => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        res.resume()
-        if (redirectsLeft <= 0) return fail(new Error('Too many redirects'))
-        return finish(downloadToFile(res.headers.location, dest, onProgress, redirectsLeft - 1))
-      }
-      if (res.statusCode !== 200) { res.resume(); return fail(new Error(`HTTP ${res.statusCode}`)) }
-      const total = parseInt(res.headers['content-length'] || '0', 10)
-      let received = 0
-      file = fs.createWriteStream(dest)
-      res.on('data', c => { received += c.length; if (onProgress) onProgress(received, total) })
-      res.pipe(file)
-      file.on('finish', () => file.close(() => finish(dest)))
-      file.on('error', fail)
-      res.on('error',  fail)
-      res.on('aborted', () => fail(new Error('Download interrupted')))
-    })
-    req.on('error', fail)
-    req.setTimeout(120_000, () => { req.destroy(); fail(new Error('Download timed out')) })
-  })
+// The download server answers 503 when it is full; the bar says why it waits
+const queuedNote = (seconds) => send('install:progress', { phase: 'download', file: `Waiting in the download queue... (${seconds} s)`, index: 0, total: 0, skipped: false })
+
+function downloadToFile(url, dest, onProgress) {
+  return downloadLib.download(url, dest, { validate: assertSecureDownloadUrl, onProgress, onQueued: queuedNote, timeoutMs: 120_000 })
 }
 
 // In-app launcher update: download the new installer, run it silently, and let
@@ -3294,53 +3261,14 @@ ipcMain.handle('install:uninstall', async () => {
  * Stream the client zip from the backend to a local temp file.
  * Calls onProgress(bytesReceived, totalBytes) as data arrives.
  */
-function downloadClientZip(tempPath, onProgress) {
-  const url = `${config.apiUrl}/api/files/zip`
-  return new Promise((resolve, reject) => {
-    try { assertSecureDownloadUrl(url) } catch (err) { return reject(err) }
-    let file = null
-    let settled = false
-    const finish = () => { if (!settled) { settled = true; resolve() } }
-    // Destroy the stream before unlinking: an open handle leaves the partial file delete-pending on Windows and blocks every retry this session.
-    const fail = err => {
-      if (settled) return
-      settled = true
-      if (file && !file.destroyed) {
-        file.once('close', () => { try { fs.unlinkSync(tempPath) } catch {} reject(err) })
-        file.destroy()
-      } else {
-        try { fs.unlinkSync(tempPath) } catch {}
-        reject(err)
-      }
-    }
-    const mod = url.startsWith('https') ? https : http
-    const req = mod.get(url, res => {
-      if (res.statusCode === 404) {
-        res.resume()
-        return fail(new Error('Update package not found on server. Run npm run merge on the backend.'))
-      }
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume()
-        return fail(new Error(`Server returned HTTP ${res.statusCode}`))
-      }
-
-      const total    = parseInt(res.headers['content-length'] || '0', 10)
-      let   received = 0
-
-      file = fs.createWriteStream(tempPath)
-      res.on('data', chunk => {
-        received += chunk.length
-        if (onProgress) onProgress(received, total)
-      })
-      res.pipe(file)
-      file.on('finish', () => file.close(finish))
-      file.on('error', fail)
-      res.on('error',  fail)
-      res.on('aborted', () => fail(new Error('Download interrupted')))
-    })
-    req.on('error', fail)
-    req.setTimeout(60_000, () => { req.destroy(); fail(new Error('Download timed out')) })
-  })
+// The backend sends the zip to R2 only when asked (X-DBO-Accept-Redirect), so an old launcher keeps the disk copy
+async function downloadClientZip(tempPath, onProgress) {
+  try {
+    await downloadLib.download(`${config.apiUrl}/api/files/zip`, tempPath, { headers: { 'X-DBO-Accept-Redirect': '1' }, validate: assertSecureDownloadUrl, onProgress, onQueued: queuedNote })
+  } catch (err) {
+    if (err.statusCode === 404) throw new Error('Update package not found on server. Run npm run merge on the backend.')
+    throw err
+  }
 }
 
 /**
