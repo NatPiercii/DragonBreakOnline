@@ -31715,14 +31715,6 @@
 "kind": "weapon Battleaxe",
 "province": "skyrim"
 },
-"b647:dawnguard.esm": {
-"to": "801:Dawnguard.esm",
-"edid": "DLC1DwarvenCrossBow",
-"toEdid": "DLC1CrossBow",
-"family": "dwarven",
-"kind": "weapon Crossbow",
-"province": "skyrim"
-},
 "b64d:hothtrooper44_armorcompilation.esp": {
 "to": "13922:Skyrim.esm",
 "edid": "IAApotheusHelm",
@@ -42642,14 +42634,6 @@
 "family": "elven",
 "kind": "weapon Sword",
 "province": "cyrodiil"
-},
-"f19f:dawnguard.esm": {
-"to": "801:Dawnguard.esm",
-"edid": "DLC1DwarvenCrossBowEnhanced",
-"toEdid": "DLC1CrossBow",
-"family": "dwarven",
-"kind": "weapon Crossbow",
-"province": "skyrim"
 },
 "f1abd:skyrim.esm": {
 "to": "13951:Skyrim.esm",

@@ -3760,6 +3760,39 @@
    ],
    "role": "blacksmith",
    "recipes": []
+  },
+  "f19e:Dawnguard.esm": {
+   "name": "Enhanced Crossbow",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "f80d:Dawnguard.esm"
+   ]
+  },
+  "b647:Dawnguard.esm": {
+   "name": "Dwarven Crossbow",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "f810:Dawnguard.esm"
+   ]
+  },
+  "f19f:Dawnguard.esm": {
+   "name": "Enhanced Dwarven Crossbow",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "f80f:Dawnguard.esm"
+   ]
   }
  },
  "_uniformsComment": "War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only extras; a faction with neither (the Fighters Guild today) is not held to it.",
