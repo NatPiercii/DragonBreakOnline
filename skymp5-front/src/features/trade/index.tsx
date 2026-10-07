@@ -181,6 +181,17 @@ const Trade = ({ data }: { data: TradeData }) => {
     }
   };
 
+  // Dragging along the bar picks the amount (drawn by hand: SkyrimPlatform does not paint every native control)
+  const sliding = useRef(false);
+  const slideTo = (e: { clientX: number; currentTarget: HTMLDivElement }): void => {
+    if (!prompt) {
+      return;
+    }
+    const box = e.currentTarget.getBoundingClientRect();
+    const f = box.width > 0 ? Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) : 0;
+    clampPromptCount(1 + Math.round(f * (prompt.item.count - 1)));
+  };
+
   const confirmPrompt = (): void => {
     if (!prompt) {
       return;
@@ -423,6 +434,20 @@ const Trade = ({ data }: { data: TradeData }) => {
                 />
                 <Button text="+" width={44} height={36} onClick={() => clampPromptCount(promptCount + 1)} />
                 <Button text="All" width={64} height={36} onClick={() => setPromptCount(prompt.item.count)} />
+              </div>
+              <div
+                className="trade__slider"
+                onMouseDown={(e) => { sliding.current = true; slideTo(e); }}
+                onMouseMove={(e) => { if (sliding.current) slideTo(e); }}
+                onMouseUp={() => { sliding.current = false; }}
+                onMouseLeave={() => { sliding.current = false; }}
+              >
+                <div className="trade__slider-fill" style={{ width: `${(prompt.item.count > 1 ? (promptCount - 1) / (prompt.item.count - 1) : 1) * 100}%` }} />
+              </div>
+              <div className="trade__prompt-row">
+                <Button text="-10" width={56} height={32} onClick={() => clampPromptCount(promptCount - 10)} />
+                <Button text="Half" width={64} height={32} onClick={() => clampPromptCount(Math.ceil(prompt.item.count / 2))} />
+                <Button text="+10" width={56} height={32} onClick={() => clampPromptCount(promptCount + 10)} />
               </div>
               <div className="trade__prompt-row">
                 <Button text="Confirm" width={128} height={36} onClick={confirmPrompt} />
