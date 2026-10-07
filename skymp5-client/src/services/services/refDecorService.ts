@@ -2,11 +2,13 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
-import { Door, ObjectReference } from "skyrimPlatform";
+import { Container, Door, ObjectReference } from "skyrimPlatform";
 import { logTrace } from "../../logging";
 
 const MASTER_LOCK_LEVEL = 100;
 const APPLY_EVERY_N_UPDATES = 30;
+// Slow ticks a chest must stay 3D-loaded before it is renamed (about 3 s)
+const CHEST_SETTLE_TICKS = 6;
 
 // One claimed reference's presentation, as sent by the server.
 interface RefDecor {
@@ -39,6 +41,7 @@ export class RefDecorService extends ClientListener {
   // A save load resets every engine lock and display name
   private onGameLoad(): void {
     this.applied.clear();
+    this.loadedTicks.clear();
     this.updateCounter = APPLY_EVERY_N_UPDATES;
   }
 
@@ -104,15 +107,27 @@ export class RefDecorService extends ClientListener {
     }
     if (!refr) {
       stats.notLoaded++;
+      this.loadedTicks.delete(d.refId);
       return; // not loaded yet; retried on a later tick
     }
 
     const prev = this.applied.get(d.refId) || {};
-    // Names go on doors only, and only once the door's 3D is loaded: SKSE's SetDisplayName on a ref with no extra data
-    // yet writes through a null pointer (skse64+42EC, 8 crashes on 5 Oct for the owners of Frostcrag Spire's rooms, whose
-    // member chests were renamed about 2 s after loading in). Skipped refs are tried again on a later tick.
+    // SKSE's SetDisplayName on a ref with no extra data yet writes through a null pointer (skse64+42EC, Frostcrag Spire's
+    // chests on 5 Oct): doors are named once 3D-loaded, chests once 3D-loaded for CHEST_SETTLE_TICKS ticks in a row.
     let nameable = false;
-    try { nameable = refr.is3DLoaded() && !!Door.from(refr.getBaseObject()); } catch (e) { nameable = false; }
+    try {
+      const loaded = refr.is3DLoaded();
+      const base = refr.getBaseObject();
+      if (!loaded) {
+        this.loadedTicks.delete(d.refId);
+      } else if (Door.from(base)) {
+        nameable = true;
+      } else if (Container.from(base)) {
+        const ticks = (this.loadedTicks.get(d.refId) || 0) + 1;
+        this.loadedTicks.set(d.refId, ticks);
+        nameable = ticks > CHEST_SETTLE_TICKS;
+      }
+    } catch (e) { nameable = false; }
     if (d.name && prev.name !== d.name && nameable) {
       try {
         refr.setDisplayName(d.name, true);
@@ -145,7 +160,10 @@ export class RefDecorService extends ClientListener {
         }
         stats.locks++;
       }
-      if (!d.locked && !d.name) this.decor.delete(d.refId);
+      if (!d.locked && !d.name) {
+        this.decor.delete(d.refId);
+        this.loadedTicks.delete(d.refId);
+      }
     } catch (e: any) {
       stats.errors++;
       if (!stats.firstError) stats.firstError = "lock: " + (e && e.message);
@@ -155,5 +173,6 @@ export class RefDecorService extends ClientListener {
 
   private decor = new Map<number, RefDecor>();
   private applied = new Map<number, { name?: string }>();
+  private loadedTicks = new Map<number, number>();
   private updateCounter = 0;
 }
