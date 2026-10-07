@@ -187,6 +187,33 @@ function installLocationCheck(dirs, { exists = fs.existsSync, canWrite = (d) => 
   }
 }
 
+/** True when an existing file can be opened for writing (an administrator-owned file in a writable folder cannot). */
+function canWriteFile(file, { fsx = fs } = {}) {
+  try { fsx.closeSync(fsx.openSync(file, 'r+')); return true } catch { return false }
+}
+
+// Files MO2 rewrites on every run: when an earlier admin run left them owned by an administrator, MO2 restarts itself
+// elevated and drops the launch shortcut (konahrik, 7 Oct: PLAY opened MO2, the game never came up)
+const MO2_DIRS = ['', 'overwrite', 'logs', 'mods', 'profiles']
+const MO2_FILES = ['ModOrganizer.ini']
+const PROFILE_FILES = ['plugins.txt', 'modlist.txt', 'loadorder.txt']
+
+/** Paths under MO2's folder that exist but cannot be written. */
+function mo2PermissionProblems(root, profileDir, { exists = fs.existsSync, canWrite = (d) => canWriteDir(d), canWriteF = (p) => canWriteFile(p) } = {}) {
+  const bad = []
+  for (const d of [...MO2_DIRS.map(s => path.join(root, s)), profileDir].filter(Boolean)) if (exists(d) && !canWrite(d)) bad.push(d)
+  const files = [...MO2_FILES.map(s => path.join(root, s)), ...(profileDir ? PROFILE_FILES.map(s => path.join(profileDir, s)) : [])]
+  for (const p of files) if (exists(p) && !canWriteF(p)) bad.push(p)
+  return bad
+}
+
+/** The PowerShell arguments that give the current user full control of dir, run elevated (Windows asks first). */
+function grantOwnAccessArgs(dir, user) {
+  const q = s => String(s).replace(/'/g, "''")
+  return ['-NoProfile', '-NonInteractive', '-Command',
+    `Start-Process -FilePath icacls -ArgumentList '"${q(dir)}" /grant "${q(user)}:(OI)(CI)F" /T /C /Q' -Verb RunAs -Wait -WindowStyle Hidden`]
+}
+
 // skyrim-platform.log lines that mean the client script never ran: a module the platform should provide could not be
 // found, or the bundle could not even be parsed. Runtime errors later in a session are not this, so they are not matched.
 const BOOT_FAILURE_RES = [
@@ -230,6 +257,7 @@ async function watchBoot({ logDirs, launchedAt = Date.now(), forMs = 180_000, ev
 
 module.exports = {
   checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir, expandEnv,
+  canWriteFile, mo2PermissionProblems, grantOwnAccessArgs,
   inProgramFiles, canWriteDir, installLocationCheck,
   OWNED_DIRS, CRITICAL_RES, HASH_LIMIT,
 }

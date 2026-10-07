@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
-const { checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir, inProgramFiles, canWriteDir, installLocationCheck } = require('../src/selfRepair')
+const { checkClient, strayFiles, moveAside, overwritePlatformDlls, bootFailure, watchBoot, ensureSkseLogDir, inProgramFiles, canWriteDir, installLocationCheck, mo2PermissionProblems, grantOwnAccessArgs, canWriteFile } = require('../src/selfRepair')
 
 const sha = s => crypto.createHash('sha256').update(s).digest('hex')
 function game(files) {
@@ -158,4 +158,33 @@ test('installLocationCheck: an unwritable folder stops PLAY, a Program Files fol
   const locked = installLocationCheck(dirs, { exists, canWrite: d => !/Program Files/.test(d) })
   assert.deepStrictEqual(locked.unwritable.map(d => d.label), ['the game folder'])
   assert.deepStrictEqual(installLocationCheck(dirs, { exists: () => false, canWrite: () => false }), { unwritable: [], programFiles: [] })
+})
+
+test('mo2PermissionProblems lists the MO2 folders and files that exist but cannot be written', () => {
+  const root = '/mo2', prof = '/mo2/profiles/DragonBreak'
+  const there = new Set(['/mo2', '/mo2/overwrite', '/mo2/logs', '/mo2/profiles', prof, '/mo2/ModOrganizer.ini', `${prof}/plugins.txt`, `${prof}/modlist.txt`])
+  const n = p => p.replace(/\\/g, '/')
+  const r = mo2PermissionProblems(root, prof, {
+    exists: p => there.has(n(p)),
+    canWrite: d => n(d) !== '/mo2/overwrite',
+    canWriteF: p => n(p) !== `${prof}/plugins.txt`,
+  }).map(n)
+  assert.deepStrictEqual(r, ['/mo2/overwrite', `${prof}/plugins.txt`])
+  assert.deepStrictEqual(mo2PermissionProblems(root, prof, { exists: p => there.has(n(p)), canWrite: () => true, canWriteF: () => true }), [])
+})
+
+test('grantOwnAccessArgs runs icacls elevated on the folder for the user, quoting safely', () => {
+  const a = grantOwnAccessArgs("C:\\DragonBreak", "kon'ahrik")
+  const cmd = a[a.length - 1]
+  assert.ok(/Start-Process -FilePath icacls/.test(cmd) && /-Verb RunAs -Wait/.test(cmd), cmd)
+  assert.ok(cmd.includes('"C:\\DragonBreak" /grant "kon\'\'ahrik:(OI)(CI)F" /T /C /Q'), cmd)
+})
+
+test('canWriteFile is false for a file that cannot be opened for writing', () => {
+  const dir = game({ 'a.txt': 'x' })
+  const f = path.join(dir, 'a.txt')
+  assert.strictEqual(canWriteFile(f), true)
+  fs.chmodSync(f, 0o444)
+  if (process.getuid && process.getuid() !== 0) assert.strictEqual(canWriteFile(f), false)
+  assert.strictEqual(canWriteFile(path.join(dir, 'none.txt')), false)
 })

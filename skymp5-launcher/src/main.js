@@ -2163,6 +2163,32 @@ ipcMain.handle('launch:direct', () => guardLaunch(async () => {
 // Before every launch: a failed start last time, or a start file that differs from the server's, reinstalls the client
 // files; stray files in the platform's folders (and its DLLs in MO2's overwrite) go to "DragonBreak Quarantine".
 // The server's list unreachable means nothing is judged and the launch goes on.
+// MO2 files an earlier administrator run left behind make MO2 restart itself elevated without the launch shortcut; the
+// player is offered the fix (icacls run elevated, Windows asks first) and the launch goes on once MO2 can write again
+async function fixMo2Permissions() {
+  const check = () => selfRepair.mo2PermissionProblems(mo2.getRoot(), mo2.getProfileDir())
+  const bad = check()
+  if (!bad.length) return { success: true }
+  log(`[selfRepair] MO2 cannot write: ${bad.join(', ')}`)
+  const root = mo2.getRoot()
+  const user = os.userInfo().username
+  const { response } = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+    type: 'warning',
+    title: 'Mod Organizer needs a permission fix',
+    message: 'Some of your DragonBreak files belong to an administrator, so Mod Organizer cannot start the game.',
+    detail: `This usually happens after the launcher or Mod Organizer was once run as administrator.\n\nFix it now? Windows will ask for permission once, then your account (${user}) gets full control of ${root}.`,
+    buttons: ['Fix it', 'Cancel'],
+    defaultId: 0,
+    noLink: true,
+  })
+  if (response !== 0) return { success: false, error: `Mod Organizer cannot write to ${bad[0]}. Press PLAY again and choose Fix it, or in an administrator PowerShell run: icacls "${root}" /grant "${user}:(OI)(CI)F" /T /C /Q` }
+  await new Promise(resolve => require('child_process').execFile('powershell.exe', selfRepair.grantOwnAccessArgs(root, user), { windowsHide: true, timeout: 600_000 }, err => { if (err) log(`[selfRepair] permission fix failed: ${err.message}`); resolve() }))
+  const still = check()
+  if (still.length) return { success: false, error: `The permission fix did not take (still unwritable: ${still[0]}). In an administrator PowerShell run: icacls "${root}" /grant "${user}:(OI)(CI)F" /T /C /Q` }
+  log('[selfRepair] MO2 permissions fixed')
+  return { success: true }
+}
+
 async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
   if (process.platform === 'win32') {
     const dirs = selfRepair.ensureSkseLogDir({
@@ -2186,6 +2212,10 @@ async function selfRepairBeforeLaunch(skyrimPath, viaMO2, srv, serverInfo) {
       const list = where.unwritable.map(d => `${d.label} (${d.dir})`).join(' and ')
       log(`[selfRepair] cannot write to ${list}`)
       return { success: false, error: `Windows will not let the launcher write to ${list}, so your mods cannot be kept up to date and the game may not start. Move your DragonBreak folder to one you own, such as C:\\Games\\DragonBreak (not inside Program Files), point the launcher at it in Settings, then press PLAY again.` }
+    }
+    if (viaMO2) {
+      const fixed = await fixMo2Permissions()
+      if (!fixed.success) return fixed
     }
     if (where.programFiles.length) {
       const list = where.programFiles.map(d => d.dir).join(' and ')
