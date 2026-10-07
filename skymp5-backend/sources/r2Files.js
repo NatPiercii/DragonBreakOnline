@@ -5,14 +5,19 @@
 // from disk as before. Deleting data/r2.json, or "enabled": false, turns it off at the next request (no restart).
 //
 //   data/r2.json  { "enabled": true, "baseUrl": "https://files.dragonbreakonline.com",
-//                   "client": { "0.3.80": 184377941 }, "extra": ["0427996da9bfff8a"] }
+//                   "client": { "0.3.80": 184377941 }, "clientFiles": { "0.3.80": 184377941 },
+//                   "extra": ["0427996da9bfff8a"] }
 //   client maps a version to its zip size: a version number can be reused (the 0.3.81 rollback put 0.3.80 back), so the
 //   zip goes to R2 only while files-version.json's zipSize still matches what was uploaded.
+//   clientFiles is the same for the package's files one by one (scripts/publish-client-r2.sh adds a version only after
+//   checking every file from the public side; docs/per-file-client.md).
 //   bucket        client/<files-version.json version>/SkyMP-client.zip
+//                 client/<files-version.json version>/files/<package path, each segment URL-encoded>
 //                 extra/<extra-files.json version>/<manifest path, each segment URL-encoded>
 //
 // Extras: every launcher's downloadToFile follows redirects and checks the sha256 afterwards, so they all get the 302.
-// The zip: launchers up to 2.1.43 don't follow redirects there, so only a request with X-DBO-Accept-Redirect: 1 gets one.
+// The zip and the client's single files: launchers up to 2.1.43 don't follow redirects there, so only a request with
+// X-DBO-Accept-Redirect: 1 gets one (2.1.44 sends it, follows https redirects only and checks every file's sha256).
 
 const fs   = require('fs')
 const path = require('path')
@@ -39,10 +44,12 @@ function createR2Files({ dataDir = DATA_DIR } = {}) {
     const s = readJson('r2.json')
     if (!s || s.enabled === false) return null
     if (typeof s.baseUrl !== 'string' || !/^https:\/\/[^/]+/i.test(s.baseUrl)) return null
+    const versionMap = m => (m && typeof m === 'object' && !Array.isArray(m) ? m : {})
     return {
-      baseUrl: s.baseUrl.replace(/\/+$/, ''),
-      client:  s.client && typeof s.client === 'object' && !Array.isArray(s.client) ? s.client : {},
-      extra:   Array.isArray(s.extra) ? s.extra.map(String) : [],
+      baseUrl:     s.baseUrl.replace(/\/+$/, ''),
+      client:      versionMap(s.client),
+      clientFiles: versionMap(s.clientFiles),
+      extra:       Array.isArray(s.extra) ? s.extra.map(String) : [],
     }
   }
 
@@ -73,19 +80,36 @@ function createR2Files({ dataDir = DATA_DIR } = {}) {
     res.redirect(302, `${s.baseUrl}/extra/${encodeURIComponent(m.version)}/${encodePath(rel)}`)
   }
 
-  // The R2 URL of the client zip for this request, or null to serve it from disk
-  function clientZipUrl(req) {
+  // The R2 folder of the current client package when the request asks for redirects and versions (a map in r2.json:
+  // version -> zip size) lists files-version.json's version with the same zip size; else null.
+  // expected: the version the caller checked the request against; any other current version gives null.
+  function clientBase(req, listKey, expected) {
     if (req.get('x-dbo-accept-redirect') !== '1') return null
     const s = settings()
     if (!s) return null
     const v = readJson('files-version.json')
     const version = v && typeof v.version === 'string' ? v.version : null
-    if (!version || !Object.prototype.hasOwnProperty.call(s.client, version)) return null
-    if (!Number.isFinite(v.zipSize) || Number(s.client[version]) !== v.zipSize) return null
-    return `${s.baseUrl}/client/${encodeURIComponent(version)}/${CLIENT_OBJECT}`
+    if (!version || (expected !== undefined && version !== expected)) return null
+    const listed = s[listKey]
+    if (!Object.prototype.hasOwnProperty.call(listed, version)) return null
+    if (!Number.isFinite(v.zipSize) || Number(listed[version]) !== v.zipSize) return null
+    return `${s.baseUrl}/client/${encodeURIComponent(version)}`
   }
 
-  return { settings, extraRedirect, clientZipUrl }
+  // The R2 URL of the client zip for this request, or null to serve it from disk
+  function clientZipUrl(req) {
+    const base = clientBase(req, 'client')
+    return base && `${base}/${CLIENT_OBJECT}`
+  }
+
+  // The R2 URL of one file of client package <version> (rel: its listed path), or null to serve it from disk. The caller
+  // has checked that rel is listed and that version is the request's; a package swapped in meanwhile gives null.
+  function clientFileUrl(req, rel, version) {
+    const base = clientBase(req, 'clientFiles', version)
+    return base && `${base}/files/${encodePath(rel)}`
+  }
+
+  return { settings, extraRedirect, clientZipUrl, clientFileUrl }
 }
 
 module.exports = { createR2Files, ...createR2Files() }
