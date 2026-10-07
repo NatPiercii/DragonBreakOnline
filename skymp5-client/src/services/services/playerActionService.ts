@@ -2,6 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, notifyNextUpdate, parseCustomPacket } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, readMenuKeyCode, isMenuKeyPressBlocked } from "./widgetMenuUtil";
 import { buttonKeyCode } from "./mouseKeys";
+import { GamepadButton, isGamepadChord, trackGamepadModifier } from "./gamepadKeys";
 import { Actor, ObjectReference, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
 import { isRemotePlayerCharacter, localIdToRemoteId, remoteIdToLocalId } from "../../view/worldViewMisc";
 import { logTrace } from "../../logging";
@@ -67,6 +68,9 @@ export class PlayerActionService extends ClientListener {
     // Interact follows the housing key unless set on its own: both are "X, the shared interact key" by default
     this.interactKey = readMenuKeyCode(sp, "playerActionKeyCode", readMenuKeyCode(sp, "housingMenuKeyCode", DxScanCode.X));
     this.maskKey = readMenuKeyCode(sp, "maskToggleKeyCode", DxScanCode.H);
+    // Gamepad: the modifier (Back) held with A opens the menu, with X toggles the mask
+    this.interactPad = readMenuKeyCode(sp, "playerActionGamepadButton", GamepadButton.A);
+    this.maskPad = readMenuKeyCode(sp, "maskToggleGamepadButton", GamepadButton.X);
     this.controller.on("buttonEvent", (e) => this.onButtonEvent(e));
     this.controller.emitter.on("customPacketMessage", (e) => this.onMenuPacket(e));
     this.controller.on("browserMessage", (e) => this.onBrowserMessage(e));
@@ -105,12 +109,15 @@ export class PlayerActionService extends ClientListener {
     try { this.xSkipLog(reason, info ? info() : undefined); } catch { /* a diagnostic never breaks the key */ }
   }
   private maskKey: number = DxScanCode.H;
+  private interactPad: number = GamepadButton.A;
+  private maskPad: number = GamepadButton.X;
 
   private onButtonEvent(e: ButtonEvent): void {
+    trackGamepadModifier(this.sp, e);
     if (!e.isDown) return;
-    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto
-    // keyboard scancodes and are never a key here
-    const code = buttonKeyCode(e);
+    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); a gamepad chord stands in for its key
+    const code = buttonKeyCode(e)
+      ?? (isGamepadChord(this.sp, e, this.interactPad) ? this.interactKey : isGamepadChord(this.sp, e, this.maskPad) ? this.maskKey : null);
     if (code === null) return;
     // Escape closes an open menu
     if (code === DxScanCode.Escape && this.menuOpen) {

@@ -9,6 +9,10 @@ import { BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType, Menu } f
 import { logTrace } from "../../logging";
 import { IdentityMap, parseIdentityMap, peerKey } from "./voicePeerKey";
 import { buttonKeyCode, isMouseKey, mouseKeyButton } from "./mouseKeys";
+import { readGamepadModifier, trackGamepadModifier, wasGamepadChordUsed } from "./gamepadKeys";
+
+// A talk button that is also the chord modifier opens the mic only after this hold, so a quick chord never keys it
+const GAMEPAD_PTT_DELAY_S = 0.25;
 
 // The page's mic summary, e.g. "mics 1, aec on, cap live, ctx running, mix running, loop connected"; nothing else passes
 const MIC_SHAPE = /^mics \d{1,2}(, [a-z]{2,4} [a-z?]{1,12}){1,6}$/;
@@ -42,6 +46,8 @@ export class VoiceService extends ClientListener {
     this.voiceKey = readMenuKeyCode(sp, "voicePushToTalkKeyCode", DxScanCode.V);
     // Left Alt tap by default; any other key cycles the mode on its own press
     this.modeKey = readMenuKeyCode(sp, "voiceModeKeyCode", DxScanCode.LeftAlt);
+    // Gamepad talk button, the chord modifier (Back) by default: hold it on its own to talk
+    this.voicePad = readMenuKeyCode(sp, "voicePushToTalkGamepadButton", readGamepadModifier(sp));
     // The mode used to be set only when a voice server answered; without one Left Alt did nothing.
     const persisted = this.readPersistedMode();
     this.mode = this.modes.some(m => m.key === persisted) ? persisted : "talk";
@@ -63,6 +69,7 @@ export class VoiceService extends ClientListener {
   private identityMap: IdentityMap | null = null;
   private voiceKey: DxScanCode;
   private modeKey: number = DxScanCode.LeftAlt;
+  private voicePad: number;
 
   // The launcher's Voice tab writes skymp5-client-settings.txt "voice"; the front applies devices, volumes and activation
   private pushPrefs(): void {
@@ -100,6 +107,10 @@ export class VoiceService extends ClientListener {
   }
 
   private onButtonEventImpl(e: ButtonEvent) {
+    if (e.device === InputDeviceType.Gamepad) {
+      this.onGamepadButton(e);
+      return;
+    }
     // The scan code for a key, 256 + the button for a bindable mouse button (mouseKeys.ts); the gamepad never
     const code = buttonKeyCode(e);
     if (code === null) return;
@@ -201,6 +212,27 @@ export class VoiceService extends ClientListener {
 
   private markLoading(open: boolean) {
     this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.markLoading && window.__alduinakVoice.markLoading(${open})`);
+  }
+
+  private onGamepadButton(e: ButtonEvent) {
+    trackGamepadModifier(this.sp, e);
+    const isModifier = this.voicePad === readGamepadModifier(this.sp);
+    // A chord pressed during the hold means the player wanted a menu, not the mic
+    if (isModifier && this.pttDown && wasGamepadChordUsed()) {
+      this.releasePtt();
+      return;
+    }
+    if (e.code !== this.voicePad) return;
+    if (e.isUp) {
+      if (this.pttDown) this.releasePtt();
+      return;
+    }
+    if (this.pttDown || !(e.isDown || e.isHeld)) return;
+    if (isModifier && (wasGamepadChordUsed() || e.heldDuration < GAMEPAD_PTT_DELAY_S)) return;
+    if (this.sp.browser.isFocused() || isConsoleOpen(this.sp)) return;
+    this.pttDown = true;
+    this.sp.browser.executeJavaScript(`window.__alduinakVoice && window.__alduinakVoice.setPtt(true)`);
+    this.sendAfkPing();
   }
 
   private releasePtt() {

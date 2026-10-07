@@ -73,11 +73,11 @@ async function load(file, out) {
       setup(b) {
         b.onResolve({ filter: /.*/ }, (a) => {
           if (a.kind === 'entry-point') return undefined;
-          if (a.path === './mouseKeys') return { path: a.path, namespace: 'real' };
+          if (a.path === './mouseKeys' || a.path === './gamepadKeys') return { path: a.path, namespace: 'real' };
           return { path: a.path, namespace: 'stub' };
         });
         b.onLoad({ filter: /.*/, namespace: 'stub' }, (a) => ({ contents: stubFor(a.path, imports[a.path] || []), loader: 'js' }));
-        b.onLoad({ filter: /.*/, namespace: 'real' }, () => ({ contents: fs.readFileSync(path.join(services, 'mouseKeys.ts'), 'utf8'), loader: 'ts', resolveDir: services }));
+        b.onLoad({ filter: /.*/, namespace: 'real' }, (a) => ({ contents: fs.readFileSync(path.join(services, a.path.slice(2) + '.ts'), 'utf8'), loader: 'ts', resolveDir: services }));
       },
     }],
   });

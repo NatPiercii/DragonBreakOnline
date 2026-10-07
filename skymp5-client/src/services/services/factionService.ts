@@ -2,6 +2,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { sendCustomPacket, parseCustomPacket, notifyNextUpdate } from "./customPacketUtil";
 import { openFormMenu, closeFormMenu, readMenuKeyCode, readMenuLanguage, isMenuKeyPressBlocked } from "./widgetMenuUtil";
 import { buttonKeyCode } from "./mouseKeys";
+import { GamepadButton, isGamepadChord } from "./gamepadKeys";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { Actor, BrowserMessageEvent, ButtonEvent, DxScanCode, InputDeviceType } from "skyrimPlatform";
@@ -136,6 +137,8 @@ export class FactionService extends ClientListener {
     this.controller.emitter.on("uiHiddenChanged", (e) => { if (e.hidden && this.menuOpen) this.closeMenu(); });
 
     this.menuKey = readMenuKeyCode(this.sp, "factionMenuKeyCode", DxScanCode.F3);
+    // Gamepad: the modifier (Back) held with Y
+    this.menuPad = readMenuKeyCode(this.sp, "factionMenuGamepadButton", GamepadButton.Y);
     const language = readMenuLanguage(this.sp);
     if (language in translations) {
       strings = translations[language as keyof typeof translations];
@@ -143,9 +146,8 @@ export class FactionService extends ClientListener {
   }
 
   private onButtonEvent(e: ButtonEvent): void {
-    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); gamepad idCodes alias onto
-    // keyboard scancodes and are never a key here
-    const code = buttonKeyCode(e);
+    // The key's scan code, or 256 + the button for a bindable mouse button (mouseKeys.ts); a gamepad chord stands in for its key
+    const code = buttonKeyCode(e) ?? (isGamepadChord(this.sp, e, this.menuPad) ? this.menuKey : null);
     if (code === null) return;
     // Escape closes an open menu.
     if (code === DxScanCode.Escape && e.isDown && this.menuOpen) {
@@ -414,6 +416,7 @@ export class FactionService extends ClientListener {
   };
 
   private menuKey: DxScanCode = DxScanCode.F3;
+  private menuPad: number = GamepadButton.Y;
   private menuOpen = false;
   private pendingAdd = false;
 }

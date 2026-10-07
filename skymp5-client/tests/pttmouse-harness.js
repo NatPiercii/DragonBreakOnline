@@ -21,7 +21,8 @@ const esbuild = require(require.resolve('esbuild', { paths: [client, path.resolv
 let failures = 0;
 const check = (name, ok, got) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 
-const KEYBOARD = 0, MOUSE = 1;
+const KEYBOARD = 0, MOUSE = 1, GAMEPAD = 2;
+const PAD_BACK = 0x0020, PAD_A = 0x1000, PAD_LB = 0x0100;
 const V = 47, LEFT_ALT = 56, G = 34;
 
 (async () => {
@@ -75,7 +76,7 @@ const V = 47, LEFT_ALT = 56, G = 34;
       lookupListener: () => ({ getMyRemoteRefrId: () => 0xff000001 }),
     };
     const vs = new VoiceService(sp, controller);
-    const ev = (device, code, state) => handlers.buttonEvent(Object.assign({ device, code, isDown: false, isUp: false, isHeld: false }, { [state]: true }));
+    const ev = (device, code, state, heldDuration) => handlers.buttonEvent(Object.assign({ device, code, isDown: false, isUp: false, isHeld: false, heldDuration: heldDuration || 0 }, { [state]: true }));
     const talking = () => {
       let on = null;
       for (const s of js) { const m = /setPtt\((true|false)\)/.exec(s); if (m) on = m[1] === 'true'; }
@@ -164,6 +165,38 @@ const V = 47, LEFT_ALT = 56, G = 34;
   t = make(G);
   t.ev(KEYBOARD, G, 'isDown');
   check('a launcher key (G) as before', t.talking() === true);
+
+  // ---- the gamepad: Back held on its own talks; Back + a face button is a menu chord ----
+  const pad = (t, code, state, held) => t.ev(GAMEPAD, code, state, held);
+  const makePad = (extra) => make(undefined, extra);
+  t = makePad();
+  pad(t, PAD_BACK, 'isDown', 0);
+  check('gamepad Back pressed does not talk at once (it may start a chord)', t.talking() === null);
+  pad(t, PAD_BACK, 'isHeld', 0.3);
+  check('...held past 0.25 s it talks', t.talking() === true);
+  pad(t, PAD_BACK, 'isUp', 0.4);
+  check('...released it stops', t.talking() === false);
+  t = makePad();
+  pad(t, PAD_BACK, 'isDown', 0);
+  pad(t, PAD_A, 'isDown', 0);
+  pad(t, PAD_BACK, 'isHeld', 0.5);
+  check('Back + A (a menu chord) never opens the mic', t.talking() === null);
+  pad(t, PAD_BACK, 'isUp', 0.6);
+  t = makePad();
+  pad(t, PAD_BACK, 'isDown', 0);
+  pad(t, PAD_BACK, 'isHeld', 0.3);
+  pad(t, PAD_A, 'isDown', 0);
+  check('a chord pressed while already talking closes the mic', t.talking() === false);
+  pad(t, PAD_BACK, 'isUp', 0.6);
+  t = makePad({ voicePushToTalkGamepadButton: PAD_LB });
+  pad(t, PAD_LB, 'isDown', 0);
+  check('a talk button set apart from the modifier talks on its press', t.talking() === true);
+  pad(t, PAD_LB, 'isUp', 0.2);
+  check('...and stops on release', t.talking() === false);
+  t = makePad();
+  t.ev(KEYBOARD, PAD_BACK, 'isDown');
+  t.ev(KEYBOARD, V, 'isDown');
+  check('the keyboard D (scan code 0x20, Back\'s alias) does not talk, V still does', t.talking() === true);
 
   // ---- the page side (the real VoiceManager.js on a stub window) ----
   const listeners = {};
