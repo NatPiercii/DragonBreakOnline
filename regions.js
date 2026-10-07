@@ -277,7 +277,18 @@ module.exports = (api) => {
   // A smelter burns firewood: firewoodPerIngot for each item a craft at a smelter makes (Nate, 2026-10-06: "Firewood is
   // fine. Do 2 per ingot right now"), a stopgap until the charcoal tiers. Firewood01 (6f993:Skyrim.esm) is the only
   // playable firewood in the load order and what woodcutting gives (labour.js). Config "smelting": { firewoodPerIngot: 0 } turns it off.
-  const SMELT = Object.assign({ firewoodPerIngot: 2, firewood: '6f993:Skyrim.esm', benches: ['craftingsmelter'] }, cfg.smelting || {});
+  // Charcoal is required to smelt (Nate, 7 Oct): an ingot costs charcoal by its metal's tier, matched on the product's editor id
+  const SMELT = Object.assign({
+    firewoodPerIngot: 2, firewood: '6f993:Skyrim.esm', benches: ['craftingsmelter'],
+    charcoal: '33760:Skyrim.esm',
+    charcoalByMetal: { iron: 1, copper: 1, tin: 1, steel: 2, silver: 2, corundum: 2, dwarven: 2, gold: 3, orichalcum: 3, moonstone: 3, quicksilver: 3, malachite: 3, ebony: 4, stalhrim: 4 },
+    charcoalDefault: 1,
+  }, cfg.smelting || {});
+  const charcoalPerIngot = (itemId) => {
+    const e = String(edidOf(descOf(itemId)) || '').toLowerCase();
+    const hit = Object.keys(SMELT.charcoalByMetal || {}).find((m) => e.includes(m));
+    return Math.max(0, Math.floor(Number(hit ? SMELT.charcoalByMetal[hit] : SMELT.charcoalDefault) || 0));
+  };
   const heldOf = (a, baseId) => {
     const inv = mp.get(a, 'inventory') || { entries: [] };
     return (Array.isArray(inv.entries) ? inv.entries : []).reduce((n, e) => n + ((Number(e.baseId) >>> 0) === baseId && !e.worn ? Number(e.count) || 0 : 0), 0);
@@ -297,12 +308,14 @@ module.exports = (api) => {
     return true;
   };
   // { need, have, wood } when this craft burns firewood, else null
-  const smeltFuel = (a, recipeId, count) => {
+  const smeltFuel = (a, recipeId, count, itemId) => {
+    if (!(SMELT.benches || []).map((b) => String(b).toLowerCase()).includes(benchOf(recipeId))) return null;
+    const n = Math.max(1, Number(count) || 1);
     const per = Math.max(0, Math.floor(Number(SMELT.firewoodPerIngot) || 0));
-    if (!per || !(SMELT.benches || []).map((b) => String(b).toLowerCase()).includes(benchOf(recipeId))) return null;
-    const wood = idOf(SMELT.firewood);
-    if (!wood) return null;
-    return { need: per * Math.max(1, Number(count) || 1), have: heldOf(a, wood), wood, per };
+    const wood = idOf(SMELT.firewood), coal = idOf(SMELT.charcoal);
+    const coalPer = coal ? charcoalPerIngot(itemId) : 0;
+    if ((!per || !wood) && !coalPer) return null;
+    return { need: per && wood ? per * n : 0, have: wood ? heldOf(a, wood) : 0, wood, per, coal, coalPer, coalNeed: coalPer * n, coalHave: coalPer ? heldOf(a, coal) : 0 };
   };
   const artifactCraft = (itemId, recipeId) => {
     const product = edidOf(descOf(itemId));
@@ -351,20 +364,22 @@ module.exports = (api) => {
     }
     // Firewood is checked before masterySystem's chain (a refused smelt earns no credit) and burned only once the craft goes on
     let fuel = null;
-    try { fuel = smeltFuel(a, Number(recipeId) >>> 0, count); } catch (e) { log('regions: smelting check failed', e.stack || e.message); }
-    if (fuel && fuel.have < fuel.need) {
+    try { fuel = smeltFuel(a, Number(recipeId) >>> 0, count, Number(itemId) >>> 0); } catch (e) { log('regions: smelting check failed', e.stack || e.message); }
+    if (fuel && (fuel.have < fuel.need || fuel.coalHave < fuel.coalNeed)) {
       if (Date.now() - (dragonToldAt.get(a) || 0) > 1500) {
         dragonToldAt.set(a, Date.now());
-        const text = `You need ${fuel.per} firewood for each ingot (you have ${fuel.have}). Your materials come back when you close the menu.`;
+        const want = [fuel.need ? `${fuel.per} firewood` : '', fuel.coalNeed ? `${fuel.coalPer} charcoal` : ''].filter(Boolean).join(' and ');
+        const text = `Smelting this needs ${want} for each ingot (you have ${fuel.have} firewood, ${fuel.coalHave} charcoal). Woodcutters make charcoal at the chopping block. Your materials come back when you close the menu.`;
         personal(a, text);
         try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* the chat line is enough */ }
-        audit(`SMELT refused ${who(a)} recipe ${edidOf(descOf(Number(recipeId) >>> 0)) || (Number(recipeId) >>> 0).toString(16)}: ${fuel.have}/${fuel.need} firewood`);
+        audit(`SMELT refused ${who(a)} recipe ${edidOf(descOf(Number(recipeId) >>> 0)) || (Number(recipeId) >>> 0).toString(16)}: ${fuel.have}/${fuel.need} firewood, ${fuel.coalHave}/${fuel.coalNeed} charcoal`);
       }
       return false;
     }
     const prev = globalThis.__dboPrevCraft;
     const verdict = prev ? prev.call(this, actorId, itemId, count, recipeId, ...rest) : undefined;
-    if (fuel && verdict !== false && !takeHeld(a, fuel.wood, fuel.need)) log(`regions: could not burn ${fuel.need} firewood for ${who(a)}`);
+    if (fuel && verdict !== false && fuel.need && !takeHeld(a, fuel.wood, fuel.need)) log(`regions: could not burn ${fuel.need} firewood for ${who(a)}`);
+    if (fuel && verdict !== false && fuel.coalNeed && !takeHeld(a, fuel.coal, fuel.coalNeed)) log(`regions: could not burn ${fuel.coalNeed} charcoal for ${who(a)}`);
     return verdict;
   };
   craftHook.__dboRegions = true;

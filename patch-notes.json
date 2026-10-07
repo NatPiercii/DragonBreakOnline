@@ -50,6 +50,12 @@
         "items": [
           "At Priest 25 you now choose your first Restoration spell from Healing, Lesser Ward and Insect Swarm. If you passed 25 and were told there was nothing to choose, you will be offered the choice now."
         ]
+      },
+      {
+        "heading": "Smelting and woodcutting",
+        "items": [
+          "Smelting now needs charcoal as well as firewood: 1 per ingot for iron, copper and tin, 2 for steel, silver, corundum and dwarven, 3 for gold, orichalcum, moonstone, quicksilver and malachite, 4 for ebony and stalhrim. Woodcutters make charcoal at the chopping block, more at each tier (1 at Novice up to 5 at Master)."
+        ]
       }
     ]
   },

@@ -89,6 +89,7 @@ module.exports = (api) => {
     // Empty soul gems by weight; never black
     geodeGems: { '2e4e2:Skyrim.esm': 40, '2e4e4:Skyrim.esm': 30, '2e4e6:Skyrim.esm': 18, '2e4f4:Skyrim.esm': 9, '2e4fc:Skyrim.esm': 3 },
     firewoodByTier: [3, 4, 5, 6, 8],
+    charcoalByTier: [1, 2, 3, 4, 5],
     veinRestMinutes: 30,   // 45 until 4 Oct (Nate: more iron); gamemode-config sets it too
     // A Sea Salt Deposit glows while it has salt for you (GroundedPasta, 30 Sep: "Finally found salt, they are very
     // small, very hard to see"). audience: 'miners' (Miner taken up, at extraOreTier.salt or above) or 'everyone'
@@ -120,6 +121,7 @@ module.exports = (api) => {
     tin: '601c4f:BSAssets.esm',
     salt: '34cdf:Skyrim.esm',
     firewood: '6f993:Skyrim.esm',
+    charcoal: '33760:Skyrim.esm',
   }, CFG.gemOre || {}, CFG.items || {});
 
   const MINER = (skills.skills || []).find((k) => k.id === 'miner') || {};
@@ -644,10 +646,13 @@ module.exports = (api) => {
     } else {
       const count = Math.max(1, Math.round(tierValue(CFG.firewoodByTier, round.tier, 3)));
       const ok = giveItem(a, idOf(ITEMS.firewood), count);
+      // A woodcutter also burns charcoal from the offcuts, more with each tier; smelting needs it (Nate, 7 Oct)
+      const coal = ok ? Math.max(0, Math.round(tierValue(CFG.charcoalByTier, round.tier, 0))) : 0;
+      const coalOk = coal > 0 && giveItem(a, idOf(ITEMS.charcoal), coal);
       text = ok
-        ? `Split clean: ${count} Firewood.`
+        ? `Split clean: ${count} Firewood${coalOk ? ` and ${coal} Charcoal` : ''}.`
         : 'Split clean, but you cannot carry any more.';
-      if (ok) audit(`CHOP ${who(a)} split logs (tier ${round.tier + 1}) -> ${count} firewood`);
+      if (ok) audit(`CHOP ${who(a)} split logs (tier ${round.tier + 1}) -> ${count} firewood${coalOk ? `, ${coal} charcoal` : ''}`);
     }
     finish(a, round, true, text, 'win');
   });

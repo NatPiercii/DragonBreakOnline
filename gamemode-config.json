@@ -117,7 +117,7 @@
   "guildWorkshops": []
  },
  "smelting": {
-  "_comment": "Smelters burn firewood (server\\regions.js craft hook; Nate 2026-10-06: \"Firewood is fine. Do 2 per ingot right now\", until the charcoal tiers): a craft at a bench with keyword CraftingSmelter costs firewoodPerIngot Firewood (6f993:Skyrim.esm, what woodcutting gives) per item made; short of it the craft is refused and the materials come back. 0 turns it off.",
+  "_comment": "Smelters burn firewood and charcoal (server\\regions.js craft hook; Nate 6 Oct: 2 firewood per ingot; 7 Oct: charcoal required): a craft at a CraftingSmelter bench costs firewoodPerIngot Firewood (6f993:Skyrim.esm) and charcoal by the ingot's metal (regions.js charcoalByMetal: iron/copper/tin 1, steel/silver/corundum/dwarven 2, gold/orichalcum/moonstone/quicksilver/malachite 3, ebony/stalhrim 4) of Charcoal (33760:Skyrim.esm) per item made; woodcutters get charcoal at the chopping block (labour charcoalByTier). Short of either the craft is refused and the materials come back. firewoodPerIngot 0 turns firewood off.",
   "firewoodPerIngot": 2
  },
  "charters": {

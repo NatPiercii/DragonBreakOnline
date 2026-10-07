@@ -31,11 +31,13 @@ const IRON_INGOT = ['a30c3:Skyrim.esm', '5ace4:Skyrim.esm', [['71cf3:Skyrim.esm'
 const IRON_DAGGER = ['ea5f3:Skyrim.esm', '1397e:Skyrim.esm', [['5ace4:Skyrim.esm', 1]]];
 const SMELTER_KW = 'a5cce:Skyrim.esm', FORGE_KW = '88105:Skyrim.esm';
 const FIREWOOD = '6f993:Skyrim.esm';
+const CHARCOAL = '33760:Skyrim.esm';
 const bnam = (kw) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, idOf(kw), true); return { type: 'BNAM', data: b }; };
 const RECORDS = {
   [idOf(IRON_INGOT[0])]: { type: 'COBJ', editorId: 'RecipeIngotIron', fields: [bnam(SMELTER_KW)] },
   [idOf(IRON_DAGGER[0])]: { type: 'COBJ', editorId: 'RecipeWeaponIronDagger', fields: [bnam(FORGE_KW)] },
   [idOf(SMELTER_KW)]: { type: 'KYWD', editorId: 'CraftingSmelter', fields: [] },
+  [idOf(IRON_INGOT[1])]: { type: 'MISC', editorId: 'IngotIron', fields: [] },
   [idOf(FORGE_KW)]: { type: 'KYWD', editorId: 'CraftingSmithingForge', fields: [] },
 };
 
@@ -84,15 +86,17 @@ const said = () => (out.said.length ? out.said[out.said.length - 1][1] : '');
 load(undefined);
 give(SMITH, IRON_INGOT[2][0][0], 10);
 give(SMITH, FIREWOOD, 5);
+give(SMITH, CHARCOAL, 3);
 check('a smelt with firewood enough goes on', craft(SMITH, IRON_INGOT, 2) !== false && count(SMITH, IRON_INGOT[1]) === 2, count(SMITH, IRON_INGOT[1]));
 check('...and burns 2 firewood per ingot (4 for 2)', count(SMITH, FIREWOOD) === 1, count(SMITH, FIREWOOD));
 check('...and earns its mastery credit', credits.length === 1);
+check('...and burns 1 charcoal per iron ingot (2 for 2)', count(SMITH, CHARCOAL) === 1, count(SMITH, CHARCOAL));
 wallClock += 2000;
 const before = count(SMITH, IRON_INGOT[2][0][0]);
 check('short of firewood the smelt is refused', craft(SMITH, IRON_INGOT, 1) === false);
-check('...with the reason and how many are held', /^You need 2 firewood for each ingot \(you have 1\)\. Your materials come back when you close the menu\.$/.test(said()) && out.notices.length === 1, said());
+check('...with the reason and how many are held', /^Smelting this needs 2 firewood and 1 charcoal for each ingot \(you have 1 firewood, 1 charcoal\)\. Woodcutters make charcoal at the chopping block\. Your materials come back when you close the menu\.$/.test(said()) && out.notices.length === 1, said());
 check('...keeping the ore, the firewood and no credit', count(SMITH, IRON_INGOT[2][0][0]) === before && count(SMITH, FIREWOOD) === 1 && credits.length === 1);
-check('...and is audited', /^SMELT refused P14 recipe RecipeIngotIron: 1\/2 firewood$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
+check('...and is audited', /^SMELT refused P14 recipe RecipeIngotIron: 1\/2 firewood, 1\/1 charcoal$/.test(out.audits[out.audits.length - 1]), out.audits[out.audits.length - 1]);
 check('forge work burns no firewood', craft(SMITH, IRON_DAGGER, 1) !== false && count(SMITH, FIREWOOD) === 1 && credits.length === 2);
 give(SMITH, FIREWOOD, 5);
 chainVerdict = false;
@@ -104,10 +108,17 @@ check('firewoodPerIngot 0 turns it off', craft(SMITH, IRON_INGOT, 1) !== false &
 load({ firewoodPerIngot: 3 });
 give(SMITH, FIREWOOD, 2);
 wallClock += 2000;
-check('the rate follows the config', craft(SMITH, IRON_INGOT, 1) === false && /You need 3 firewood for each ingot \(you have 2\)/.test(said()), said());
+check('the rate follows the config', craft(SMITH, IRON_INGOT, 1) === false && /needs 3 firewood and 1 charcoal for each ingot \(you have 2 firewood/.test(said()), said());
+// Charcoal alone: with firewood enough but no charcoal the smelt is refused, and woodcutting gives the charcoal
+load(undefined);
+put(SMITH, 'inventory', { entries: inv(SMITH).filter((e) => e.baseId !== idOf(CHARCOAL)) });
+give(SMITH, FIREWOOD, 10);
+wallClock += 2000;
+check('short of charcoal the smelt is refused', craft(SMITH, IRON_INGOT, 1) === false && /1 charcoal for each ingot \(you have \d+ firewood, 0 charcoal\)/.test(said()), said());
 // Woodcutting gives the very item the smelter asks for
 const labour = fs.readFileSync(path.join(SERVER, 'labour.js'), 'utf8');
 check('woodcutting (labour.js) gives Firewood 6f993:Skyrim.esm', /firewood:\s*'6f993:Skyrim\.esm'/.test(labour) && /giveItem\(a, idOf\(ITEMS\.firewood\), count\)/.test(labour));
+check('...and Charcoal 33760:Skyrim.esm', /charcoal:\s*'33760:Skyrim\.esm'/.test(labour) && /giveItem\(a, idOf\(ITEMS\.charcoal\), coal\)/.test(labour));
 
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);

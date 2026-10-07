@@ -744,7 +744,7 @@ load();
   w = fresh('chopping', 1);
   l = picks(w, new Array(w.strikes).fill(0));
   res = reportC(w, l, l[l.length - 1][1], 200, T, claimP(true, w.strikes, 0));
-  check('chopping: a pick round splits the log and gives the same firewood (4 at tier 2)', verdictOf(res.log) === 'win' && res.items.length === 1 && res.items[0][1] === 4, `${res.log} ${JSON.stringify(res.items)}`);
+  check('chopping: a pick round splits the log and gives the same firewood (4 at tier 2) and 2 charcoal', verdictOf(res.log) === 'win' && res.items.length === 2 && res.items[0][1] === 4 && res.items[1][1] === 2, `${res.log} ${JSON.stringify(res.items)}`);
   let agree = 0;
   for (let i = 0; i < 200; i++) {
     const rw = fresh(i % 2 ? 'chopping' : 'mining', i % 5);
