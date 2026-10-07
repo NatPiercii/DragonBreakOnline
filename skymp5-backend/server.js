@@ -1,6 +1,10 @@
 const path = require('path')
 const config = require('./config')
 
+// Before anything starts: a profiles, players or sessions store that exists but cannot be read exits non-zero, rather
+// than serving an empty store that would give the next new player profile id 1, the owner's (sources/storeCheck.js)
+require('./sources/storeCheck').checkOrExit()
+
 process.on('uncaughtException', (err) => {
   console.error('[uncaughtException] Server kept alive:', err.message)
 })

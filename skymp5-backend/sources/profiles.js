@@ -1,24 +1,39 @@
 'use strict'
+// Discord id -> game profile id. An id is handed out once and never again: the game keeps each profile's characters
+// under its id, and id 1 is the owner's. So this store is read fail closed (sources/storeFile.js): a profiles.json that
+// exists but cannot be read stops every sign-in until it is repaired, instead of starting over at id 1.
 
-const fs   = require('fs')
 const path = require('path')
+const { readStore, storeExists, storeError, replaceFile, isPlainObject } = require('./storeFile')
 
 const FILE = path.join(__dirname, '..', 'data', 'profiles.json')
+// players.js writes it only after a profile id was given out, so it existing means profiles.json was lost, not a first run
+const PLAYERS_FILE = path.join(__dirname, '..', 'data', 'players.json')
+
+const isProfileId = value => Number.isSafeInteger(value) && value > 0
+
+// null for a store this module writes, else what is wrong with it
+function problemOf(data) {
+  if (!isPlainObject(data)) return 'is not a profile store'
+  if (!isProfileId(data.nextId)) return 'has no valid nextId'
+  if (!isPlainObject(data.map)) return 'has no profile map'
+  for (const profileId of Object.values(data.map)) {
+    if (!isProfileId(profileId)) return 'has a profile id that is not a whole number above 0'
+    // nextId is the next id handed out: at or below one in use, it would give a second player that profile
+    if (profileId >= data.nextId) return `has nextId ${data.nextId}, not above profile id ${profileId} that is in use`
+  }
+  return null
+}
 
 function load() {
-  try {
-    const data = JSON.parse(fs.readFileSync(FILE, 'utf8'))
-    return {
-      nextId: Number.isInteger(data.nextId) ? data.nextId : 1,
-      map: data.map && typeof data.map === 'object' ? data.map : {},
-    }
-  } catch {
-    return { nextId: 1, map: {} }
-  }
+  const data = readStore(FILE, problemOf)
+  if (data) return { nextId: data.nextId, map: data.map }
+  if (storeExists(PLAYERS_FILE)) throw storeError(FILE, 'is missing while players.json exists, so this is not a first run')
+  return { nextId: 1, map: {} }
 }
 
 function save(data) {
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2) + '\n')
+  replaceFile(FILE, JSON.stringify(data, null, 2) + '\n')
 }
 
 function getOrCreateProfileId(discordId) {

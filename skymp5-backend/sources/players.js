@@ -1,30 +1,34 @@
 'use strict'
+// Discord id -> player record (names, hwid, last ip, notes, times). Read fail closed like profiles.json
+// (sources/storeFile.js): a players.json that exists but cannot be read stops sign-ins instead of starting empty.
 
-const fs               = require('fs')
 const path             = require('path')
 const profiles         = require('./profiles')
 const factionWhitelist = require('./factionWhitelist')
+const { readStore, replaceFile, isPlainObject } = require('./storeFile')
 
 const FILE = path.join(__dirname, '..', 'data', 'players.json')
 
+// null for a store this module writes, else what is wrong with it
+function problemOf(data) {
+  if (!isPlainObject(data)) return 'is not a player store'
+  if (!Object.values(data).every(isPlainObject)) return 'has a player record that is not an object'
+  return null
+}
+
 function load() {
-  try {
-    const data = JSON.parse(fs.readFileSync(FILE, 'utf8'))
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
-  } catch {
-    return {}
-  }
+  return readStore(FILE, problemOf) || {}
 }
 
 function save(data) {
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2) + '\n')
+  replaceFile(FILE, JSON.stringify(data, null, 2) + '\n')
 }
 
 function upsertFromDiscordUser(discordUser) {
   if (!discordUser || !discordUser.id) throw new Error('discordUser.id is required')
   const discordId = String(discordUser.id)
-  const profileId = profiles.getOrCreateProfileId(discordId)
   const data = load()
+  const profileId = profiles.getOrCreateProfileId(discordId)
   const existing = data[discordId] || {}
   const now = new Date().toISOString()
 
@@ -53,8 +57,8 @@ function createManual(input) {
     err.status = 400
     throw err
   }
-  const profileId = profiles.getOrCreateProfileId(discordId)
   const data = load()
+  const profileId = profiles.getOrCreateProfileId(discordId)
   const existing = data[discordId] || {}
   const now = new Date().toISOString()
 
