@@ -10,7 +10,7 @@ import './styles.scss';
 // Nate 2026-09-30); it shows only when the server sends contracts, so an older server leaves the board as it was.
 //
 //   Browser -> client -> server: sendMessage(events.pick, expeditionId)
-//                                sendMessage(events.contractTake, contractId), sendMessage(events.contractAbandon)
+//                                sendMessage(events.contractTake, contractId), sendMessage(events.contractAbandon, contractId)
 //   Escape / Close:              sendMessage(events.close)
 interface Expedition {
   id: string;
@@ -48,6 +48,8 @@ interface ContractsTab {
   treasury: number;
   note: string;             // why the list is empty or closed, else ''
   held: HeldContract | null;
+  heldAll?: HeldContract[];   // every contract held (contracts.maxActive, 3); held is the first
+  maxActive?: number;
   list: Contract[];
   canPost: boolean;         // an official of this hold
 }
@@ -107,6 +109,8 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
   const selected = tab === 'expeditions' ? list.filter((x) => x.id === selectedId)[0] || null : null;
   const work = contracts ? contracts.list || [] : [];
   const held = contracts ? contracts.held : null;
+  const heldAll = contracts && Array.isArray(contracts.heldAll) ? contracts.heldAll : (held ? [held] : []);
+  const maxActive = contracts && contracts.maxActive ? contracts.maxActive : 1;
   const selectedContract = tab === 'contracts' ? work.filter((c) => c.id === selectedId)[0] || null : null;
 
   // The server redraws the board on the Contracts tab after a take or a give-up
@@ -165,13 +169,16 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
 
           {tab === 'contracts' ? (
             <>
-              {held ? (
-                <div className="expeditionBoard__held">
+              {heldAll.map((h) => (
+                <div className="expeditionBoard__held" key={h.id}>
                   <span className="expeditionBoard__held-label">You hold</span>
-                  <span className="expeditionBoard__held-what">{held.what} in {held.zone}</span>
-                  <span className="expeditionBoard__held-progress">{held.progress} of {held.count} slain &middot; {held.reward} gold &middot; {hoursLabel(held.hoursLeft)}</span>
+                  <span className="expeditionBoard__held-what">{h.what} in {h.zone}</span>
+                  <span className="expeditionBoard__held-progress">{h.progress} of {h.count} slain &middot; {h.reward} gold &middot; {hoursLabel(h.hoursLeft)}</span>
+                  {ev.contractAbandon ? (
+                    <button className="bountyBoard__button bountyBoard__button--danger" onClick={() => send(ev.contractAbandon as string, h.id)}>Give up</button>
+                  ) : null}
                 </div>
-              ) : null}
+              ))}
               {work.length ? (
                 <div className="bountyBoard__grid">
                   {work.map((c) => (
@@ -214,7 +221,7 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
         <div className="bountyBoard__footer">
           {tab === 'contracts' ? (
             <span className="bountyBoard__hint">
-              You hold one contract at a time and are paid the moment the last beast falls. Kills count only in {contracts && contracts.zone ? contracts.zone : 'the hold'}&apos;s wilds.
+              You may hold {maxActive === 1 ? 'one contract' : `up to ${maxActive} contracts`} at a time and are paid the moment each one's last beast falls. Kills count only in {contracts && contracts.zone ? contracts.zone : 'the hold'}&apos;s wilds.
               {contracts && contracts.canPost ? ' As an official you post work with /contract post <creature> <count> <reward>.' : ''}
             </span>
           ) : (
@@ -224,9 +231,6 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
             </span>
           )}
           <div className="bountyBoard__actions">
-            {tab === 'contracts' && held && ev.contractAbandon ? (
-              <button className="bountyBoard__button bountyBoard__button--danger" onClick={() => send(ev.contractAbandon as string)}>Give up your contract</button>
-            ) : null}
             <button className="bountyBoard__button" onClick={() => send(ev.close)}>Close</button>
           </div>
         </div>
@@ -279,7 +283,7 @@ const ExpeditionBoard = ({ data }: { data: ExpeditionBoardData }) => {
                 {selectedContract.state === 'yours' && ev.contractAbandon ? (
                   <button
                     className="bountyBoard__button bountyBoard__button--danger"
-                    onClick={() => { send(ev.contractAbandon as string); setSelectedId(null); }}
+                    onClick={() => { send(ev.contractAbandon as string, selectedContract.id); setSelectedId(null); }}
                   >
                     Give it up
                   </button>
