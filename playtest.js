@@ -23,6 +23,8 @@ module.exports = (api) => {
   const allowedCells = new Set((C.allowedCells || []).map(normDesc));
   const allowedPlugins = new Set((C.allowedPlugins || []).map((p) => String(p).toLowerCase()));
   const blockedDoors = new Set((C.blockedDoors || []).map(idOf).filter(Boolean));
+  // blockedDoors that are automatic load doors (walked into, not activated): refused ones send the player back
+  const autoDoors = new Set((C.autoDoors || ['877c2:BSHeartland.esm']).map(idOf).filter(Boolean));
   const arrival = C.arrival && C.arrival.world && Array.isArray(C.arrival.pos) ? { cellOrWorldDesc: C.arrival.world, pos: C.arrival.pos, rot: [0, 0, Number(C.arrival.rotZ) || 0] } : null;
   const active = () => C.enabled && !!arrival;
 
@@ -60,7 +62,15 @@ module.exports = (api) => {
   const denyAt = new Map();
   globalThis.__dboPlaytestActivate = (targetId, casterId) => {
     if (!active() || !blockedDoors.has(targetId)) return null;
-    if (Date.now() - (denyAt.get(casterId) || 0) > 1500) { denyAt.set(casterId, Date.now()); personal(casterId, `The road to Skyrim is closed for now. The alpha begins in ${C.name}.`); }
+    if (Date.now() - (denyAt.get(casterId) || 0) > 1500) {
+      denyAt.set(casterId, Date.now());
+      // A refused automatic door (FNAM 0x02) leaves its half-started load open and the player frozen until a relog
+      // (Serpents Trail, 7 Oct), so the player is taken back to the arrival point instead
+      if (autoDoors.has(targetId)) {
+        personal(casterId, `The road to Skyrim is closed for now. You find your way back to ${C.name}.`);
+        setTimeout(() => { try { sendToArrival(casterId, 'border'); } catch (e) { log('playtest: border return failed', e.message); } }, 300);
+      } else personal(casterId, `The road to Skyrim is closed for now. The alpha begins in ${C.name}.`);
+    }
     return false;
   };
 

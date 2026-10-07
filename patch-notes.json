@@ -38,6 +38,12 @@
         "items": [
           "Bound hands stay bound: if a captive's pose breaks (a hit, a door, water, a seat), it comes back within a few seconds, for shackles and rope alike."
         ]
+      },
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Serpent's Trail: walking into its closed exit towards Skyrim no longer freezes you; you are taken back to Bruma."
+        ]
       }
     ]
   },
