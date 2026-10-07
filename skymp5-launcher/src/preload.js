@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   graphicsSave: (g) => ipcRenderer.invoke('graphics:save', g),
   communityShadersLoad: ()   => ipcRenderer.invoke('mods:communityShadersLoad'),
   communityShadersSet:  (on) => ipcRenderer.invoke('mods:communityShadersSet', !!on),
+  controllerLoad:       ()   => ipcRenderer.invoke('controller:load'),
+  controllerSet:        (on) => ipcRenderer.invoke('controller:set', !!on),
   hotkeysLoad:  ()  => ipcRenderer.invoke('hotkeys:load'),
   hotkeysSave:  (h) => ipcRenderer.invoke('hotkeys:save', h),
   clientPrefsLoad: ()  => ipcRenderer.invoke('clientprefs:load'),

@@ -449,6 +449,9 @@ function disabledManagedMods(manifest) {
   return (manifest && Array.isArray(manifest.mods) ? manifest.mods : [])
     .filter(m => m && Number(m.modId) === COMMUNITY_SHADERS_NEXUS_ID).map(m => m.name)
 }
+ipcMain.handle('controller:load', () => ({ ok: true, enabled: !!store.get('controllerEnabled') }))
+ipcMain.handle('controller:set', (_e, on) => { store.set('controllerEnabled', !!on); log(`[settings] Use a controller ${on ? 'on' : 'off'}`); return { ok: true } })
+
 ipcMain.handle('mods:communityShadersLoad', () => {
   const name = mo2.findModWithFile(COMMUNITY_SHADERS_FILE)
   const line = name ? mo2.isModEnabled(name) : null
@@ -822,10 +825,12 @@ function applyForcedServerDefaults(gamePath) {
   }
 
   // Skyrim writes bGamepadEnable=1 back on every exit with a controller connected, and gamepad mode leaves no mouse cursor in menus
+  // A player who turns on Settings > Use a controller keeps the gamepad (DragonBreak's controller buttons need it)
   if (fs.existsSync(skyrimPrefsPath())) {
     try {
-      ini.write(skyrimPrefsPath(), { MAIN: { bGamepadEnable: '0' } })
-      log('[defaults] turned the controller off in SkyrimPrefs.ini')
+      const pad = store.get('controllerEnabled') ? '1' : '0'
+      ini.write(skyrimPrefsPath(), { MAIN: { bGamepadEnable: pad } })
+      log(pad === '1' ? '[defaults] kept the controller on in SkyrimPrefs.ini (Use a controller)' : '[defaults] turned the controller off in SkyrimPrefs.ini')
     } catch (err) {
       log('[defaults] could not turn the controller off:', err.message)
     }
@@ -1635,7 +1640,7 @@ function seedProfilePrefs(skyrimPath) {
       gameDirs: [skyrimPath, isolatedGameReady() ? isolatedGameDir() : null],
       forced: {
         Display: { 'bFull Screen': '0', 'bBorderless': '1' },
-        MAIN: { bGamepadEnable: '0' },
+        MAIN: { bGamepadEnable: store.get('controllerEnabled') ? '1' : '0' },
       },
     })
     for (const line of lines) log(`[isolated] ${line}`)

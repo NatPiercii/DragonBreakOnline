@@ -185,6 +185,9 @@ async function loadGameSettingsTab() {
       setChk('gfx-precip', g.precip)
       setInputsDisabled(GFX_INPUT_IDS, !g.exists)
     }
+    const pad = await window.electronAPI.controllerLoad()
+    const padBox = document.getElementById('set-controller')
+    if (padBox && pad && pad.ok) { padBox.checked = !!pad.enabled; padBox.dataset.saved = pad.enabled ? '1' : '0' }
     const cs = await window.electronAPI.communityShadersLoad()
     const csBox = document.getElementById('gfx-community-shaders')
     if (csBox && cs && cs.ok) { csBox.checked = !!cs.enabled; csBox.dataset.saved = cs.enabled ? '1' : '0' }
@@ -242,6 +245,11 @@ async function saveGameSettingsTab() {
         ao:            chk('gfx-ao'),
         precip:        chk('gfx-precip'),
       })
+    }
+    const padBox = document.getElementById('set-controller')
+    if (padBox && padBox.dataset.saved !== undefined && (padBox.checked ? '1' : '0') !== padBox.dataset.saved) {
+      const r = await window.electronAPI.controllerSet(padBox.checked)
+      if (r && r.ok) padBox.dataset.saved = padBox.checked ? '1' : '0'
     }
     // Only a change is sent: the switch rewrites modlist.txt and is refused while the game runs
     const csBox = document.getElementById('gfx-community-shaders')
