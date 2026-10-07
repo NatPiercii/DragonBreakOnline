@@ -58,7 +58,7 @@ type Mp = any;
 //                     { customPacketType: "adminLocations", locations: [{ name, region, worldName }] }
 //                     { customPacketType: "dboTeachShouts", shouts: [{ shout, words: [desc] }] }  -> the target's client (AdminModeService)
 //   Server -> Client: { customPacketType: "debugInfo", serverName, serverTime, serverTzOffsetMin, actorId, profileId }  actorId: the requester's own actor id hex
-//                     { customPacketType: "adminMenu", players: [{a?, p, n, d, dn, ip, hwid, online, ping, m?}], locations: [{name}], modes: [{id, label, active}], npcZones: [ZoneSummary], tier, caps: {ban}, mastery }
+//                     { customPacketType: "adminMenu", players: [{a?, p, n, t?, d, dn, ip, hwid, online, ping, m?}], locations: [{name}], modes: [{id, label, active}], npcZones: [ZoneSummary], tier, caps: {ban}, mastery }
 //                       m / mastery: MasterySummary {profession, label, rank, rankName, hours} of the online row / of the admin's own character
 //                     { customPacketType: "adminMode", mode, on }  also re-sent for every active mode when the admin's actor is assigned
 //                     { customPacketType: "npcZones", zones: [ZoneSummary] }  after npcZonesRequest and after every zone mutation
@@ -280,6 +280,7 @@ export class AdminSystem implements System {
         a: p.actorId.toString(16),
         p: p.profileId,
         n: p.name || "(no name)",
+        t: this.tagOf(mp, p.actorId),
         d: discordId || (base ? base.d : ""),
         dn: base ? base.dn : "",
         ip: this.maskIp(ip) || (base ? base.ip : ""),
@@ -296,6 +297,11 @@ export class AdminSystem implements System {
     const rows = Array.from(byProfile.values()).concat(extra);
     rows.sort((a, b) => (a.online === b.online) ? a.p - b.p : (a.online ? -1 : 1));
     return rows;
+  }
+
+  // The character's #TAG (ff_charTag), or ""
+  private tagOf(mp: Mp, actorId: number): string {
+    try { return String(mp.get(actorId, "ff_charTag") || "").toUpperCase(); } catch { return ""; }
   }
 
   // Which beast powers a character holds and what shape they are in, from server\beastform.js
@@ -576,6 +582,13 @@ export class AdminSystem implements System {
         const ok = this.mastery.resetCharacter(ctx, target.actorId);
         if (ok) this.adminLog(`profile ${adminProfile} reset the craft and hours of ${target.name} (profile ${target.profileId})`);
         this.reply(mp, userId, ok, ok ? `Reset the craft and hours of ${target.name}` : `${target.name} has no craft to reset`);
+      } else if (action === "rename") {
+        // The gameplay's /rename rules (names, the one-name index, the player told), shared through gamemode.js
+        const rename = (globalThis as any).__dboAdminRename;
+        if (typeof rename !== "function") { this.reply(mp, userId, false, "Renaming needs the gameplay layer (gamemode.js)"); return; }
+        const r = rename(myActorId, target.actorId, String(content["name"] ?? "")) || {};
+        if (r.ok) this.adminLog(`profile ${adminProfile} renamed ${target.name} (profile ${target.profileId}) to ${String(content["name"] ?? "").trim()}`);
+        this.reply(mp, userId, !!r.ok, String(r.text || (r.ok ? "Renamed" : "Rename failed")));
       } else {
         this.reply(mp, userId, false, `Unknown action '${action}'`);
       }
