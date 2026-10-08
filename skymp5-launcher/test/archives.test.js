@@ -1,6 +1,6 @@
 'use strict'
-// Archives the player already has: found by hash in Vortex's downloads (or a chosen folder), linked into the
-// DragonBreak downloads folder without a copy; the download wait says which files are in and counts a growing
+// Archives the player already has: found by hash in Vortex's downloads (or a chosen folder) and used where they are;
+// the download wait says which files are in and counts a growing
 // partial download as activity; one Nexus page at a time for the rest.
 const test = require('node:test')
 const assert = require('node:assert')
@@ -31,22 +31,6 @@ test('an archive Vortex already downloaded is found by its hash, and only by it'
   assert.equal(await mo2.findArchiveByHash(sha(B), B.length, [vortex]), null)
   assert.equal(await mo2.findArchiveByHash(sha(A), A.length + 1, [vortex]), null, 'the size must match first')
   assert.equal(await mo2.findArchiveByHash(sha(A), A.length, [path.join(root, 'missing')]), null)
-})
-
-test('a found archive is hard-linked into the downloads folder: same file, no copy', () => {
-  const src = path.join(vortex, 'Mod A-123-1-0.7z')
-  const got = mo2.adoptArchive(src)
-  assert.equal(got, path.join(downloads, 'Mod A-123-1-0.7z'))
-  assert.equal(fs.statSync(got).ino, fs.statSync(src).ino)
-  assert.equal(fs.statSync(src).nlink, 2)
-  assert.equal(mo2.adoptArchive(got), got, 'one already in the downloads folder stays')
-})
-
-test('a name already taken in the downloads folder leaves the archive where it is', () => {
-  const other = path.join(root, 'elsewhere')
-  fs.mkdirSync(other)
-  fs.writeFileSync(path.join(other, 'Mod A-123-1-0.7z'), 'a different file with the same name')
-  assert.equal(mo2.adoptArchive(path.join(other, 'Mod A-123-1-0.7z')), path.join(other, 'Mod A-123-1-0.7z'))
 })
 
 test('the wait says which files are in, and a growing partial download keeps it alive', async () => {

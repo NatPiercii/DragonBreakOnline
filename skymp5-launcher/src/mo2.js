@@ -1220,26 +1220,6 @@ async function findArchiveByHash(hash, size, otherDirs = []) {
 }
 
 /**
- * An archive found in another folder (Vortex's downloads), linked into the downloads folder under its own name so
- * nothing is copied and a later repair finds it even if Vortex removes it. A hard link needs the same drive; otherwise,
- * or when the name is taken, the archive is used where it is.
- */
-function adoptArchive(full) {
-  const dir = getDownloadsDir()
-  if (path.dirname(path.resolve(full)) === path.resolve(dir)) return full
-  const dest = path.join(dir, path.basename(full))
-  try {
-    fs.mkdirSync(dir, { recursive: true })
-    if (fs.existsSync(lp(dest))) return full
-    fs.linkSync(lp(full), lp(dest))
-    return dest
-  } catch (err) {
-    _log(`[archives] using ${full} in place (${err.code || err.message})`)
-    return full
-  }
-}
-
-/**
  * 7za listing of an archive, or null when unreadable (locked, truncated, or
  * not an archive). Successful listings are cached per size/mtime so an
  * unchanged file isn't re-listed on every scan.
@@ -1566,7 +1546,6 @@ module.exports = {
   downloadToDownloads,
   findDownloadByFileId,
   findArchiveByHash,
-  adoptArchive,
   extractArchive,
   verifyArchiveAsync,
   sha256FileAsync,
