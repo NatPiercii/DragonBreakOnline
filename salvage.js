@@ -167,6 +167,11 @@ module.exports = (api) => {
       const have = out.find(([x]) => norm(x) === norm(to));
       if (have) have[1] += n; else out.push([to, n]);
     }
+    // An item made of one unit of one material (a ragged robe of one thread, a gold ring of one ingot) gave that unit
+    // back every time, so crafting and breaking it down again trained the skill for nothing, batch after batch (8 Oct):
+    // its one unit now comes back with the share as a chance, so the loop costs what any craft costs
+    const recipe = e[2] || [];
+    if (recipe.length === 1 && Number(recipe[0][1]) === 1 && out.length === 1 && share < 1) out[0].push(share);
     return out.length ? out : null;
   };
 
@@ -208,7 +213,9 @@ module.exports = (api) => {
     } catch (e) { log('salvage: take failed', e.message); return false; }
   };
 
-  const givesText = (gives) => gives.map(([d, n]) => `${n} ${nameOf(d)}`).join(', ');
+  const givesText = (gives) => gives.map(([d, n, chance]) => `${n} ${nameOf(d)}${chance !== undefined ? ` (${Math.round(chance * 100)}% chance)` : ''}`).join(', ');
+  // What a breakdown actually gives: a chance entry is rolled
+  const rollGives = (gives) => gives.filter(([, , chance]) => chance === undefined || Math.random() < chance).map(([d, n]) => [d, n]);
   const openPanel = (a, target, station, page, note) => {
     const rank = rankIn(a, station.skill);
     const list = breakable(a, station, rank);
@@ -343,11 +350,13 @@ module.exports = (api) => {
     const gives = rank < 0 ? null : yieldOf(baseId, station, rank);
     const name = nameOf(descOf(baseId));
     if (!gives || !takeOne(a, baseId)) { openPanel(a, p.target, station, p.page, `You no longer have that ${name} to break down.`); return; }
-    for (const [d, n] of gives) { const mid = idOf(d); if (mid) giveItem(a, mid, n); }
-    log(`salvage: ${who(a)} broke down ${name} (${descOf(baseId)}) at the ${station.label}, ${TIER_NAMES[rank]}: ${givesText(gives)}`);
+    const got = rollGives(gives);
+    for (const [d, n] of got) { const mid = idOf(d); if (mid) giveItem(a, mid, n); }
+    const gotText = got.length ? givesText(got) : 'nothing came back';
+    log(`salvage: ${who(a)} broke down ${name} (${descOf(baseId)}) at the ${station.label}, ${TIER_NAMES[rank]}: ${gotText}`);
     try { if (typeof globalThis.__dboSkillRateBrokeDown === 'function') globalThis.__dboSkillRateBrokeDown(a, baseId); } catch (e) { /* no skill rates */ }
-    const left = openPanel(a, p.target, station, p.page, `${name} broken down: ${givesText(gives)}`);
-    if (!left) { closePanel(a); personal(a, `${name} broken down: ${givesText(gives)}. Nothing else here to break down.`); }
+    const left = openPanel(a, p.target, station, p.page, `${name} broken down: ${gotText}`);
+    if (!left) { closePanel(a); personal(a, `${name} broken down: ${gotText}. Nothing else here to break down.`); }
   });
   onUi('salvageClose', (a) => closePanel(a));
   onUi('close', (a, args, widgetId) => { if (widgetId === WIDGET_ID) S.pending.delete(a >>> 0); });

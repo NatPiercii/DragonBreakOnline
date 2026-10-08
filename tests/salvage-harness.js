@@ -9,6 +9,7 @@ const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-nate-salvage-'));
 process.chdir(scratch);
 
 const IRON = 0x5ace4, STEEL = 0x5ace5, EBONY = 0x5ad9d, STRIPS = 0x800e4, LEATHER = 0xdb5d2, PAPER = 0x0807cba1;
+const GOLD_INGOT = 0x5ad9e, GOLD_RING = 0x10dfcd; // a ring of one gold ingot (the ragged clothes' one thread is the same shape)
 const SWORD = 0x12eb7, STEEL_ARMOR = 0x13952, DAEDRIC = 0x139b9, LEATHER_ARMOR = 0x3619e, BOOK = 0x1000, NOTE = 0x1001, QUEST_BOOK = 0x1002, APPLE = 0x2000;
 const SMELTER = 0x9000, SMELTER_BASE = 0x9001, RACK = 0x9002, RACK_BASE = 0x9003, LOOM = 0x9004, LOOM_BASE = 0x9005, DESK = 0x9006, DESK_BASE = 0x9007, CHAIR = 0x9008, CHAIR_BASE = 0x9009, LEDGER = 0x900a, LEDGER_BASE = 0x900b;
 const KW = { 0x8001: 'CraftingSmelter', 0x8002: 'isSmelter', 0x8003: 'CraftingTanningRack', 0x8004: 'isTanning', 0x8005: 'MCE_CraftingLoom', 0x8006: 'isHadvarWriteLedger', 0x8007: 'FurnitureSpecial' };
@@ -16,13 +17,14 @@ const PLAYER = 0xff000001, NOVICE = 0xff000002, NOSKILL = 0xff000003;
 const desc = (id) => (id >>> 24 === 8 ? `${(id & 0xffffff).toString(16)}:BSHeartland.esm` : `${id.toString(16)}:Skyrim.esm`);
 const fromDesc = (d) => { const [h, p] = String(d).split(':'); return (parseInt(h, 16) | (/bsheartland/i.test(p) ? 0x08000000 : 0)) >>> 0; };
 const NAMES = { [IRON]: 'Iron Ingot', [STEEL]: 'Steel Ingot', [EBONY]: 'Ebony Ingot', [STRIPS]: 'Leather Strips', [LEATHER]: 'Leather', [PAPER]: 'Blank Paper',
-  [SWORD]: 'Iron Sword', [STEEL_ARMOR]: 'Steel Armor', [DAEDRIC]: 'Daedric Sword', [LEATHER_ARMOR]: 'Leather Armor', [BOOK]: 'The Lusty Argonian Maid', [NOTE]: 'A Note' };
+  [GOLD_INGOT]: 'Gold Ingot', [GOLD_RING]: 'Gold Ring', [SWORD]: 'Iron Sword', [STEEL_ARMOR]: 'Steel Armor', [DAEDRIC]: 'Daedric Sword', [LEATHER_ARMOR]: 'Leather Armor', [BOOK]: 'The Lusty Argonian Maid', [NOTE]: 'A Note' };
 
 fs.writeFileSync('salvage.json', JSON.stringify({ items: {
   [desc(SWORD)]: ['smelter', 0, [[desc(IRON), 2], [desc(STRIPS), 1]]],
   [desc(STEEL_ARMOR)]: ['smelter', 1, [[desc(STEEL), 4], [desc(STRIPS), 3], [desc(IRON), 1]]],
   [desc(DAEDRIC)]: ['smelter', 4, [[desc(EBONY), 2], [desc(STRIPS), 1]]],
   [desc(LEATHER_ARMOR)]: ['tanning', 0, [[desc(LEATHER), 4], [desc(STRIPS), 3]]],
+  [desc(GOLD_RING)]: ['smelter', 0, [[desc(GOLD_INGOT), 1]]],
 } }));
 
 const kwda = (...ids) => { const d = new Uint8Array(ids.length * 4); ids.forEach((id, i) => new DataView(d.buffer).setUint32(i * 4, id, true)); return { type: 'KWDA', data: d }; };
@@ -255,7 +257,7 @@ ok(S.yieldOf(RING, S.stationOf(SMELTER), 4) === null, '...not even to a Master')
   mp.getDescFromId = (id) => byId.get(id) || realDesc(id);
   S = load();
   const st = { smelter: S.stationOf(SMELTER), tanning: S.stationOf(RACK), loom: S.stationOf(LOOM) };
-  let worst = null, offered = 0;
+  let worst = null, offered = 0, even = null, evenCount = 0;
   for (const [id, k] of byId) {
     const [station, , mats] = real[k];
     const cost = new Map(mats.map(([d, n]) => [d.toLowerCase(), n]));
@@ -264,6 +266,10 @@ ok(S.yieldOf(RING, S.stationOf(SMELTER), 4) === null, '...not even to a Master')
       if (!gives) continue;
       offered++;
       for (const [d, n] of gives) if (!(n <= (cost.get(String(d).toLowerCase()) || 0))) worst = worst || `${k} rank ${rank}: ${n} of ${d}, cost ${cost.get(String(d).toLowerCase())}`;
+      // Breaking even is a loop too (8 Oct: ragged clothes of one thread, crafted and broken down in batches): every
+      // material of the recipe back in full, with certainty
+      const certain = new Map(gives.filter(([, , c]) => c === undefined).map(([d, n]) => [String(d).toLowerCase(), n]));
+      if (mats.every(([d, n]) => (certain.get(d.toLowerCase()) || 0) >= n)) { evenCount++; even = even || `${k} rank ${rank}`; }
     }
   }
   mp.getDescFromId = realDesc;
@@ -272,6 +278,28 @@ ok(S.yieldOf(RING, S.stationOf(SMELTER), 4) === null, '...not even to a Master')
   const halves = ['1cf2b:Skyrim.esm', '3b97c:Skyrim.esm'];
   ok(halves.every((k) => real[k] && real[k][2][0][1] === 0.5), 'the gold and silver rings (2 per ingot) cost half an ingot in the real table');
   ok(offered > 20000 && !worst, `no craft-then-salvage loop gains anything: ${keys.length} items, ${offered} item-tier yields checked${worst ? `; first gain: ${worst}` : ''}`);
+  ok(!even, `...and none breaks even: no item gives its whole recipe back for certain (${evenCount} item-tiers did${even ? `, first ${even}` : ''})`);
+}
+
+// One unit of one material (a gold ring of one ingot): the unit comes back with the rank's share as a chance
+{
+  fs.writeFileSync('salvage.json', JSON.stringify({ items: { [desc(GOLD_RING)]: ['smelter', 0, [[desc(GOLD_INGOT), 1]]], [desc(SWORD)]: ['smelter', 0, [[desc(IRON), 2], [desc(STRIPS), 1]]] } }));
+  fs.utimesSync('salvage.json', new Date(), new Date(Date.now() + 20000));
+  reset(); S = load();
+  const rand = Math.random;
+  ok(JSON.stringify(S.yieldOf(GOLD_RING, S.stationOf(SMELTER), 4)) === JSON.stringify([[desc(GOLD_INGOT), 1, 0.75]]), 'a Master gets the ring\'s one ingot back with a 75 % chance');
+  ok(JSON.stringify(S.yieldOf(GOLD_RING, S.stationOf(SMELTER), 0)) === JSON.stringify([[desc(GOLD_INGOT), 1, 0.25]]), '...a Novice with 25 %');
+  ok(S.yieldOf(SWORD, S.stationOf(SMELTER), 4).every((g) => g.length === 2), 'an item of several units is unchanged (no chance)');
+  INV[PLAYER] = [{ baseId: GOLD_RING, count: 2 }];
+  act(SMELTER, PLAYER);
+  ok(lastWidget(PLAYER).actions.some((x) => /^Break down Gold Ring \(2\): 1 Gold Ingot \(75% chance\)$/.test(x.label)), 'the panel shows the chance');
+  Math.random = () => 0.9;
+  choose(PLAYER, `b:${GOLD_RING}`);
+  ok(count(PLAYER, GOLD_RING) === 1 && count(PLAYER, GOLD_INGOT) === 0 && /Gold Ring broken down: nothing came back/.test(lastWidget(PLAYER).targetName) && logs.some((l) => /broke down Gold Ring .*: nothing came back$/.test(l)), 'a missed roll takes the ring and gives nothing, and says so');
+  Math.random = () => 0.1;
+  choose(PLAYER, `b:${GOLD_RING}`);
+  ok(count(PLAYER, GOLD_RING) === 0 && count(PLAYER, GOLD_INGOT) === 1, '...a made roll gives the ingot');
+  Math.random = rand;
 }
 
 console.log(fails ? `${fails} FAILED` : 'all checks passed');
