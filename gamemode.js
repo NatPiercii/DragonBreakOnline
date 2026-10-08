@@ -3930,12 +3930,15 @@ registerChatCommand('unstuck', (a) => {
   const zone = zoneOfActor(a) || 'bruma';
   const t = templeFor(zone) || templeFor('bruma');
   if (!t) return personal(a, 'There is no respawn point for this area. Ask a GM for help.');
+  // Read before the move: read after it, every line named the respawn's world (the Bleak-Frost Mine report, 4 Oct)
+  let from = '?';
+  try { const p = mp.get(a, 'pos'); from = `${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} at ${Array.isArray(p) ? p.map((v) => Math.round(v)).join(',') : '?'}`; } catch (e) { /* where is unknown */ }
   try {
     mp.set(a, 'locationalData', { cellOrWorldDesc: t.world, pos: t.pos, rot: [0, 0, Number(t.rotZ) || 0] });
     mp.set(a, 'private.unstuckAt', Date.now());
   } catch (e) { log('unstuck failed', e.message); return personal(a, 'That did not work. Ask a GM for help.'); }
   personal(a, `You find your way back to safety. /unstuck is ready again in ${UNSTUCK.cooldownMinutes} minutes.`);
-  audit(`UNSTUCK ${who(a)} from ${JSON.stringify(mp.get(a, 'worldOrCellDesc'))} to the ${zone} respawn`);
+  audit(`UNSTUCK ${who(a)} from ${from} to the ${zone} respawn`);
 }, { help: `move to the respawn point of your area (every ${UNSTUCK.cooldownMinutes} min, not in PvP combat)` });
 const setDeathTemple = (a) => {
   try { if (!(Number(mp.get(a, 'profileId')) >= 0)) return; } catch (e) { return; }
