@@ -70,7 +70,7 @@ function setBalance(profileId, balance) {
 
 const sessions      = new Map()
 const SESSION_TTL   = 24 * 60 * 60 * 1000  // 24 h
-// Set when sessions.json exists but could not be loaded: no session is created then, and nothing is written over the file
+// Set when sessions.json could not be read nor moved aside: no session is created then, and nothing is written over the file
 let sessionsUnreadable = null
 
 function pruneExpired() {
@@ -87,11 +87,12 @@ function saveSessions() {
   catch (e) { console.error('Failed to persist sessions:', e) }
 }
 
-// A missing file is a first run. One that cannot be read is not taken for an empty one: the startup check (sources/storeCheck.js)
-// has already stopped the backend by then, so this only covers a file that broke in between, and logs it loudly
+// A missing file is a first run. One that cannot be read is moved aside and the backend starts with no sessions
+// (sources/sessionsFile.js load); the startup check (sources/storeCheck.js) has done that already, so this covers only a
+// file that broke in between. If even the move fails, no session is accepted or created, loudly
 function loadSessions() {
   let entries
-  try { entries = sessionsFile.read() }
+  try { entries = sessionsFile.load() }
   catch (err) {
     sessionsUnreadable = err
     console.error(`[master-api] FAIL CLOSED: no launcher session is accepted or created until the backend restarts with a readable ${sessionsFile.FILE}`)

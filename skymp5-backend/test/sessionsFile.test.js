@@ -44,16 +44,17 @@ test('X3: a sessions.json made 0644 before is replaced by a 0600 one, so no toke
   fs.chmodSync(file, 0o644)
   assert.equal(fs.statSync(file).mode & 0o777, 0o644)
   const before = fs.statSync(file).ino
-  const modesAtSync = []
-  const fsync = fs.fsyncSync
-  t.mock.method(fs, 'fsyncSync', fd => {
-    const st = fs.fstatSync(fd)
-    if (st.isFile()) modesAtSync.push(st.mode & 0o777)
-    return fsync(fd)
+  // The mode of the file each write goes to, as the write is made: the tokens must only ever land in a 0600 file
+  const modesAtWrite = []
+  const write = fs.writeFileSync
+  t.mock.method(fs, 'writeFileSync', (target, ...rest) => {
+    if (typeof target === 'number') modesAtWrite.push(fs.fstatSync(target).mode & 0o777)
+    else modesAtWrite.push(fs.existsSync(target) ? fs.statSync(target).mode & 0o777 : `a new file by path: ${target}`)
+    return write(target, ...rest)
   })
   const { session } = masterApi.createSession({ id: '223456789012345678', username: 'tester2' })
   t.mock.restoreAll()
-  assert.deepEqual(modesAtSync, [0o600], 'the tokens are flushed to disk in a 0600 file')
+  assert.deepEqual(modesAtWrite, [0o600], 'the tokens are written into a 0600 file')
   assert.equal(fs.statSync(file).mode & 0o777, 0o600)
   assert.notEqual(fs.statSync(file).ino, before, 'the 0644 file was replaced, not written to')
   assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).some(([token]) => token === session))

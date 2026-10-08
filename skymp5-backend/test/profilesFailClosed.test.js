@@ -2,7 +2,8 @@
 // Fail closed (7 Oct 2026). profiles.json gives each Discord account its game profile id; players.json sits beside it.
 // A store that exists but cannot be read or parsed (a crash mid-write on a nearly full disk) must stop sign-ins, never
 // be read as empty: an empty profiles.json gives the next new player profile id 1, the owner's, and their characters.
-// Saves replace a file whole, so a crash or a full disk leaves the old file or the new one, never half of one.
+// Saves replace a file whole, so a crash or a full disk leaves the old file or the new one, never half of one. Only
+// profiles.json's saves are fsynced: the others are saved several times per game start, and an fsync blocks the backend.
 
 const { test, beforeEach, afterEach, after, mock } = require('node:test')
 const assert = require('node:assert/strict')
@@ -56,6 +57,8 @@ test('a truncated profiles.json (a crash mid-write) stops a new sign-in instead 
   assert.equal(fs.readFileSync(PROFILES, 'utf8'), cut)
   assert.equal(fs.readFileSync(PLAYERS, 'utf8'), json(ROWS))
   assert.ok(errors.some(line => line.includes('FAIL CLOSED') && line.includes(PROFILES)), 'a loud log line names the file')
+  assert.ok(errors.some(line => line.includes('scripts/rebuild-profiles.js') && /older copy/.test(line)),
+    'and says how to rebuild it, not to restore an older copy as it is')
 })
 
 const BAD_PROFILES = [
@@ -153,9 +156,8 @@ test('a save cut short (disk full) leaves the old profiles.json and players.json
   assert.equal(profiles.getOrCreateProfileId(NEWCOMER), 4)
 })
 
-test('every save is an atomic replace: a temp file in the same folder, fsynced, renamed over the file, then the folder fsynced', () => {
-  fs.writeFileSync(PROFILES, json(STORE))
-  fs.writeFileSync(PLAYERS, json(ROWS))
+// Every fs call a save makes, in order: open, write, fsync, rename (with the paths they were made on)
+function recordSaves() {
   const events = []
   const fdPath = new Map()
   const real = { openSync: fs.openSync, fsyncSync: fs.fsyncSync, renameSync: fs.renameSync, writeFileSync: fs.writeFileSync }
@@ -171,23 +173,47 @@ test('every save is an atomic replace: a temp file in the same folder, fsynced, 
     real.writeFileSync(target, ...rest)
     events.push(['write', typeof target === 'number' ? fdPath.get(target) : String(target)])
   })
+  return events
+}
+// The save of `file` in events: the temp file it was written to, and whether that and the folder were fsynced around the rename
+function saveOf(events, file) {
+  const name = path.basename(file)
+  const renamed = events.findIndex(([kind, , to]) => kind === 'rename' && to === file)
+  assert.ok(renamed >= 0, `${name} is replaced by a rename`)
+  const temp = events[renamed][1]
+  assert.equal(path.dirname(temp), tmp, `${name}: the temp file is in the same folder`)
+  assert.ok(events.some(([kind, f], i) => i < renamed && kind === 'write' && f === temp), `${name}: the text is written to the temp file`)
+  assert.ok(!events.some(([kind, f, flags]) => f === file && (kind === 'write' || (kind === 'open' && /[wa+]/.test(flags)))),
+    `${name} itself is never opened for writing`)
+  return {
+    tempSynced: events.some(([kind, f], i) => i < renamed && kind === 'fsync' && f === temp),
+    folderSynced: events.some(([kind, f], i) => i > renamed && kind === 'fsync' && f === tmp),
+  }
+}
 
+test('every save is an atomic replace: a temp file in the same folder renamed over the file; profiles.json\'s is fsynced, before and after', () => {
+  fs.writeFileSync(PROFILES, json(STORE))
+  fs.writeFileSync(PLAYERS, json(ROWS))
+  const events = recordSaves()
   assert.equal(profiles.getOrCreateProfileId(NEWCOMER), 4)
   players.markGameJoin(OWNER)
   mock.restoreAll()
+  assert.deepEqual(saveOf(events, PROFILES), { tempSynced: true, folderSynced: true }, 'a profile id is on disk before it is handed out')
+  assert.deepEqual(saveOf(events, PLAYERS), { tempSynced: false, folderSynced: false }, 'players.json is not fsynced: it would block the backend')
+  assert.equal(events.filter(([kind]) => kind === 'fsync').length, 2, 'only the profiles.json save waits on the disk')
+  assert.deepEqual(leftovers(), [])
+})
 
-  for (const file of [PROFILES, PLAYERS]) {
-    const name = path.basename(file)
-    const renamed = events.findIndex(([kind, , to]) => kind === 'rename' && to === file)
-    assert.ok(renamed >= 0, `${name} is replaced by a rename`)
-    const temp = events[renamed][1]
-    assert.equal(path.dirname(temp), tmp, `${name}: the temp file is in the same folder`)
-    const synced = events.findIndex(([kind, f]) => kind === 'fsync' && f === temp)
-    assert.ok(synced >= 0 && synced < renamed, `${name}: the temp file is fsynced before the rename`)
-    assert.ok(events.some(([kind, f], i) => i > renamed && kind === 'fsync' && f === tmp), `${name}: the folder is fsynced after the rename`)
-    assert.ok(!events.some(([kind, f, flags]) => f === file && (kind === 'write' || (kind === 'open' && /[wa+]/.test(flags)))),
-      `${name} itself is never opened for writing`)
-  }
+test('a store file made new (nothing there to replace) is fsynced too, so a crash cannot leave it empty', () => {
+  const events = recordSaves()
+  players.upsertFromDiscordUser({ id: OWNER, username: 'owner' })
+  mock.restoreAll()
+  assert.deepEqual(saveOf(events, PROFILES), { tempSynced: true, folderSynced: true })
+  assert.deepEqual(saveOf(events, PLAYERS), { tempSynced: true, folderSynced: true })
+  const again = recordSaves()
+  players.markGameJoin(OWNER)
+  mock.restoreAll()
+  assert.deepEqual(saveOf(again, PLAYERS), { tempSynced: false, folderSynced: false }, 'the next save replaces it, with no fsync')
   assert.deepEqual(leftovers(), [])
 })
 
@@ -204,21 +230,50 @@ function startupCheck(files) {
   const env = { ...process.env }
   delete env.NODE_TEST_CONTEXT
   const run = childProcess.spawnSync(process.execPath, ['-e', script], { cwd: dir, env, encoding: 'utf8', timeout: 30000 })
+  run.files = fs.readdirSync(dir).sort()
   fs.rmSync(dir, { recursive: true, force: true })
   return run
 }
 const GOOD = { 'profiles.json': json(STORE), 'players.json': json(ROWS), 'sessions.json': '[]\n' }
 
-test('the backend does not start on a store it cannot read: the startup check exits non-zero and names the file', () => {
-  for (const name of Object.keys(GOOD)) {
+test('the backend does not start on a profiles.json or players.json it cannot read: the startup check exits non-zero and names the file', () => {
+  for (const name of ['profiles.json', 'players.json']) {
     const run = startupCheck({ ...GOOD, [name]: '[{"trunc' })
     assert.equal(run.status, 1, `${name}: ${run.stderr}`)
     assert.match(run.stderr, new RegExp(`FAIL CLOSED, backend not started: .*${name.replace('.', '\\.')}`))
     assert.doesNotMatch(run.stdout, /started/)
+    assert.deepEqual(run.files, Object.keys(GOOD).sort(), `${name}: nothing is moved or written`)
   }
   const lost = startupCheck({ 'players.json': json(ROWS), 'sessions.json': '[]\n' })
   assert.equal(lost.status, 1, lost.stderr)
   assert.match(lost.stderr, /profiles\.json is missing/)
+})
+
+test('an unreadable sessions.json does not keep the backend down: it is moved aside, still 0600, and the backend starts with no sessions', () => {
+  const cut = '[["' + 'a'.repeat(64) + '", {"profileId": 1, "exp'
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'store-check-'))
+  try {
+    for (const [name, content] of Object.entries({ ...GOOD, 'sessions.json': cut })) fs.writeFileSync(path.join(dir, name), content)
+    fs.chmodSync(path.join(dir, 'sessions.json'), 0o600)
+    const script = `
+      const { loadWithDataIn } = require(${JSON.stringify(path.join(__dirname, 'helpers', 'dataDir'))})
+      loadWithDataIn(${JSON.stringify(dir)}, ['profiles.json', 'players.json', 'sessions.json'],
+        () => require(${JSON.stringify(path.join(BACKEND, 'sources', 'storeCheck'))})).checkOrExit()
+      console.log('started')`
+    const env = { ...process.env }
+    delete env.NODE_TEST_CONTEXT
+    const run = childProcess.spawnSync(process.execPath, ['-e', script], { cwd: dir, env, encoding: 'utf8', timeout: 30000 })
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stdout, /started/)
+    const aside = fs.readdirSync(dir).filter(name => /^sessions\.json\.bad-\d+$/.test(name))
+    assert.equal(aside.length, 1, fs.readdirSync(dir).join(', '))
+    assert.equal(fs.existsSync(path.join(dir, 'sessions.json')), false, 'the backend starts with no sessions')
+    assert.equal(fs.readFileSync(path.join(dir, aside[0]), 'utf8'), cut, 'the file is kept as it was')
+    assert.equal(fs.statSync(path.join(dir, aside[0])).mode & 0o777, 0o600, 'and stays private')
+    assert.match(run.stderr, new RegExp(`FAIL CLOSED: .*sessions\\.json moved aside to .*${aside[0]}; every launcher session in it is void`))
+    assert.equal(fs.readFileSync(path.join(dir, 'profiles.json'), 'utf8'), json(STORE))
+    assert.equal(fs.readFileSync(path.join(dir, 'players.json'), 'utf8'), json(ROWS))
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('the startup check lets good stores and a first run (no files yet) through', () => {
