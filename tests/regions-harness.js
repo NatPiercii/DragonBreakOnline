@@ -184,7 +184,7 @@ put(MAGE, 'private.dboGuilds', [{ id: 'synod', role: 'member' }]);
 give(MAGE, 'f:Skyrim.esm', 5000);
 cmd('tomes', MAGE);
 // The shop spells.js builds, filtered to Cyrodiil the way regions.py counts it
-const EXC = /^(dun|MGR)|quest|FF\d\d/i;
+const EXC = /^(dun|MGR)|quest|FF\d\d|WillotheWisp/i; // spells.js shopExcludePattern (the wisp left the shop in a45a490b)
 const canonToDesc = (c) => { const i = c.lastIndexOf(':'); return `${parseInt(c.slice(i + 1), 16).toString(16)}:${c.slice(0, i)}`; };
 const inCyrodiil = (t) => { const p = (DATA.tomes[canonToDesc(t.id)] || {}).p; return p === 'common' || (Array.isArray(p) && p.includes('cyrodiil')); };
 const pref = (t) => ({ 'BSHeartland.esm': 0, 'BSAssets.esm': 1 }[t.plugin] ?? 99);
@@ -193,10 +193,10 @@ const expected = TOMES_JSON.filter((t) => t.rank <= 3 && !EXC.test(t.name) && ![
   .sort((x, y) => x.school.localeCompare(y.school) || x.rank - y.rank || pref(x) - pref(y) || String(x.spellName).localeCompare(String(y.spellName)))
   .filter((t) => (seen.has(t.spellId) ? false : seen.add(t.spellId))).filter(inCyrodiil);
 check('the Synod panel is titled for Cyrodiil', shop(MAGE).title === 'The Synod: Spell Tomes of Cyrodiil', shop(MAGE).title);
-check(`...stocks the Cyrodiil list (${expected.length} tomes for a Master of both skills)`, shop(MAGE).tomes.length === expected.length && expected.length === 51, [shop(MAGE).tomes.length, expected.length]);
+check(`...stocks the Cyrodiil list (${expected.length} tomes for a Master of both skills)`, shop(MAGE).tomes.length === expected.length && expected.length === 50, [shop(MAGE).tomes.length, expected.length]);
 check('...core, Cyrodiil and shared tomes are there', row(MAGE, SPARKS_BOOK) && row(MAGE, FROSTFLAMES_BOOK) && row(MAGE, FIREBOLT_BOOK));
 check('...Skyrim and Solstheim tomes are not', !row(MAGE, INCINERATE_BOOK) && !row(MAGE, ASHSHELL_BOOK));
-check('the boot line counts the Cyrodiil stock', out.logs.some((l) => /tomes in the Synod shop, .*, 51 stocked for Cyrodiil/.test(l)), out.logs.filter((l) => /spells on/.test(l)));
+check('the boot line counts the Cyrodiil stock', out.logs.some((l) => /tomes in the Synod shop, .*, 50 stocked for Cyrodiil/.test(l)), out.logs.filter((l) => /spells on/.test(l)));
 ui('tomeBuy', MAGE, [shop(MAGE).nonce, INCINERATE_BOOK]);
 check('a forged buy of a Skyrim tome is refused and costs nothing', shop(MAGE).resultKind === 'refused' && shop(MAGE).result === 'The Synod does not stock Incinerate; it is sold in Skyrim.' && count(MAGE, 'f:Skyrim.esm') === 5000 && count(MAGE, INCINERATE_BOOK) === 0, shop(MAGE).result);
 spellsCfg = { shopStock: 999, shopShowForeign: true }; load();
@@ -307,7 +307,7 @@ at(SMITH, SYNOD_CELL);
 check('a bench override widens the staff enchanter', R().recipeOk(SMITH, idOf(STAFF[1]), idOf(STAFF[0])).ok);
 writeOverrides({ tomes: Object.assign({}, OVR_BASE.tomes, { SpellTomeIncinerate: ['cyrodiil', 'skyrim'] }) });
 cmd('tomes', MAGE);
-check('a tome override stocks Incinerate in the Synod', row(MAGE, INCINERATE_BOOK) && row(MAGE, INCINERATE_BOOK).blocked === '' && shop(MAGE).tomes.length === 52, shop(MAGE).tomes.length);
+check('a tome override stocks Incinerate in the Synod', row(MAGE, INCINERATE_BOOK) && row(MAGE, INCINERATE_BOOK).blocked === '' && shop(MAGE).tomes.length === 51, shop(MAGE).tomes.length);
 writeOverrides({ places: Object.assign({}, OVR_BASE.places, { BSHeartland: 'skyrim', [SYNOD_CELL]: 'morrowind' }) });
 check('a place override by editor id moves Bruma\'s worldspace', place(BRUMA_WORLD).province === 'skyrim' && place(BRUMA_WORLD).source === 'override');
 check('...and one by desc takes a culture (morrowind: Solstheim)', place(SYNOD_CELL).province === 'solstheim');

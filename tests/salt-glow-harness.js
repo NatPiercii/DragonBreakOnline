@@ -33,7 +33,7 @@ const load = (labourCfg) => {
     delete require.cache[require.resolve(LABOUR)];
     require(LABOUR)({
       mp: { getIdFromDesc: idOf, get: (id, p) => props.get(id + '|' + p), set: (id, p, v) => props.set(id + '|' + p, v), lookupEspmRecordById: (id) => (id === SALT_BASE ? { record: { type: 'ACTI', editorId: '12SeaSaltMinepickaxeDUPLICATE003' } } : null) },
-      log: () => {}, personal: () => {}, audit: () => {}, display: () => 'Tester', who: () => 'Tester', cfg: { labour: labourCfg || {} },
+      log: () => {}, personal: () => {}, audit: () => {}, display: () => 'Tester', who: () => 'Tester', cfg: { labour: Object.assign({ perPlayerNodes: false }, labourCfg) },
       openWidget: () => true, closeWidget: () => true, onUi: () => {}, giveItem: () => true,
       skills: require(path.join(SERVER, 'skills.json')),
       sendPacket: (a, p) => packets.push([a, p]), onlineActors: () => online.slice(),

@@ -219,15 +219,15 @@ module.exports = (api) => {
     for (const key of Object.keys(state.taken)) {
       for (const w of [].concat(state.taken[key] || [])) {
         if (w && w.kind && !w.expired && !(Number(w.expiresAt) > Date.now())) {
-          if (Number(w.held) > 0 && !refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of ${key}'s expired contract could not go back to ${w.zone}`);
-          w.held = 0; w.expired = true; expired.push({});
+          expired.push({ label: `${key}'s contract`, zone: w.zone, held: Number(w.held) || 0 });
+          w.held = 0; w.expired = true;
         }
       }
     }
-    // An expired notice hands its reward back rather than leaving the gold nowhere, once it is off the board on disk
+    // An expired notice or copy hands its reward back rather than leaving the gold nowhere, once it is written off on disk
     if (expired.length) {
       saveNow();
-      for (const c of expired) if (Number(c.held) > 0 && !refundToTreasury(zoneById(c.zone), Number(c.held))) log(`contracts: ${c.held} gold of expired notice ${c.id} could not go back to ${c.zone}`);
+      for (const c of expired) if (Number(c.held) > 0 && !refundToTreasury(zoneById(c.zone), Number(c.held))) log(`contracts: ${c.held} gold of expired ${c.label || `notice ${c.id}`} could not go back to ${c.zone}`);
     }
     // Off: what is already posted stays listed so nobody loses work in hand, but no new notice goes up
     if (!CFG.enabled) { if (state.contracts.length !== before) save(); return; }
@@ -308,14 +308,14 @@ module.exports = (api) => {
     const key = keyOf(a);
     const raw = rawList(key);
     if (!raw.length) return [];
-    const live = [];
+    const live = [], refunds = [];
     let changed = !Array.isArray(state.taken[key]);
     for (const old of raw) {
       const w = old.kind ? old : migrate(key, old);
       if (w !== old) changed = true;
       if (!w) { if (tell) personal(a, GONE_TEXT); continue; }
       if (w.expired || !(Number(w.expiresAt) > Date.now())) {
-        if (Number(w.held) > 0) refundToTreasury(zoneById(w.zone), Number(w.held));
+        if (Number(w.held) > 0) refunds.push(w);
         changed = true;
         if (tell) personal(a, ranOutText(w));
         continue;
@@ -323,6 +323,8 @@ module.exports = (api) => {
       live.push(w);
     }
     if (changed) { putList(key, live); saveNow(); }
+    // Written off on disk first, then the share goes back to the hold
+    for (const w of refunds) if (!refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of run-out ${key}'s contract could not go back to ${w.zone}`);
     return live;
   };
   const doneBy = (c, a) => (c.doneBy || []).indexOf(keyOf(a)) !== -1;
@@ -440,10 +442,10 @@ module.exports = (api) => {
       w = Number.isInteger(n) && n >= 1 && n <= work.length ? work[n - 1] : work.find((x) => x.id === String(which)) || null;
     }
     if (!w) return 'No such contract. /contract lists the ones you hold.';
-    // The share set aside for this hunter goes back to the hold
-    if (Number(w.held) > 0 && !refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of a given-up contract could not go back to ${w.zone}`);
     putList(keyOf(a), work.filter((x) => x !== w));
     saveNow();
+    // The share set aside for this hunter goes back to the hold, once the contract is gone on disk
+    if (Number(w.held) > 0 && !refundToTreasury(zoneById(w.zone), Number(w.held))) log(`contracts: ${w.held} gold of given-up ${keyOf(a)}'s contract could not go back to ${w.zone}`);
     return `Contract for ${w.count} ${plural(w.kind)} given up. Its reward goes back to the hold.`;
   };
 

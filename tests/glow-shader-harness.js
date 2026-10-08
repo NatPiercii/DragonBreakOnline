@@ -13,11 +13,12 @@ const idOf = (d) => ({ '10272e:Skyrim.esm': 0x10272e, '4c6d8:Skyrim.esm': 0x4c6d
 const glow = (o) => Object.assign({ customPacketType: 'dboGlow', refs: [1, 2], on: true }, o);
 
 const cfg = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
-ok(cfg.glow && cfg.glow.membrane === false, 'gamemode-config ships with glow.membrane false', cfg.glow);
+// On since 70b05810 (7 Oct, Nate: outlines on lootable containers in dungeons); the off path below is tested explicitly
+ok(cfg.glow && cfg.glow.membrane === true, 'gamemode-config ships with glow.membrane on', cfg.glow);
 ok(cfg.glow.shaders.loot === '10272e:Skyrim.esm' && cfg.glow.shaders.locked === '4c6d8:Skyrim.esm', 'the membrane shaders are ready to switch on: MG02WallShader for loot, TurnUnFXShader for locked', cfg.glow.shaders);
 
-// off (the shipped config): nothing changes
-let f = make(cfg, idOf);
+// off: nothing changes
+let f = make({ glow: Object.assign({}, cfg.glow, { membrane: false }) }, idOf);
 const p = glow({ kind: 'loot' });
 ok(f(p) === p && !('shader' in f(p)), 'off: a glow packet goes out untouched');
 ok(/client's defaults/.test(f.state), 'off: the boot line says the client keeps its defaults', f.state);

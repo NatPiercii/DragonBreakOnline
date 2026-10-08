@@ -231,7 +231,7 @@ module.exports = (api) => {
       : order[0][1].n !== order[1][1].n ? 'the most spells' : order[0][1].tiers !== order[1][1].tiers ? 'a tie broken by the most combined tiers'
         : order[0][1].last !== order[1][1].last ? 'a tie broken by the most recent study' : 'a tie broken by list order';
     log(`schools: ${who(a)} brought over to ${order[0][0]} (${why}): ${order.map(([n, e]) => `${n} ${e.n} spells, tiers ${e.tiers}, last #${e.last}`).join('; ')}`);
-    const start = Math.max(1, arc.level);
+    const start = Math.min(100, Math.max(1, arc.level));
     s.primary = order[0][0];
     s.levels[s.primary] = { level: start, xp: 0 };
     if (order[1] && arc.level >= C.secondaryAtLevel) {
@@ -545,7 +545,8 @@ module.exports = (api) => {
         if (took !== 'ok' && took !== 'held') return { ok: false, text: 'Arcane Arts could not be taken up just now. Try again in a moment.' };
       }
       s.primary = school;
-      if (levelOf(s, school) < Math.max(1, arcaneOf(a).level)) s.levels[school] = { level: Math.max(1, arcaneOf(a).level), xp: 0 };
+      const startAt = Math.min(100, Math.max(1, arcaneOf(a).level));
+      if (levelOf(s, school) < startAt) s.levels[school] = { level: startAt, xp: 0 };
       save(a, s);
       audit(`SCHOOLS ${who(a)} chose ${school} as their primary school (level ${levelOf(s, school)})`);
       const next = levelOf(s, school) >= PICK_AT && !s.picks[school] ? ' Now choose its first spell.' : '';
@@ -600,15 +601,36 @@ module.exports = (api) => {
 
   // ---- casting -------------------------------------------------------------------------------------------------
   const today = () => new Date(Date.now()).toISOString().slice(0, 10);
+  // The day's cast allowance ends at midnight UTC, not 24 hours after it was used up
+  const untilUtcMidnight = () => { const n = new Date(Date.now()); return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1) - n.getTime(); };
+  const castCapped = (s, school) => levelOf(s, school) < 100 && s.cast.day === today() && (Number(s.cast.units[school]) || 0) >= C.castDailyUnits;
+  const tellCap = (a, s, school) => { if (levelOf(s, school) < 100) castNotice(a, `cap:${today()}:${school}`, capLine(school), 30 * MIN); };
+  const capLine = (school) => `Casting has taught you all it can of ${school} for today. It counts again after midnight UTC, in ${inWords(untilUtcMidnight())}. A class at a Class Lectern still counts.`;
+  // A cast that trains no school says why (7 Oct: four "magic does not level" reports): the cap every 30 minutes that
+  // day, the other reasons once a login and again after 4 hours
+  const castNoticeAt = globalThis.__dboSchoolsCastNotice instanceof Map ? globalThis.__dboSchoolsCastNotice : (globalThis.__dboSchoolsCastNotice = new Map());
+  const castNotice = (a, key, text, everyMs = 4 * HOUR) => {
+    const k = `${a >>> 0}:${key}`, now = Date.now();
+    if (now - (castNoticeAt.get(k) || 0) < everyMs) return;
+    castNoticeAt.set(k, now);
+    if (castNoticeAt.size > 2000) for (const [x, t] of castNoticeAt) if (now - t > 24 * HOUR) castNoticeAt.delete(x);
+    personal(a, text);
+  };
   globalThis.__dboSchoolsCast = (casterId, spellId) => {
     if (!ready(casterId) || !isPlayer(casterId)) return;
     let sp = null; try { sp = typeof globalThis.__dboSpellsClassify === 'function' ? globalThis.__dboSpellsClassify(spellId >>> 0) : null; } catch (e) { return; }
     if (!sp || !SCHOOLS.includes(sp.school)) return;
     const s = stateOf(casterId);
-    if (!active(s, sp.school)) return;
+    if (!active(s, sp.school)) {
+      // Only a mage is told: a priest casting Oakflesh is on their own path
+      if (sp.school === 'Alteration' && ALTERATION === 'both') { if (s.primary) castNotice(casterId, 'alt', 'Alteration is not one of your schools of magic, so this spell trains Priest, not Arcane Arts or a school.'); }
+      else if (beforeFirst(casterId, s) && arcaneOf(casterId).held) castNotice(casterId, 'first', `Your schools of magic open at Arcane Arts ${FIRST_AT}; until then casting trains Arcane Arts only.`);
+      else if (s.primary) castNotice(casterId, `off:${sp.school}`, `${sp.school} is ${resting(s, sp.school) ? 'resting' : 'not one of your schools of magic'}: casting it trains Arcane Arts only, not ${sp.school}.`);
+      return;
+    }
     if (s.cast.day !== today()) s.cast = { day: today(), units: {} };
     const spent = Number(s.cast.units[sp.school]) || 0;
-    if (spent >= C.castDailyUnits) return;
+    if (spent >= C.castDailyUnits) { tellCap(casterId, s, sp.school); return; }
     // The same spell again within the hour is worth less, as the Wheel counts it
     const now = Date.now();
     const ring = (Array.isArray(s.ring) ? s.ring : []).filter((e) => e && now - e.at < HOUR);
@@ -620,6 +642,7 @@ module.exports = (api) => {
     credit(s, sp.school, units);
     save(casterId, s);
     tellGain(casterId, sp.school, before, s);
+    if (spent + units >= C.castDailyUnits) tellCap(casterId, s, sp.school);
   };
 
   // A panel's nonce names its panel and never repeats: the K menu and the study shelf answer the same school choice, and
@@ -665,7 +688,7 @@ module.exports = (api) => {
           roleLabel: role === 'primary' ? 'Primary school' : role === 'secondary' ? 'Secondary school' : rest ? 'Resting' : 'Closed',
           // The meter fills bottom to top over the whole ladder, 0..100
           fill: role === 'locked' ? 0 : Math.max(0, Math.min(1, (level + (l ? Number(l.xp) || 0 : 0) / 100) / 100)),
-          hint: role === 'locked' ? (pick ? (first ? `First spell: ${first}` : '') : early ? `Opens at Arcane Arts ${FIRST_AT}` : rest ? `Resting at ${level}` : 'Closed to you') : next ? `${RANKS[r + 1]} at ${next}` : 'The top of the school',
+          hint: role === 'locked' ? (pick ? (first ? `First spell: ${first}` : '') : early ? `Opens at Arcane Arts ${FIRST_AT}` : rest ? `Resting at ${level}` : 'Closed to you') : (next ? `${RANKS[r + 1]} at ${next}` : 'The top of the school') + (castCapped(s, school) ? ' · casting done for today (resets 00:00 UTC)' : ''),
           choose: pick ? { as: pick, label: pick === 'primary' ? 'Choose as my school' : 'Choose as secondary', title: `Choose ${school}?`, yes: 'Choose', no: 'Not yet',
             confirm: pick === 'primary' ? `Do you want to choose ${school} as your school of magic?${first ? ` You will choose your first spell from ${first}, and the` : ' The'} other schools will be closed to you.` : `Do you want to choose ${school} as your secondary school of magic?` } : null,
         };
@@ -846,7 +869,9 @@ module.exports = (api) => {
     if (typeof globalThis.__alduinakMasteryAward !== 'function') return 0;
     try { return Number(globalThis.__alduinakMasteryAward(a, C.arcaneSkill, Number(C.firstStudyWeight) || 1, ref >>> 0)) || 0; } catch (e) { log('schools: study award failed', e.message); return 0; }
   };
-  globalThis.__dboSchoolsLogin = (a) => { try { firstCheck(a, 'login'); } catch (e) { log(`schools: login check for ${display(a)} failed: ${e.message}`); } };
+  globalThis.__dboSchoolsLogin = (a) => {
+    for (const k of [...castNoticeAt.keys()]) if (k.startsWith(`${a >>> 0}:`)) castNoticeAt.delete(k);
+    try { firstCheck(a, 'login'); } catch (e) { log(`schools: login check for ${display(a)} failed: ${e.message}`); } };
 
   // One study tick for every reader: pays whole ticks only, stops a reader who walked off, left or ran out of time
   const studyTick = () => {
