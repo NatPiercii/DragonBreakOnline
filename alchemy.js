@@ -285,7 +285,7 @@ module.exports = (api) => {
   // An enchantment taught once is known for the rest of the session, and vanilla never offers a known one again; a
   // report naming it again is the server's own removal of the item seen by the client's report (or a stale one), never a
   // second disenchant. Cleared at each login (the client forgets what it learned unless learnedEnchantments restores it).
-  const SESSION = globalThis.__dboDisenchantSession || (globalThis.__dboDisenchantSession = new Map()); // actor -> { at, ench:Set, effects:Set }
+  const SESSION = globalThis.__dboDisenchantSession || (globalThis.__dboDisenchantSession = new Map()); // actor -> { at, ench:Set, effects:Set, resendDue }
   const SESSION_MS = 12 * 60 * 60 * 1000;
   const sessionOf = (a) => {
     let s = SESSION.get(a);
@@ -340,6 +340,7 @@ module.exports = (api) => {
     if (!due.length) return;   // enchanting (a plain item and a soul gem): craftedExtras records that
     if (!atLab(a, workbenchId)) return log(`disenchant: ${display(a)} reported a disenchant at ${workbenchId.toString(16)} while not at it; ignored`);
     const taken = [];   // [baseId, entry copy, ench]
+    let ambiguous = false;
     const session = sessionOf(a);
     const reusableHeld = entries.some((e) => (Number(e.count) || 0) > 0 && isReusableGem(Number(e.baseId) >>> 0));
     const reusableReported = reported.some((e) => isReusableGem(Number(e.baseId) >>> 0));
@@ -360,13 +361,18 @@ module.exports = (api) => {
       // wrong one would destroy a kept item and record the wrong enchantment as learned, so none is taken and staff settle it
       const why = byEnch.size > b.n ? `${b.n} left the pack, ${byEnch.size} enchantments to choose from`
         : b.enchantable && reusableHeld && !reusableReported ? 'a reusable soul gem held could have enchanted a plain copy' : '';
-      if (why) {
+      // Every candidate teaching the same effects and no plain copy held (an enchant's gem often comes in its own report): the plainest goes
+      const same = !!why && byEnch.size > b.n && !b.enchantable && sameEffects([...byEnch.keys()]);
+      if (why && !same) {
         const copies = b.candidates.map((e) => { const note = copyNote(e); return `${enchName(copyEnch(e, b.item))}${note ? `; ${note}` : ''}${(Number(e.count) || 0) > 1 ? ` x${Number(e.count)}` : ''}`; }).join(' | ');
         log(`disenchant: ${display(a)} reported ${ingredientName(b.id)} at ${workbenchId.toString(16)}: ${why}; nothing taken`);
         audit(`DISENCHANT-AMBIGUOUS ${who(a)} ${ingredientName(b.id)} (${(b.id >>> 0).toString(16)}): ${why}; nothing taken, nothing learned [${copies}]`);
+        ambiguous = true;
         continue;
       }
-      for (const [ench, e] of byEnch) {
+      const go = same ? [[...byEnch].sort(([, x], [, y]) => order(x, y))[0]] : [...byEnch];
+      if (same) log(`disenchant: ${display(a)} reported ${ingredientName(b.id)} at ${workbenchId.toString(16)}: ${why}, all teaching the same effects; the plainest copy (${enchName(go[0][0])}) goes`);
+      for (const [ench, e] of go) {
         if ((Number(e.count) || 0) <= 0) continue;
         taken.push([b.id, Object.assign({}, e, { count: 1 }), ench]);
         e.count = (Number(e.count) || 0) - 1;
@@ -374,7 +380,8 @@ module.exports = (api) => {
         for (const x of effectsOfEnch(ench)) session.effects.add(x);
       }
     }
-    if (!taken.length) return;
+    // The client's own disenchant went through all the same, and with it the game forgets the list restored at login
+    if (!taken.length) { if (ambiguous) resendLearned(a, session); return; }
     try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`disenchant: inventory write failed for ${display(a)}: ${e.message}`); return; }
     const what = taken.map(([id]) => ingredientName(id)).join(', ');
     const detail = taken.map(([id, e, ench]) => { const note = copyNote(e); return `${ingredientName(id)} [${enchName(ench)}${note ? `; ${note}` : ''}]`; }).join(', ');
@@ -383,8 +390,7 @@ module.exports = (api) => {
     // The game forgets the enchantments restored at login when a disenchant goes through (SMJ, 7 Oct: only the new one
     // was left; players had taken to /syncenchant after each one), so the whole list goes back once the inventory write
     // above has reached the client
-    const again = a;
-    setTimeout(() => { try { sendLearned(again); } catch (e) { log(`disenchant: resend failed for ${display(again)}: ${e.message}`); } }, RESEND_MS);
+    resendLearned(a, session);
     // Disenchanting is Enchanter work, as in the base game: 1 for each enchantment learned, the same one again within
     // the hour less (masterySystem's repeat ring, keyed on the enchantment)
     for (const [, , ench] of taken) creditDisenchant(a, ench);
@@ -409,6 +415,21 @@ module.exports = (api) => {
     return out;
   }
   const RESEND_MS = 2000;
+  // One pending resend per actor: its due time sits on the session entry (globalThis), so a hot reload never adds a second
+  const resendLearned = (a, s) => {
+    const pending = s.resendDue > 0 && Date.now() < s.resendDue + RESEND_MS;
+    s.resendDue = Date.now() + RESEND_MS;
+    if (pending) return;
+    // A disenchant while it waits moves the due time on; the same timer then waits out the rest
+    const fire = (due) => () => {
+      if (s.resendDue > due) { setTimeout(fire(s.resendDue), Math.max(0, s.resendDue - Date.now())); return; }
+      s.resendDue = 0;
+      try { sendLearned(a); } catch (e) { log(`disenchant: resend failed for ${display(a)}: ${e.message}`); }
+    };
+    setTimeout(fire(s.resendDue), RESEND_MS);
+  };
+  // Whether these enchantments all teach one same set of effects (none unreadable)
+  const sameEffects = (enchs) => { const sets = enchs.map((x) => effectsOfEnch(x)); return sets.every((l) => l.length > 0 && l.length === sets[0].length && l.every((x) => sets[0].includes(x))); };
   const creditDisenchant = (a, ench) => {
     const award = globalThis.__alduinakMasteryAward;
     if (typeof award !== 'function' || typeof ench !== 'number' || !ench) return 0;
