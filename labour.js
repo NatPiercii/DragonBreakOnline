@@ -408,6 +408,12 @@ module.exports = (api) => {
     return started;
   };
 
+  // The fork's gatheringSystem.ts pays a seated chopper firewood every 5 s, unaudited (8 Oct); until its own fix is live, its
+  // sessions at a chopping block are ended through its seat-close hook before the first strike, whatever labour decides
+  const GATHER_CLOSE = 'onPapyrusEvent:SkympOnActivateClose';
+  const endGathering = (ref) => {
+    for (const ms of [1000, 4000]) setTimeout(() => { try { if (typeof mp[GATHER_CLOSE] === 'function') mp[GATHER_CLOSE](ref >>> 0); } catch (e) { log(`labour: ending a gathering session failed: ${e.message}`); } }, ms);
+  };
   // Called from the gamemode's activate chain; true means the activation was ours. Placed objects (the F7 Place tab) have
   // dynamic ids: a placed chopping block or vein runs the same round (Nate, 8 Oct: placed blocks gave firewood endlessly)
   globalThis.__dboLabour = (targetId, casterId) => {
@@ -418,7 +424,7 @@ module.exports = (api) => {
     const type = String(rec.record.type || '');
     const edid = String(rec.record.editorId || '');
     if (type === 'ACTI' && (/^(CYR)?MineOre|^DLC2MineOre/.test(edid) || nodeOf(targetId, edid))) return mine(targetId, casterId, rec);
-    if (type === 'FURN' && /^(DLC2)?WoodChoppingBlock/i.test(edid)) return chop(targetId, casterId);
+    if (type === 'FURN' && /^(DLC2)?WoodChoppingBlock/i.test(edid)) { endGathering(targetId); return chop(targetId, casterId); }
     // A seam's pickaxe marker pays out through the vanilla mining script: no round, no skill, no rest (Nate on Falcius,
     // 2026-09-28: refused at a gold seam, then mined it from its PickaxeMiningFloorMarker). The round on the seam
     // replaces it, so a player never sits at one; NPCs keep them for their idles.

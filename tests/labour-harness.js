@@ -779,6 +779,26 @@ load();
   check('an untagged dynamic block is left alone', globalThis.__dboLabour(LOOSE, ACTOR) === false);
 }
 
+// gatheringSystem.ts paid a seated chopper firewood every 5 s (8 Oct): any chopping-block activation ends its sessions at
+// that block, through its seat-close hook, at 1 s and 4 s, before its first strike, whatever labour decided
+{
+  const timers = [], closed = [], realTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = (f, ms) => { timers.push([f, ms]); return 0; };
+  api.mp['onPapyrusEvent:SkympOnActivateClose'] = (ref) => closed.push(ref >>> 0);
+  setTier('woodcutter', 0); clearRests(); out.widgets.length = 0;
+  globalThis.__dboLabour(BLOCK, ACTOR);
+  check('a chopping-block round schedules the gathering close at 1 s and 4 s', JSON.stringify(timers.map((t) => t[1])) === '[1000,4000]', timers.map((t) => t[1]));
+  timers.splice(0).forEach(([f]) => f());
+  check('...which ends the gathering sessions at that block', closed.length === 2 && closed.every((r) => r === (BLOCK >>> 0)), closed);
+  props.set(ACTOR + '|private.mastery', { order: [], skills: {} }); closed.length = 0;
+  const handled = globalThis.__dboLabour(BLOCK, ACTOR);
+  timers.splice(0).forEach(([f]) => f());
+  check('...also when labour lets the activation through (no Woodcutter yet)', handled === false && closed.length === 2, JSON.stringify({ handled, closed }));
+  delete api.mp['onPapyrusEvent:SkympOnActivateClose'];
+  globalThis.__dboLabour(VEIN, ACTOR);
+  globalThis.setTimeout = realTimeout;
+}
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);
