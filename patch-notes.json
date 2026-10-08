@@ -1,5 +1,44 @@
 [
   {
+    "title": "Client update 0.3.83",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.83",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Fixes",
+        "items": [
+          "Your face no longer changes after you open RaceMenu: the game keeps your own face when it swaps in a default head.",
+          "Ingredient stacks that could not be dropped or stored (extra copies of salt and others) are cleared: what you see now matches what you really hold.",
+          "Dungeon chests no longer stack their outline every time you pass a door, which made them blinding and laggy.",
+          "Torches held by other players no longer pile up light the longer you stand near them."
+        ]
+      },
+      {
+        "heading": "New",
+        "items": [
+          "While someone talks on voice chat, their name turns green with a <)) mark.",
+          "Trading: a slider (with Half, -10 and +10) to choose how many of an item to trade."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Wheel of Skills: plainer words",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "Waxing, Held and Waning are now called Raise, Hold and Lower, with a one-line explanation each in the Wheel.",
+          "A skill set to Lower can now give its points all the way down to level 1 (it stopped at 25 before), so you can move points out of a skill you no longer use. Raised skills still stop at 25, and held skills never give points away."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Legion armour",
     "date": "2026-10-08",
     "version": "Server update",
