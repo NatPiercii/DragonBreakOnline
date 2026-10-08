@@ -460,6 +460,32 @@ module.exports = (api) => {
     if (!equipment) return;
     const held = ['leftSpell', 'rightSpell', 'voiceSpell', 'instantSpell'].map((k) => Number(equipment[k]) >>> 0).filter((id) => id && VAMP_ALL.includes(id));
     if (held.length) triedSpells.set(a >>> 0, new Set(held)); else triedSpells.delete(a >>> 0);
+    if (held.length) healHands(a >>> 0, equipment);
+  };
+  // A stale stage spell kept in a client's hand: the strip empties the stored hand swapHands reads (Donn #TR28, 8 Oct)
+  const healedAt = globalThis.__dboSuperHealed instanceof Map ? globalThis.__dboSuperHealed : (globalThis.__dboSuperHealed = new Map()); // `${actor}:${hand}:${spell}` -> last heal
+  const healHands = (a, equipment) => {
+    for (const [key, slot] of HANDS) {
+      const stale = Number(equipment[key]) >>> 0;
+      if (!stale || !VAMP_ALL.includes(stale) || Date.now() - (healedAt.get(`${a}:${slot}:${stale}`) || 0) < 60000) continue;
+      const s = stateOf(a);
+      if (!s || beastForm(a) || wantSpells(s).includes(stale)) continue;
+      healedAt.set(`${a}:${slot}:${stale}`, Date.now());
+      // After the strip: this stage's spell of that line in the hand, the stale one off the client's list
+      setTimeout(() => {
+        try {
+          const cur = stateOf(a);
+          if (!cur || beastForm(a) || !onlineActors().includes(a)) return;
+          const want = wantSpells(cur);
+          if (want.includes(stale)) return;
+          const line = STAGE_LINES.find((l) => l.includes(stale));
+          const next = line ? want.find((x) => line.includes(x)) : 0;
+          if (next) equipSpell(a, next, slot);
+          addSpell(a, stale); removeSpell(a, stale);
+          log(`supernatural: ${display(a)} held ${spellName(stale)} in the ${slot ? 'right' : 'left'} hand, not theirs at stage ${cur.stage || 0}: ${next ? `${spellName(next)} put in its place` : 'taken back'}`);
+        } catch (e) { log('supernatural: stale hand heal failed', e.message); }
+      }, 1000);
+    }
   };
   const spellName = (id) => { const r = recordOf(id); return r && r.editorId ? r.editorId : id.toString(16); };
   const flushStageSpells = (a, s, why) => {
