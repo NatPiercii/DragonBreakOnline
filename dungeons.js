@@ -203,6 +203,9 @@ module.exports = (api) => {
   const glow = (a, refs, on, kind) => { for (let i = 0; i < refs.length; i += 150) sendPacket(a, { customPacketType: 'dboGlow', refs: refs.slice(i, i + 150), on: !!on, kind: kind || 'loot' }); };
   // A ref can be glowing as either kind, and "off" only matches the kind it is sent with
   const glowOff = (a, refs) => { glow(a, refs, false, 'loot'); glow(a, refs, false, 'locked'); };
+  // Config dungeons.glow { loot, locked, offIn: [dungeon ids] }: either kind switched off, or nothing glowing in the
+  // dungeons listed (8 Oct: an A/B of Bruma Caverns' 90 glowing containers against its frame rate). Default as before
+  const glowOn = (dungeonId, kind) => { const g = Object.assign({ loot: true, locked: true, offIn: [] }, C.glow || {}); return g[kind] !== false && !(Array.isArray(g.offIn) && g.offIn.includes(dungeonId)); };
   const glowClear = (a) => { try { sendPacket(a, { customPacketType: 'dboGlow', clear: true }); } catch (e) { /* offline */ } };
   // Login and re-entry wipe first, so a glow left by an expired lease cannot outlive it
   globalThis.__dboGlowClear = glowClear;
@@ -213,7 +216,8 @@ module.exports = (api) => {
     glowClear(a);
     const locked = d.bigChestIds.filter((id) => lease.locked.has(id) && !lease.unlocked.has(id) && holdsLoot(lease, id));
     const open = d.chestIds.filter((id) => holdsLoot(lease, id) && locked.indexOf(id) === -1);
-    glow(a, locked, true, 'locked'); glow(a, open, true, 'loot');
+    if (glowOn(d.id, 'locked')) glow(a, locked, true, 'locked');
+    if (glowOn(d.id, 'loot')) glow(a, open, true, 'loot');
   };
   const leaseOfActor = (a) => { const pid = profileOf(a); for (const l of ST.leases.values()) if (l.members.has(pid)) return l; return null; };
 
@@ -1581,7 +1585,7 @@ module.exports = (api) => {
           target: targetId, level, label: 'Chest',
           onSuccess: (a) => {
             lease.unlocked.add(targetId);
-            for (const pid of lease.members) { const m = actorByProfile(pid); if (m) { glow(m, [targetId], false, 'locked'); if (holdsLoot(lease, targetId)) glow(m, [targetId], true, 'loot'); } }
+            for (const pid of lease.members) { const m = actorByProfile(pid); if (m) { glow(m, [targetId], false, 'locked'); if (holdsLoot(lease, targetId) && glowOn(lease.id, 'loot')) glow(m, [targetId], true, 'loot'); } }
             system(a, `The ${LOCK_LEVELS[level]} lock gives way. Open the chest.`);
           },
         });
@@ -1592,7 +1596,7 @@ module.exports = (api) => {
       const chance = Math.min(0.95, 0.55 + 0.15 * (tier - level));
       if (Math.random() < chance) {
         lease.unlocked.add(targetId);
-        for (const pid of lease.members) { const m = actorByProfile(pid); if (m) { glow(m, [targetId], false, 'locked'); if (holdsLoot(lease, targetId)) glow(m, [targetId], true, 'loot'); } }
+        for (const pid of lease.members) { const m = actorByProfile(pid); if (m) { glow(m, [targetId], false, 'locked'); if (holdsLoot(lease, targetId) && glowOn(lease.id, 'loot')) glow(m, [targetId], true, 'loot'); } }
         system(casterId, `The ${LOCK_LEVELS[level]} lock gives way.`);
         try { if (typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('lock', casterId, { refrId: targetId, level }); } catch (e) { /* no skill system */ }
         opened();
