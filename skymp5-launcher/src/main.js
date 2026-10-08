@@ -29,6 +29,7 @@ const gameversion = require('./gameversion')
 const downgrade = require('./downgrade')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
+const bugLogs = require('./bugLogs')
 const selfRepair = require('./selfRepair')
 const downloadLib = require('./download')
 const nxmLinks = require('./nxm')
@@ -1738,6 +1739,19 @@ function stepAsideForGame() {
   setTimeout(tick, 1500)
 }
 
+// In-game /bug reports get this session's logs (src/bugLogs.js): asked for every 30 s while the game runs and once at exit
+const bugLogPoller = bugLogs.createBugLogPoller({
+  fetchPending: async () => {
+    const session = store.get('gameSession')
+    if (!session) return []
+    const res = await fetchJSON(`${config.apiUrl}/api/files/bug-pending`, { 'x-session': session })
+    return res && Array.isArray(res.pending) ? res.pending : []
+  },
+  send: id => submitReport({ note: `Logs for the player's in-game /bug ${id}.`, bugId: id }),
+  store,
+  log,
+})
+
 // After a launch, watch the game and tell the server how it closed (src/crashWatch.js). One watcher at a time; it
 // only speaks for a signed-in player, and a failure here never touches the game.
 let gameWatchRunning = false
@@ -1746,6 +1760,7 @@ function watchGameExit() {
   const session = store.get('gameSession')
   if (!session) return
   gameWatchRunning = true
+  const bugTimer = setInterval(() => { bugLogPoller.poll() }, bugLogs.POLL_MS)
   const docs = documentsDirOrNull()
   const run = (file, args) => new Promise((resolve, reject) =>
     require('child_process').execFile(file, args, { windowsHide: true, maxBuffer: 64 * 1024 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
@@ -1758,7 +1773,8 @@ function watchGameExit() {
       { ...note, launcherVersion: app.getVersion(), filesVersion: store.get('filesVersion') || '' },
       { 'x-session': store.get('gameSession') || session }),
   }).then(note => offerCrashReport(note))
-    .catch(err => log(`[crashWatch] ${err.message}`)).finally(() => { gameWatchRunning = false })
+    .catch(err => log(`[crashWatch] ${err.message}`))
+    .finally(() => { gameWatchRunning = false; clearInterval(bugTimer); bugLogPoller.poll() })
 }
 
 // After a crash, offer the report there and then. crashWatch has already found the crash log and the player should
@@ -1912,7 +1928,7 @@ async function hardwareExtras(gameDir) {
 }
 
 // Both Report a Problem and the after-a-crash prompt file the same report through here.
-async function submitReport({ note, private: keepPrivate } = {}) {
+async function submitReport({ note, private: keepPrivate, bugId } = {}) {
   const user    = store.get('discordUser') || null
   const session = store.get('gameSession')
   try {
@@ -1951,17 +1967,23 @@ async function submitReport({ note, private: keepPrivate } = {}) {
     if (previous && !payload.launcherLog) payload.launcherLog = report.redact(previous)
     if (!payload.launcherLog) return { ok: false, error: 'No launcher log to send yet.' }
 
-    // The id is kept until a send succeeds, so a retry of a report the server did file is not filed twice
-    if (!pendingReportId) pendingReportId = crypto.randomUUID()
-    payload.reportId = pendingReportId
+    // The id is kept until a send succeeds, so a retry of a report the server did file is not filed twice; a /bug's is its own
+    if (bugId) {
+      payload.bugId = bugId
+      payload.reportId = `bug-${bugId}`
+    } else {
+      if (!pendingReportId) pendingReportId = crypto.randomUUID()
+      payload.reportId = pendingReportId
+    }
     // The server now waits for Discord before answering, so this allows longer than the usual 10 s
     const res = await postJSON(`${config.apiUrl}/api/files/report`, payload,
                                session ? { 'x-session': session } : {}, 30_000)
     log(`[report] filed ${payload.reportId}${res && res.thread ? ` as thread ${res.thread}` : ''}`)
-    pendingReportId = null
+    if (!bugId) pendingReportId = null
     return { ok: true }
   } catch (err) {
     log(`[report] failed: ${err.statusCode || ''} ${err.message}`)
+    if (bugId && err.statusCode === 404) return { ok: false, notPending: true, error: 'That /bug no longer waits for logs.' }
     if (err.statusCode === 429) return { ok: false, error: 'Too many reports just now. Wait a few minutes.' }
     if (err.statusCode === 503) return { ok: false, error: 'Reporting is switched off on the server.' }
     if (err.statusCode === 413) return { ok: false, error: 'The report is too large to send.' }
