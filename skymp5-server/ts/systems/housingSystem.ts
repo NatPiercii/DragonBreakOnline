@@ -64,6 +64,8 @@ const REGISTRY_FILE = "./housing.json";
 
 // A key credential, "(80B5EAC)" or "(80B5EAC-2)": the only alias matched as a suffix
 const CREDENTIAL_RE = /^\([0-9A-F]+(-\d+)?\)$/;
+// The credential at the end of a key name, with the space before it
+const CREDENTIAL_SUFFIX_RE = / \([0-9A-F]+(?:-\d+)?\)$/;
 
 // Vanilla key form; the name extra carries the credential. Locks cut since 7 Oct use a pool record of their own (houseKeys.ts).
 export const KEY_BASE_ID = LEGACY_KEY_BASE_ID;
@@ -71,6 +73,8 @@ export const KEY_BASE_ID = LEGACY_KEY_BASE_ID;
 const MAX_USER_SLOTS = 1024;
 const MAX_NAME_LEN = 32;
 const MAX_KEYS_CARRIED = 64;
+// Place and room part of a room key's name: with "Key to", a rank, a recut, a copy number and the credential under 128
+const MAX_ROOM_KEY_LABEL = 64;
 const MAX_ESPM_CACHE = 4096;
 const DEFAULT_MAX_CLAIMS = 8;
 const DEFAULT_MAX_DISTANCE = 512;
@@ -1360,14 +1364,30 @@ export class HousingSystem implements System {
 
   // The lowest "Key to the X[, the Nth]" no other claimed property answers to
   // An unnamed property's key is called after its door ("Key to Bruma Castle"); with no door name it keeps the credential
+  // A chest or inner door of a place is called after its room and keeps the credential too ("Key to the X: Chest 2 (TAG)")
   private keyNameToCut(ctx: SystemContext, primary: number, rec: PropertyRecord, taken = this.takenKeyNames(ctx, primary)): string {
     const named = (rec.name || "").trim();
     const label = named || this.doorLabel(ctx, primary);
-    if (!label) return `Property Key ${this.keyCredential(primary, rec)}`;
+    const room = label ? "" : this.roomKeyLabel(ctx, primary, rec);
+    if (!label && !room) return `Property Key ${this.keyCredential(primary, rec)}`;
+    // The credential opens past the issued cap and lets a re-key find the key; the rank goes by the name shown before it
+    const shown = room ? new Set(Array.from(taken, (n) => n.replace(CREDENTIAL_SUFFIX_RE, ""))) : taken;
     for (let rank = 1; ; rank++) {
-      const name = this.keyNameFor(label, rank, rec, !!named);
-      if (!taken.has(name)) return name;
+      const name = this.keyNameFor(label || room, rank, rec, !!named);
+      if (!shown.has(name)) return room ? `${name} ${this.keyCredential(primary, rec)}` : name;
     }
+  }
+
+  // A member of a place after the place's name or door and the room as the Rooms and chests panel names it
+  private roomKeyLabel(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
+    if (!this.placesOn() || !rec.memberOf || rec.memberOf === primary) return "";
+    const root = this.read(ctx, rec.memberOf);
+    if (!root || root.owner === 0 || !root.place) return "";
+    const room = this.roomsOf(ctx, rec.memberOf, root).find((r) => r.ref === primary);
+    if (!room) return "";
+    const named = (root.name || "").trim();
+    const place = named ? `the ${named}` : this.doorLabel(ctx, rec.memberOf);
+    return (place ? `${place}: ${room.label}` : String(room.label)).slice(0, MAX_ROOM_KEY_LABEL).trimEnd();
   }
 
   // The readable name doors.json gives this door ("Bruma Castle"), or ""; the file is read again when it changes
