@@ -44,6 +44,8 @@ export class DboGlowService extends ClientListener {
       if (!shader) return;
       const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
       if (!ref || ref.isDisabled() || ref.isDeleted() || !ref.is3DLoaded()) return;
+      // A ref reloaded after an unload still carries the last play; stopping first keeps one shader, not a stack
+      try { shader.stop(ref); } catch { /* none playing */ }
       try { shader.play(ref, -1); this.glowing.set(id, glow); } catch { /* not loaded yet */ }
     });
     // A ref that unloaded keeps its entry; play again when it comes back.
