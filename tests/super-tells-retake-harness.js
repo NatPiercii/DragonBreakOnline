@@ -155,5 +155,61 @@ ok(JSON.stringify(look()) === laid, 'a second tick changes nothing (idempotent)'
 feed();
 ok(JSON.stringify(look()) === JSON.stringify(mortal()), 'a feed gives back exactly the look the tells hid');
 
+// 12. The slow tick leaves the tells alone while the editor is open (review, 8 Oct). A feed that landed then cleared them on
+// the server while the client, its menu open, kept them; the editor handed the tells back, they were saved as her own look,
+// and no later feed or cure could take them off.
+const openEditor = () => {
+  store.set(`${P}|inventory`, { entries: [{ baseId: 0xf, count: 800 }] });
+  store.set(`${P}|private.dboAppearanceAt`, 0);
+  cmds.get('appearance')(P, '');
+  return JSON.parse(JSON.stringify(look()));
+};
+const closeEditor = (after) => { store.set(`${P}|appearance`, JSON.parse(JSON.stringify(after))); return globalThis.__dboAppearanceEdit.finish(P, after); };
+fresh(3); tick();
+const onOpen = openEditor();
+feed();
+ok(look().headpartIds.includes(TELL) && state().look && state().look.prevEye === OWN_EYE, 'fed with the editor open: the tick leaves the tells and what they hide as they are');
+closeEditor(Object.assign(JSON.parse(JSON.stringify(onOpen)), { hairColor: 9 }));
+ok(look().headpartIds.includes(OWN_EYE) && !look().headpartIds.includes(TELL) && look().skinColor === 6189428 && toneOf(look()) === (TONE_ARGB >>> 0) && look().hairColor === 9 && !state().look,
+  'the close (the tells handed back, the hair changed): fed, so her own eyes, skin and tone under the new hair', { eyes: look().headpartIds.map((h) => h.toString(16)), skin: look().skinColor.toString(16) });
+thirst(); feed();
+ok(look().headpartIds.includes(OWN_EYE) && !look().headpartIds.includes(TELL) && look().skinColor === 6189428, 'a later thirst and feed: her own eyes again, the tell eyes never kept as hers');
+// The thirst rising while it is open: nothing laid till the close, then laid over the new look
+fresh(1); tick();
+openEditor();
+thirst();
+ok(!state().look && look().headpartIds.includes(OWN_EYE), 'thirst with the editor open: no tells laid yet');
+closeEditor(Object.assign(JSON.parse(JSON.stringify(look())), { headpartIds: look().headpartIds.map((h) => (h === OWN_EYE ? NEW_EYE : h)) }));
+ok(look().headpartIds.includes(TELL) && state().look && state().look.prevEye === NEW_EYE && look().skinColor === pale(6189428), 'the close: the tells laid over the eyes she chose');
+tick();
+ok(look().headpartIds.includes(TELL) && state().look.prevEye === NEW_EYE, 'and the next tick leaves it so');
+
+// 13. Blood on her face (applyBlood keeps the lip and chin colours from before it, a wash puts them back): a layer she
+// recoloured in the editor is hers, so the wash leaves it (review, 8 Oct); one she left keeps its blood till washed
+const LIPS = 'Actors\\Character\\Character Assets\\TintMasks\\FemaleLips.dds';
+const CHIN = 'Actors\\Character\\Character Assets\\TintMasks\\FemaleChin.dds';
+const LIP0 = 0x40b06070 | 0, CHIN0 = 0x10203040, MINE = 0x80aa3355 | 0;
+const tintOf = (type) => look().tints.find((t) => t.type === type).argb | 0;
+const bloody = () => {
+  fresh(1); tick();
+  globalThis.__dboSuperAsk.caps.set(P, new Set(['feedPrompt']));
+  store.set(`${P}|appearance`, Object.assign(look(), { tints: look().tints.concat([{ argb: LIP0, texturePath: LIPS, type: 1 }, { argb: CHIN0, texturePath: CHIN, type: 11 }]) }));
+  cmds.get('curse')(P, 'me bloody');
+};
+bloody();
+ok(state().blood && state().blood.prev.length === 2 && tintOf(1) !== LIP0 && tintOf(11) !== CHIN0, 'the blood is on her lips and chin');
+appearance((x) => Object.assign(x, { tints: x.tints.map((t) => (t.type === 1 ? Object.assign({}, t, { argb: MINE }) : t)) }));
+ok(/new look is saved/.test(said.at(-1) || '') && state().blood && state().blood.prev.length === 1 && state().blood.prev[0].type === 11, 'lips recoloured in the editor: only the chin is left to wash', state().blood);
+cmds.get('curse')(P, 'me wash');
+ok(tintOf(1) === MINE && tintOf(11) === CHIN0 && !state().blood, 'the wash: her new lip colour stays, the chin comes clean', { lips: tintOf(1).toString(16), chin: tintOf(11).toString(16) });
+bloody();
+appearance((x) => Object.assign(x, { hairColor: 9 }));
+ok(state().blood && state().blood.prev.length === 2, 'an edit that leaves the blood: both layers still to wash');
+cmds.get('curse')(P, 'me wash');
+ok(tintOf(1) === LIP0 && tintOf(11) === CHIN0 && look().hairColor === 9, 'and the wash takes it all off, the new hair kept');
+bloody();
+appearance((x) => Object.assign(x, { tints: x.tints.map((t) => (t.type === 1 || t.type === 11 ? Object.assign({}, t, { argb: MINE }) : t)) }));
+ok(!state().blood && tintOf(1) === MINE && tintOf(11) === MINE, 'both recoloured: no blood left, the blood state ends with her colours on');
+
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

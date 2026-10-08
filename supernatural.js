@@ -318,6 +318,13 @@ module.exports = (api) => {
   };
   // The tells by thirst: a werewolf always; a vampire from vampireTellsStage, or before the first meal
   const tellsShown = (s) => s.kind !== 'vampire' || !!s.unfed || (Number(s.stage) || 1) >= (Number(C.vampireTellsStage) || 1);
+  // An editor the server opened is open on this character (appearance.js editing: /appearance, or a GM's /chargen or a
+  // reroll on an existing one). The slow tick lays and clears no tells then, and no forced beast change comes: the client
+  // drops a write to its own look while the menu is open and the editor's result then overwrites it, so tells cleared
+  // meanwhile came back with the editor and were saved as the mortal look for good; and a beast form taken meanwhile
+  // reverted to the look from before a paid edit (review, 8 Oct). The tick after the close catches up, and
+  // __dboTellsRetake handles the close itself.
+  const editorOpen = (a) => { try { const E = globalThis.__dboAppearanceEdit; return !!(E && typeof E.editing === 'function' && E.editing(a)); } catch (e) { return false; } };
   const showTells = (a, s) => {
     if (!s || !s.kind) return;
     if (tellsShown(s)) {
@@ -348,7 +355,8 @@ module.exports = (api) => {
   // laid over again by the next slow tick with the pale skin taken as the mortal one. Here what the editor handed back
   // unchanged from the tells stays the kept look, what the player changed becomes the new kept look, and the tells go
   // back over it when they are due. before: the look as the editor opened on it (tells and all); without it, the kept
-  // skin and tone count as unchanged when they still show the pallor. True when the look was taken.
+  // skin and tone count as unchanged when they still show the pallor. The blood on a vampire's face is retaken the same
+  // way (retakeBlood). True when the look (or the blood) was taken.
   const retakeTells = (a, before) => {
     a = Number(a) >>> 0;
     const s = stateOf(a);
@@ -356,6 +364,7 @@ module.exports = (api) => {
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { return false; }
     if (!app || !Array.isArray(app.headpartIds)) return false;
     const b = before && typeof before === 'object' ? before : null;
+    const bloodTaken = s.kind === 'vampire' && retakeBlood(a, s, app, b);
     const mortal = Object.assign({}, app);
     const look = s.look;
     if (look) {
@@ -386,10 +395,10 @@ module.exports = (api) => {
       const laid = want && !mortal.headpartIds.includes(want) ? layTells(mortal, s, fam, want) : null;
       if (laid) { s.look = laid.look; next = laid.next; }
     }
-    if (!look && !s.look) return false;
+    if (!look && !s.look && !bloodTaken) return false;
     saveState(a, s);
     if (JSON.stringify(next) !== JSON.stringify(app)) mp.set(a, 'appearance', next);
-    log(`supernatural: ${display(a)} saved a new look; the ${s.kind}'s tells now hide it${s.look ? '' : ' (not showing)'}`);
+    if (look || s.look) log(`supernatural: ${display(a)} saved a new look; the ${s.kind}'s tells now hide it${s.look ? '' : ' (not showing)'}`);
     return true;
   };
   globalThis.__dboTellsRetake = retakeTells;
@@ -1366,13 +1375,17 @@ module.exports = (api) => {
   // today's config for blood from before that (Worker B's review)
   const BLOOD_TYPES = new Set([TINT_LIPS, TINT_CHIN, TINT_DIRT]);
   const norm = (x) => (Number(x) >>> 0) | 0;
+  // Whether a colour is one this blood put on (washBlood, retakeBlood)
+  const bloodColourOf = (prev) => {
+    const colours = new Set(prev.map((p) => p.applied).filter((x) => x !== undefined).map(norm).concat([C.blood.lips, C.blood.chin].map(norm)));
+    return (argb) => colours.has(norm(argb));
+  };
   // Returns 'clean' (all undone, the state ended), 'partial' (some undone, the rest kept for the next wash), 'kept'
   // (nothing could be done now, all kept: the appearance could not be read, say), or '' (no blood)
   const washBlood = (a, why) => {
     const s = stateOf(a); if (!s || !s.blood) return '';
     const prev = Array.isArray(s.blood.prev) ? s.blood.prev : [];
-    const colours = new Set(prev.map((p) => p.applied).filter((x) => x !== undefined).map(norm).concat([C.blood.lips, C.blood.chin].map(norm)));
-    const isBloodColour = (argb) => colours.has(norm(argb));
+    const isBloodColour = bloodColourOf(prev);
     let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { app = null; }
     // An appearance that cannot be read is not a clean face: keep everything and let the next wash try (Worker B)
     if (!app || !Array.isArray(app.tints)) { log(`supernatural: ${display(a)}'s appearance could not be read to wash (${why}); the blood is kept`); return 'kept'; }
@@ -1399,6 +1412,34 @@ module.exports = (api) => {
     try { sendPacket(a, { customPacketType: 'dboBloody', on: false }); } catch (e) { /* old client */ }
     log(`supernatural: ${display(a)} washed the blood off (${why})${remaining.length ? `; ${remaining.length} layer(s) had no blood left to undo` : ''}`);
     return 'clean';
+  };
+  // A saved appearance edit on a bloody face (retakeTells, after /appearance or a GM's /chargen): a lips or chin layer the
+  // player recoloured in the editor is theirs now, so the colour kept from before the blood goes, or the next wash would
+  // put it back over their choice (review, 8 Oct). Recoloured: its colour differs from the look the editor opened on
+  // (before), or, without that look, it no longer wears a blood colour. A layer not found is left to the wash's own
+  // fallback. With nothing kept the blood state ends, as a wash ends it on a face with no blood left. app: the saved look.
+  // True when s.blood changed (the caller saves s).
+  const retakeBlood = (a, s, app, before) => {
+    if (!s || !s.blood || !Array.isArray(s.blood.prev) || !s.blood.prev.length || !app || !Array.isArray(app.tints)) return false;
+    const isBloodColour = bloodColourOf(s.blood.prev);
+    const then = before && Array.isArray(before.tints) ? before.tints : null;
+    const usedNow = new Set(); const usedThen = new Set();
+    const layer = (tints, used, p) => { const i = tints.findIndex((x, j) => !used.has(j) && x.texturePath === p.texturePath && Number(x.type) === Number(p.type)); if (i >= 0) used.add(i); return i; };
+    const kept = s.blood.prev.filter((p) => {
+      const i = layer(app.tints, usedNow, p);
+      if (i < 0) return true;
+      const j = then ? layer(then, usedThen, p) : -1;
+      return j >= 0 ? norm(app.tints[i].argb) === norm(then[j].argb) : isBloodColour(app.tints[i].argb);
+    });
+    const recoloured = s.blood.prev.length - kept.length;
+    if (!recoloured) return false;
+    if (kept.length) s.blood = Object.assign({}, s.blood, { prev: kept });
+    else {
+      s.blood = null;
+      try { sendPacket(a, { customPacketType: 'dboBloody', on: false }); } catch (e) { /* old client */ }
+    }
+    log(`supernatural: ${display(a)} recoloured ${recoloured} bloody layer(s) in the editor; ${kept.length ? `${kept.length} still to wash` : 'no blood left to wash'}`);
+    return true;
   };
   // The client says so while there is blood to wash and the player is in water (VampireFeedService)
   onUi('swimming', (a) => { if (washBlood(a, 'water') === 'clean') personal(a, 'The water runs red, then clear.'); });
@@ -1954,7 +1995,7 @@ module.exports = (api) => {
         if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
         else if (!sameSpells(s.spells, wantSpells(s))) syncVampSpells(a, s);
       }
-      if (s.kind) showTells(a, s);
+      if (s.kind && !editorOpen(a)) showTells(a, s);
     }
   });
   every('superSun', 10000, () => {
@@ -1982,10 +2023,12 @@ module.exports = (api) => {
   const shake = (a, strength, seconds) => { try { sendPacket(a, { customPacketType: 'dboShake', strength, seconds }); } catch (e) { /* offline */ } };
   const stillChanges = (a) => {
     const s = stateOf(a);
-    if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || !onlineActors().includes(a)) return false;
+    if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || !onlineActors().includes(a) || editorOpen(a)) return false;
     try { return !mp.get(a, 'isDead'); } catch (e) { return false; }
   };
   const forcedChange = (a, warning, change, logLine) => {
+    // Not with an appearance editor open (editorOpen): no warning now, and a later roll may bring it
+    if (editorOpen(a)) return;
     const W = C.feralWarn || {};
     const lead = Math.max(0, Number(W.seconds) || 0);
     const go = () => {

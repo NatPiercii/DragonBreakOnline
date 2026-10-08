@@ -745,9 +745,10 @@ registerChatCommand('kick', (a, args) => {
 registerChatCommand('chargen', (a, args) => {
   const t = findByName(args.trim()); if (!t) return personal(a, 'No such player. Use their name or #TAG.');
   try {
-    // An existing character's look as it stands, so the close can undo the editor's swapped-in head (appearance.js)
-    try { if (globalThis.__dboAppearanceEdit && typeof globalThis.__dboAppearanceEdit.chargenOpened === 'function') globalThis.__dboAppearanceEdit.chargenOpened(t); } catch (e) { log('chargen look snapshot failed', e.message); }
     mp.setRaceMenuOpen(t, true);
+    // An existing character's look as it stands, so the close can undo the editor's swapped-in head (appearance.js). Once
+    // the menu is open (its close comes back from the client later), so a menu that failed to open leaves no snapshot
+    try { if (globalThis.__dboAppearanceEdit && typeof globalThis.__dboAppearanceEdit.chargenOpened === 'function') globalThis.__dboAppearanceEdit.chargenOpened(t); } catch (e) { log('chargen look snapshot failed', e.message); }
     personal(a, `Character creation opened for ${display(t)}.`);
     system(t, `${nameOf(a)} opened character creation for you.`);
     audit(`GM ${who(a)} opened chargen for ${who(t)}`);
@@ -6400,7 +6401,7 @@ try {
   // Feeding counts as a meal for the hunger meter
   const needsFeed = (a) => { if (!NEEDS.enabled) return; const n = needsOf(a); n.hunger = Math.max(0, n.hunger - (Number((NEEDS.restore || {}).meal) || 0)); saveNeeds(a, n); applyNeedsStage(a, n, false); };
   require(SUPERNATURAL_JS)({ mp, log, personal, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, display, who, audit, isAdmin, findByName, onlineActors, every, profileOf, nameOf, isWorldspace, needsFeed, hungerOf: (a) => needsOf(a).hunger, cfg, hasUiCap, sourceResistsOf });
-} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperPrayWarning', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboSuperAdminInfect', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave', '__dboSuperProgress', '__dboSuperProgressSend', '__dboSuperRateMult', '__dboSuperFoodMult']) globalThis[k] = null; }
+} catch (e) { log('supernatural.js failed to load:', e.stack || e.message); for (const k of ['__dboSuperDamageMult', '__dboSuperHit', '__dboSuperEat', '__dboSuperPrayed', '__dboSuperPrayWarning', '__dboSuperDeath', '__dboSuperActivate', '__dboSuperMenuEntries', '__dboSuperMenuAction', '__dboSuperAdminInfect', '__dboBeastAllow', '__dboBeastChanged', '__dboSuperKind', '__dboSuperLogin', '__dboSuperLeave', '__dboSuperProgress', '__dboSuperProgressSend', '__dboSuperRateMult', '__dboSuperFoodMult', '__dboTellsRetake']) globalThis[k] = null; }
 
 // ---- friendly fire and the down state (server\downed.js): after supernatural.js, whose hooks it wraps -------
 try {

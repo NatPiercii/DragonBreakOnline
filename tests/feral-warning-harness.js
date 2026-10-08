@@ -132,6 +132,25 @@ timers.superFeral();
 advance(12000);
 ok(changes.length === 1, 'feralLoginGraceMinutes 0 turns it off');
 
+// ---- not while an appearance editor is open (review, 8 Oct): a beast form taken then saved the look from before the
+// edit as the one to revert to, and the revert threw away an /appearance edit just paid for ----
+let editorOpen = true;
+globalThis.__dboAppearanceEdit = { editing: (a) => editorOpen && a === A };
+reset();
+timers.superFeral();
+advance(12000);
+ok(changes.length === 0 && shakes().length === 0 && !said.some(([, t]) => /beast is coming/.test(t)), 'the appearance editor open: no warning, no change');
+editorOpen = false; reset();
+timers.superFeral();
+editorOpen = true;
+advance(12000);
+ok(changes.length === 0 && logs.some((l) => /forced change passed/.test(l)), 'the editor opened during the warning: the change passes');
+editorOpen = false; reset();
+timers.superFeral();
+advance(12000);
+ok(changes.length === 1, 'the editor closed: the beast comes again');
+globalThis.__dboAppearanceEdit = undefined;
+
 Math.random = realRandom;
 globalThis.setTimeout = realSetTimeout;
 ok(/feralWarn: \{ seconds: 45,/.test(require('fs').readFileSync(MODULE, 'utf8')) && /feralPerMinute: \{ sated: 0,/.test(require('fs').readFileSync(MODULE, 'utf8')), 'defaults (Jake, 6 Oct): a 45 s warning, and no feral change while sated');

@@ -3,7 +3,10 @@
 // Also the head guard (7 Oct): RaceMenu reopened on an existing non-Nord character puts the Nord default head on them;
 // the head from before goes back, a head-only swap costs nothing, and the look is written again after the client's
 // settle window. Real head ids from the affected characters' saved looks (backups 4-6 Oct, live 7 Oct), names left out.
-// And a GM's /chargen on an existing character, which gets the same head guard.
+// And a GM's /chargen on an existing character, which gets the same head guard, as does a patron's reroll (its snapshot
+// rules here; the whole reroll close in appearance-reroll-harness.js). Review fixes, 8 Oct: a saved head that is no race's
+// default is never swapped for the race's vanilla one; the settled write sends the newest stored look, since the client
+// drops every write to its own look in the window.
 //   node tests/appearance-command-harness.js   (from server/)
 'use strict';
 const path = require('path');
@@ -150,6 +153,18 @@ noFire('a Breton who chose a head that is no race default', bretonM(), char(0x13
 noFire('a Breton man given the Breton woman\'s head (his own race\'s)', bretonM(), char(0x13741, false, [0x51621, 0x51631, 0x8555f, 0x220064cb, 0x24238, 0x1e0adc53, 0x1e0adc52, 0x20001d96, 0x1f005451], { skinColor: 13021352 }));
 noFire('a Nord head already there before (an older swap) is left alone', char(0x13741, false, [0x51631, 0x8555f, NORD_M]), char(0x13741, false, [0x51631, 0x8555f, NORD_M], { hairColor: 9 }));
 noFire('a race not in the table (Falmer) is never guarded', char(0x131f4, false, [0x51631, 0x8555f]), char(0x131f4, false, [0x51631, 0x8555f, NORD_M], { hairColor: 9 }));
+// A saved head that is no race's default (a high-poly head, 37000800): the one part the editor took out goes back, never the
+// race's vanilla head, and an edit that only swapped it is unchanged and free
+const hiPoly = () => char(0x13741, false, [0x37000800, 0x51631, 0x8555f], { skinColor: 13021352 });
+edit(hiPoly(), char(0x13741, false, [0x51631, 0x8555f, NORD_M], { skinColor: 13021352 }));
+ok(JSON.stringify(stored()) === JSON.stringify(hiPoly()) && gold() === 800 && !props.get(`${A}|private.dboAppearanceAt`), 'a high-poly head swapped for the Nord one: their own back in its slot, unchanged, free', parts(stored()));
+ok(/unchanged, so nothing was charged/.test(sys.at(-1)) && /your own was kept/.test(sys.at(-1)) && !stored().headpartIds.includes(0x51633), 'told the truth: their own head was kept (not the Breton vanilla one)', sys.at(-1));
+edit(hiPoly(), char(0x13741, false, [0x37000800, 0x51631, 0x8555f, NORD_M], { skinColor: 13021352 }));
+ok(JSON.stringify(stored()) === JSON.stringify(hiPoly()) && gold() === 800, 'the Nord head only added beside their own: it goes, no second face, free', parts(stored()));
+edit(hiPoly(), char(0x13741, false, [0x51631, 0x8555f, NORD_M], { skinColor: 13021352, hairColor: 9 }));
+ok(parts(stored()) === '37000800 51631 8555f' && stored().hairColor === 9 && gold() === 300, 'a real edit over a high-poly head: paid, their own head back', parts(stored()));
+edit(hiPoly(), char(0x13741, false, [0x8555f, 0x22000777, NORD_M], { skinColor: 13021352 }));
+ok(!audits.some((t) => /swapped in/.test(t)) && parts(stored()) === '8555f 22000777 5162f', 'two parts taken out of a look with no default head: no telling which was the head, nothing guessed', parts(stored()));
 // A plain paid edit leaves the client's look as it is: nothing to send again
 edit(bretonM(), Object.assign(bretonM(), { hairColor: 9 }));
 ok(timers.length === 0 && writes.length === 0, 'a paid edit with nothing put back is not written again', timers.length);
@@ -169,8 +184,11 @@ settled('the player logged out: no second write', () => props.set(`${A}|isOnline
 settled('another session has the character: no second write', () => { user = 4; }, 0);
 settled('a newer /appearance is open: no second write', () => props.set(`${A}|private.dboAppearanceEdit`, { at: Date.now(), before: bretonM() }), 0);
 settled('a GM /chargen is open: no second write', () => props.set(`${A}|private.dboChargenEdit`, { at: Date.now(), before: bretonM() }), 0);
-settled('the stored look changed meanwhile: the newer one stands', () => props.set(`${A}|appearance`, Object.assign(bretonM(), { hairColor: 7 })), 0);
 settled('still online, same session, nothing newer: written', () => {}, 1);
+// The client drops every write to its own look in the window, so one made meanwhile (a mask's name, the tells, /rename)
+// is what goes: the newest, never the guard's older copy
+settled('the stored look changed meanwhile: the newer one is sent', () => props.set(`${A}|appearance`, Object.assign(bretonM(), { name: 'Masked Figure' })), 1);
+ok(writes.at(-1).name === 'Masked Figure' && writes.at(-1).headpartIds.includes(0x51633), 'the write in the window is not lost on the player\'s own screen', writes.at(-1).name);
 
 // 12. A GM's /chargen on an existing character
 const E = globalThis.__dboAppearanceEdit;
@@ -198,8 +216,24 @@ r = chargen(bretonM(), swapOnly, () => props.set(`${A}|private.creationPending`,
 ok(!r.snap && !r.handled && writes.length === 0, 'nor one still in creation');
 r = chargen(bretonM(), swapOnly, () => props.set(`${A}|private.rerollPending`, true));
 ok(!r.snap && !r.handled, 'nor one rerolling');
+// A patron's reroll (patrons.js open()) takes its own snapshot; a /chargen over it leaves it alone
+reset(800, bretonM()); props.set(`${A}|private.rerollPending`, true);
+ok(E.chargenOpened(A, 'reroll') === true && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll' && E.editing(A), 'a reroll snapshots the look, marked as a reroll');
+ok(E.chargenOpened(A) === false && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll', 'a GM /chargen while the reroll is open neither takes nor drops a snapshot');
+timers = []; writes = []; audits = []; sys = []; engineStores(swapHair);
+ok(E.chargenFinish(A, swapHair) === true && stored().headpartIds.includes(0x51633) && !stored().headpartIds.includes(NORD_M) && stored().hairColor === 9, 'the reroll close keeping race and sex: own head back, the rest as made', parts(stored()));
+ok(audits.some((t) => /kept their own \(reroll\)$/.test(t)) && retakes.length === 0 && !E.editing(A), 'audited as a reroll, the tells left to the reroll\'s own path, the snapshot gone', audits);
+reset(800, bretonM()); props.set(`${A}|private.creationPending`, true);
+ok(E.chargenOpened(A, 'reroll') === false, 'no reroll snapshot for a character still in creation');
 reset(800, bretonM()); props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() });
 ok(E.chargenFinish(A, swapOnly) === false && !props.get(`${A}|private.dboChargenEdit`), 'a snapshot a day old is dropped, not trusted');
+// editing(): what supernatural.js holds the tells and forced changes on
+reset(800, bretonM());
+ok(!E.editing(A), 'editing: nothing open');
+run(); ok(E.editing(A), 'editing: an /appearance edit is open');
+finish(Object.assign(bretonM(), { hairColor: 9 })); ok(!E.editing(A), 'editing: closed');
+E.chargenOpened(A); ok(E.editing(A), 'editing: a /chargen is open');
+props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() }); ok(!E.editing(A), 'editing: a snapshot a day old holds nothing');
 reset(800, bretonM()); run();
 ok(E.chargenOpened(A) === false && !props.get(`${A}|private.dboChargenEdit`), 'no /chargen snapshot while the player\'s own /appearance is open (finish takes that close)');
 
@@ -210,7 +244,7 @@ ok(!props.get(`${A}|private.dboChargenEdit`) && JSON.stringify(stored()) === JSO
 
 // 13. gamemode.js: /chargen snapshots before it opens the editor; the hook guards its close and passes refusals on
 const chargenCmd = src.slice(src.indexOf("registerChatCommand('chargen'"), src.indexOf("const NAME_RE"));
-ok(chargenCmd.indexOf('chargenOpened(t)') > 0 && chargenCmd.indexOf('chargenOpened(t)') < chargenCmd.indexOf('mp.setRaceMenuOpen(t, true)'), '/chargen takes the snapshot before it opens the editor');
+ok(chargenCmd.indexOf('chargenOpened(t)') > chargenCmd.indexOf('mp.setRaceMenuOpen(t, true)') && chargenCmd.indexOf('mp.setRaceMenuOpen(t, true)') > 0 && chargenCmd.indexOf('chargenOpened(t)') < chargenCmd.indexOf('Character creation opened for'), '/chargen takes the snapshot once the editor is open (a menu that failed to open leaves none)');
 const afterEdit = hook.slice(hook.indexOf('return result;'));
 ok(/if \(isAllowed\) \{\s*try \{ if \(globalThis\.__dboAppearanceEdit && typeof globalThis\.__dboAppearanceEdit\.chargenFinish === 'function'\)/.test(afterEdit)
   && afterEdit.indexOf('chargenFinish') < afterEdit.indexOf('__dboCreatorName'), 'the hook guards an allowed close after the /appearance branch and before creation\'s steps');

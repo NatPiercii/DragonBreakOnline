@@ -65,6 +65,9 @@ module.exports = (api) => {
     setPending(a, true);
     try { mp.setRaceMenuOpen(a, false); mp.setRaceMenuOpen(a, true); }
     catch (e) { setPending(a, false); return personal(a, 'The creator would not open: ' + e.message); }
+    // The look as it stands: a close that keeps race and sex can come back with the Nord head in place of the race's own,
+    // as an /appearance or /chargen close can, and the appearance hook puts it back (appearance.js chargenFinish)
+    try { if (globalThis.__dboAppearanceEdit && typeof globalThis.__dboAppearanceEdit.chargenOpened === 'function') globalThis.__dboAppearanceEdit.chargenOpened(a, 'reroll'); } catch (e) { log('reroll look snapshot failed', e.message); }
     system(a, 'The creator is open. Your race, look and name may change; your skills, gear and progress stay. Close it to finish.');
     log(`${display(a)} opened an identity reroll (${rerollsLeft(a).text} before this one)`);
   };
