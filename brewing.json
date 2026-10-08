@@ -1,0 +1,336 @@
+{
+ "_comment": "Drinks brewed at an alchemy lab (Nate, 8 Oct: \"add or create alcohol recipes for alchemy, includes skooma etc\"). Crouch and use a lab: alchemy.js opens the Brewing panel with every recipe at or under the brewer's Alchemist tier (1 Novice .. 5 Master) and brews one per click, taking the inputs; the lab's own menu opens otherwise. inputs: [desc, count]; names are what the panel shows. contraband: illegal in Skyrim and Cyrodiil (skooma), audited when brewed. An input or product the server cannot resolve drops its recipe with a log line.",
+ "ingredients": {
+  "4b0ba:Skyrim.esm": "Wheat",
+  "b08c5:Skyrim.esm": "Honeycomb",
+  "6ac4a:Skyrim.esm": "Jazbay Grapes",
+  "5076e:Skyrim.esm": "Juniper Berries",
+  "1b3bd:Skyrim.esm": "Snowberries",
+  "3ad5e:Skyrim.esm": "Fire Salts",
+  "d8e3f:Skyrim.esm": "Moon Sugar",
+  "601fca:BSAssets.esm": "Grapes",
+  "60191d:BSAssets.esm": "Saltrice",
+  "806:ccBGSSSE037-Curios.esl": "Comberry"
+ },
+ "recipes": [
+  {
+   "product": "34c5e:Skyrim.esm",
+   "name": "Ale",
+   "tier": 1,
+   "inputs": [
+    [
+     "4b0ba:Skyrim.esm",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "5f069:BSHeartland.esm",
+   "name": "Beer",
+   "tier": 1,
+   "inputs": [
+    [
+     "4b0ba:Skyrim.esm",
+     3
+    ]
+   ]
+  },
+  {
+   "product": "34c5d:Skyrim.esm",
+   "name": "Nord Mead",
+   "tier": 1,
+   "inputs": [
+    [
+     "b08c5:Skyrim.esm",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "5f068:BSHeartland.esm",
+   "name": "Mead",
+   "tier": 1,
+   "inputs": [
+    [
+     "b08c5:Skyrim.esm",
+     2
+    ],
+    [
+     "4b0ba:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "5f065:BSHeartland.esm",
+   "name": "Cheap Wine",
+   "tier": 1,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "248ce:Dragonborn.esm",
+   "name": "Mazte",
+   "tier": 1,
+   "inputs": [
+    [
+     "60191d:BSAssets.esm",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "107a8a:Skyrim.esm",
+   "name": "Mead with Juniper Berry",
+   "tier": 2,
+   "inputs": [
+    [
+     "b08c5:Skyrim.esm",
+     2
+    ],
+    [
+     "5076e:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "3133c:Skyrim.esm",
+   "name": "Wine",
+   "tier": 2,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     2
+    ],
+    [
+     "6ac4a:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "3133b:Skyrim.esm",
+   "name": "Alto Wine",
+   "tier": 2,
+   "inputs": [
+    [
+     "6ac4a:Skyrim.esm",
+     3
+    ]
+   ]
+  },
+  {
+   "product": "85368:Skyrim.esm",
+   "name": "Spiced Wine",
+   "tier": 2,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     2
+    ],
+    [
+     "5076e:Skyrim.esm",
+     1
+    ],
+    [
+     "1b3bd:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "248cc:Dragonborn.esm",
+   "name": "Shein",
+   "tier": 2,
+   "inputs": [
+    [
+     "806:ccBGSSSE037-Curios.esl",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "207e5:Dragonborn.esm",
+   "name": "Flin",
+   "tier": 2,
+   "inputs": [
+    [
+     "806:ccBGSSSE037-Curios.esl",
+     2
+    ],
+    [
+     "4b0ba:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "2c35a:Skyrim.esm",
+   "name": "Black-Briar Mead",
+   "tier": 3,
+   "inputs": [
+    [
+     "b08c5:Skyrim.esm",
+     3
+    ],
+    [
+     "5076e:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "508ca:Skyrim.esm",
+   "name": "Honningbrew Mead",
+   "tier": 3,
+   "inputs": [
+    [
+     "b08c5:Skyrim.esm",
+     3
+    ],
+    [
+     "4b0ba:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "555e8:Skyrim.esm",
+   "name": "Dragon's Breath Mead",
+   "tier": 3,
+   "inputs": [
+    [
+     "b08c5:Skyrim.esm",
+     2
+    ],
+    [
+     "3ad5e:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "b91d7:Skyrim.esm",
+   "name": "Cyrodilic Brandy",
+   "tier": 3,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     3
+    ],
+    [
+     "6ac4a:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "36d53:Skyrim.esm",
+   "name": "Colovian Brandy",
+   "tier": 3,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     3
+    ],
+    [
+     "4b0ba:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "1895f:Skyrim.esm",
+   "name": "Firebrand Wine",
+   "tier": 3,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     2
+    ],
+    [
+     "6ac4a:Skyrim.esm",
+     1
+    ],
+    [
+     "3ad5e:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "602b1a:BSAssets.esm",
+   "name": "Surilie Brothers Wine",
+   "tier": 3,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     3
+    ],
+    [
+     "1b3bd:Skyrim.esm",
+     1
+    ]
+   ]
+  },
+  {
+   "product": "62715:BSHeartland.esm",
+   "name": "Shadowbanish Wine",
+   "tier": 3,
+   "inputs": [
+    [
+     "601fca:BSAssets.esm",
+     2
+    ],
+    [
+     "6ac4a:Skyrim.esm",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "207e6:Dragonborn.esm",
+   "name": "Sujamma",
+   "tier": 3,
+   "inputs": [
+    [
+     "60191d:BSAssets.esm",
+     2
+    ],
+    [
+     "806:ccBGSSSE037-Curios.esl",
+     2
+    ]
+   ]
+  },
+  {
+   "product": "57a7a:Skyrim.esm",
+   "name": "Skooma",
+   "tier": 3,
+   "inputs": [
+    [
+     "d8e3f:Skyrim.esm",
+     2
+    ]
+   ],
+   "contraband": true
+  },
+  {
+   "product": "3f4bd:Skyrim.esm",
+   "name": "Double-Distilled Skooma",
+   "tier": 4,
+   "inputs": [
+    [
+     "d8e3f:Skyrim.esm",
+     4
+    ]
+   ],
+   "contraband": true
+  }
+ ]
+}

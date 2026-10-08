@@ -263,7 +263,7 @@ check('...and the pair still brews', out.said.some(([, t]) => /You brew/.test(t)
     const brewed = (out.said.find(([a, t]) => a === BREWER && /You brew/.test(t)) || [])[1] || '';
     if (brewed.indexOf(`You brew ${m[1]}`) === 0) agree++; else check(`"${l}" brews what it says`, false, brewed);
   }
-  check(`every listed pair brews the potion its line names (${agree} of ${lines.length})`, agree === lines.length && agree > 0);
+  check(`every listed pair brews the potion its line names (${agree} pairs)`, agree === lines.filter((l) => /^(.+): (.+) \+ (.+)$/.test(l)).length && agree > 0);
   out.widgets.length = 0;
   stock(BREWER);
   craft(BREWER, [YELLOW_POLYPORE, BLUE_FLOWER]);

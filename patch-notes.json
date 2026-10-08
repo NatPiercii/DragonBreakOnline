@@ -1,5 +1,22 @@
 [
   {
+    "title": "Brewing drinks",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Alchemy",
+        "items": [
+          "Alchemists can now brew drinks: crouch and use an alchemy lab to open the Brewing list. Standing, the lab works as before.",
+          "Novices brew ale, beer, mead, cheap wine and mazte; Apprentices add juniper mead, wine, Alto wine, spiced wine, shein and flin; Adepts add Black-Briar and Honningbrew mead, Dragon's Breath, Cyrodilic and Colovian brandy, Firebrand, Surilie Brothers and Shadowbanish wine, sujamma and skooma; Experts add double-distilled skooma.",
+          "Drinks are made from what grows and is gathered: wheat, honeycomb, grapes, jazbay, juniper, snowberries, comberries, saltrice, fire salts and moon sugar. The list marks any drink you lack the ingredients for.",
+          "Skooma is forbidden in the Empire, and every batch brewed is written in the staff log."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client update 0.3.83",
     "date": "SHIP_DATE",
     "version": "Client 0.3.83",
