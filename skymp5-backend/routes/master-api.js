@@ -39,6 +39,7 @@ const profiles = require('../sources/profiles')
 const players  = require('../sources/players')
 const bans     = require('../sources/bans')
 const legal    = require('../sources/legal')
+const sessionsFile = require('../sources/sessionsFile')
 
 // Persistent balance store: profileId -> coin balance
 
@@ -69,7 +70,8 @@ function setBalance(profileId, balance) {
 
 const sessions      = new Map()
 const SESSION_TTL   = 24 * 60 * 60 * 1000  // 24 h
-const SESSIONS_PATH = path.join(__dirname, '..', 'data', 'sessions.json')
+// Set when sessions.json could not be read nor moved aside: no session is created then, and nothing is written over the file
+let sessionsUnreadable = null
 
 function pruneExpired() {
   const now = Date.now()
@@ -78,23 +80,31 @@ function pruneExpired() {
 }
 
 function saveSessions() {
+  if (sessionsUnreadable) return console.error(`[master-api] sessions not saved: ${sessionsFile.FILE} could not be loaded`)
   const now     = Date.now()
   const entries = [...sessions.entries()].filter(([, s]) => s.expiresAt > now)
-  try {
-    // The mode applies only when the file is created, so a sessions.json made 0644 before is set to 0600 before any token is written
-    try { fs.chmodSync(SESSIONS_PATH, 0o600) } catch (e) { if (e.code !== 'ENOENT') throw e }
-    fs.writeFileSync(SESSIONS_PATH, JSON.stringify(entries, null, 2) + '\n', { mode: 0o600 })
-  } catch (e) { console.error('Failed to persist sessions:', e) }
+  try { sessionsFile.write(entries) }
+  catch (e) { console.error('Failed to persist sessions:', e) }
 }
 
+// A missing file is a first run. One that cannot be read is moved aside and the backend starts with no sessions
+// (sources/sessionsFile.js load); the startup check (sources/storeCheck.js) has done that already, so this covers only a
+// file that broke in between. If even the move fails, no session is accepted or created, loudly
 function loadSessions() {
-  try {
-    const entries = JSON.parse(fs.readFileSync(SESSIONS_PATH, 'utf8'))
-    const now     = Date.now()
-    for (const [token, s] of entries)
-      if (s.expiresAt > now) sessions.set(token, s)
-    console.log(`Loaded ${sessions.size} active session(s) from disk`)
-  } catch { /* first run or file absent: start fresh */ }
+  let entries
+  try { entries = sessionsFile.load() }
+  catch (err) {
+    sessionsUnreadable = err
+    console.error(`[master-api] FAIL CLOSED: no launcher session is accepted or created until the backend restarts with a readable ${sessionsFile.FILE}`)
+    return
+  }
+  const now = Date.now()
+  for (const entry of entries) {
+    // [token, session] pairs, as saveSessions writes them
+    if (!Array.isArray(entry) || typeof entry[0] !== 'string' || !entry[1] || typeof entry[1] !== 'object') continue
+    if (entry[1].expiresAt > now) sessions.set(entry[0], entry[1])
+  }
+  console.log(`Loaded ${sessions.size} active session(s) from disk`)
 }
 
 loadSessions()
@@ -190,6 +200,7 @@ function getProfileFactionPayload(discordId) {
 // Session creation helper (used by POST /auth/session and discord-auth callback)
 
 function createSession(discordUser) {
+  if (sessionsUnreadable) throw new Error(`sessions store unavailable: ${sessionsUnreadable.message}`)
   pruneExpired()
   const player = players.upsertFromDiscordUser(discordUser)
   const profileId = player.profileId
@@ -239,7 +250,9 @@ router.get('/:key/sessions/:session', async (req, res) => {
   }
 
   // Ban snapshots: refuse by discordId or hardware id even if the discord role is gone
-  const playerRecord = players.load()[entry.discordId] || {}
+  let playerRecord
+  try { playerRecord = players.load()[entry.discordId] || {} }
+  catch { return res.status(503).json({ error: 'storeUnavailable' }) }   // the store logged why; an async throw would leave the login waiting
   const hwid = entry.hwid || playerRecord.hwid || null
   const ban = bans.isBanned({ discordId: entry.discordId, hwid })
   if (ban) {
@@ -287,7 +300,9 @@ router.get('/:key/sessions/:session', async (req, res) => {
 router.get('/:key/profiles/:profileId/check', async (req, res) => {
   if (!checkKey(req, res)) return
 
-  const discordId = getProfileDiscordId(req, res)
+  let discordId
+  try { discordId = getProfileDiscordId(req, res) }
+  catch { return res.status(503).json({ error: 'storeUnavailable' }) }   // the store logged why; an async throw would leave the login waiting
   if (!discordId) return
 
   let access

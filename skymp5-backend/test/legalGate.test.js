@@ -7,6 +7,7 @@ const fs     = require('fs')
 const http   = require('http')
 const os     = require('os')
 const path   = require('path')
+const { loadWithDataIn } = require('./helpers/dataDir')
 
 // Never read a real .env, and keep the player, profile, faction, access and ban stores out of this test
 require.cache[require.resolve('dotenv')] = { exports: { config: () => ({}) } }
@@ -32,16 +33,10 @@ stub('../sources/factionWhitelist', { getPlayerFactionPermissions: () => [], get
 const config = require('../config')
 Object.assign(config, { serverMasterKey: 'test-key', launchCheckEnforce: false, legalRequired: false })
 
-// master-api keeps sessions.json next to the code; that path is sent to the temp dir before the module loads it
-const SESSIONS = path.join(__dirname, '..', 'data', 'sessions.json')
-const redirect = original => (target, ...rest) => original.call(fs, target === SESSIONS ? path.join(tmp, 'sessions.json') : target, ...rest)
-mock.method(fs, 'readFileSync', redirect(fs.readFileSync))
-mock.method(fs, 'chmodSync', redirect(fs.chmodSync))
-mock.method(fs, 'writeFileSync', redirect(fs.writeFileSync))
-
 const express = require('express')
 const legal = require('../sources/legal')
-const masterApi = require('../routes/master-api')
+// master-api keeps sessions.json next to the code; that path is sent to the temp dir while the module loads
+const masterApi = loadWithDataIn(tmp, ['sessions.json'], () => require('../routes/master-api'))
 
 const manifest = version => JSON.stringify({ version, effective: '2026-10-01', changes: ['x'], files: { terms: 'terms.md', privacy: 'privacy.md' } })
 let server, base, tokenA, tokenB

@@ -1,30 +1,39 @@
 'use strict'
+// Discord id -> player record (names, hwid, last ip, notes, times). Read fail closed like profiles.json
+// (sources/storeFile.js): a players.json that exists but cannot be read stops sign-ins instead of starting empty.
+// Saved often (several times per game start), so its saves are atomic but not fsynced (see storeFile.replaceFile).
 
-const fs               = require('fs')
 const path             = require('path')
 const profiles         = require('./profiles')
 const factionWhitelist = require('./factionWhitelist')
+const { readStore, replaceFile, isPlainObject } = require('./storeFile')
 
 const FILE = path.join(__dirname, '..', 'data', 'players.json')
+// What the FAIL CLOSED line tells the operator. Profile ids live in profiles.json, so this store can start over
+const RECOVERY = 'Repair it by hand if you can (it is JSON). Or move it aside with the backend stopped: it then starts ' +
+  'with no player records, profile ids stay as profiles.json has them, and names, hwid and last ip come back as ' +
+  'players sign in (notes are lost). Keep the moved file: scripts/rebuild-profiles.js reads it with --players'
+
+// null for a store this module writes, else what is wrong with it
+function problemOf(data) {
+  if (!isPlainObject(data)) return 'is not a player store'
+  if (!Object.values(data).every(isPlainObject)) return 'has a player record that is not an object'
+  return null
+}
 
 function load() {
-  try {
-    const data = JSON.parse(fs.readFileSync(FILE, 'utf8'))
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
-  } catch {
-    return {}
-  }
+  return readStore(FILE, problemOf, RECOVERY) || {}
 }
 
 function save(data) {
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2) + '\n')
+  replaceFile(FILE, JSON.stringify(data, null, 2) + '\n')
 }
 
 function upsertFromDiscordUser(discordUser) {
   if (!discordUser || !discordUser.id) throw new Error('discordUser.id is required')
   const discordId = String(discordUser.id)
-  const profileId = profiles.getOrCreateProfileId(discordId)
   const data = load()
+  const profileId = profiles.getOrCreateProfileId(discordId)
   const existing = data[discordId] || {}
   const now = new Date().toISOString()
 
@@ -53,8 +62,8 @@ function createManual(input) {
     err.status = 400
     throw err
   }
-  const profileId = profiles.getOrCreateProfileId(discordId)
   const data = load()
+  const profileId = profiles.getOrCreateProfileId(discordId)
   const existing = data[discordId] || {}
   const now = new Date().toISOString()
 
