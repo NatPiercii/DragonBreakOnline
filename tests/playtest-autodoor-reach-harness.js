@@ -3,7 +3,9 @@
 // trigger (AutoLoadDoor01 bounds are 1200 x 1200 units), but the activate chain's 6.5 m reach gate (455 units) ran
 // before the region lock, so a refusal there skipped the return and left the player frozen in the half-started load
 // (Lady Aurora Hux, 7 Oct 04:54: refused, frozen, reconnected inside the Trail, /unstuck). An activation sent from
-// anywhere else earns no trip. Runs the real activate chain cut from gamemode.js with the real playtest.js and config.
+// anywhere else earns no trip, and neither does one from an actor who could not walk in: an NPC (not an online player),
+// a downed player or a carried one (as /unstuck). Runs the real activate chain cut from gamemode.js with the real
+// playtest.js and config.
 //   node tests/playtest-autodoor-reach-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -32,15 +34,21 @@ const SKYRIM_EXIT = idOf('877c2:BSHeartland.esm');     // automatic, blocked
 const PALE_PASS_DOOR = idOf('656df:BSHeartland.esm');  // blocked, not automatic
 const CAVE_DOOR = idOf('7e6be:BSHeartland.esm');       // an ordinary way out
 const P = 0xff002106;
+const NPC = 0x0003b547;                                  // an NPC whose AI a player's client hosts
 const where = new Map([[SKYRIM_EXIT, { cell: TRAIL, pos: [-8004, -3519, 9868] }], [PALE_PASS_DOOR, { cell: TRAIL, pos: [0, 0, 9868] }], [CAVE_DOOR, { cell: TRAIL, pos: [999, -11096, 9830] }]]);
 let playerAt = { cell: TRAIL, pos: [0, 0, 0] };
+let npcAt = { cell: TRAIL, pos: [0, 0, 0] };
+let downed = false, restrained = null;
+const online = [P];
 const moves = [], audits = [], told = [];
 const mp = {
   get: (id, k) => {
-    const w = id === P ? playerAt : where.get(id >>> 0);
-    if (k === 'type') return id === P ? 'MpActor' : 'MpObjectReference';
+    const w = id === P ? playerAt : id === NPC ? npcAt : where.get(id >>> 0);
+    if (k === 'type') return id === P || id === NPC ? 'MpActor' : 'MpObjectReference';
     if (k === 'worldOrCellDesc') return w ? w.cell : '';
     if (k === 'pos') return w ? w.pos : undefined;
+    if (k === 'isDead') return id === P ? downed : false;
+    if (k === 'private.restrained') return id === P ? restrained : undefined;
     return undefined;
   },
   set: (id, k, v) => { if (k === 'locationalData') moves.push([id, v]); },
@@ -53,7 +61,7 @@ Date.now = () => clock;
 
 require(path.join(SERVER, 'playtest.js'))({
   mp, log: () => {}, personal: (a, t) => told.push(t), system: () => {}, registerChatCommand: () => {}, display: String, who: (a) => `player ${(a >>> 0).toString(16)}`,
-  audit: (t) => audits.push(t), onlineActors: () => [], isAdmin: () => false, sendPacket: () => {}, cfg, hubDesc: 'hub:x', connectedAt: new Map(), every: () => {},
+  audit: (t) => audits.push(t), onlineActors: () => online.slice(), isAdmin: () => false, sendPacket: () => {}, cfg, hubDesc: 'hub:x', connectedAt: new Map(), every: () => {},
 });
 const distanceMeters = new Function('mp', 'UNITS_PER_METER', `${distSrc}\nreturn distanceMeters;`)(mp, Number(upm[1]));
 const stub = () => false;
@@ -62,7 +70,7 @@ const chain = new Function('mp', 'lastPickupDeny', 'personal', 'treasuryRefused'
 
 const arrival = cfg.playtest.arrival;
 const at = (dx) => ({ cell: TRAIL, pos: [-8004 + dx, -3519, 9868] });
-const tryDoor = (door, pos) => { clock += 5000; moves.length = 0; audits.length = 0; told.length = 0; playerAt = pos; return chain(door, P); };
+const tryDoor = (door, pos, wait) => { clock += wait || 5000; moves.length = 0; audits.length = 0; told.length = 0; playerAt = pos; return chain(door, P); };
 
 let r = tryDoor(SKYRIM_EXIT, at(300));
 ok(r === false && moves.length === 1 && moves[0][1].cellOrWorldDesc === arrival.world, 'closed automatic exit, walked into 300 units from its centre: refused and taken back to the arrival spot', { r, moves });
@@ -77,6 +85,29 @@ r = tryDoor(SKYRIM_EXIT, { cell: '9999:BSHeartland.esm', pos: [-8004, -3519, 986
 ok(r === false && moves.length === 0 && audits.length === 0, 'the closed exit "activated" from another cell: refused, nobody moved', { r, moves });
 r = tryDoor(SKYRIM_EXIT, at(3000));
 ok(r === false && moves.length === 0 && audits.length === 0, 'the closed exit "activated" from 3000 units down the Trail: refused, nobody moved', { r, moves });
+
+r = tryDoor(SKYRIM_EXIT, at(1000));
+ok(r === false && moves.length === 1 && audits.length === 1, 'an online player standing free 1000 units out (inside the trigger): taken back', { r, moves });
+
+// Only an online player who is up and free earns the trip (the same checks as /unstuck)
+clock += 5000; moves.length = 0; audits.length = 0; npcAt = at(1000);
+r = chain(SKYRIM_EXIT, NPC);
+ok(r === false && moves.length === 0 && audits.length === 0, 'the closed exit "activated" by an NPC 1000 units out: refused, the NPC is not moved', { r, moves });
+downed = true;
+r = tryDoor(SKYRIM_EXIT, at(1000));
+ok(r === false && moves.length === 0 && audits.length === 0, 'the closed exit "activated" by a downed player 1000 units out: refused, not moved', { r, moves });
+downed = false; restrained = { boundHands: false, carried: true, carrierActorId: 0xff002107 };
+r = tryDoor(SKYRIM_EXIT, at(1000));
+ok(r === false && moves.length === 0 && audits.length === 0, 'the closed exit "activated" by a carried player 1000 units out: refused, not moved', { r, moves });
+restrained = null;
+
+// A refusal from out of range does not use up the 1.5 s window: walking in half a second later still takes them back
+r = tryDoor(SKYRIM_EXIT, at(3000));
+ok(r === false && moves.length === 0, 'the closed exit "activated" from 3000 units: refused, nobody moved', { r, moves });
+r = tryDoor(SKYRIM_EXIT, at(600), 500);
+ok(r === false && moves.length === 1 && audits.length === 1, '...then walked into 600 units out half a second later: taken back', { r, moves });
+r = tryDoor(SKYRIM_EXIT, at(600), 500);
+ok(r === false && moves.length === 0 && told.length === 0, '...and the engine firing it again half a second after that does nothing more', { r, moves, told });
 
 r = tryDoor(PALE_PASS_DOOR, { cell: TRAIL, pos: [700, 0, 9868] });
 ok(r === false && moves.length === 0, 'a closed ordinary door is refused and nobody is moved', { r, moves });

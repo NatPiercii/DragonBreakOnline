@@ -59,10 +59,14 @@ module.exports = (api) => {
   };
 
   // Border doors: false blocks, null means not ours.
-  const denyAt = new Map();
+  const denyAt = new Map(), toldAt = new Map();
   // In the door's cell and within its trigger (AutoLoadDoor01 is 1200 x 1200) plus lag: this hook runs before the reach
   // gate, so an activation sent from anywhere else must not earn the free trip to the arrival spot
   const atDoor = (a, door) => {
+    // Only an online player who is up and free walks in (the same checks as /unstuck)
+    if (!onlineActors().includes(a >>> 0)) return false;
+    try { if (mp.get(a, 'isDead')) return false; } catch (e) { return false; }
+    try { const r = mp.get(a, 'private.restrained'); if (r && (r.boundHands || r.carried || r.captorActorId)) return false; } catch (e) { return false; }
     try {
       if (normDesc(mp.get(a, 'worldOrCellDesc')) !== normDesc(mp.get(door, 'worldOrCellDesc'))) return false;
       const p = mp.get(a, 'pos'), q = mp.get(door, 'pos');
@@ -71,11 +75,15 @@ module.exports = (api) => {
   };
   globalThis.__dboPlaytestActivate = (targetId, casterId) => {
     if (!active() || !blockedDoors.has(targetId)) return null;
-    if (Date.now() - (denyAt.get(casterId) || 0) > 1500) {
-      denyAt.set(casterId, Date.now());
-      // A refused automatic door (FNAM 0x02) leaves its half-started load open and the player frozen until a relog
-      // (Serpents Trail, 7 Oct), so the player is taken back to the arrival point instead
-      if (autoDoors.has(targetId) && atDoor(casterId, targetId)) {
+    // A refused automatic door (FNAM 0x02) leaves its half-started load open and the player frozen until a relog
+    // (Serpents Trail, 7 Oct), so the player is taken back to the arrival point instead
+    const trip = autoDoors.has(targetId) && atDoor(casterId, targetId);
+    // Only a trip starts the trip's 1.5 s window, so a refusal just before cannot hold the return back
+    const now = Date.now();
+    if (now - ((trip ? denyAt : toldAt).get(casterId) || 0) > 1500) {
+      toldAt.set(casterId, now);
+      if (trip) {
+        denyAt.set(casterId, now);
         personal(casterId, `The road to Skyrim is closed for now. You find your way back to ${C.name}.`);
         setTimeout(() => {
           try {
