@@ -136,6 +136,12 @@ module.exports = (api) => {
   const nowMs = () => performance.now();
 
   const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
+  const isPlaced = (ref) => { try { return !!mp.get(ref, 'private.dboPlaced'); } catch (e) { return false; } };
+  // A rest is kept by reference id; a placed object's id changes at every restart, so its rest is kept by where it stands
+  const restKey = (ref) => {
+    if (ref < 0xff000000) return ref.toString(16);
+    try { const p = mp.get(ref, 'pos'); return `p${Math.round(p[0] / 64)}_${Math.round(p[1] / 64)}`; } catch (e) { return ref.toString(16); }
+  };
   const baseRecord = (targetId) => {
     try { return mp.lookupEspmRecordById(idOf(mp.get(targetId, 'baseDesc'))); } catch (e) { return null; }
   };
@@ -376,7 +382,7 @@ module.exports = (api) => {
     if (ore !== 'geode' && !ITEMS[ore]) return deny(casterId, 'You do not know what to do with this seam.');
     if (oresUpTo(tier).indexOf(ore) === -1) return deny(casterId, `${oreName(ore)} is beyond your skill. Work the seams you know first.`);
     const rests = restsOf(casterId, 'private.minedVeins');
-    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId, ore));
+    const until = Math.max(Number(rests[restKey(targetId)]) || 0, sharedRest(targetId, ore));
     if (until > Date.now()) return deny(casterId, `This seam is worked out for now. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
     if (workedByOther(targetId, casterId, ore)) return deny(casterId, 'Someone is working this seam. Wait for them to finish.');
     const round = roundFor(casterId, 'mining', tier, Math.max(1, Number(CFG.oreStrikes) || 6), ore === 'salt' ? 'Sea Salt Deposit' : ore === 'geode' || (CFG.gemOre || {})[ore] ? 'Geode' : `${oreName(ore)} Seam`, targetId);
@@ -392,7 +398,7 @@ module.exports = (api) => {
     if (tier < 0) return false;   // same first-touch fall-through as mine()
     { const live = liveRound(casterId); if (live) return reshow(casterId, live); }
     const rests = restsOf(casterId, 'private.choppedBlocks');
-    const until = Math.max(Number(rests[targetId.toString(16)]) || 0, sharedRest(targetId, 'wood'));
+    const until = Math.max(Number(rests[restKey(targetId)]) || 0, sharedRest(targetId, 'wood'));
     if (until > Date.now()) return deny(casterId, `You have split all the logs here. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
     if (workedByOther(targetId, casterId, 'wood')) return deny(casterId, 'Someone is splitting logs here. Wait for them to finish.');
     const strikes = Math.max(1, Math.round(tierValue(WOODCUTTER.chopStrikesByTier, tier, 4)));
@@ -402,9 +408,11 @@ module.exports = (api) => {
     return started;
   };
 
-  // Called from the gamemode's activate chain; true means the activation was ours
+  // Called from the gamemode's activate chain; true means the activation was ours. Placed objects (the F7 Place tab) have
+  // dynamic ids: a placed chopping block or vein runs the same round (Nate, 8 Oct: placed blocks gave firewood endlessly)
   globalThis.__dboLabour = (targetId, casterId) => {
-    if (!CFG.enabled || targetId >= 0xff000000) return false;
+    if (!CFG.enabled) return false;
+    if (targetId >= 0xff000000 && !isPlaced(targetId)) return false;
     const rec = baseRecord(targetId);
     if (!rec || !rec.record) return false;
     const type = String(rec.record.type || '');
@@ -421,7 +429,7 @@ module.exports = (api) => {
   const writeRest = (a, round, restMinutes) => {
     const prop = round.kind === 'mining' ? 'private.minedVeins' : 'private.choppedBlocks';
     const rests = restsOf(a, prop);
-    rests[round.refId.toString(16)] = Date.now() + restMinutes * 60000;
+    rests[restKey(round.refId)] = Date.now() + restMinutes * 60000;
     saveRests(a, prop, rests);
   };
   // A won seam's rest: its ore's own (veinRestByOre) or every seam's

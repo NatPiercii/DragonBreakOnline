@@ -768,6 +768,17 @@ load();
   pickUi = false;
 }
 
+
+// A chopping block placed with the F7 Place tab has a dynamic id: it runs the round too (Nate, 8 Oct), an untagged dynamic ref does not
+{
+  const PLACED = 0xff00abcd, LOOSE = 0xff00abce;
+  props.set(PLACED + '|baseDesc', BLOCK_BASE); props.set(PLACED + '|private.dboPlaced', { base: BLOCK_BASE, kind: 'object' }); props.set(PLACED + '|pos', [1000, 2000, 0]);
+  props.set(LOOSE + '|baseDesc', BLOCK_BASE);
+  out.widgets.length = 0; clearRests(); setTier('woodcutter', 0);
+  check('a placed chopping block is taken by labour (no vanilla chopping)', globalThis.__dboLabour(PLACED, ACTOR) === true);
+  check('an untagged dynamic block is left alone', globalThis.__dboLabour(LOOSE, ACTOR) === false);
+}
+
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);

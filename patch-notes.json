@@ -1,5 +1,19 @@
 [
   {
+    "title": "Placed chopping blocks play the mini-game",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Woodcutting",
+        "items": [
+          "Chopping blocks staff have placed (Fort Caractacus, Bruma) now run the woodcutting mini-game and rest like every other block, instead of handing out firewood endlessly."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The Bruma border holds",
     "date": "SHIP_DATE",
     "version": "Server update",
