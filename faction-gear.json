@@ -3793,6 +3793,314 @@
    "recipes": [
     "f80f:Dawnguard.esm"
    ]
+  },
+  "801:Dawnguard.esm": {
+   "name": "Crossbow",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "f80e:Dawnguard.esm"
+   ]
+  },
+  "d0bd:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Turn 01",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0ca:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Fire 1",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0cb:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Fire 2",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0cc:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Fire 3",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c6:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Magicka 01",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c7:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Magicka 02",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c9:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Magicka 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c3:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Shock 01",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c4:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Shock 02",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c5:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Shock 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c0:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Soul Trap 01",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c1:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Soul Trap 02",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0c2:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Soul Trap 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0be:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Turn 02",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0bf:Dawnguard.esm": {
+   "name": "Enchanted Crossbow Turn 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0db:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Fire 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0dc:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Fire 04",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0dd:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Fire 05",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d8:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Magicka 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d9:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Magicka 04",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0da:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Magicka 05",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d6:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Paralyze 04",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d7:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Paralyze 05",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d3:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Shock 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d4:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Shock 04",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d5:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Shock 05",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d0:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Soul Trap 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d1:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Soul Trap 04",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0d2:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Soul Trap 05",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0cd:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Turn 03",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0ce:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Turn 04",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "d0cf:Dawnguard.esm": {
+   "name": "Enchanted Dwarven Crossbow Turn 05",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "f0e:JK's Fort Dawnguard.esp": {
+   "name": "Crossbow Enhanced",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": []
   }
  },
  "_uniformsComment": "War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only extras; a faction with neither (the Fighters Guild today) is not held to it.",

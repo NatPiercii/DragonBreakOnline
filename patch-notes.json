@@ -42,7 +42,7 @@
         "items": [
           "A faction's own smiths and its leader can now make the faction's gear at any forge, wherever its designs come from: the Dawnguard can make Dawnguard armour and weapons in Bruma. Other gear still follows the province rules.",
           "The Dawnguard's smiths can also make the silver weapons of the Silver Hand (silver longswords, katanas, war axes and the rest). The Mantle of the Silver Hand stays the Silver Hand's.",
-          "Enhanced and Dwarven crossbows are the Dawnguard's: only its smiths and leader make them, and they no longer come from loot or get swapped for plain crossbows. Anyone can still make the plain Crossbow."
+          "Crossbows are the Dawnguard's: only its smiths and leader make them (plain, enhanced and dwarven), and crossbows no longer come from loot or get swapped. Bolts stay open to every smith."
         ]
       }
     ]

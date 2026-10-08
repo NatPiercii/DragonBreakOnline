@@ -60,13 +60,16 @@ const silver = JSON.parse(fs.readFileSync('faction-gear.json', 'utf8')).items;
 const sh = Object.values(silver).filter((v) => v.set === 'Silver Hand');
 ok(sh.filter((v) => !/Mantle/.test(v.name)).every((v) => v.factions.includes('dawnguard')) && sh.filter((v) => /Mantle/.test(v.name)).every((v) => !v.factions.includes('dawnguard')),
   'every Silver Hand weapon lists the Dawnguard, no mantle does');
-// The enhanced and dwarven crossbows are the Dawnguard's (Nate, 7 Oct); the plain Crossbow stays open, gear swap's target
+// Every crossbow is the Dawnguard's (Nate, 7 Oct: the enhanced and dwarven ones; 8 Oct: "make crossbows in general dawnguard only")
 const all = JSON.parse(fs.readFileSync('faction-gear.json', 'utf8')).items;
 const XB = ['f19e:Dawnguard.esm', 'b647:Dawnguard.esm', 'f19f:Dawnguard.esm'];
-ok(XB.every((d) => all[d] && JSON.stringify(all[d].factions) === '["dawnguard"]' && all[d].role === 'blacksmith') && !all['801:Dawnguard.esm'], 'the enhanced and dwarven crossbows are Dawnguard smith work, the plain Crossbow is not');
+ok(XB.concat(['801:Dawnguard.esm']).every((d) => all[d] && JSON.stringify(all[d].factions) === '["dawnguard"]' && all[d].role === 'blacksmith'), 'the plain, enhanced and dwarven crossbows are Dawnguard smith work');
+const crossbows = Object.entries(all).filter(([, v]) => /crossbow/i.test(v.name));
+ok(crossbows.length >= 37 && crossbows.every(([, v]) => JSON.stringify(v.factions) === '["dawnguard"]'), `all ${crossbows.length} crossbows (JK's copy and the enchanted ones too) are the Dawnguard's alone`);
+ok(!Object.values(all).some((v) => /\bbolt/i.test(v.name)), 'bolts stay open');
 const ENH = idOf('f19e:Dawnguard.esm'), PLAIN = idOf('801:Dawnguard.esm');
-ok(globalThis.__dboFactionCraft(A.DG_SMITH, ENH) === true && globalThis.__dboFactionCraft(A.OUT, ENH) === false && globalThis.__dboFactionCraft(A.OUT, PLAIN) === true, 'a Dawnguard smith makes an Enhanced Crossbow, an outsider only the plain one');
+ok(globalThis.__dboFactionCraft(A.DG_SMITH, ENH) === true && globalThis.__dboFactionCraft(A.DG_SMITH, PLAIN) === true && globalThis.__dboFactionCraft(A.OUT, ENH) === false && globalThis.__dboFactionCraft(A.OUT, PLAIN) === false, 'a Dawnguard smith makes any crossbow, an outsider none');
 const swapMap = JSON.parse(fs.readFileSync(path.join(SERVER, 'gear-swap.json'), 'utf8')).items;
-ok(!Object.keys(swapMap).some((k) => XB.includes(k) || XB.map((x) => x.toLowerCase()).includes(k)), 'gear swap no longer turns them into plain crossbows');
+ok(!Object.keys(swapMap).some((k) => all[k] && /crossbow/i.test(all[k].name)) && !Object.values(swapMap).some((v) => String(v.to).toLowerCase() === '801:dawnguard.esm'), 'gear swap maps no crossbow and nothing to the plain Crossbow');
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

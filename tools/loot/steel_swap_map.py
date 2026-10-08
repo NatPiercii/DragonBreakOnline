@@ -22,13 +22,14 @@ from loot_materials import DATA, ORDER, ESPLIB, canon  # noqa: E402
 CAP = {'iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'silver'}
 TIERED_ABOVE = {'dwarven', 'elven', 'bonemold', 'chitin', 'mithril', 'vampire', 'ancient_nord_honed', 'falmer_honed',
                 'ancient_imperial', 'ayleid', 'steelplate', 'scaled', 'elven_gilded', 'nordic', 'glass'}
+# No crossbow kind: every crossbow is the Dawnguard's faction gear (Nate, 8 Oct), which the swap never takes
 NEVER = {'DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium'}
 # The replacement for each kind, by province: plain vanilla steel and leather, Cyrodiil's Colovian steel and CYR leather
 TABLE = {
     'skyrim': {
         'weapon Sword': 'SteelSword', 'weapon Dagger': 'SteelDagger', 'weapon WarAxe': 'SteelWarAxe', 'weapon Mace': 'SteelMace',
         'weapon Greatsword': 'SteelGreatsword', 'weapon Battleaxe': 'SteelBattleaxe', 'weapon Warhammer': 'SteelWarhammer',
-        'weapon Bow': 'HuntingBow', 'weapon Crossbow': 'DLC1CrossBow',
+        'weapon Bow': 'HuntingBow',
         'heavy body': 'ArmorSteelCuirassA', 'heavy head': 'ArmorSteelHelmetA', 'heavy hands': 'ArmorSteelGauntletsA',
         'heavy feet': 'ArmorSteelBootsA', 'heavy shield': 'ArmorSteelShield',
         'light body': 'ArmorLeatherCuirass', 'light head': 'ArmorLeatherHelmet', 'light hands': 'ArmorLeatherGauntlets',
@@ -37,7 +38,7 @@ TABLE = {
     'cyrodiil': {
         'weapon Sword': 'CYRSteelSword', 'weapon Dagger': 'CYRSteelDagger', 'weapon WarAxe': 'CYRSteelWarAxe', 'weapon Mace': 'CYRSteelMace',
         'weapon Greatsword': 'CYRSteelGreatsword', 'weapon Battleaxe': 'CYRSteelBattleaxe', 'weapon Warhammer': 'CYRSteelWarhammer',
-        'weapon Bow': 'HuntingBow', 'weapon Crossbow': 'DLC1CrossBow',
+        'weapon Bow': 'HuntingBow',
         'heavy body': 'CYRArmorColovianSteelCuirass', 'heavy head': 'CYRArmorColovianSteelHelmet',
         'heavy hands': 'CYRArmorColovianSteelGauntlets', 'heavy feet': 'CYRArmorColovianSteelBoots', 'heavy shield': 'CYRArmorColovianSteelShield',
         'light body': 'CYRArmorLeatherCuirassA', 'light head': 'CYRArmorLeatherHelmetA', 'light hands': 'CYRArmorLeatherGauntletsA',
