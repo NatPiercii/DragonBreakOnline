@@ -86,7 +86,10 @@ for (const [item, [station, tier, list]] of Object.entries(SALVAGE)) {
   if (!y.length) emptied++; else keptOthers++;
   // The other materials come back as before: the same share, the main-material minimum only where it always was
   const share = 0.75;
-  const want = list.map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([d, n]) => n > 0 && !isDragon(d));
+  // A main that costs exactly one comes back by chance (salvage review v2, 8 Oct), after the certain ones
+  const oneMain = Number(list[0][1]) === 1;
+  const want = list.map(([d, n], i) => [d, i === 0 && !oneMain && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)]).filter(([d, n], i) => n > 0 && !isDragon(d) && !(i === 0 && oneMain));
+  if (oneMain && !isDragon(list[0][0])) want.push([list[0][0], 1, share]);
   if (JSON.stringify(want) !== JSON.stringify(y)) changedOthers++;
 }
 ok(withDragon > 300, `salvage.json has dragon gear to break down (${withDragon} entries)`);

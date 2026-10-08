@@ -286,7 +286,7 @@
   "skillBooks": { "enabled": true, "av": 10, "weight": 3 }
  },
  "salvage": {
-  "_comment": "Breaking gear and books down into materials (salvage.js, salvage.json from tooling/make_salvage.py). Using a smelter (Blacksmith), tanning rack (Skinner), loom (Tailor) or writing desk (Scholar) offers what the player carries that it can take apart. A share of the item's recipe comes back by the player's tier in that skill (shareByTier, Novice..Master), rounded down, at least one of the main material; a Blacksmith needs the tier that works the main metal. Books: a bound book gives bookPaper paper (the paper item) and bookStrips leather strips, a note notePaper paper. pageSize rows per page; the first row works the station, arming one pass for useWindowSeconds.",
+  "_comment": "Breaking gear and books down into materials (salvage.js, salvage.json from tooling/make_salvage.py). Using a smelter (Blacksmith), tanning rack (Skinner), loom (Tailor) or writing desk (Scholar) offers what the player carries that it can take apart. A share of the item's recipe comes back by the player's tier in that skill (shareByTier, Novice..Master), rounded down, at least one of the main material (by the share as a chance when the main cost exactly one, 8 Oct: a craft-and-break-down loop); a Blacksmith needs the tier that works the main metal. Books: a bound book gives bookPaper paper (the paper item) and bookStrips leather strips, a note notePaper paper. pageSize rows per page; the first row works the station, arming one pass for useWindowSeconds.",
   "enabled": true,
   "shareByTier": [0.25, 0.35, 0.5, 0.6, 0.75],
   "pageSize": 7,

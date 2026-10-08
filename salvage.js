@@ -11,7 +11,7 @@
 //
 // What comes back (salvage.json, from tooling/make_salvage.py): a share of the materials of the recipe that makes the
 // item, by the player's tier in the station's skill (shareByTier, Novice 25 % .. Master 75 %), each rounded down, with
-// at least one of the main material. A Blacksmith needs the tier that works the main metal. Books are read from their
+// at least one of the main material: for certain when it cost two or more, by the share as a chance when it cost one. A Blacksmith needs the tier that works the main metal. Books are read from their
 // own record: a bound book gives bookPaper paper and bookStrips leather strips, a note or letter notePaper paper; a book
 // that cannot be taken (BOOK DATA flag 0x02) is never offered. Worn and equipped stacks are never offered either, nor an
 // enchanted, named, tempered, poisoned or charged one, nor an item enchanted by its own record (EITM): only plain copies
@@ -154,11 +154,16 @@ module.exports = (api) => {
     const e = items().get(norm(descOf(baseId)));
     if (!e || e[0] !== station.id || rank < (Number(e[1]) || 0)) return null;
     const share = shareFor(rank);
-    // At least one of the main material, but only for an item that cost at least one: a ring made 2 per ingot costs half
-    // an ingot, and giving one back would double the metal on every craft (review A5-1). Never more than the item cost.
+    // Each material by the share, rounded down; the main material at least once. A main that costs exactly one came back
+    // whole every time, so crafting and breaking it down trained the skill for a strip or nothing (8 Oct, ragged clothes;
+    // review v2: 1 ingot + 1 strip): it comes back by chance, the share. A main of two or more keeps its one for certain
+    // (the loop already costs metal). A ring made 2 per ingot costs half an ingot and gets nothing (review A5-1). Never
+    // more than the item cost.
     // Dragon bone and scales never come back (dragon-materials.json): dragon gear gives only its other materials, counted
     // as before, so breaking it down is never a second source of what only a slain dragon gives
-    const raw = (e[2] || []).map(([d, n], i) => [d, i === 0 && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)])
+    const recipe = e[2] || [];
+    const main = recipe[0] && Number(recipe[0][1]) === 1 && share < 1 ? recipe[0] : null;
+    const raw = recipe.filter((m) => m !== main).map(([d, n], i) => [d, i === 0 && !main && n >= 1 ? Math.max(1, Math.floor(n * share)) : Math.floor(n * share)])
       .filter(([d, n]) => n > 0 && !dragonMaterials().has(norm(d)));
     // Above the cap becomes its capped metal, merged with any of it already there (moonstone and steel: all steel)
     const out = [];
@@ -167,11 +172,8 @@ module.exports = (api) => {
       const have = out.find(([x]) => norm(x) === norm(to));
       if (have) have[1] += n; else out.push([to, n]);
     }
-    // An item made of one unit of one material (a ragged robe of one thread, a gold ring of one ingot) gave that unit
-    // back every time, so crafting and breaking it down again trained the skill for nothing, batch after batch (8 Oct):
-    // its one unit now comes back with the share as a chance, so the loop costs what any craft costs
-    const recipe = e[2] || [];
-    if (recipe.length === 1 && Number(recipe[0][1]) === 1 && out.length === 1 && share < 1) out[0].push(share);
+    // The lifted main is its own entry, by its capped name, after the certain ones
+    if (main && !dragonMaterials().has(norm(main[0]))) out.push([capped().get(norm(main[0])) || main[0], 1, share]);
     return out.length ? out : null;
   };
 
