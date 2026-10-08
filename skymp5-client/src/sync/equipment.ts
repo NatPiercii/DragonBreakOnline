@@ -1,6 +1,7 @@
 import {
   Actor,
   Ammo,
+  FormType,
   Game,
   ObjectReference,
   Spell,
@@ -115,7 +116,16 @@ export const syncSpellEquipment = (
   }
 };
 
+// A held torch is unequipped the engine's way before the wipe, so its light goes out (stacked lights near torch bearers, 8 Oct)
+const putOutHeldLight = (ac: Actor): void => {
+  const held = ac.getEquippedObject(0);
+  if (!held || held.getType() !== FormType.Light) return;
+  try { ac.unequipItem(held, false, true); } catch { return; }
+  try { ac.removeItem(held, ac.getItemCount(held), true, null); } catch { /* the wipe below takes it */ }
+};
+
 export const applyEquipment = (ac: Actor, eq: Equipment): boolean => {
+  putOutHeldLight(ac);
   ac.removeAllItems(null, false, true);
 
   ac.unequipAll();
