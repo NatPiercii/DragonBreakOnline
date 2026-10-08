@@ -26,6 +26,8 @@ const TYPES = [
     blurb: 'Report a player for breaking the rules. Bring evidence.' },
   { id: 'fac',  label: 'Faction Inquiry',     category: 'Faction Inquiries',    emoji: '🏰',
     blurb: 'Ask about joining, founding or running a faction.' },
+  { id: 'map',  label: 'Map Creation',        category: 'Map Creation',         emoji: '🗺️',
+    blurb: 'Talk to staff about building or creating part of the map.' },
   // The application's questions are posted into the ticket (intro), one message each
   { id: 'gm',   label: 'Trial GM Application', category: 'GM Applications',     emoji: '📜',
     blurb: 'Apply to join the Game Master team. The questions are posted in your ticket.',

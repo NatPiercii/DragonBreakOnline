@@ -32,8 +32,8 @@ function fakeClient(existing) {
 const panelText = p => JSON.stringify(p.embeds.map(e => e.toJSON()))
 const buttonIds = p => p.components.flatMap(r => r.toJSON().components.map(c => c.custom_id))
 
-test('the panel has no Bug Report or Map Changes kind', () => {
-  assert.deepStrictEqual(tickets.TYPES.map(t => t.id), ['pk', 'mod', 'rep', 'fac', 'gm'])
+test('the panel has no Bug Report or Map Changes kind (Map Creation is its own, Nate 8 Oct)', () => {
+  assert.deepStrictEqual(tickets.TYPES.map(t => t.id), ['pk', 'mod', 'rep', 'fac', 'map', 'gm'])
 })
 
 test('on boot the panel edits its own message: no bug buttons, and a line to the front door', async () => {
@@ -43,7 +43,7 @@ test('on boot the panel edits its own message: no bug buttons, and a line to the
   await tickets.ensurePanel(client, stateFile)
   assert.strictEqual(calls.sends.length, 0)
   assert.strictEqual(calls.edits.length, 1)
-  assert.deepStrictEqual(buttonIds(calls.edits[0]), ['ticket:open:pk', 'ticket:open:mod', 'ticket:open:rep', 'ticket:open:fac', 'ticket:open:gm'])
+  assert.deepStrictEqual(buttonIds(calls.edits[0]), ['ticket:open:pk', 'ticket:open:mod', 'ticket:open:rep', 'ticket:open:fac', 'ticket:open:map', 'ticket:open:gm'])
   const text = panelText(calls.edits[0])
   assert.match(text, /Found a bug\?/)
   assert.match(text, /\/bug <what happened>/)
@@ -101,7 +101,7 @@ test('the panel has Faction Inquiry and Trial GM Application buttons, labelled',
   const { client, calls } = fakeClient('1554000000000000044')
   await tickets.ensurePanel(client, stateFile)
   const labels = calls.edits[0].components.flatMap(r => r.toJSON().components.map(c => c.label))
-  assert.ok(labels.includes('Faction Inquiry') && labels.includes('Trial GM Application'))
+  assert.ok(labels.includes('Faction Inquiry') && labels.includes('Trial GM Application') && labels.includes('Map Creation'))
   assert.match(panelText(calls.edits[0]), /Faction Inquiry/)
 })
 
