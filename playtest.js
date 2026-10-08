@@ -60,15 +60,31 @@ module.exports = (api) => {
 
   // Border doors: false blocks, null means not ours.
   const denyAt = new Map();
+  // In the door's cell and within its trigger (AutoLoadDoor01 is 1200 x 1200) plus lag: this hook runs before the reach
+  // gate, so an activation sent from anywhere else must not earn the free trip to the arrival spot
+  const atDoor = (a, door) => {
+    try {
+      if (normDesc(mp.get(a, 'worldOrCellDesc')) !== normDesc(mp.get(door, 'worldOrCellDesc'))) return false;
+      const p = mp.get(a, 'pos'), q = mp.get(door, 'pos');
+      return Array.isArray(p) && Array.isArray(q) && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= 1200;
+    } catch (e) { return false; }
+  };
   globalThis.__dboPlaytestActivate = (targetId, casterId) => {
     if (!active() || !blockedDoors.has(targetId)) return null;
     if (Date.now() - (denyAt.get(casterId) || 0) > 1500) {
       denyAt.set(casterId, Date.now());
       // A refused automatic door (FNAM 0x02) leaves its half-started load open and the player frozen until a relog
       // (Serpents Trail, 7 Oct), so the player is taken back to the arrival point instead
-      if (autoDoors.has(targetId)) {
+      if (autoDoors.has(targetId) && atDoor(casterId, targetId)) {
         personal(casterId, `The road to Skyrim is closed for now. You find your way back to ${C.name}.`);
-        setTimeout(() => { try { sendToArrival(casterId, 'border'); } catch (e) { log('playtest: border return failed', e.message); } }, 300);
+        setTimeout(() => {
+          try {
+            // Audited, so a return that did not happen shows (7 Oct 04:54: nothing in the log said whether it ran)
+            let door = (targetId >>> 0).toString(16);
+            try { door = mp.getDescFromId(targetId >>> 0) || door; } catch (e) { /* the hex id will do */ }
+            if (sendToArrival(casterId, 'border')) audit(`PLAYTEST ${who(casterId)} walked into the closed automatic door ${door} and was taken back to ${C.name}`);
+          } catch (e) { log('playtest: border return failed', e.message); }
+        }, 300);
       } else personal(casterId, `The road to Skyrim is closed for now. The alpha begins in ${C.name}.`);
     }
     return false;

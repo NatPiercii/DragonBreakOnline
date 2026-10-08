@@ -1228,6 +1228,8 @@ mp.onActivate = (targetId, casterId) => {
     }
   } catch (e) { }
   if (treasuryRefused(caster, target)) return false;
+  // The region lock's closed doors come before reach: an automatic door fires anywhere in its 1200-unit trigger (Serpents Trail, 7 Oct)
+  if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   // Reach applies to actors only; a lever or trap linker activates its gate from any distance
   try {
     const q = mp.get(target, 'pos');
@@ -1264,7 +1266,6 @@ mp.onActivate = (targetId, casterId) => {
   if (globalThis.__dboEmptyWorldContainer) globalThis.__dboEmptyWorldContainer(targetId >>> 0);
   // Gear above the loot cap in a container becomes its steel equivalent before the container opens (gearswap.js)
   if (globalThis.__dboGearSwapContainer) globalThis.__dboGearSwapContainer(targetId >>> 0);
-  if (globalThis.__dboPlaytestActivate && globalThis.__dboPlaytestActivate(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboDungeonActivate) { const v = globalThis.__dboDungeonActivate(targetId >>> 0, casterId >>> 0); if (v === false) return false; if (v === true) return true; }
   if (globalThis.__dboCorpseLoot && globalThis.__dboCorpseLoot(targetId >>> 0, casterId >>> 0) === false) return false;
   if (globalThis.__dboAshPile && globalThis.__dboAshPile(targetId >>> 0, casterId >>> 0) === false) return false;
