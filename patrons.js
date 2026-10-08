@@ -50,12 +50,20 @@ module.exports = (api) => {
   const pending = (a) => { try { return mp.get(a, 'private.rerollPending') === true; } catch (e) { return false; } };
   const setPending = (a, on) => { try { mp.set(a, 'private.rerollPending', !!on); } catch (e) { /* offline */ } };
 
+  // A forced werewolf change warned and on its way (supernatural.js forcedChange: actor -> when it lands). An open creator
+  // only holds it, so the creator waits for the beast instead (as appearance.js beastComing; second review, 8 Oct). A due
+  // time a minute past is a leftover
+  const beastComing = (a) => {
+    const due = globalThis.__dboFeralDue instanceof Map ? globalThis.__dboFeralDue.get(a >>> 0) : undefined;
+    return due !== undefined && Date.now() < (Number(due) || 0) + 60000;
+  };
   // Changing shape mid-fight, bound or transformed has crashed or confused the creator before: refuse those
   const blocker = (a) => {
     try {
       if (mp.get(a, 'isDead')) return 'You cannot do that while dead.';
       if (mp.get(a, 'private.creationPending') === true) return 'Finish making your character first.';
       const b = mp.get(a, 'private.beast'); if (b && b.form) return 'Return to your own shape first.';
+      if (beastComing(a)) return 'Not while the beast is coming.';
       const r = mp.get(a, 'private.restrained'); if (r && r.boundHands) return 'Not while your hands are bound.';
     } catch (e) { return 'Try again in a moment.'; }
     return null;

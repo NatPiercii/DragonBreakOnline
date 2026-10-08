@@ -18,8 +18,9 @@
 //    51623) while the race stays: 9 of the 10 non-Nord re-edits from 4 to 7 Oct were saved with it. With race and sex
 //    unchanged, a head in the result that is another race's default head (racedefaultheads.json, written by
 //    tools/racedefaultheads.js) and was not in the look before is taken out, and the head from before goes back in its
-//    old slot: the race default head the look had, or for a look with none (a high-poly head) the one part the editor
-//    took out, never a guess (two or more taken out: the result stands). An edit that only swapped the head is then
+//    old slot: the race default head the look had, or for a look with none (a high-poly head) the Face part (HDPT PNAM
+//    1) the editor took out, never a guess (several Face parts taken out, or records that cannot be read and more than a
+//    plain swap: the result stands, with an audit line for staff). An edit that only swapped the head is then
 //    unchanged and costs nothing. Config appearance.headGuard (default on).
 //    Whatever the server puts back is written at once (the neighbours see it) and the stored look is sent again 3.5 s
 //    later: the player's own client drops every write to its own look while RaceMenu settles, RACE_MENU_SETTLE_MS = 3000
@@ -34,12 +35,13 @@
 //    (isAllowed true) and never come here. Config appearance.refusedNotice (default on).
 // 3. A vampire's or werewolf's tells. supernatural.js keeps the look the tells hide (eyes, skin colour, skin tone) and
 //    gives it back on a feed, which undid an edit saved while the tells showed (Selena #PXVM, 5 Oct). After a saved edit
-//    (/appearance, or a GM's /chargen) the new look goes to globalThis.__dboTellsRetake (supernatural.js), which takes what
-//    the player changed as the look under the tells and lays the tells back over it when they are due; a lips or chin
-//    layer recoloured over a vampire's blood is taken as theirs the same way, so a wash leaves it. While an editor the
-//    server opened is open (editing below), supernatural.js lays and clears no tells and brings no forced beast change:
-//    the client would drop that write and the editor's result overwrite it, and a beast form would revert to the look
-//    from before the edit.
+//    (/appearance, a GM's /chargen or a patron's /reroll) the new look goes to globalThis.__dboTellsRetake
+//    (supernatural.js), which takes what the player changed as the look under the tells and lays the tells back over it
+//    when they are due; a lips or chin layer recoloured over a vampire's blood is taken as theirs the same way, so a wash
+//    leaves it. While an editor the server opened is open, and for the client's settle window after it closes (editing
+//    below), supernatural.js lays and clears no tells and holds a forced beast change till after it: the client would
+//    drop that write and the editor's result overwrite it, and a beast form would revert to the look from before the
+//    edit. A held change still comes; /appearance is refused while one is coming.
 const fs = require('fs');
 const path = require('path');
 
@@ -53,6 +55,11 @@ const CHARGEN_MAX_MS = 24 * 3600000;
 // The client's settle window (RACE_MENU_SETTLE_MS, 3000 from the close) and a margin
 const SETTLE_RESEND_MS = 3500;
 const REFUSED_EVERY_MS = 60000;
+// A head part's type (HDPT PNAM): the Face part is the head
+const FACE = 1;
+// A forced beast change pending this long past its due time is a leftover, not one coming (supernatural.js holds a
+// change while an editor is open by moving its due time on every few seconds)
+const BEAST_DUE_STALE_MS = 60000;
 const HEADS_JSON = path.join(__dirname, 'racedefaultheads.json');
 
 const u32 = (v) => Number(v) >>> 0;
@@ -133,6 +140,18 @@ module.exports = (api) => {
     return (Number.isFinite(n) ? n.toString(16) : s.slice(0, i).toLowerCase()) + ':' + s.slice(i + 1).toLowerCase();
   };
   const hours = (ms) => { const h = Math.ceil(ms / 3600000); return h <= 1 ? 'about an hour' : `${h} hours`; };
+  // In a beast form (beastform.js private.beast; __dboBeastOriginalRace for an older beastform)
+  const inBeastForm = (a) => {
+    const b = get(a, 'private.beast'); if (b && b.form) return true;
+    try { return typeof globalThis.__dboBeastOriginalRace === 'function' && !!globalThis.__dboBeastOriginalRace(a); } catch (e) { return false; }
+  };
+  // A forced werewolf change has been warned and is on its way (supernatural.js forcedChange, globalThis.__dboFeralDue:
+  // actor -> when it lands). An editor opened now would only hold it, and a close with no change is free, so the editor
+  // waits for the beast instead (review, 8 Oct: it was a free way to skip the change). patrons.js /reroll asks the same.
+  const beastComing = (a) => {
+    const due = globalThis.__dboFeralDue instanceof Map ? globalThis.__dboFeralDue.get(a >>> 0) : undefined;
+    return due !== undefined && Date.now() < (Number(due) || 0) + BEAST_DUE_STALE_MS;
+  };
 
   // Why this player cannot open the editor now, or null
   const blocked = (a) => {
@@ -143,6 +162,7 @@ module.exports = (api) => {
     if (Date.now() - fought < (Number(C.combatSeconds) || 0) * 1000) return 'Not in the middle of a fight.';
     try { if (typeof globalThis.__dboIsDowned === 'function' && globalThis.__dboIsDowned(a)) return 'Not while you are down.'; } catch (e) { /* no downed module */ }
     try { if (typeof globalThis.__dboBeastOriginalRace === 'function' && globalThis.__dboBeastOriginalRace(a)) return 'Not while in a beast form.'; } catch (e) { /* no beast module */ }
+    if (beastComing(a)) return 'Not while the beast is coming.';
     if (get(a, 'private.dboSentence')) return 'Not while you are in jail.';
     if (get(a, 'private.restrained')) return 'Not while you are bound.';
     const cells = globalThis.__dboDungeonCells;
@@ -174,8 +194,24 @@ module.exports = (api) => {
 
   const pending = (a) => { const e = get(a >>> 0, EDIT); return !!(e && e.before); };
 
+  // A head part's type from its record (HDPT PNAM: 1 Face, 2 Eyes, 3 Hair, ...), as supernatural.js isEyePart reads it;
+  // undefined when the record cannot be read
+  const partType = (id) => {
+    if (typeof mp.lookupEspmRecordById !== 'function') return undefined;
+    let rec = null; try { const x = mp.lookupEspmRecordById(u32(id)); rec = x && x.record ? x.record : null; } catch (e) { return undefined; }
+    for (const f of (rec && rec.fields) || []) {
+      if (!f || f.type !== 'PNAM') continue;
+      const d = f.data;
+      if (!(d instanceof Uint8Array) || d.byteLength < 4) return undefined;
+      return new DataView(d.buffer, d.byteOffset, d.byteLength).getUint32(0, true);
+    }
+    return undefined;
+  };
+
   // Guard 1: the look with the head from before back in place of another race's default head, and that race; null when
   // the editor swapped none in. Only with race and sex unchanged, and only for a race in the table (its own heads known).
+  // { look: null, from } when one was swapped in but the head from before cannot be told (the caller audits it and the
+  // result stands as the editor gave it).
   const guardHead = (before, after) => {
     if (C.headGuard === false || !before || !after || !Array.isArray(before.headpartIds) || !Array.isArray(after.headpartIds)) return null;
     if (u32(after.raceId) !== u32(before.raceId) || !!after.isFemale !== !!before.isFemale) return null;
@@ -186,16 +222,22 @@ module.exports = (api) => {
     if (!foreign.length) return null;
     const drop = new Set(foreign);
     // The head before: the race default head the look had (as a rule its own race's). A look with none wears a head that
-    // is no race's default (a high-poly one, say), and nothing is guessed for it: the one part the editor took out is that
-    // head and goes back; with none taken out the foreign head was only added and just goes; with more than one there is
-    // no telling which was the head, and the result stands as the editor gave it. (Review, 8 Oct: the race's vanilla head
-    // used to go in here in place of the player's own, and the look then counted as changed and was charged.)
+    // is no race's default (a high-poly one, say), and nothing is guessed for it (review, 8 Oct: the race's vanilla head
+    // used to go in here in place of the player's own, and the look then counted as changed and was charged). Of the
+    // parts the editor took out, the one Face part is that head and goes back; with no Face part taken out the foreign
+    // head was only added and just goes. When a record cannot be read, only a plain swap is certain: one part out and
+    // nothing in but the foreign head (second review, 8 Oct: a hair the player replaced beside an added Nord head was
+    // taken for the head). Anything else (several Face parts out, say) cannot be told, and the result stands.
     const now = new Set(after.headpartIds.map(u32));
     let at = before.headpartIds.findIndex((h) => HEADS.owner.has(u32(h)));
     if (at < 0) {
       const gone = before.headpartIds.map((h, i) => i).filter((i) => !now.has(u32(before.headpartIds[i])));
-      if (gone.length > 1) return null;
-      at = gone.length ? gone[0] : -1;
+      const types = gone.map((i) => partType(before.headpartIds[i]));
+      let heads = null;
+      if (types.every((t) => t !== undefined)) heads = gone.filter((i, k) => types[k] === FACE);
+      else if (gone.length === 1 && after.headpartIds.map(u32).every((h) => had.has(h) || drop.has(h))) heads = gone;
+      if (!heads || heads.length > 1) return { look: null, from: HEADS.owner.get(foreign[0]) };
+      at = heads.length ? heads[0] : -1;
     }
     const ids = after.headpartIds.filter((h) => !drop.has(u32(h)));
     const mine = at >= 0 ? before.headpartIds[at] : null;
@@ -208,7 +250,10 @@ module.exports = (api) => {
   // and nothing if by then the player has left, another session has the character or another edit is open. What goes is
   // the stored look as it is then: the client drops every write to its own look in the window, not only the echo
   // (remoteServer.ts onUpdateAppearanceMessage, isRaceMenuSettling), so a newer write made in it (a mask, the tells, a
-  // GM's /rename) needs sending again as well, and being the newest it overwrites nothing (review, 8 Oct).
+  // GM's /rename) needs sending again as well, and being the newest it overwrites nothing (review, 8 Oct). Nothing in a
+  // beast form taken meanwhile: beastform.js keeps the mortal race in the stored look, named after the form, so this
+  // write would rebuild the mortal head on the beast body on the player's own screen (the client skips only a beast
+  // race id); the revert sends the look the form kept, which the transform read after the close (second review, 8 Oct).
   const resendAfterSettle = (a, sent) => {
     const now = get(a, 'appearance');
     if (!now || typeof now !== 'object') return false;
@@ -219,6 +264,7 @@ module.exports = (api) => {
       try {
         if (get(a, 'isOnline') === false || userOf(a) !== user) return;
         if (get(a, EDIT) || get(a, CHARGEN)) return;
+        if (inBeastForm(a)) return;
         const cur = get(a, 'appearance');
         if (!cur || typeof cur !== 'object') return;
         mp.set(a, 'appearance', cur);
@@ -232,6 +278,23 @@ module.exports = (api) => {
     catch (e) { log('appearance: tells retake failed for', who(a), e.message); }
   };
   const HEAD_NOTE = 'The editor had given you another race\'s face; your own was kept.';
+  // The head guard's verdict on a close: the guarded look, or null; a swap whose head from before cannot be told is
+  // audited for staff and the editor's result stands
+  const headGuardOf = (a, before, after, how) => {
+    const g = guardHead(before, after);
+    if (g && !g.look) audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(g.from)}'s default head, but their own could not be told from the other parts changed; saved as made, check it${how ? ` (${how})` : ''}`);
+    return g && g.look ? g : null;
+  };
+  // When an editor the server opened last closed, per character. The client drops every write to its own look for its
+  // settle window after a close (RACE_MENU_SETTLE_MS), so editing() holds the tells and a forced change that long too:
+  // a tick right after a close with no change, which schedules no settled write, would never reach the player's own
+  // screen, and rebuilding the player during RaceSexMenu's teardown crashes the client (second review, 8 Oct). A reload
+  // forgets it, at the cost of one window.
+  const closedAt = new Map();
+  const closed = (a) => {
+    const t = Date.now(); closedAt.set(a >>> 0, t);
+    if (closedAt.size > 512) for (const [k, at] of closedAt) if (t - at >= SETTLE_RESEND_MS) closedAt.delete(k);
+  };
 
   // The editor closed with this appearance (gamemode.js appearanceHook, the engine has already applied it). True when it
   // was ours to handle.
@@ -240,6 +303,7 @@ module.exports = (api) => {
     const e = get(a, EDIT);
     if (!e || !e.before) return false;
     mp.set(a, EDIT, null);
+    closed(a);
     // A GM's /chargen opened over it ends with this close too
     if (get(a, CHARGEN)) mp.set(a, CHARGEN, null);
     const before = e.before;
@@ -254,7 +318,7 @@ module.exports = (api) => {
       audit(`APPEARANCE ${who(a)} tried to change ${raceChanged ? 'race' : 'sex'}: previous look kept, nothing charged`);
       return true;
     }
-    const guarded = guardHead(before, after);
+    const guarded = headGuardOf(a, before, after, '');
     const look = guarded ? guarded.look : after;
     if (guarded) audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(guarded.from)}'s default head; kept their own`);
     const headNote = guarded ? ` ${HEAD_NOTE}` : '';
@@ -298,14 +362,15 @@ module.exports = (api) => {
     return true;
   };
   // That editor closed (gamemode.js appearanceHook, isAllowed). A GM, or a reroll, may change race and sex there, so only
-  // the head guard (which needs both unchanged) and, after a /chargen, the tells apply; creation's and the reroll's steps
-  // in the hook still run after this, as they always did (the reroll's __dboRerollDone and the vampire race fix read the
-  // look as this leaves it). True when it was a /chargen or reroll close on an existing character.
+  // the head guard (which needs both unchanged) and the tells apply; creation's and the reroll's steps in the hook still
+  // run after this, as they always did (the reroll's __dboRerollDone and the vampire race fix read the look as this
+  // leaves it). True when it was a /chargen or reroll close on an existing character.
   const chargenFinish = (a, appearance) => {
     a = a >>> 0;
     const e = get(a, CHARGEN);
     if (!e || !e.before) return false;
     mp.set(a, CHARGEN, null);
+    closed(a);
     if (!(Date.now() - (Number(e.at) || 0) < CHARGEN_MAX_MS)) return false;
     const reroll = e.kind === 'reroll';
     // Made, or for a /chargen rerolled, since the snapshot: that close is creation's (or the reroll's)
@@ -313,26 +378,37 @@ module.exports = (api) => {
     const after = appearance && typeof appearance === 'object' ? copy(appearance) : null;
     if (!after) return true;
     const before = e.before;
-    const guarded = guardHead(before, after);
+    const how = reroll ? 'reroll' : 'GM /chargen';
+    const guarded = headGuardOf(a, before, after, how);
     const look = guarded ? guarded.look : after;
     if (guarded) {
       mp.set(a, 'appearance', look);
       system(a, HEAD_NOTE);
-      audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(guarded.from)}'s default head; kept their own (${reroll ? 'reroll' : 'GM /chargen'})`);
+      audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(guarded.from)}'s default head; kept their own (${how})`);
     }
-    // A reroll's new identity keeps the tells handling it always had (patrons.js, supernatural.js setLookRace)
-    if (!reroll && !sameLook(look, before)) retakeTells(a, before);
+    // A reroll's new look too (second review, 8 Oct): nothing else takes it as what the tells hide (setLookRace swaps
+    // only the race, and the slow tick keeps the old kept look while the tell eyes stay in the list), so the next feed
+    // gave back the skin and eyes from before the reroll. The retake compares with the look before and reads the race
+    // family from the new look, so a reroll to another race is handled as well; the vampire race fix runs after it
+    if (!sameLook(look, before)) retakeTells(a, before);
     resendAfterSettle(a, appearance);
     return true;
   };
   // An editor the server opened is open on this character: its own /appearance edit, or a GM's /chargen or a reroll on
-  // it (a snapshot under a day old). supernatural.js holds the tells and a forced beast change till it closes: a write to
-  // the look meanwhile is dropped by the client (the menu is open) and then overwritten by the editor's result, and a
-  // beast form taken now would revert to the look from before the edit (review, 8 Oct).
+  // it (a snapshot under a day old), or one closed less than the client's settle window ago. supernatural.js holds the
+  // tells and a forced beast change till then: a write to the look meanwhile is dropped by the client (the menu is open,
+  // or settling) and, while open, overwritten by the editor's result, and a beast form taken now would revert to the
+  // look from before the edit (review, 8 Oct).
   const editing = (a) => {
     a = a >>> 0;
     const open = (e) => !!(e && e.before && Date.now() - (Number(e.at) || 0) < CHARGEN_MAX_MS);
-    return open(get(a, EDIT)) || open(get(a, CHARGEN));
+    if (open(get(a, EDIT)) || open(get(a, CHARGEN))) return true;
+    const t = closedAt.get(a);
+    if (t === undefined) return false;
+    const since = Date.now() - t;
+    if (since >= 0 && since < SETTLE_RESEND_MS) return true;
+    closedAt.delete(a);
+    return false;
   };
 
   // Guard 2: an editor result the server did not open (isAllowed false: the engine kept the stored look). True when the

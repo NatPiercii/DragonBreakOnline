@@ -1,6 +1,9 @@
 // A forced werewolf change is felt coming (Nate, 5 Oct; #bugs 1556456325079244860): feralWarn.seconds before the
 // change the player is told and the screen shakes (dboShake packets, harder each time), and the change happens only if
 // they still can change then. Loads the real supernatural.js against a stub api and drives its timers by hand.
+// Second review, 8 Oct: a change that falls due while an appearance editor is open waits for it to close and settle
+// instead of passing, and /appearance is refused while one is coming (real appearance.js below): an editor opened in the
+// warning and closed unchanged, free and with no cooldown, skipped the change at will.
 // node tests/feral-warning-harness.js   (from server/)
 'use strict';
 const path = require('path');
@@ -21,15 +24,16 @@ const mp = {
   get: (id, p) => store.get(`${id}|${p}`),
   set: (id, p, v) => { store.set(`${id}|${p}`, v); },
   getDescFromId: (id) => `${id.toString(16)}:x`, getIdFromDesc: () => 0x1234,
-  callPapyrusFunction: () => null, lookupEspmRecordById: () => null,
+  callPapyrusFunction: () => null, lookupEspmRecordById: () => null, setRaceMenuOpen: () => {},
 };
 const api = {
-  mp, log: (...x) => logs.push(x.join(' ')), audit: noop, personal: (a, t) => said.push([a, t]), registerChatCommand: (n, f) => { cmds[n] = f; },
+  mp, log: (...x) => logs.push(x.join(' ')), audit: noop, personal: (a, t) => said.push([a, t]), system: (a, t) => said.push([a, t]), registerChatCommand: (n, f) => { cmds[n] = f; },
   onUi: noop, openWidget: noop, closeWidget: noop, sendPacket: (a, p) => packets.push([a, p]), display: String, who: String,
   isAdmin: () => true, findByName: () => null, onlineActors: () => online, every: (n, ms, fn) => { timers[n] = fn; }, profileOf: (a) => a,
   nameOf: String, isWorldspace: () => true, needsFeed: noop, hungerOf: () => 100, cfg: {},
 };
-globalThis.__dboBeastTransform = (a, key, forced) => { changes.push([a, key, forced]); store.set(`${a}|private.beast`, { form: key }); return true; };
+// The look the transform would keep to revert to (beastform.js tryTransform reads the stored appearance)
+globalThis.__dboBeastTransform = (a, key, forced) => { changes.push([a, key, forced, JSON.parse(JSON.stringify(store.get(`${a}|appearance`) || null))]); store.set(`${a}|private.beast`, { form: key }); return true; };
 const MODULE = path.resolve(__dirname, '..', 'supernatural.js');
 const load = (cfg) => { api.cfg = cfg || {}; delete require.cache[MODULE]; require(MODULE)(api); };
 // The 12 s schedule these checks were written for (the default is 45 s since 6 Oct, Jake): passed in, so they test the mechanics
@@ -144,11 +148,84 @@ editorOpen = false; reset();
 timers.superFeral();
 editorOpen = true;
 advance(12000);
-ok(changes.length === 0 && logs.some((l) => /forced change passed/.test(l)), 'the editor opened during the warning: the change passes');
+ok(changes.length === 0 && !logs.some((l) => /forced change passed/.test(l)) && globalThis.__dboFeralDue.has(A) && logs.some((l) => /forced change waits for the appearance editor/.test(l)), 'an editor open when the change falls due: it waits, it does not pass', logs);
+advance(60000);
+timers.superFeral();
+ok(changes.length === 0 && shakes().length === 1 && logs.filter((l) => /waits for the appearance editor/.test(l)).length === 1, 'still waiting a minute later, with no second warning and one log line', shakes().length);
+editorOpen = false;
+advance(2000);
+ok(changes.length === 1 && changes[0][2] === true && !globalThis.__dboFeralDue.has(A) && logs.some((l) => /went feral/.test(l)), 'the editor closed: the held change lands', changes);
+reset();
+timers.superFeral();
+editorOpen = true;
+advance(12000);
+online = [];
+advance(2000);
+ok(changes.length === 0 && !globalThis.__dboFeralDue.has(A) && logs.some((l) => /forced change passed/.test(l)), 'held, then logged out: it passes and nothing is left pending');
+online = [A];
 editorOpen = false; reset();
 timers.superFeral();
 advance(12000);
 ok(changes.length === 1, 'the editor closed: the beast comes again');
+globalThis.__dboAppearanceEdit = undefined;
+
+// ---- the real appearance.js (second review, 8 Oct: 5 of 5 changes dodged with an /appearance opened in the warning) ----
+const APPEARANCE = path.resolve(__dirname, '..', 'appearance.js');
+// The default 45 s warning; no login grace (a login above is still recent on this clock)
+const W45 = { supernatural: { feralLoginGraceMinutes: 0, feralWarn: { seconds: 45, shakes: [{ at: 45, strength: 0.25, seconds: 2 }] } } };
+const loadBoth = () => { load(W45); delete require.cache[APPEARANCE]; api.cfg = Object.assign({}, W45, { appearance: { cost: 500, cooldownHours: 24 } }); return require(APPEARANCE)(Object.assign({}, api, { userOf: () => 3, later: (fn, ms) => setTimeout(fn, ms) })); };
+const LOOK = { raceId: 0x13746, isFemale: false, name: 'Ulfgar', weight: 50, skinColor: 1, hairColor: 2, headpartIds: [0x5162f, 0x51631], headTextureSetId: 3, options: [0], presets: [0], tints: [] };
+const gold = () => (store.get(`${A}|inventory`).entries.find((e) => e.baseId === 0xf) || { count: 0 }).count;
+const realBoth = () => {
+  reset(); loadBoth();
+  store.set(`${A}|inventory`, { entries: [{ baseId: 0xf, count: 800 }] });
+  store.set(`${A}|appearance`, JSON.parse(JSON.stringify(LOOK)));
+  store.set(`${A}|private.dboAppearanceEdit`, null); store.set(`${A}|private.dboChargenEdit`, null); store.set(`${A}|private.dboAppearanceAt`, 0);
+  globalThis.__dboCombatAt = new Map(); globalThis.__dboDungeonCells = new Set(); globalThis.__dboIsDowned = null; globalThis.__dboBeastOriginalRace = null;
+};
+// The engine stores an allowed close before the hook (gamemode.js appearanceHook) hears of it
+const closeEditor = (app) => { store.set(`${A}|appearance`, JSON.parse(JSON.stringify(app))); const E = globalThis.__dboAppearanceEdit; return E.pending(A) ? E.finish(A, app) : E.chargenFinish(A, app); };
+realBoth();
+timers.superFeral();
+advance(40000);
+said.length = 0;
+cmds.appearance(A, '');
+ok(said.some(([a, t]) => a === A && t === 'Not while the beast is coming.') && !store.get(`${A}|private.dboAppearanceEdit`), '/appearance 40 s into the warning: refused, the editor does not open', said);
+advance(5000);
+ok(changes.length === 1 && gold() === 800, 'the change lands at 45 s as warned', changes);
+// A GM's /chargen opened during the warning (gamemode.js snapshots it): held till the close and the settle window
+realBoth();
+timers.superFeral();
+advance(40000);
+globalThis.__dboAppearanceEdit.chargenOpened(A);
+advance(5000);
+ok(changes.length === 0 && globalThis.__dboFeralDue.has(A), 'a GM /chargen open when it falls due: held');
+advance(120000);
+ok(changes.length === 0, 'held for as long as it stays open');
+closeEditor(LOOK);
+advance(2000);
+ok(changes.length === 0, 'not in the client\'s settle window after the close (a rebuild during RaceMenu teardown crashes the client)');
+advance(4000);
+ok(changes.length === 1 && !globalThis.__dboFeralDue.has(A), 'it lands once the window is over');
+// An /appearance opened before the warning could start (no roll warns an open editor), then a paid edit: the change
+// that comes after the close keeps the new look (the transform reads it then)
+realBoth();
+cmds.appearance(A, '');
+ok(!!store.get(`${A}|private.dboAppearanceEdit`), 'the editor opens with no change coming');
+timers.superFeral();
+advance(45000);
+ok(changes.length === 0 && shakes().length === 0, 'a roll with the editor open warns nothing and changes nothing');
+const paid = Object.assign(JSON.parse(JSON.stringify(LOOK)), { hairColor: 9 });
+closeEditor(paid);
+ok(gold() === 300 && store.get(`${A}|appearance`).hairColor === 9, 'the edit is saved and paid');
+advance(1000);
+timers.superFeral();
+advance(45000);
+ok(changes.length === 0 && shakes().length === 0, 'a roll in the settle window after the close warns nothing either');
+advance(4000);
+timers.superFeral();
+advance(45000);
+ok(changes.length === 1 && changes[0][3] && changes[0][3].hairColor === 9 && shakes().length === 1, 'the next roll after the window warns and changes as usual, keeping the new look to revert to', changes);
 globalThis.__dboAppearanceEdit = undefined;
 
 Math.random = realRandom;

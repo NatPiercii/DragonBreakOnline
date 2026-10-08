@@ -3,6 +3,8 @@
 // edit saved while they showed was undone by the next feed (Selena #PXVM, 5 Oct), and one that changed the eyes had the
 // tells laid over again with the pale skin taken as the mortal one. Loads the real supernatural.js and appearance.js
 // against one stub world: a Dark Elf woman turned vampire (DarkElfRaceVampire 8883d), her eyes from her saved look.
+// Second review, 8 Oct: the slow tick also waits out the client's settle window after a close (a write in it is dropped,
+// and a close with no change sends nothing again).
 //   node tests/super-tells-retake-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -13,6 +15,11 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'super-tells-retake-'));
 process.chdir(dir);
 process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 
+// The clock, moved on by hand: a feed, a thirst or a new scenario comes after the client's settle window
+let skew = 0;
+const realNow = Date.now;
+Date.now = () => realNow() + skew;
+const wait = (ms) => { skew += ms; };
 let fails = 0;
 const ok = (c, label, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${label}${c || got === undefined ? '' : '   ' + JSON.stringify(got)}`); if (!c) fails++; };
 
@@ -66,8 +73,8 @@ const state = () => store.get(`${P}|${SP}`);
 const day = () => Date.now() / 86400000 * 6;
 const vampire = (stage) => store.set(`${P}|${SP}`, { kind: 'vampire', disease: null, stage, lastFed: stage >= 3 ? day() - 2.5 : day(), pure: false, blessed: false, beastDay: -1, unfed: null, sated: null, spells: [] });
 const tick = () => ticks.get('superSlow')();
-const feed = () => { const s = state(); s.lastFed = day(); store.set(`${P}|${SP}`, s); tick(); };
-const thirst = () => { const s = state(); s.lastFed = day() - 2.5; store.set(`${P}|${SP}`, s); tick(); };
+const feed = () => { wait(4000); const s = state(); s.lastFed = day(); store.set(`${P}|${SP}`, s); tick(); };
+const thirst = () => { wait(4000); const s = state(); s.lastFed = day() - 2.5; store.set(`${P}|${SP}`, s); tick(); };
 // /appearance, the editor closing with `after` (the engine stores it first), as gamemode.js's hook runs it
 const appearance = (edit) => {
   store.set(`${P}|inventory`, { entries: [{ baseId: 0xf, count: 800 }] });
@@ -77,7 +84,7 @@ const appearance = (edit) => {
   store.set(`${P}|appearance`, JSON.parse(JSON.stringify(after)));
   return globalThis.__dboAppearanceEdit.finish(P, after);
 };
-const fresh = (stage) => { store.clear(); timers.length = 0; said.length = 0; store.set(`${P}|appearance`, mortal()); vampire(stage); };
+const fresh = (stage) => { wait(4000); store.clear(); timers.length = 0; said.length = 0; store.set(`${P}|appearance`, mortal()); vampire(stage); };
 
 // 1. The tells show at stage 3
 fresh(3); tick();
@@ -181,7 +188,7 @@ thirst();
 ok(!state().look && look().headpartIds.includes(OWN_EYE), 'thirst with the editor open: no tells laid yet');
 closeEditor(Object.assign(JSON.parse(JSON.stringify(look())), { headpartIds: look().headpartIds.map((h) => (h === OWN_EYE ? NEW_EYE : h)) }));
 ok(look().headpartIds.includes(TELL) && state().look && state().look.prevEye === NEW_EYE && look().skinColor === pale(6189428), 'the close: the tells laid over the eyes she chose');
-tick();
+wait(4000); tick();
 ok(look().headpartIds.includes(TELL) && state().look.prevEye === NEW_EYE, 'and the next tick leaves it so');
 
 // 13. Blood on her face (applyBlood keeps the lip and chin colours from before it, a wash puts them back): a layer she
@@ -210,6 +217,47 @@ ok(tintOf(1) === LIP0 && tintOf(11) === CHIN0 && look().hairColor === 9, 'and th
 bloody();
 appearance((x) => Object.assign(x, { tints: x.tints.map((t) => (t.type === 1 || t.type === 11 ? Object.assign({}, t, { argb: MINE }) : t)) }));
 ok(!state().blood && tintOf(1) === MINE && tintOf(11) === MINE, 'both recoloured: no blood left, the blood state ends with her colours on');
+
+// 14. The client's settle window after a close (second review, 8 Oct). It drops every write to its own look for 3 s after
+// RaceMenu closes, and a close with no change sends nothing again, so a tick in the window never reached her own screen:
+// she kept seeing the tells everyone else no longer saw. The tick waits the window out.
+fresh(3); tick();
+const shownOpen = openEditor();
+{ const s = state(); s.lastFed = day(); store.set(`${P}|${SP}`, s); }
+tick();
+ok(look().headpartIds.includes(TELL), 'fed with the editor open: the tells are held');
+timers.length = 0;
+closeEditor(JSON.parse(JSON.stringify(shownOpen)));
+ok(/unchanged/.test(said.at(-1) || '') && timers.length === 0, 'closed with no change: free, and nothing is sent again', said.at(-1));
+wait(2000); tick();
+ok(look().headpartIds.includes(TELL) && state().look, 'a tick 2 s after the close (the client still settling): the tells are left for now');
+wait(2000); tick();
+ok(look().headpartIds.includes(OWN_EYE) && !look().headpartIds.includes(TELL) && look().skinColor === 6189428 && !state().look, 'the first tick after the window clears them, when the client takes the write');
+// The same for tells due to show: laid once the window is over
+fresh(1); tick();
+const plainOpen = openEditor();
+{ const s = state(); s.lastFed = day() - 2.5; store.set(`${P}|${SP}`, s); }
+closeEditor(JSON.parse(JSON.stringify(plainOpen)));
+wait(1000); tick();
+ok(!state().look && look().headpartIds.includes(OWN_EYE), 'thirst due at a close with no change: nothing laid in the window');
+wait(3000); tick();
+ok(state().look && look().headpartIds.includes(TELL), 'laid by the first tick after it');
+
+// 15. A patron's /reroll that keeps her race, with the tells showing (second review, 8 Oct): nothing took the reroll's new
+// skin as what the tells hide, so the next feed gave back the skin from before it (the Selena #PXVM bug, by reroll).
+// appearance.js chargenFinish (the hook's reroll close), then the vampire race fix patrons.js runs after it.
+fresh(3); tick();
+store.set(`${P}|private.rerollPending`, true);
+const Ed = globalThis.__dboAppearanceEdit;
+ok(Ed.chargenOpened(P, 'reroll') === true, 'the reroll snapshots the look under the tells');
+const rolled = Object.assign(JSON.parse(JSON.stringify(look())), { skinColor: 0x203040, hairColor: 7 });
+store.set(`${P}|appearance`, JSON.parse(JSON.stringify(rolled)));
+Ed.chargenFinish(P, rolled);
+globalThis.__dboSuperReapplyLook(P);
+store.set(`${P}|private.rerollPending`, false);
+ok(look().headpartIds.includes(TELL) && state().look.prevSkin === 0x203040 && state().look.prevEye === OWN_EYE && look().skinColor === pale(0x203040), 'the rerolled skin is what the tells hide, one pallor over it, her own eyes still kept', state().look);
+feed();
+ok(look().skinColor === 0x203040 && look().hairColor === 7 && look().headpartIds.includes(OWN_EYE) && !look().headpartIds.includes(TELL), 'a feed keeps the rerolled skin and hair, her own eyes back', { skin: look().skinColor.toString(16) });
 
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

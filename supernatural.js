@@ -319,10 +319,11 @@ module.exports = (api) => {
   // The tells by thirst: a werewolf always; a vampire from vampireTellsStage, or before the first meal
   const tellsShown = (s) => s.kind !== 'vampire' || !!s.unfed || (Number(s.stage) || 1) >= (Number(C.vampireTellsStage) || 1);
   // An editor the server opened is open on this character (appearance.js editing: /appearance, or a GM's /chargen or a
-  // reroll on an existing one). The slow tick lays and clears no tells then, and no forced beast change comes: the client
-  // drops a write to its own look while the menu is open and the editor's result then overwrites it, so tells cleared
+  // reroll on an existing one), or closed less than the client's settle window ago. The slow tick lays and clears no
+  // tells then, and a forced beast change neither starts nor lands (it waits: forcedChange): the client drops a write to
+  // its own look while the menu is open or settling and the editor's result then overwrites it, so tells cleared
   // meanwhile came back with the editor and were saved as the mortal look for good; and a beast form taken meanwhile
-  // reverted to the look from before a paid edit (review, 8 Oct). The tick after the close catches up, and
+  // reverted to the look from before a paid edit (review, 8 Oct). The first tick after the window catches up, and
   // __dboTellsRetake handles the close itself.
   const editorOpen = (a) => { try { const E = globalThis.__dboAppearanceEdit; return !!(E && typeof E.editing === 'function' && E.editing(a)); } catch (e) { return false; } };
   const showTells = (a, s) => {
@@ -349,14 +350,14 @@ module.exports = (api) => {
     if (look.prevTone !== undefined) next.tints = (next.tints || []).map((x) => (isToneTint(x) ? Object.assign({}, x, { argb: look.prevTone }) : x));
     mp.set(a, 'appearance', next);
   };
-  // A saved appearance edit (appearance.js: /appearance, or a GM's /chargen on an existing character) on a character with
-  // a curse. s.look keeps the eyes, skin colour and skin tone the tells hide, and a feed gives them back, so an edit saved
-  // while the tells showed was undone at the next feed (Selena #PXVM, 5 Oct), and one that changed the eyes got the tells
-  // laid over again by the next slow tick with the pale skin taken as the mortal one. Here what the editor handed back
-  // unchanged from the tells stays the kept look, what the player changed becomes the new kept look, and the tells go
-  // back over it when they are due. before: the look as the editor opened on it (tells and all); without it, the kept
-  // skin and tone count as unchanged when they still show the pallor. The blood on a vampire's face is retaken the same
-  // way (retakeBlood). True when the look (or the blood) was taken.
+  // A saved appearance edit (appearance.js: /appearance, a GM's /chargen on an existing character, or a patron's /reroll)
+  // on a character with a curse. s.look keeps the eyes, skin colour and skin tone the tells hide, and a feed gives them
+  // back, so an edit saved while the tells showed was undone at the next feed (Selena #PXVM, 5 Oct), and one that changed
+  // the eyes got the tells laid over again by the next slow tick with the pale skin taken as the mortal one. Here what
+  // the editor handed back unchanged from the tells stays the kept look, what the player changed becomes the new kept
+  // look, and the tells go back over it when they are due. before: the look as the editor opened on it (tells and all);
+  // without it, the kept skin and tone count as unchanged when they still show the pallor. The blood on a vampire's face
+  // is retaken the same way (retakeBlood). True when the look (or the blood) was taken.
   const retakeTells = (a, before) => {
     a = Number(a) >>> 0;
     const s = stateOf(a);
@@ -1413,12 +1414,12 @@ module.exports = (api) => {
     log(`supernatural: ${display(a)} washed the blood off (${why})${remaining.length ? `; ${remaining.length} layer(s) had no blood left to undo` : ''}`);
     return 'clean';
   };
-  // A saved appearance edit on a bloody face (retakeTells, after /appearance or a GM's /chargen): a lips or chin layer the
-  // player recoloured in the editor is theirs now, so the colour kept from before the blood goes, or the next wash would
-  // put it back over their choice (review, 8 Oct). Recoloured: its colour differs from the look the editor opened on
-  // (before), or, without that look, it no longer wears a blood colour. A layer not found is left to the wash's own
-  // fallback. With nothing kept the blood state ends, as a wash ends it on a face with no blood left. app: the saved look.
-  // True when s.blood changed (the caller saves s).
+  // A saved appearance edit on a bloody face (retakeTells, after /appearance, a GM's /chargen or a /reroll): a lips or
+  // chin layer the player recoloured in the editor is theirs now, so the colour kept from before the blood goes, or the
+  // next wash would put it back over their choice (review, 8 Oct). Recoloured: its colour differs from the look the
+  // editor opened on (before), or, without that look, it no longer wears a blood colour. A layer not found is left to the
+  // wash's own fallback. With nothing kept the blood state ends, as a wash ends it on a face with no blood left. app: the
+  // saved look. True when s.blood changed (the caller saves s).
   const retakeBlood = (a, s, app, before) => {
     if (!s || !s.blood || !Array.isArray(s.blood.prev) || !s.blood.prev.length || !app || !Array.isArray(app.tints)) return false;
     const isBloodColour = bloodColourOf(s.blood.prev);
@@ -2023,17 +2024,30 @@ module.exports = (api) => {
   const shake = (a, strength, seconds) => { try { sendPacket(a, { customPacketType: 'dboShake', strength, seconds }); } catch (e) { /* offline */ } };
   const stillChanges = (a) => {
     const s = stateOf(a);
-    if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || !onlineActors().includes(a) || editorOpen(a)) return false;
+    if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || !onlineActors().includes(a)) return false;
     try { return !mp.get(a, 'isDead'); } catch (e) { return false; }
   };
+  // A change that falls due while an appearance editor is open, or within the client's settle window after its close
+  // (editorOpen), waits and is looked at again this often, its due time moved on each time; it lands once the editor has
+  // closed and settled. It used to pass, and an /appearance opened in the warning and closed unchanged (free, no
+  // cooldown) skipped the change at will (second review, 8 Oct). The transform then keeps the look saved at the close.
+  const FERAL_HOLD_MS = 2000;
   const forcedChange = (a, warning, change, logLine) => {
-    // Not with an appearance editor open (editorOpen): no warning now, and a later roll may bring it
+    // Not with an appearance editor open (editorOpen): no warning the menu would hide, and a later roll may bring it
     if (editorOpen(a)) return;
     const W = C.feralWarn || {};
     const lead = Math.max(0, Number(W.seconds) || 0);
+    let held = false;
     const go = () => {
+      if (!stillChanges(a)) { FERAL_DUE.delete(a); return log(`supernatural: ${display(a)}'s forced change passed (no longer able to change)`); }
+      if (editorOpen(a)) {
+        if (!held) log(`supernatural: ${display(a)}'s forced change waits for the appearance editor to close`);
+        held = true;
+        FERAL_DUE.set(a, Date.now() + FERAL_HOLD_MS);
+        setTimeout(go, FERAL_HOLD_MS);
+        return;
+      }
       FERAL_DUE.delete(a);
-      if (!stillChanges(a)) return log(`supernatural: ${display(a)}'s forced change passed (no longer able to change)`);
       change();
       log(logLine);
       if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);

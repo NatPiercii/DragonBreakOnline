@@ -6,7 +6,9 @@
 // And a GM's /chargen on an existing character, which gets the same head guard, as does a patron's reroll (its snapshot
 // rules here; the whole reroll close in appearance-reroll-harness.js). Review fixes, 8 Oct: a saved head that is no race's
 // default is never swapped for the race's vanilla one; the settled write sends the newest stored look, since the client
-// drops every write to its own look in the window.
+// drops every write to its own look in the window. Second review, 8 Oct: the head a high-poly look lost is found by its
+// record's type (HDPT PNAM 1, Face), a beast form taken in the window gets no settled write, editing() holds through the
+// client's settle window after a close, and /appearance waits while a forced werewolf change is coming.
 //   node tests/appearance-command-harness.js   (from server/)
 'use strict';
 const path = require('path');
@@ -16,6 +18,19 @@ const ok = (c, label, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${label}${c
 
 const A = 0xff000101;
 let props, said, sys, audits, cmds, opened, timers, user, writes, retakes;
+// The clock, moved on by hand past the client's settle window after a close
+let skew = 0;
+const realNow = Date.now;
+Date.now = () => realNow() + skew;
+const settleWindow = () => { skew += 4000; };
+// Head part records (HDPT PNAM: 1 Face, 2 Eyes, 3 Hair) when a check gives them; null: no record can be read
+let hdpt = null;
+const u32le = (n) => new Uint8Array(new Uint32Array([n]).buffer);
+const lookupEspmRecordById = (id) => {
+  if (!hdpt) throw new Error('no record');
+  const t = hdpt.get(id >>> 0);
+  return t === undefined ? { record: null } : { record: { type: 'HDPT', fields: [{ type: 'DATA', data: u32le(0) }, { type: 'PNAM', data: u32le(t) }] } };
+};
 const look = () => ({ raceId: 0x13746, isFemale: false, name: 'Brand Stoneborn', weight: 50, skinColor: 1, hairColor: 2, headpartIds: [1, 2], headTextureSetId: 3, options: [0], presets: [0], tints: [] });
 const reset = (gold, start) => {
   props = new Map([[`${A}|inventory`, { entries: [{ baseId: 0xf, count: gold }, { baseId: 0x1d4ec, count: 1 }] }]]);
@@ -24,8 +39,9 @@ const reset = (gold, start) => {
   delete require.cache[MOD];
   globalThis.__dboCombatAt = new Map(); globalThis.__dboIsDowned = null; globalThis.__dboBeastOriginalRace = null; globalThis.__dboDungeonCells = new Set();
   globalThis.__dboTellsRetake = (a, before) => retakes.push([a, before]);
+  globalThis.__dboFeralDue = new Map();
   return require(MOD)({
-    mp: { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => { if (k === 'appearance') writes.push(JSON.parse(JSON.stringify(v))); props.set(`${id}|${k}`, v); }, setRaceMenuOpen: () => { opened++; } },
+    mp: { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => { if (k === 'appearance') writes.push(JSON.parse(JSON.stringify(v))); props.set(`${id}|${k}`, v); }, setRaceMenuOpen: () => { opened++; }, lookupEspmRecordById },
     log: () => {}, personal: (a, t) => said.push(t), system: (a, t) => sys.push(t), audit: (t) => audits.push(t), who: () => 'Brand',
     registerChatCommand: (n, fn) => cmds.set(n, fn), cfg: { appearance: { cost: 500, cooldownHours: 24 } },
     userOf: () => user, profileOf: () => 7, later: (fn, ms) => timers.push({ fn, ms }),
@@ -81,6 +97,12 @@ refused(() => props.set(`${A}|private.restrained`, true), /bound/, 'refused whil
 refused(() => { props.set(`${A}|worldOrCellDesc`, '1234:Skyrim.esm'); globalThis.__dboDungeonCells = new Set(['1234:skyrim.esm']); }, /dungeon/, 'refused inside a dungeon');
 refused(() => props.set(`${A}|private.creationPending`, true), /Finish making/, 'refused during character creation');
 refused(() => props.set(`${A}|private.dboAppearanceEdit`, { at: 1, before: look() }), /already open/, 'refused while an edit is already pending');
+// A forced werewolf change warned and on its way (supernatural.js __dboFeralDue): an editor opened now only held it, and a
+// close with no change is free, so it was a way to skip the change (second review, 8 Oct)
+refused(() => globalThis.__dboFeralDue.set(A, Date.now() + 30000), /beast is coming/, 'refused while a forced beast change is coming');
+refused(() => globalThis.__dboFeralDue.set(A, Date.now() + 2000 - 45000), /beast is coming/, '...also one held past its due time a moment ago');
+reset(800); globalThis.__dboFeralDue.set(A, Date.now() - 120000); said = []; run();
+ok(opened === 1, 'a due time two minutes past is a leftover: the editor opens', said.at(-1));
 
 // 8. Not ours: finish ignores an actor with no pending edit (creation and GM /chargen keep their own path)
 reset(800);
@@ -164,7 +186,27 @@ ok(JSON.stringify(stored()) === JSON.stringify(hiPoly()) && gold() === 800, 'the
 edit(hiPoly(), char(0x13741, false, [0x51631, 0x8555f, NORD_M], { skinColor: 13021352, hairColor: 9 }));
 ok(parts(stored()) === '37000800 51631 8555f' && stored().hairColor === 9 && gold() === 300, 'a real edit over a high-poly head: paid, their own head back', parts(stored()));
 edit(hiPoly(), char(0x13741, false, [0x8555f, 0x22000777, NORD_M], { skinColor: 13021352 }));
-ok(!audits.some((t) => /swapped in/.test(t)) && parts(stored()) === '8555f 22000777 5162f', 'two parts taken out of a look with no default head: no telling which was the head, nothing guessed', parts(stored()));
+ok(!audits.some((t) => /kept their own/.test(t)) && parts(stored()) === '8555f 22000777 5162f', 'two parts taken out of a look with no default head, no records: no telling which was the head, nothing guessed', parts(stored()));
+ok(audits.some((t) => t === "APPEARANCE Brand editor swapped in Nord's default head, but their own could not be told from the other parts changed; saved as made, check it"), '...and audited for staff', audits);
+// Second review, 8 Oct. No records: a part replaced beside a Nord head only added is no head (it was put back as one)
+edit(char(0x13741, false, [0x2200aaaa, 0x51631, 0x8555f]), char(0x13741, false, [0x2200aaaa, NORD_M, 0x51632, 0x8555f]));
+ok(parts(stored()) === '2200aaaa 5162f 51632 8555f' && !stored().headpartIds.includes(0x51631) && audits.some((t) => /could not be told/.test(t)), 'no records, a new hair beside an added Nord head: the old hair is not put back as the head', parts(stored()));
+// With the records (the server's): the Face part taken out is the head, whatever else changed
+hdpt = new Map([[0x37000800, 1], [0x2200aaaa, 1], [0x51631, 3], [0x51632, 3], [0x22000999, 3], [0x22000777, 3], [0x8555f, 2], [NORD_M, 1]]);
+edit(hiPoly(), char(0x13741, false, [0x22000999, 0x8555f, NORD_M], { skinColor: 13021352 }));
+ok(parts(stored()) === '37000800 22000999 8555f' && gold() === 300 && /another race's face; your own was kept/.test(sys.at(-1)) && audits.some((t) => /kept their own$/.test(t)), 'records: a high-poly head and the hair both changed by the editor: their own head back, the new hair kept, paid and told', parts(stored()));
+edit(char(0x13741, false, [0x2200aaaa, 0x51631, 0x8555f]), char(0x13741, false, [0x2200aaaa, NORD_M, 0x51632, 0x8555f]));
+ok(parts(stored()) === '2200aaaa 51632 8555f' && gold() === 300, 'records: a new hair beside an added Nord head: the Nord head goes, the new hair stays, no second hair', parts(stored()));
+edit(hiPoly(), char(0x13741, false, [0x8555f, 0x22000777, NORD_M], { skinColor: 13021352 }));
+ok(parts(stored()) === '37000800 8555f 22000777', 'records: the edit no records could tell: their own head back', parts(stored()));
+edit(hiPoly(), char(0x13741, false, [0x51631, 0x8555f, NORD_M], { skinColor: 13021352 }));
+ok(JSON.stringify(stored()) === JSON.stringify(hiPoly()) && gold() === 800, 'records: a head-only swap is still unchanged and free', parts(stored()));
+edit(char(0x13741, false, [0x37000800, 0x2200aaaa, 0x51631]), char(0x13741, false, [0x51631, NORD_M]));
+ok(parts(stored()) === '51631 5162f' && audits.some((t) => /could not be told/.test(t)) && !audits.some((t) => /kept their own$/.test(t)), 'records: two Face parts taken out: nothing guessed, audited', parts(stored()));
+hdpt = new Map([[0x51631, 3]]);
+edit(hiPoly(), char(0x13741, false, [0x22000999, 0x8555f, NORD_M], { skinColor: 13021352 }));
+ok(parts(stored()) === '22000999 8555f 5162f' && audits.some((t) => /could not be told/.test(t)), 'a record missing for a part taken out: as with none, nothing guessed', parts(stored()));
+hdpt = null;
 // A plain paid edit leaves the client's look as it is: nothing to send again
 edit(bretonM(), Object.assign(bretonM(), { hairColor: 9 }));
 ok(timers.length === 0 && writes.length === 0, 'a paid edit with nothing put back is not written again', timers.length);
@@ -185,6 +227,10 @@ settled('another session has the character: no second write', () => { user = 4; 
 settled('a newer /appearance is open: no second write', () => props.set(`${A}|private.dboAppearanceEdit`, { at: Date.now(), before: bretonM() }), 0);
 settled('a GM /chargen is open: no second write', () => props.set(`${A}|private.dboChargenEdit`, { at: Date.now(), before: bretonM() }), 0);
 settled('still online, same session, nothing newer: written', () => {}, 1);
+// A beast form taken in the window (a Beast Form cast just after the close): the stored look keeps the mortal race named
+// after the form, and writing it would rebuild the mortal head on the beast body (second review, 8 Oct)
+settled('a beast form taken meanwhile: no second write', () => { props.set(`${A}|private.beast`, { form: 'werewolf', original: bretonM() }); props.set(`${A}|appearance`, Object.assign(bretonM(), { name: 'Werewolf' })); }, 0);
+settled('an older beastform (only __dboBeastOriginalRace): no second write', () => { globalThis.__dboBeastOriginalRace = () => 0x13741; }, 0);
 // The client drops every write to its own look in the window, so one made meanwhile (a mask's name, the tells, /rename)
 // is what goes: the newest, never the guard's older copy
 settled('the stored look changed meanwhile: the newer one is sent', () => props.set(`${A}|appearance`, Object.assign(bretonM(), { name: 'Masked Figure' })), 1);
@@ -222,18 +268,30 @@ ok(E.chargenOpened(A, 'reroll') === true && props.get(`${A}|private.dboChargenEd
 ok(E.chargenOpened(A) === false && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll', 'a GM /chargen while the reroll is open neither takes nor drops a snapshot');
 timers = []; writes = []; audits = []; sys = []; engineStores(swapHair);
 ok(E.chargenFinish(A, swapHair) === true && stored().headpartIds.includes(0x51633) && !stored().headpartIds.includes(NORD_M) && stored().hairColor === 9, 'the reroll close keeping race and sex: own head back, the rest as made', parts(stored()));
-ok(audits.some((t) => /kept their own \(reroll\)$/.test(t)) && retakes.length === 0 && !E.editing(A), 'audited as a reroll, the tells left to the reroll\'s own path, the snapshot gone', audits);
+ok(audits.some((t) => /kept their own \(reroll\)$/.test(t)) && !props.get(`${A}|private.dboChargenEdit`), 'audited as a reroll, the snapshot gone', audits);
+ok(retakes.length === 1 && JSON.stringify(retakes[0][1]) === JSON.stringify(bretonM()), 'a reroll\'s new look goes to the tells too, with the look before (second review, 8 Oct: a feed undid it)', retakes.length);
+settleWindow(); ok(!E.editing(A), 'and once the window is over nothing is held');
 reset(800, bretonM()); props.set(`${A}|private.creationPending`, true);
 ok(E.chargenOpened(A, 'reroll') === false, 'no reroll snapshot for a character still in creation');
 reset(800, bretonM()); props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() });
 ok(E.chargenFinish(A, swapOnly) === false && !props.get(`${A}|private.dboChargenEdit`), 'a snapshot a day old is dropped, not trusted');
-// editing(): what supernatural.js holds the tells and forced changes on
-reset(800, bretonM());
-ok(!E.editing(A), 'editing: nothing open');
-run(); ok(E.editing(A), 'editing: an /appearance edit is open');
-finish(Object.assign(bretonM(), { hairColor: 9 })); ok(!E.editing(A), 'editing: closed');
-E.chargenOpened(A); ok(E.editing(A), 'editing: a /chargen is open');
-props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() }); ok(!E.editing(A), 'editing: a snapshot a day old holds nothing');
+// editing(): what supernatural.js holds the tells and forced changes on. Open, and for the client's settle window after a
+// close (second review, 8 Oct: a tick in it after a close with no change, which sends nothing again, never reached the
+// player's own screen)
+let M = reset(800, bretonM()); let Ed = globalThis.__dboAppearanceEdit;
+ok(!Ed.editing(A), 'editing: nothing open');
+run(); ok(Ed.editing(A), 'editing: an /appearance edit is open');
+finish(Object.assign(bretonM(), { hairColor: 9 })); ok(Ed.editing(A), 'editing: just closed, still held in the client\'s settle window');
+skew += M.SETTLE_RESEND_MS - 100; ok(Ed.editing(A), 'editing: 3.4 s after the close, still held');
+skew += 200; ok(!Ed.editing(A), 'editing: 3.6 s after the close, nothing held');
+M = reset(800, bretonM()); Ed = globalThis.__dboAppearanceEdit; run(); finish(bretonM());
+ok(timers.length === 0 && Ed.editing(A), 'editing: a close with no change (nothing sent again) is held through the window too');
+settleWindow(); ok(!Ed.editing(A), '...and then released');
+Ed.chargenOpened(A); ok(Ed.editing(A), 'editing: a /chargen is open');
+Ed.chargenFinish(A, bretonM()); ok(Ed.editing(A), 'editing: a /chargen just closed, held in the window');
+settleWindow(); ok(!Ed.editing(A), '...and then released');
+Ed.chargenOpened(A);
+props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() }); ok(!Ed.editing(A), 'editing: a snapshot a day old holds nothing');
 reset(800, bretonM()); run();
 ok(E.chargenOpened(A) === false && !props.get(`${A}|private.dboChargenEdit`), 'no /chargen snapshot while the player\'s own /appearance is open (finish takes that close)');
 
