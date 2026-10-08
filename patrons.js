@@ -50,9 +50,9 @@ module.exports = (api) => {
   const pending = (a) => { try { return mp.get(a, 'private.rerollPending') === true; } catch (e) { return false; } };
   const setPending = (a, on) => { try { mp.set(a, 'private.rerollPending', !!on); } catch (e) { /* offline */ } };
 
-  // A forced werewolf change warned and on its way (supernatural.js forcedChange: actor -> when it lands). An open creator
-  // only holds it, so the creator waits for the beast instead (as appearance.js beastComing; second review, 8 Oct). A due
-  // time a minute past is a leftover
+  // A forced werewolf change warned and on its way (supernatural.js forcedChange: actor -> when it lands). It lands whatever
+  // the creator does, and a creator still open then hands back a look that overwrites it (appearance.js, known issues), so
+  // the creator waits for the beast instead (as appearance.js beastComing). A due time a minute past is a leftover
   const beastComing = (a) => {
     const due = globalThis.__dboFeralDue instanceof Map ? globalThis.__dboFeralDue.get(a >>> 0) : undefined;
     return due !== undefined && Date.now() < (Number(due) || 0) + 60000;

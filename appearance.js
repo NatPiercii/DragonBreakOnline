@@ -38,10 +38,19 @@
 //    (/appearance, a GM's /chargen or a patron's /reroll) the new look goes to globalThis.__dboTellsRetake
 //    (supernatural.js), which takes what the player changed as the look under the tells and lays the tells back over it
 //    when they are due; a lips or chin layer recoloured over a vampire's blood is taken as theirs the same way, so a wash
-//    leaves it. While an editor the server opened is open, and for the client's settle window after it closes (editing
-//    below), supernatural.js lays and clears no tells and holds a forced beast change till after it: the client would
-//    drop that write and the editor's result overwrite it, and a beast form would revert to the look from before the
-//    edit. A held change still comes; /appearance is refused while one is coming.
+//    leaves it.
+// /appearance (and patrons.js /reroll) is refused while a forced werewolf change is warned and on its way
+// (supernatural.js __dboFeralDue). Nothing holds, delays or skips that change or the tells for an editor: supernatural.js
+// runs both exactly as before these guards (a hold tried on 8 Oct let an /appearance opened just before the change's
+// roll and closed unchanged, free, skip every forced change).
+//
+// Known issues, not fixed here (the same before these guards, rare; a separate follow-up): the engine stores what the
+// editor hands back over anything the server wrote to the look meanwhile, and the player's own client drops every write
+// to its own look while RaceMenu is open or settling. So a forced werewolf change (feral or full moon), a curse starting
+// or ending, or the slow tick laying or clearing the tells (a feed, a rising thirst) while an editor is open can be
+// overwritten by the editor's result: a beast form taken then keeps the look from before the edit to revert to
+// (beastform.js tryTransform), and tells cleared then come back with the editor and stay as the mortal look (tells laid
+// then are laid again by the next slow tick, or by the retake after a saved edit).
 const fs = require('fs');
 const path = require('path');
 
@@ -57,8 +66,8 @@ const SETTLE_RESEND_MS = 3500;
 const REFUSED_EVERY_MS = 60000;
 // A head part's type (HDPT PNAM): the Face part is the head
 const FACE = 1;
-// A forced beast change pending this long past its due time is a leftover, not one coming (supernatural.js holds a
-// change while an editor is open by moving its due time on every few seconds)
+// A forced beast change pending this long past its due time is a leftover, not one coming (its own timer clears it when
+// it lands or passes)
 const BEAST_DUE_STALE_MS = 60000;
 const HEADS_JSON = path.join(__dirname, 'racedefaultheads.json');
 
@@ -146,8 +155,8 @@ module.exports = (api) => {
     try { return typeof globalThis.__dboBeastOriginalRace === 'function' && !!globalThis.__dboBeastOriginalRace(a); } catch (e) { return false; }
   };
   // A forced werewolf change has been warned and is on its way (supernatural.js forcedChange, globalThis.__dboFeralDue:
-  // actor -> when it lands). An editor opened now would only hold it, and a close with no change is free, so the editor
-  // waits for the beast instead (review, 8 Oct: it was a free way to skip the change). patrons.js /reroll asks the same.
+  // actor -> when it lands). It lands whatever the editor does, and an editor still open then hands back a look that
+  // overwrites it (the known issues above), so the editor waits for the beast instead. patrons.js /reroll asks the same.
   const beastComing = (a) => {
     const due = globalThis.__dboFeralDue instanceof Map ? globalThis.__dboFeralDue.get(a >>> 0) : undefined;
     return due !== undefined && Date.now() < (Number(due) || 0) + BEAST_DUE_STALE_MS;
@@ -285,17 +294,6 @@ module.exports = (api) => {
     if (g && !g.look) audit(`APPEARANCE ${who(a)} editor swapped in ${raceName(g.from)}'s default head, but their own could not be told from the other parts changed; saved as made, check it${how ? ` (${how})` : ''}`);
     return g && g.look ? g : null;
   };
-  // When an editor the server opened last closed, per character. The client drops every write to its own look for its
-  // settle window after a close (RACE_MENU_SETTLE_MS), so editing() holds the tells and a forced change that long too:
-  // a tick right after a close with no change, which schedules no settled write, would never reach the player's own
-  // screen, and rebuilding the player during RaceSexMenu's teardown crashes the client (second review, 8 Oct). A reload
-  // forgets it, at the cost of one window.
-  const closedAt = new Map();
-  const closed = (a) => {
-    const t = Date.now(); closedAt.set(a >>> 0, t);
-    if (closedAt.size > 512) for (const [k, at] of closedAt) if (t - at >= SETTLE_RESEND_MS) closedAt.delete(k);
-  };
-
   // The editor closed with this appearance (gamemode.js appearanceHook, the engine has already applied it). True when it
   // was ours to handle.
   const finish = (a, appearance) => {
@@ -303,7 +301,6 @@ module.exports = (api) => {
     const e = get(a, EDIT);
     if (!e || !e.before) return false;
     mp.set(a, EDIT, null);
-    closed(a);
     // A GM's /chargen opened over it ends with this close too
     if (get(a, CHARGEN)) mp.set(a, CHARGEN, null);
     const before = e.before;
@@ -370,7 +367,6 @@ module.exports = (api) => {
     const e = get(a, CHARGEN);
     if (!e || !e.before) return false;
     mp.set(a, CHARGEN, null);
-    closed(a);
     if (!(Date.now() - (Number(e.at) || 0) < CHARGEN_MAX_MS)) return false;
     const reroll = e.kind === 'reroll';
     // Made, or for a /chargen rerolled, since the snapshot: that close is creation's (or the reroll's)
@@ -394,23 +390,6 @@ module.exports = (api) => {
     resendAfterSettle(a, appearance);
     return true;
   };
-  // An editor the server opened is open on this character: its own /appearance edit, or a GM's /chargen or a reroll on
-  // it (a snapshot under a day old), or one closed less than the client's settle window ago. supernatural.js holds the
-  // tells and a forced beast change till then: a write to the look meanwhile is dropped by the client (the menu is open,
-  // or settling) and, while open, overwritten by the editor's result, and a beast form taken now would revert to the
-  // look from before the edit (review, 8 Oct).
-  const editing = (a) => {
-    a = a >>> 0;
-    const open = (e) => !!(e && e.before && Date.now() - (Number(e.at) || 0) < CHARGEN_MAX_MS);
-    if (open(get(a, EDIT)) || open(get(a, CHARGEN))) return true;
-    const t = closedAt.get(a);
-    if (t === undefined) return false;
-    const since = Date.now() - t;
-    if (since >= 0 && since < SETTLE_RESEND_MS) return true;
-    closedAt.delete(a);
-    return false;
-  };
-
   // Guard 2: an editor result the server did not open (isAllowed false: the engine kept the stored look). True when the
   // player was told. A pure echo (the client sends its look on every RaceSex Menu close) and a character still being made
   // say nothing, and one notice a minute at most (the audit line with it).
@@ -431,7 +410,7 @@ module.exports = (api) => {
     return true;
   };
 
-  globalThis.__dboAppearanceEdit = { pending, finish, blocked, chargenOpened, chargenFinish, refused, editing };
+  globalThis.__dboAppearanceEdit = { pending, finish, blocked, chargenOpened, chargenFinish, refused };
   log(`appearance ${C.enabled ? 'on' : 'off'}: /appearance costs ${cost} gold, every ${Number(C.cooldownHours) || 0} h, race ${C.allowRace === true ? 'free' : 'kept'}, sex ${C.allowSex === true ? 'free' : 'kept'}, head guard ${C.headGuard === false ? 'off' : `on (${HEADS.raceOf.size} race ids)`}`);
-  return { pending, finish, blocked, goldOf, takeGold, C, chargenOpened, chargenFinish, refused, editing, guardHead, sameLook, SETTLE_RESEND_MS };
+  return { pending, finish, blocked, goldOf, takeGold, C, chargenOpened, chargenFinish, refused, guardHead, sameLook, SETTLE_RESEND_MS };
 };

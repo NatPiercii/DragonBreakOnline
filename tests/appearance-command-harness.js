@@ -7,8 +7,8 @@
 // rules here; the whole reroll close in appearance-reroll-harness.js). Review fixes, 8 Oct: a saved head that is no race's
 // default is never swapped for the race's vanilla one; the settled write sends the newest stored look, since the client
 // drops every write to its own look in the window. Second review, 8 Oct: the head a high-poly look lost is found by its
-// record's type (HDPT PNAM 1, Face), a beast form taken in the window gets no settled write, editing() holds through the
-// client's settle window after a close, and /appearance waits while a forced werewolf change is coming.
+// record's type (HDPT PNAM 1, Face), a beast form taken in the window gets no settled write, and /appearance waits while
+// a forced werewolf change is coming.
 //   node tests/appearance-command-harness.js   (from server/)
 'use strict';
 const path = require('path');
@@ -18,11 +18,6 @@ const ok = (c, label, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${label}${c
 
 const A = 0xff000101;
 let props, said, sys, audits, cmds, opened, timers, user, writes, retakes;
-// The clock, moved on by hand past the client's settle window after a close
-let skew = 0;
-const realNow = Date.now;
-Date.now = () => realNow() + skew;
-const settleWindow = () => { skew += 4000; };
 // Head part records (HDPT PNAM: 1 Face, 2 Eyes, 3 Hair) when a check gives them; null: no record can be read
 let hdpt = null;
 const u32le = (n) => new Uint8Array(new Uint32Array([n]).buffer);
@@ -97,10 +92,10 @@ refused(() => props.set(`${A}|private.restrained`, true), /bound/, 'refused whil
 refused(() => { props.set(`${A}|worldOrCellDesc`, '1234:Skyrim.esm'); globalThis.__dboDungeonCells = new Set(['1234:skyrim.esm']); }, /dungeon/, 'refused inside a dungeon');
 refused(() => props.set(`${A}|private.creationPending`, true), /Finish making/, 'refused during character creation');
 refused(() => props.set(`${A}|private.dboAppearanceEdit`, { at: 1, before: look() }), /already open/, 'refused while an edit is already pending');
-// A forced werewolf change warned and on its way (supernatural.js __dboFeralDue): an editor opened now only held it, and a
-// close with no change is free, so it was a way to skip the change (second review, 8 Oct)
+// A forced werewolf change warned and on its way (supernatural.js __dboFeralDue): it lands whatever the editor does, and an
+// editor still open then hands back a look over it (a known issue, appearance.js header), so the editor waits
 refused(() => globalThis.__dboFeralDue.set(A, Date.now() + 30000), /beast is coming/, 'refused while a forced beast change is coming');
-refused(() => globalThis.__dboFeralDue.set(A, Date.now() + 2000 - 45000), /beast is coming/, '...also one held past its due time a moment ago');
+refused(() => globalThis.__dboFeralDue.set(A, Date.now() - 43000), /beast is coming/, '...also one less than a minute past its due time (its timer yet to run)');
 reset(800); globalThis.__dboFeralDue.set(A, Date.now() - 120000); said = []; run();
 ok(opened === 1, 'a due time two minutes past is a leftover: the editor opens', said.at(-1));
 
@@ -264,34 +259,16 @@ r = chargen(bretonM(), swapOnly, () => props.set(`${A}|private.rerollPending`, t
 ok(!r.snap && !r.handled, 'nor one rerolling');
 // A patron's reroll (patrons.js open()) takes its own snapshot; a /chargen over it leaves it alone
 reset(800, bretonM()); props.set(`${A}|private.rerollPending`, true);
-ok(E.chargenOpened(A, 'reroll') === true && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll' && E.editing(A), 'a reroll snapshots the look, marked as a reroll');
+ok(E.chargenOpened(A, 'reroll') === true && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll', 'a reroll snapshots the look, marked as a reroll');
 ok(E.chargenOpened(A) === false && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll', 'a GM /chargen while the reroll is open neither takes nor drops a snapshot');
 timers = []; writes = []; audits = []; sys = []; engineStores(swapHair);
 ok(E.chargenFinish(A, swapHair) === true && stored().headpartIds.includes(0x51633) && !stored().headpartIds.includes(NORD_M) && stored().hairColor === 9, 'the reroll close keeping race and sex: own head back, the rest as made', parts(stored()));
 ok(audits.some((t) => /kept their own \(reroll\)$/.test(t)) && !props.get(`${A}|private.dboChargenEdit`), 'audited as a reroll, the snapshot gone', audits);
 ok(retakes.length === 1 && JSON.stringify(retakes[0][1]) === JSON.stringify(bretonM()), 'a reroll\'s new look goes to the tells too, with the look before (second review, 8 Oct: a feed undid it)', retakes.length);
-settleWindow(); ok(!E.editing(A), 'and once the window is over nothing is held');
 reset(800, bretonM()); props.set(`${A}|private.creationPending`, true);
 ok(E.chargenOpened(A, 'reroll') === false, 'no reroll snapshot for a character still in creation');
 reset(800, bretonM()); props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() });
 ok(E.chargenFinish(A, swapOnly) === false && !props.get(`${A}|private.dboChargenEdit`), 'a snapshot a day old is dropped, not trusted');
-// editing(): what supernatural.js holds the tells and forced changes on. Open, and for the client's settle window after a
-// close (second review, 8 Oct: a tick in it after a close with no change, which sends nothing again, never reached the
-// player's own screen)
-let M = reset(800, bretonM()); let Ed = globalThis.__dboAppearanceEdit;
-ok(!Ed.editing(A), 'editing: nothing open');
-run(); ok(Ed.editing(A), 'editing: an /appearance edit is open');
-finish(Object.assign(bretonM(), { hairColor: 9 })); ok(Ed.editing(A), 'editing: just closed, still held in the client\'s settle window');
-skew += M.SETTLE_RESEND_MS - 100; ok(Ed.editing(A), 'editing: 3.4 s after the close, still held');
-skew += 200; ok(!Ed.editing(A), 'editing: 3.6 s after the close, nothing held');
-M = reset(800, bretonM()); Ed = globalThis.__dboAppearanceEdit; run(); finish(bretonM());
-ok(timers.length === 0 && Ed.editing(A), 'editing: a close with no change (nothing sent again) is held through the window too');
-settleWindow(); ok(!Ed.editing(A), '...and then released');
-Ed.chargenOpened(A); ok(Ed.editing(A), 'editing: a /chargen is open');
-Ed.chargenFinish(A, bretonM()); ok(Ed.editing(A), 'editing: a /chargen just closed, held in the window');
-settleWindow(); ok(!Ed.editing(A), '...and then released');
-Ed.chargenOpened(A);
-props.set(`${A}|private.dboChargenEdit`, { at: Date.now() - 25 * 3600000, before: bretonM() }); ok(!Ed.editing(A), 'editing: a snapshot a day old holds nothing');
 reset(800, bretonM()); run();
 ok(E.chargenOpened(A) === false && !props.get(`${A}|private.dboChargenEdit`), 'no /chargen snapshot while the player\'s own /appearance is open (finish takes that close)');
 

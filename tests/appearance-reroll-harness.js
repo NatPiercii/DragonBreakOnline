@@ -2,10 +2,9 @@
 // /chargen do, so a close that keeps race and sex can come back with the Nord head in place of the race's own (review,
 // 8 Oct). Loads the real patrons.js and appearance.js and runs gamemode.js's own appearanceHook cut out of the file: the
 // head goes back before the reroll is spent and before the vampire race fix reads the look; a reroll to another race or
-// sex is left as made; a menu that failed to open leaves no snapshot behind (it would hold a vampire's tells). Second
-// review, 8 Oct: a reroll's new look goes to the tells as an /appearance edit does (a feed gave back the look from
-// before it), the hold lasts through the client's settle window after the close, and /reroll waits while a forced
-// werewolf change is coming (an open creator would only hold it).
+// sex is left as made; a menu that failed to open leaves no snapshot behind (a later close would be taken for it).
+// Second review, 8 Oct: a reroll's new look goes to the tells as an /appearance edit does (a feed gave back the look
+// from before it), and /reroll waits while a forced werewolf change is coming (it lands whatever the creator does).
 //   node tests/appearance-reroll-harness.js   (from server/)
 'use strict';
 const fs = require('fs');
@@ -23,11 +22,6 @@ const ok = (c, label, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${label}${c
 
 const A = 0xff000101;
 const NORD_M = 0x5162f;
-// The clock, moved on by hand past the client's settle window after a close
-let skew = 0;
-const realNow = Date.now;
-Date.now = () => realNow() + skew;
-const settleWindow = () => { skew += 4000; };
 const props = new Map();
 let said = [], audits = [], timers = [], reapplied = [], retakes = [], order = [], failOpen = false;
 const mp = {
@@ -46,7 +40,6 @@ const api = {
 delete globalThis.__dboPatronStore;
 require(path.join(ROOT, 'appearance.js'))(api);
 require(path.join(ROOT, 'patrons.js'))(api);
-const E = globalThis.__dboAppearanceEdit;
 // What the vampire race fix (supernatural.js, called by __dboRerollDone) would read, and the tells retake
 globalThis.__dboSuperReapplyLook = (a) => { order.push('race fix'); reapplied.push(JSON.parse(JSON.stringify(props.get(`${a}|appearance`)))); };
 globalThis.__dboTellsRetake = (a, before) => { order.push('tells'); retakes.push(before); };
@@ -76,7 +69,6 @@ reset();
 cmds.get('reroll')(A, 'confirm');
 const snap = props.get(`${A}|private.dboChargenEdit`);
 ok(props.get(`${A}|private.rerollPending`) === true && snap && snap.kind === 'reroll' && JSON.stringify(snap.before) === JSON.stringify(bretonM()), '/reroll confirm snapshots the look once the creator is open');
-ok(E.editing(A), 'an open reroll counts as an open editor (the tells and forced changes wait)');
 close(look(0x13741, [0x51631, 0x8555f, 0x220064cb, NORD_M], { hairColor: 9 }));
 ok(parts(stored()) === '51633 51631 8555f 220064cb' && stored().hairColor === 9, 'the Nord head out, their own back in its slot, the new hair kept', parts(stored()));
 ok(props.get(`${A}|private.rerollPending`) === false && audits.some((t) => /^REROLL /.test(t)), 'the reroll is spent as before');
@@ -84,9 +76,7 @@ ok(reapplied.length === 1 && reapplied[0].headpartIds.includes(0x51633) && !reap
 ok(audits.some((t) => t === "APPEARANCE Brand editor swapped in Nord's default head; kept their own (reroll)") && said.some((t) => /another race's face; your own was kept/.test(t)), 'audited and the player told', audits);
 ok(timers.length === 1 && timers[0].ms === 3500, 'sent again after the settle window');
 ok(retakes.length === 1 && JSON.stringify(retakes[0]) === JSON.stringify(bretonM()) && order.join() === 'tells,race fix', 'the new look goes to the tells, with the look before, ahead of the vampire race fix', order);
-ok(!props.get(`${A}|private.dboChargenEdit`) && E.editing(A), 'the snapshot is gone with the close; the tells are still held in the client\'s settle window');
-settleWindow();
-ok(!E.editing(A), 'and released after it');
+ok(!props.get(`${A}|private.dboChargenEdit`), 'the snapshot is gone with the close');
 
 // 2. A reroll to another race (or sex) is left as made
 reset();
@@ -106,23 +96,23 @@ cmds.get('reroll')(A, 'confirm');
 const kept = look(0x13741, [0x51631, 0x8555f, 0x220064cb, 0x51633], { hairColor: 9 });
 close(kept);
 ok(JSON.stringify(stored()) === JSON.stringify(kept) && !audits.some((t) => /swapped in/.test(t)) && timers.length === 0, 'their own head came back: the look stands as made, nothing sent again');
-reset(); settleWindow();
+reset();
 cmds.get('reroll')(A, 'confirm');
 close(JSON.parse(JSON.stringify(bretonM())));
 ok(retakes.length === 0 && props.get(`${A}|private.rerollPending`) === false, 'a reroll closed with the look unchanged: nothing for the tells, the reroll spent as before');
 
 // 4. A creator that would not open leaves no snapshot, and an unfinished reroll reopened takes a fresh one
-reset(); settleWindow(); failOpen = true;
+reset(); failOpen = true;
 cmds.get('reroll')(A, 'confirm');
-ok(!props.get(`${A}|private.dboChargenEdit`) && props.get(`${A}|private.rerollPending`) === false && !E.editing(A), 'the creator failed to open: no snapshot left to hold the tells');
+ok(!props.get(`${A}|private.dboChargenEdit`) && props.get(`${A}|private.rerollPending`) === false, 'the creator failed to open: no snapshot left behind');
 reset();
 props.set(`${A}|private.rerollPending`, true);
 cmds.get('reroll')(A, '');
 ok(props.get(`${A}|private.dboChargenEdit`) && props.get(`${A}|private.dboChargenEdit`).kind === 'reroll', 'an unfinished reroll reopened is snapshotted too');
 
-// 5. Not while a forced werewolf change is coming (supernatural.js __dboFeralDue): the open creator would hold it, and the
-// unlimited tier could skip every change that way (second review, 8 Oct)
-reset(); settleWindow(); said = [];
+// 5. Not while a forced werewolf change is coming (supernatural.js __dboFeralDue): it lands whatever the creator does, and a
+// creator still open then hands back a look over it (a known issue, appearance.js header)
+reset(); said = [];
 globalThis.__dboFeralDue = new Map([[A, Date.now() + 30000]]);
 cmds.get('reroll')(A, 'confirm');
 ok(said.at(-1) === 'Not while the beast is coming.' && !props.get(`${A}|private.rerollPending`) && !props.get(`${A}|private.dboChargenEdit`), '/reroll waits while the beast is coming', said.at(-1));

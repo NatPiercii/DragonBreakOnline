@@ -318,14 +318,6 @@ module.exports = (api) => {
   };
   // The tells by thirst: a werewolf always; a vampire from vampireTellsStage, or before the first meal
   const tellsShown = (s) => s.kind !== 'vampire' || !!s.unfed || (Number(s.stage) || 1) >= (Number(C.vampireTellsStage) || 1);
-  // An editor the server opened is open on this character (appearance.js editing: /appearance, or a GM's /chargen or a
-  // reroll on an existing one), or closed less than the client's settle window ago. The slow tick lays and clears no
-  // tells then, and a forced beast change neither starts nor lands (it waits: forcedChange): the client drops a write to
-  // its own look while the menu is open or settling and the editor's result then overwrites it, so tells cleared
-  // meanwhile came back with the editor and were saved as the mortal look for good; and a beast form taken meanwhile
-  // reverted to the look from before a paid edit (review, 8 Oct). The first tick after the window catches up, and
-  // __dboTellsRetake handles the close itself.
-  const editorOpen = (a) => { try { const E = globalThis.__dboAppearanceEdit; return !!(E && typeof E.editing === 'function' && E.editing(a)); } catch (e) { return false; } };
   const showTells = (a, s) => {
     if (!s || !s.kind) return;
     if (tellsShown(s)) {
@@ -1996,7 +1988,7 @@ module.exports = (api) => {
         if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
         else if (!sameSpells(s.spells, wantSpells(s))) syncVampSpells(a, s);
       }
-      if (s.kind && !editorOpen(a)) showTells(a, s);
+      if (s.kind) showTells(a, s);
     }
   });
   every('superSun', 10000, () => {
@@ -2027,27 +2019,12 @@ module.exports = (api) => {
     if (!s || s.kind !== 'werewolf' || spared(a, s) || beastForm(a) || rites.has(a) || !onlineActors().includes(a)) return false;
     try { return !mp.get(a, 'isDead'); } catch (e) { return false; }
   };
-  // A change that falls due while an appearance editor is open, or within the client's settle window after its close
-  // (editorOpen), waits and is looked at again this often, its due time moved on each time; it lands once the editor has
-  // closed and settled. It used to pass, and an /appearance opened in the warning and closed unchanged (free, no
-  // cooldown) skipped the change at will (second review, 8 Oct). The transform then keeps the look saved at the close.
-  const FERAL_HOLD_MS = 2000;
   const forcedChange = (a, warning, change, logLine) => {
-    // Not with an appearance editor open (editorOpen): no warning the menu would hide, and a later roll may bring it
-    if (editorOpen(a)) return;
     const W = C.feralWarn || {};
     const lead = Math.max(0, Number(W.seconds) || 0);
-    let held = false;
     const go = () => {
-      if (!stillChanges(a)) { FERAL_DUE.delete(a); return log(`supernatural: ${display(a)}'s forced change passed (no longer able to change)`); }
-      if (editorOpen(a)) {
-        if (!held) log(`supernatural: ${display(a)}'s forced change waits for the appearance editor to close`);
-        held = true;
-        FERAL_DUE.set(a, Date.now() + FERAL_HOLD_MS);
-        setTimeout(go, FERAL_HOLD_MS);
-        return;
-      }
       FERAL_DUE.delete(a);
+      if (!stillChanges(a)) return log(`supernatural: ${display(a)}'s forced change passed (no longer able to change)`);
       change();
       log(logLine);
       if (typeof globalThis.__dboBeastTransform === 'function') globalThis.__dboBeastTransform(a, 'werewolf', true);
