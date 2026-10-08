@@ -93,6 +93,7 @@ now += 16000; runDue();
 ok(holds(STAGE1), 'after a relog\'s flush stage 1\'s spells are still learned', [...(learned.get(V) || [])].map(hex));
 
 // ---- 3. Viggo's exact state: stage 1 on record with the stage 4 list, nothing learned --------------------------------
+now += 90000;   // past the login settle window (vampireSpellSettleSeconds)
 store.set(`${V}|private.supernatural`, { kind: 'vampire', stage: 1, lastFed: (now - clockStart) / GAME_DAY_MS, pure: true, spells: STAGE4.slice() });
 learned.set(V, new Set());
 store.set(`${V}|equipment`, { inv: { entries: [] }, rightSpell: 0, leftSpell: 0 });

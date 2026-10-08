@@ -111,6 +111,8 @@ module.exports = (api) => {
     // Food does little for a vampire: a share of what it gives a mortal, a smaller one when thirsty (stage 3 and up,
     // or not yet fed)
     vampireFood: 0.25, vampireFoodThirsty: 0.10,
+    // A thirst stage reached in the client's first seconds waits this long after login (its spell resets undo it)
+    vampireSpellSettleSeconds: 90,
   }, cfg.supernatural || {});
   // Merged key by key, as C.feed is below: a partial override such as {"rite":{"clientJudged":false}} used to replace the
   // whole block and wipe rounds, need and leadMs (DESIGN.md section 4.6)
@@ -2016,6 +2018,8 @@ module.exports = (api) => {
     const s = stateOf(a); if (!s || s.kind !== 'vampire') return 1;
     return s.unfed || s.stage >= 3 ? Number(C.vampireFoodThirsty) : Number(C.vampireFood);
   };
+  // True while the client may still put back its login spell list (remoteServer.ts SPELL_ENFORCE_PASSES)
+  const spellsSettling = (a) => { const at = globalThis.__dboSuperLoginAt instanceof Map ? globalThis.__dboSuperLoginAt.get(a >>> 0) : 0; return !!at && Date.now() - at < Math.max(0, Number(C.vampireSpellSettleSeconds) || 0) * 1000; };
   every('superSlow', 15000, () => {
     const day = gameDays();
     for (const a of onlineActors()) {
@@ -2042,7 +2046,9 @@ module.exports = (api) => {
       if (s.kind === 'vampire') {
         // An older vampire's thirst climbs its stages more slowly (bloodranks.js)
         const stage = Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day)) * bloodRate(a, '__dboBloodThirstRate')));
-        if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
+        // Silas #LT8Y, 7 Oct: a stage change at login never reached the client and its old drain was stripped
+        if (spellsSettling(a)) { if (stage !== s.stage && Date.now() - globalThis.__dboSuperLoginAt.get(a >>> 0) < 15000) log(`supernatural: ${display(a)} reaches stage ${stage} once their client has settled`); }
+        else if (stage !== s.stage) { s.stage = stage; saveState(a, s); syncVampSpells(a, s); flushStageSpells(a, s, 'stage change'); if (stage > 1) personal(a, `Your thirst grows. (stage ${stage})`); }
         else if (!sameSpells(s.spells, wantSpells(s))) syncVampSpells(a, s);
       }
       if (s.kind) showTells(a, s);
