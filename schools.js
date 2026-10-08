@@ -56,7 +56,7 @@
 // State, on the character: private.dboSchools
 //   { v, primary, secondary, levels: { <school>: { level, xp } }, grandfathered: [spell desc...], study: { log: [[from, to] ms...] },
 //     picks: { <school>: { spell: desc | '', how: 'chose' | 'starter' | 'none', at } }, pickTold: { <school>: ms },
-//     swapAt, swaps: [{ from, to, fromLevel, toLevel, at }],
+//     swapAt, swaps: [{ from, to, fromLevel, toLevel, at }], secondaryTold: ms,
 //     priestStudy: { log: [[from, to] ms...] }, cast: { day, units: {} },
 //     ring: [{ h, at }], classAt, paidAt, teacher: { by, at }, preachAt, sermonPaidAt, preacher: { by, at } }
 // Classes and sermons live on globalThis and end with the process (a restart cancels one in progress).
@@ -490,6 +490,12 @@ module.exports = (api) => {
       if (!told) personal(a, `${FIRST_LINE} Open your skills (K) to choose on the Arcane Arts page, or go to a Study Magic shelf.`);
       return false;
     }
+    // The secondary school is told once, with where to choose it
+    if (secondaryWaits(a, s) && !s.secondaryTold) {
+      s.secondaryTold = Date.now(); save(a, s);
+      audit(`SCHOOLS ${who(a)} reached Arcane Arts ${C.secondaryAtLevel}: secondary school offered (${why})`);
+      personal(a, SECOND_WHERE);
+    }
     // The 10 s check looks no further once every waiting pick has been told (the options read the engine's spell list)
     const waiting = pickSchools(a, s);
     if (!waiting.length || (why === 'tick' && waiting.every((x) => s.pickTold[x]))) return false;
@@ -529,6 +535,12 @@ module.exports = (api) => {
   };
 
   // ---- choosing schools ------------------------------------------------------------------------------------------
+  // The secondary is offered at a shelf and a ledger too: K's journal tab draws no choose buttons (#bugs 1557587660384501821)
+  const secondaryWaits = (a, s) => C.enabled && !!s.primary && !s.secondary && arcaneOf(a).level >= C.secondaryAtLevel;
+  const SECOND_LINE = `Your Arcane Arts has reached ${C.secondaryAtLevel}: you may take up one more school as your secondary.`;
+  const SECOND_WHERE = `${SECOND_LINE} Choose it at a Study Magic shelf or a Scholars' Ledger.`;
+  // A secondary starts at secondaryStartLevel (never above the primary), or where it rested when higher
+  const secondaryStart = (s, school) => Math.max(levelOf(s, school), Math.min(levelOf(s, s.primary), Math.max(1, C.secondaryStartLevel)));
   // { ok, text }
   const choose = (a, school, as) => {
     if (!C.enabled) return { ok: false, text: 'The schools of magic are closed.' };
@@ -560,7 +572,7 @@ module.exports = (api) => {
       if (arc.level < C.secondaryAtLevel) return { ok: false, text: `A secondary school opens at Arcane Arts ${C.secondaryAtLevel}. Yours is ${arc.level}.` };
       s.secondary = school;
       // A school resting from a change keeps its level when that is higher
-      const start = Math.min(levelOf(s, s.primary), Math.max(1, C.secondaryStartLevel));
+      const start = secondaryStart(s, school);
       if (levelOf(s, school) < start) s.levels[school] = { level: start, xp: 0 };
       save(a, s);
       audit(`SCHOOLS ${who(a)} chose ${school} as their secondary school (level ${levelOf(s, school)})`);
@@ -655,7 +667,7 @@ module.exports = (api) => {
     if (!ready(a)) return null;
     const s = stateOf(a);
     const arc = arcaneOf(a);
-    const secondaryOpen = !!s.primary && !s.secondary && arc.level >= C.secondaryAtLevel;
+    const secondaryOpen = secondaryWaits(a, s);
     const early = beforeFirst(a, s);
     const nonce = mkNonce('m', a);
     menuNonces.set(a >>> 0, nonce);
@@ -932,6 +944,8 @@ module.exports = (api) => {
     if (S.studying.has(a >>> 0)) return openStudy(a, ref);
     // A first spell waiting to be chosen opens here; with the books closed to them, a mage may change school here
     if (firstCheck(a, 'shelf', ref)) return;
+    // A secondary school waiting: the magic menu first, with Study while the books are open
+    if (secondaryWaits(a, s)) return openSchoolMenu(a, ref, 'shelf', studyRefusal(a, s) || SECOND_LINE);
     if (s.primary && firstSpell(a, s.primary) && C.swap.enabled) { const why = studyRefusal(a, s); if (why) return openSchoolMenu(a, ref, 'shelf', why); }
     startStudy(a, ref);
   };
@@ -1001,10 +1015,14 @@ module.exports = (api) => {
     openWidget(a, { type: 'contextMenu', id: SCHOOL_MENU_ID, mode: 'menu', targetName: title, actions: actions.map((x) => ({ id: `${nonce}|${x.id}`, label: x.label })),
       events: { action: 'dbo:schoolMenu', close: 'dbo:schoolMenuClose' } }, true);
   };
-  // The shelf's (or the ledger's) magic menu: a first spell waiting, a change of school
+  // The shelf's (or the ledger's) magic menu: a first spell waiting, the secondary school, a change of school
   const openSchoolMenu = (a, ref, where, note) => {
     const s = stateOf(a);
     const rows = pendingPicks(a, s).map((school) => ({ id: `pick:${school}`, label: `Choose your first spell of ${school}` }));
+    if (secondaryWaits(a, s)) {
+      rows.push({ id: 'secondary', label: 'Choose your secondary school' });
+      if (where === 'shelf' && isStudy(ref) && !studyRefusal(a, s)) rows.push({ id: 'study', label: `Study ${s.primary}` });
+    }
     if (s.primary && SW.enabled) rows.push({ id: 'swap', label: 'Change your school of magic' });
     rows.push({ id: 'leave', label: 'Leave' });
     showMenu(a, ref, where, note || 'Schools of Magic', rows);
@@ -1027,6 +1045,24 @@ module.exports = (api) => {
     showMenu(a, ref, where, `Change ${from} for ${to}? ${to} starts at ${start}${start >= PICK_AT && !s.picks[to] ? ', and you choose its first spell' : ''}; ${from} rests at ${levelOf(s, from)}. Your spells stay in your spellbook. You cannot change again for ${plural(Math.round(SWAP_MS / (24 * HOUR)), 'day')}.`,
       [{ id: `yes:${from}:${to}`, label: `Change to ${to}` }, { id: 'swap', label: 'Back' }]);
   };
+  // The closed schools, each with the level it would start at as the secondary
+  const openSecondaryList = (a, ref, where) => {
+    const s = stateOf(a);
+    if (!secondaryWaits(a, s)) return openSchoolMenu(a, ref, where, !s.primary ? 'Choose your primary school first.' : s.secondary ? `${s.secondary} is already your secondary school.` : `A secondary school opens at Arcane Arts ${C.secondaryAtLevel}. Yours is ${arcaneOf(a).level}.`);
+    const rows = SCHOOLS.filter((to) => !active(s, to)).map((to) => {
+      const n = secondaryStart(s, to);
+      return { id: `secondary:${to}`, label: `${to} (at ${n}${resting(s, to) && levelOf(s, to) === n ? ', where it rested' : ''})` };
+    });
+    rows.push({ id: 'menu', label: 'Back' });
+    showMenu(a, ref, where, `${SECOND_LINE} Which one? The others stay closed to you.`, rows);
+  };
+  const openSecondaryConfirm = (a, ref, where, school) => {
+    const s = stateOf(a);
+    if (!secondaryWaits(a, s) || !SCHOOLS.includes(school) || active(s, school)) return openSecondaryList(a, ref, where);
+    const n = secondaryStart(s, school);
+    showMenu(a, ref, where, `Do you want to choose ${school} as your secondary school of magic? It starts at ${n}${n >= PICK_AT && !s.picks[school] ? ', and you choose its first spell' : ''}; the remaining schools close to you.`,
+      [{ id: `takeup:${school}`, label: `Choose ${school}` }, { id: 'secondary', label: 'Back' }]);
+  };
   const closeMenu = (a) => { menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); };
   onUi('schoolMenu', (a, args) => {
     const m = menuOpen.get(a >>> 0);
@@ -1037,6 +1073,12 @@ module.exports = (api) => {
     if (m.ref && !atBooks(a, m.ref)) { closeMenu(a); return personal(a, `You walked away from the ${m.where === 'ledger' ? "Scholars' Ledger" : 'books'}.`); }
     if (id === 'menu') return openSchoolMenu(a, m.ref, m.where);
     if (id === 'swap') return openSwapList(a, m.ref, m.where);
+    if (id === 'secondary') return openSecondaryList(a, m.ref, m.where);
+    if (id === 'study') {
+      if (m.where !== 'shelf' || !isStudy(m.ref)) return openSchoolMenu(a, m.ref, m.where);
+      // The study panel opens first and takes the cursor, then this menu closes (panel handoff)
+      startStudy(a, m.ref); menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); return;
+    }
     const [verb, from, to] = id.split(':');
     if (verb === 'pick') {
       // The pick opens first and takes the cursor, then this menu closes (panel handoff)
@@ -1051,6 +1093,19 @@ module.exports = (api) => {
       if (r.ok && pendingPicks(a, stateOf(a)).includes(to) && openPick(a, m.ref, to, r.text, 'ok')) { menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); return; }
       return openSchoolMenu(a, m.ref, m.where, r.text);
     }
+    if (verb === 'secondary' && from) return openSecondaryConfirm(a, m.ref, m.where, from);
+    if (verb === 'takeup' && from) {
+      const r = choose(a, from, 'secondary');
+      personal(a, r.text);
+      try { globalThis.__dboSchoolsProgressSend(a); } catch (e) { /* no K menu */ }
+      // Its first spell, when it starts at 25 or more, opens here at once, as from K
+      if (r.ok && pendingPicks(a, stateOf(a)).includes(from)) {
+        const s2 = stateOf(a);
+        if (!s2.pickTold[from]) { s2.pickTold[from] = Date.now(); save(a, s2); }
+        if (openPick(a, m.ref, from, r.text, 'ok')) { menuOpen.delete(a >>> 0); closeWidget(a, SCHOOL_MENU_ID); return; }
+      }
+      return openSchoolMenu(a, m.ref, m.where, r.text);
+    }
   });
   onUi('schoolMenuClose', (a) => closeMenu(a));
   // salvage.js's Scholars' Ledger menu: its rows for the schools, and what one of them does (true when handled)
@@ -1058,6 +1113,7 @@ module.exports = (api) => {
     if (!ready(a) || !isPlayer(a)) return [];
     const s = stateOf(a);
     const rows = pendingPicks(a, s).map((school) => ({ id: `school:pick:${school}`, label: `Choose your first spell of ${school}` }));
+    if (secondaryWaits(a, s)) rows.push({ id: 'school:secondary', label: 'Choose your secondary school' });
     if (s.primary && SW.enabled) rows.push({ id: 'school:swap', label: 'Change your school of magic' });
     return rows;
   };
@@ -1066,6 +1122,7 @@ module.exports = (api) => {
     const [, verb, school] = String(id || '').split(':');
     if (verb === 'pick') { if (!openPick(a, ref, school)) openSchoolMenu(a, ref, 'ledger', `There is no first spell of ${school} to choose.`); return true; }
     if (verb === 'swap') { openSwapList(a, ref, 'ledger'); return true; }
+    if (verb === 'secondary') { openSecondaryList(a, ref, 'ledger'); return true; }
     return false;
   };
 
@@ -1602,7 +1659,7 @@ module.exports = (api) => {
       v: 1, open: true,
       arcane: { held: arc.held, level: arc.level }, priest: { held: pr.held, level: pr.level },
       primary: s.primary || '', secondary: s.secondary || '',
-      note: beforeFirst(a, s) ? notYet(arc.level) : !s.primary && arc.held ? 'Choose your school of magic on the Arcane Arts page of your skills (K) or at a Study Magic shelf.' : '',
+      note: beforeFirst(a, s) ? notYet(arc.level) : !s.primary && arc.held ? 'Choose your school of magic on the Arcane Arts page of your skills (K) or at a Study Magic shelf.' : secondaryWaits(a, s) ? SECOND_WHERE : '',
       ranks: RANKS.slice(), floors: FLOORS.slice(), firstSpellAt: PICK_AT,
       schools,
       book: book || { max: 0, canPrepare: false, hint: '', prepared: [], known: [], outside: [] },

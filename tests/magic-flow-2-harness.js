@@ -385,6 +385,68 @@ check('/schools shows resting schools, the picks and the last change', /Illusion
   check('...choosing Destruction again opens no second first spell', rec(MAGE).primary === 'Destruction' && !after.length && !/Now choose its first spell/.test(said(MAGE)), [after.length, said(MAGE)]);
 }
 
+// ---- #bugs 1557587660384501821: the secondary at Arcane Arts 76 at a shelf, a ledger and the Magic tab (K draws no buttons) ----
+{
+  const SECOND = 0x34; put(SECOND, 'profileId', SECOND); at(SECOND, SYNOD, [0, 0, 0]); online.push(SECOND); ui('uiCaps', SECOND, ['bank', 'spellbook', 'schools']); arcane(SECOND, 50);
+  globalThis.__dboSchoolsArrived(SECOND); advance(91000);
+  p = progress(SECOND); ui('schoolChoose', SECOND, [p.nonce, 'Destruction', 'primary']);
+  ui('firstSpellPick', SECOND, [lastWidget(SECOND, 'studyMagic').nonce, 'Sparks']);
+  globalThis.__dboSchoolsLedgerChoose(SECOND, 'school:swap', BOOKCASE); menuChoose(SECOND, 'swap:Destruction:Conjuration'); menuChoose(SECOND, 'yes:Destruction:Conjuration');
+  ui('firstSpellPick', SECOND, [lastWidget(SECOND, 'studyMagic').nonce, 'Conjure Familiar']);
+  check('the reporter\'s path: Destruction 50 changed for Conjuration (25), Conjure Familiar chosen', rec(SECOND).primary === 'Conjuration' && level(SECOND, 'Conjuration') === 25 && level(SECOND, 'Destruction') === 50 && studied(SECOND).includes(T.familiar[1]), rec(SECOND));
+  const secondRows = (rows) => rows.filter((x) => /secondary/i.test(x.label)).length;
+  arcane(SECOND, 75); tick('schools.first');
+  activate(BOOKCASE, SECOND);
+  check('Arcane Arts 75: no secondary at the shelf or the ledger, none on the Magic tab', !secondRows(contextOf(SECOND).actions) && !secondRows(globalThis.__dboSchoolsLedgerActions(SECOND)) && !view(SECOND).note && !saidAny(SECOND, /secondary/), contextOf(SECOND).actions);
+  menuRaw(SECOND, 'takeup:Illusion');
+  check('...a forged row chooses nothing', !rec(SECOND).secondary, rec(SECOND));
+  menuChoose(SECOND, 'leave');
+  arcane(SECOND, 76);
+  const n0 = out.said.length;
+  tick('schools.first'); tick('schools.first');
+  const told = out.said.slice(n0).filter((x) => x[0] === SECOND).map((x) => x[1]);
+  check('Arcane Arts 76: told once where to choose the secondary', told.length === 1 && told[0] === "Your Arcane Arts has reached 76: you may take up one more school as your secondary. Choose it at a Study Magic shelf or a Scholars' Ledger." && out.audits.some((l) => /SCHOOLS P34 reached Arcane Arts 76: secondary school offered \(tick\)/.test(l)), told);
+  check('...the Magic tab says the same', view(SECOND).note === told[0], view(SECOND).note);
+  check('...the K page still offers it to an old client', progress(SECOND).schools.filter((x) => x.choose && x.choose.as === 'secondary').map((x) => x.name).join() === 'Destruction,Illusion,Alteration');
+  check('...the ledger lists it before the change', globalThis.__dboSchoolsLedgerActions(SECOND).map((x) => x.label).join() === 'Choose your secondary school,Change your school of magic', globalThis.__dboSchoolsLedgerActions(SECOND));
+  activate(BOOKCASE, SECOND);
+  w = contextOf(SECOND);
+  check('...the shelf (its books closed to them) lists it too', w.id === 77 && w.actions.map((x) => x.label).join() === 'Choose your secondary school,Change your school of magic,Leave' && /nothing more to teach you/.test(w.targetName), w);
+  menuChoose(SECOND, 'secondary');
+  w = contextOf(SECOND);
+  check('...the closed schools, each with the level it starts at; Destruction where it rested', w.actions.map((x) => x.label).join('|') === 'Destruction (at 50, where it rested)|Illusion (at 25)|Alteration (at 25)|Back' && /you may take up one more school as your secondary/.test(w.targetName), w.actions.map((x) => x.label));
+  menuChoose(SECOND, 'secondary:Illusion');
+  w = contextOf(SECOND);
+  check('...a confirm says where it starts and that its first spell follows', w.targetName === 'Do you want to choose Illusion as your secondary school of magic? It starts at 25, and you choose its first spell; the remaining schools close to you.' && w.actions.map((x) => x.label).join() === 'Choose Illusion,Back', w.targetName);
+  menuChoose(SECOND, 'takeup:Illusion');
+  w = lastWidget(SECOND, 'studyMagic');
+  check('...chosen: Illusion the secondary at 25, its first spell opens at once and the menu closes', rec(SECOND).secondary === 'Illusion' && rec(SECOND).primary === 'Conjuration' && level(SECOND, 'Illusion') === 25 && w.title === 'Your First Spell' && w.school === 'Illusion' && out.closed.some(([x, id]) => x === SECOND && id === 77) && /Illusion is your secondary school of magic/.test(said(SECOND)), [rec(SECOND), w && w.title]);
+  check('...audited', out.audits.some((l) => /SCHOOLS P34 chose Illusion as their secondary school \(level 25\)/.test(l)));
+  const nOpen = out.said.length; tick('schools.first');
+  check('...the open pick is not told again by the next check', !out.said.slice(nOpen).some((x) => x[0] === SECOND), out.said.slice(nOpen));
+  ui('firstSpellPick', SECOND, [w.nonce, 'Fury']);
+  check('...Fury chosen; the secondary is gone from the ledger, the shelf and the Magic tab', studied(SECOND).includes(T.fury[1]) && !secondRows(globalThis.__dboSchoolsLedgerActions(SECOND)) && !view(SECOND).note && (activate(BOOKCASE, SECOND), !secondRows(contextOf(SECOND).actions)), globalThis.__dboSchoolsLedgerActions(SECOND));
+  menuChoose(SECOND, 'leave');
+  // From the ledger, a resting school taken back as the secondary keeps its level
+  const LEDGER = 0x35; put(LEDGER, 'profileId', LEDGER); at(LEDGER, SYNOD, [0, 0, 0]); online.push(LEDGER); ui('uiCaps', LEDGER, ['bank', 'spellbook', 'schools']); arcane(LEDGER, 80);
+  put(LEDGER, 'private.dboSchools', { v: 1, primary: 'Illusion', secondary: null, grandfathered: [], levels: { Illusion: { level: 60, xp: 0 }, Destruction: { level: 44, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, picks: { Illusion: { spell: '4dee8:Skyrim.esm', how: 'chose', at: 1 }, Destruction: { spell: '2dd2a:Skyrim.esm', how: 'chose', at: 1 } }, firstOffered: 1, secondaryTold: 1 });
+  check('the ledger\'s row opens the list', globalThis.__dboSchoolsLedgerChoose(LEDGER, 'school:secondary', BOOKCASE) === true && contextOf(LEDGER).actions.map((x) => x.label).join('|') === 'Destruction (at 44, where it rested)|Conjuration (at 33)|Alteration (at 33)|Back', contextOf(LEDGER) && contextOf(LEDGER).actions.map((x) => x.label));
+  if (contextOf(LEDGER)) menuChoose(LEDGER, 'secondary:Destruction');
+  check('...its first spell already chosen: the confirm does not promise one', !!contextOf(LEDGER) && contextOf(LEDGER).targetName === 'Do you want to choose Destruction as your secondary school of magic? It starts at 44; the remaining schools close to you.', contextOf(LEDGER) && contextOf(LEDGER).targetName);
+  if (contextOf(LEDGER)) menuChoose(LEDGER, 'takeup:Destruction');
+  check('...Destruction the secondary at 44; the menu says so', rec(LEDGER).secondary === 'Destruction' && level(LEDGER, 'Destruction') === 44 && !!contextOf(LEDGER) && contextOf(LEDGER).targetName === said(LEDGER) && /Destruction is your secondary school of magic\. The remaining schools are closed to you\./.test(said(LEDGER)), [rec(LEDGER), said(LEDGER)]);
+  // A shelf whose books are still open: the menu comes first, with Study
+  const OPENBOOK = 0x36; put(OPENBOOK, 'profileId', OPENBOOK); at(OPENBOOK, SYNOD, [0, 0, 0]); online.push(OPENBOOK); ui('uiCaps', OPENBOOK, ['bank', 'spellbook', 'schools']); arcane(OPENBOOK, 76);
+  put(OPENBOOK, 'private.dboSchools', { v: 1, primary: 'Alteration', secondary: null, grandfathered: [], levels: { Alteration: { level: 20, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, picks: {}, firstOffered: 1, secondaryTold: 1 });
+  activate(BOOKCASE, OPENBOOK);
+  w = contextOf(OPENBOOK);
+  check('a mage at 76 whose books are open: the shelf offers the secondary and Study', w && w.id === 77 && w.actions.map((x) => x.label).join() === 'Choose your secondary school,Study Alteration,Change your school of magic,Leave' && !globalThis.__dboSchoolsState.studying.has(OPENBOOK), w && w.actions);
+  if (w) menuChoose(OPENBOOK, 'study');
+  check('...Study starts the sitting and closes the menu', globalThis.__dboSchoolsState.studying.has(OPENBOOK) && lastWidget(OPENBOOK, 'studyMagic').mode === 'studying' && out.closed.some(([x, id]) => x === OPENBOOK && id === 77), lastWidget(OPENBOOK, 'studyMagic'));
+  if (lastWidget(OPENBOOK, 'studyMagic')) ui('studyStop', OPENBOOK, [lastWidget(OPENBOOK, 'studyMagic').nonce]);
+  ui('studyClose', OPENBOOK, []);
+}
+
 // ---- a hot reload ----
 load();
 for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);
