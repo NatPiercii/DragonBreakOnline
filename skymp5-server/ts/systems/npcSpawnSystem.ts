@@ -128,6 +128,9 @@ interface Zone {
   prespawn: boolean;
   // Waits for a player inside its own radius, instead of filling with the rest of its dungeon
   ambush: boolean;
+  // On approach (dungeons.js spawnReach): filled only while someone is within its radius, or within reach of a zone of its group
+  reach: boolean;
+  group: string;
   // Heading of every NPC it places, degrees (0 = north); the F7 Place tool's zones face where the GM turned them
   heading: number;
   // true/false overrides the "attacks on sight" flag its bases' AI data would give (the Place tool's hostile box)
@@ -156,6 +159,8 @@ interface Draft {
   anchor: string;
   prespawn?: boolean;
   ambush?: boolean;
+  reach?: boolean;
+  group?: string;
   heading?: number;
   hostile?: boolean | null;
   pos: number[];
@@ -301,23 +306,28 @@ export class NpcSpawnSystem implements System {
     await this.queueLoad("boot");
     this.watchFile();
     this.ready = true;
-    (globalThis as any).__alduinakNpcSpawnNow = (prefix: string): Promise<number> => this.queueLoad("gamemode").then(() => {
-      let placed = 0;
-      let fallback: number | undefined;
-      try {
-        const online = this.mp.get(0, "onlinePlayers");
-        if (Array.isArray(online) && online.length > 0) fallback = online[0];
-      } catch {}
-      for (const zone of this.zones) {
-        if (!zone.name.startsWith(String(prefix))) continue;
-        // An ambush is not part of the pre-spawn: it waits for somebody to walk into its own radius
-        if (zone.ambush && zone.inside.size === 0) continue;
-        this.fillSlots(this.mp, zone, Date.now(), fallback);
-        placed += zone.spawned.length;
-      }
-      return placed;
-    });
+    (globalThis as any).__alduinakNpcSpawnNow = (prefix: string): Promise<number> => this.queueLoad("gamemode").then(() => this.prespawnZones(String(prefix)));
     (globalThis as any).__alduinakNpcGivenUp = (prefix: string): number => this.givenUpSlots(String(prefix));
+  }
+
+  // The claim's pre-spawn of every zone named with prefix; returns the NPCs placed
+  prespawnZones(prefix: string): number {
+    let placed = 0;
+    let fallback: number | undefined;
+    try {
+      const online = this.mp.get(0, "onlinePlayers");
+      if (Array.isArray(online) && online.length > 0) fallback = online[0];
+    } catch {}
+    for (const zone of this.zones) {
+      if (!zone.name.startsWith(prefix)) continue;
+      // An ambush is not part of the pre-spawn: it waits for somebody to walk into its own radius
+      if (zone.ambush && zone.inside.size === 0) continue;
+      // ...nor is a zone that waits for somebody to come near (unless the gameplay prespawns it: the landing, the boss)
+      if (zone.reach && !zone.prespawn && zone.inside.size === 0) continue;
+      this.fillSlots(this.mp, zone, Date.now(), fallback);
+      placed += zone.spawned.length;
+    }
+    return placed;
   }
 
   private queueLoad(reason: string): Promise<void> {
@@ -464,6 +474,8 @@ export class NpcSpawnSystem implements System {
       anchor: String(pick(raw, "anchor") ?? "").trim(),
       prespawn: pick(raw, "prespawn") === true,
       ambush: pick(raw, "ambush") === true,
+      reach: pick(raw, "reach") === true,
+      group: String(pick(raw, "group") ?? ""),
       heading: num(pick(raw, "heading"), 0),
       hostile: typeof pick(raw, "hostile") === "boolean" ? (pick(raw, "hostile") as boolean) : null,
       despawnSeconds: Math.max(0, num(pick(raw, "despawn"), DEFAULT_DESPAWN)),
@@ -540,13 +552,16 @@ export class NpcSpawnSystem implements System {
       name: draft.name, cellOrWorldDesc, cellOrWorldId, pos: draft.pos, radius: draft.radius, anchorId, npcs, slots,
       prespawn: !!draft.prespawn,
       ambush: !!draft.ambush,
+      reach: !!draft.reach,
+      group: draft.reach ? String(draft.group || "") : "",
       heading: Number.isFinite(draft.heading) ? (((draft.heading as number) % 360) + 360) % 360 : 0,
       hostile: typeof draft.hostile === "boolean" ? draft.hostile : null,
       total: slots.length,
       despawnSeconds: draft.despawnSeconds,
       respawnSeconds: draft.respawnSeconds,
       slotReadyAt: slots.map(() => 0),
-      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn, !!draft.ambush, draft.heading || 0, typeof draft.hostile === "boolean" ? draft.hostile : null]),
+      signature: JSON.stringify([cellOrWorldDesc, draft.pos, draft.radius, anchorId, slots.map((n) => n.baseDesc), draft.despawnSeconds, draft.respawnSeconds, !!draft.prespawn, !!draft.ambush, draft.heading || 0, typeof draft.hostile === "boolean" ? draft.hostile : null,
+        ...(draft.reach ? ["reach", String(draft.group || "")] : [])]),
       spawned: [], emptySince: 0, inside: new Set(), strayHeld: new Set(),
     };
   }
@@ -614,8 +629,10 @@ export class NpcSpawnSystem implements System {
       }
     }
 
+    const awakeGroups = new Set<string>();
     for (const zone of this.zones) {
       this.updateInside(mp, zone, index);
+      if (zone.inside.size > 0 && zone.reach && zone.group) awakeGroups.add(zone.group);
       if (zone.inside.size > 0) {
         const dGroup = this.dungeonGroup(zone.name);
         if (dGroup) {
@@ -636,8 +653,10 @@ export class NpcSpawnSystem implements System {
 
       // An ambush waits for somebody inside its own radius: its vanilla template lay in a linked coffin or pod
       // until the player came close, and neither the package nor the link survives a PlaceAtMe spawn
+      // A zone on approach is not filled by its dungeon being occupied, only by somebody near it or near its group
       const occupied = zone.inside.size > 0 ||
-        (!zone.ambush && (zone.prespawn || inActiveDungeon || (isDungeonZone && inActiveInterior)));
+        (!zone.ambush && (zone.prespawn || (zone.reach ? (!!zone.group && awakeGroups.has(zone.group))
+          : (inActiveDungeon || (isDungeonZone && inActiveInterior)))));
       if (zone.spawned.length) {
         this.checkDeaths(mp, zone, now);
         this.checkMisplaced(mp, zone, now, index);
