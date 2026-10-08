@@ -1219,7 +1219,7 @@ module.exports = (api) => {
     if (!s || !s.kind) return beast;
     const share = (v) => Math.max(0, Number(v) || 0);
     if (s.kind === 'vampire') {
-      if (isFireSource(src)) return beast * (1 + share(C.fireWeaknessPerStage) * Math.max(1, s.stage) * (s.pure ? 0.5 : 1));
+      if (isFireSource(src)) return beast * (1 + share(C.fireWeaknessPerStage) * penaltyStage(tgt, s) * (s.pure ? 0.5 : 1));
       if (share(C.vampireSilverWeakness) > 0 && isSilverSource(src)) return beast * (1 + share(C.vampireSilverWeakness));
       return beast;
     }
@@ -1985,6 +1985,7 @@ module.exports = (api) => {
   globalThis.__dboSuperLeave = (a) => {
     leaveRite(a);
     ASK.caps.delete(a >>> 0);
+    for (const k of [...healedAt.keys()]) if (k.startsWith(`${a >>> 0}:`)) healedAt.delete(k);
     for (const p of [...ASK.pending.values()]) if (p.t === (a >>> 0) || p.a === (a >>> 0)) answerFeed(p, 'resist', 'gone');
   };
   globalThis.__dboSuperForfeitIfDead = forfeit;
@@ -2042,10 +2043,17 @@ module.exports = (api) => {
   // gamemode's hunger meter multiplies what food restores by this
   globalThis.__dboSuperFoodMult = (a) => {
     const s = stateOf(a); if (!s || s.kind !== 'vampire') return 1;
-    return s.unfed || s.stage >= 3 ? Number(C.vampireFoodThirsty) : Number(C.vampireFood);
+    return s.unfed || penaltyStage(a, s) >= 3 ? Number(C.vampireFoodThirsty) : Number(C.vampireFood);
   };
   // True while the client may still put back its login spell list (remoteServer.ts SPELL_ENFORCE_PASSES)
   const spellsSettling = (a) => { const at = globalThis.__dboSuperLoginAt instanceof Map ? globalThis.__dboSuperLoginAt.get(a >>> 0) : 0; return !!at && Date.now() - at < Math.max(0, Number(C.vampireSpellSettleSeconds) || 0) * 1000; };
+  // The penalties follow the clock while a stage change waits for the client: a relog inside the window holds no lower stage
+  const penaltyStage = (a, s) => {
+    const st = Math.max(1, Number(s.stage) || 1);
+    if (s.kind !== 'vampire' || s.unfed || !spellsSettling(a)) return st;
+    const day = gameDays();
+    return Math.max(st, Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day)) * bloodRate(a, '__dboBloodThirstRate'))));
+  };
   every('superSlow', 15000, () => {
     const day = gameDays();
     for (const a of onlineActors()) {
@@ -2088,7 +2096,7 @@ module.exports = (api) => {
       const shade = kind === 0 ? 1 : kind === 1 ? 0.5 : 0.25;
       const p = health(a); if (!p || p.health <= C.sunFloor) continue;
       const cover = coverOf(a);
-      setHealth(a, Math.max(C.sunFloor, p.health - C.sunPerStage * Math.max(1, s.stage) * shade * (s.pure ? 0.5 : 1) * (1 - C.sunCoverMax * cover) * bloodRate(a, '__dboBloodSunMult')));
+      setHealth(a, Math.max(C.sunFloor, p.health - C.sunPerStage * penaltyStage(a, s) * shade * (s.pure ? 0.5 : 1) * (1 - C.sunCoverMax * cover) * bloodRate(a, '__dboBloodSunMult')));
       const last = sunWarned.get(a) || 0;
       if (Date.now() - last > 120000) { sunWarned.set(a, Date.now()); personal(a, cover >= 0.99 ? 'The sun presses on you, but your wrappings hold it off.' : cover > 0 ? 'The sun finds your bare skin and burns it.' : 'The sun burns your skin. Cover your face, body, hands and feet to lessen it.'); }
     }
