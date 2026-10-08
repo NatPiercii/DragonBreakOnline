@@ -455,10 +455,20 @@ module.exports = (api) => {
     try { restoreOnce(a >>> 0); } catch (e) { log(`disenchant: restore failed: ${e.message}`); }
     return sendLearned(a >>> 0) > 0;
   };
+  // Only magic effects go out: ENCH ids (marker 1005e mapped some wrongly) and other records are dropped, unknown ids kept
+  const cleanLearned = (a) => {
+    const list = learnedOf(a);
+    const dropped = list.map((id) => [id, lookup(id)]).filter(([, r]) => r && String(r.record.type) !== 'MGEF');
+    if (!dropped.length) return list;
+    const out = list.filter((id) => !dropped.some(([x]) => x === id));
+    try { mp.set(a, LEARNED_PROP, out); } catch (e) { log(`disenchant: learned list clean-up failed for ${display(a)}: ${e.message}`); return out; }
+    audit(`ENCH-LEARNED-REPAIR ${who(a)} dropped ${dropped.length} id(s) that are no magic effect, nothing added [${dropped.map(([x, r]) => `${x.toString(16)} ${r.record.type} ${r.record.editorId || '?'}`).join(', ')}]`);
+    return out;
+  };
   // The learned effects to the client again; how many were sent (0: none recorded or sending off, -1: it failed)
   const sendLearned = (a) => {
+    const effects = cleanLearned(a);
     if (!LEARN.enabled || typeof api.sendPacket !== 'function') return 0;
-    const effects = learnedOf(a);
     if (!effects.length) return 0;
     try { api.sendPacket(a, { customPacketType: 'dboEnchLearned', effects }); } catch (e) { log(`disenchant: learned enchantments send failed for ${display(a)}: ${e.message}`); return -1; }
     return effects.length;
