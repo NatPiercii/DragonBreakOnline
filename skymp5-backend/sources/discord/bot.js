@@ -6,6 +6,7 @@ const config = require('../../config')
 const bans = require('../bans')
 const players = require('../players')
 const tickets = require('./tickets')
+const rolePanel = require('./rolePanel')
 const serverStatus = require('./serverStatus')
 
 const client = new Client({
@@ -18,15 +19,15 @@ client.once('ready', () => {
   ready = true
   console.log(`[discord-bot] ready as ${client.user.tag}`)
   tickets.ensurePanel(client).catch(err => console.error('[discord-bot] ticket panel failed:', err.message))
+  rolePanel.ensurePanel(client).catch(err => console.error('[discord-bot] role panel failed:', err.message))
   serverStatus.start(client)
 })
 
-// Ticket buttons and their modals. handleInteraction returns false for anything not
-// ours, so another interaction handler can be added here without untangling this one.
+// The 18+ button, then ticket buttons and their modals. Each handleInteraction returns false for anything not its own.
 client.on('interactionCreate', interaction => {
-  tickets.handleInteraction(interaction).catch(err => {
-    console.error('[discord-bot] interaction failed:', err.message)
-  })
+  rolePanel.handleInteraction(interaction)
+    .then(handled => handled || tickets.handleInteraction(interaction))
+    .catch(err => console.error('[discord-bot] interaction failed:', err.message))
 })
 
 client.on('error', err => {
