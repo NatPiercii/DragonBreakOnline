@@ -1577,17 +1577,27 @@ module.exports = (api) => {
     startFeed(a, t, { onCorpse: true });
     return true;
   };
-  // The client's PlayerWerewolfFeed perk replaces a werewolf's E on a body, so its feeding hold is the feed, at once as in vanilla
+  // The client's PlayerWerewolfFeed perk replaces a werewolf's E on a body, so its feeding hold is the feed, at once as in vanilla.
+  // The hold is the client's word: one feed per holdEverySeconds per werewolf (vanilla's feed takes over 4 s), so a
+  // modified client cannot eat every body in reach in one tick; and never a player's summon, raised corpse or companion
+  // (private.dboCompanion stays on its body), whose 3 s summon corpse E could never finish. Kept across hot reloads.
+  const holdAt = globalThis.__dboSuperWolfHoldAt instanceof Map ? globalThis.__dboSuperWolfHoldAt : (globalThis.__dboSuperWolfHoldAt = new Map());
+  const HOLD_EVERY_MS = (Number(C.feed.holdEverySeconds) || 3) * 1000;
   const wolfFeedHold = (a, t) => {
     if (a === t || !isPlayer(a) || beastForm(a) !== 'werewolf' || feeds.has(a)) return false;
+    if (Date.now() - (holdAt.get(a) || 0) < HOLD_EVERY_MS) return false;
     const at = deathAt.get(t);
     if (!at || Date.now() - at > C.corpseFreshMinutes * 60000 || fedOn.has(t)) return false;
     let dead = false; try { dead = !!mp.get(t, 'isDead'); } catch (e) { return false; }
     if (!dead || distance(a, t) > Number(C.feed.maxDistance)) return false;
+    let companion = false; try { companion = !!mp.get(t, 'private.dboCompanion'); } catch (e) { /* none */ }
+    if (companion) return false;
     if (!isHumanoid(t) && typeof globalThis.__dboHuntFed !== 'function') return false;
     if (fedOn.size > 2048) fedOn.clear();
     fedOn.add(t);
     if (!feed(a, t, true)) { fedOn.delete(t); return false; }
+    holdAt.set(a, Date.now());
+    if (holdAt.size > 256) for (const [k, x] of holdAt) if (Date.now() - x > HOLD_EVERY_MS) holdAt.delete(k);
     log(`supernatural: ${display(a)} fed on ${display(t)} in beast form (feeding hold)`);
     return true;
   };

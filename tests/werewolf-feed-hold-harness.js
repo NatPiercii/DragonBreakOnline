@@ -47,7 +47,8 @@ let fail = 0;
 const ok = (c, what, detail) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${detail !== undefined ? '   ' + detail : ''}`); if (!c) fail++; };
 const renown = () => (store.get(`${WOLF}|private.greatHunt`) || {}).renown || 0;
 const until = () => (store.get(`${WOLF}|private.beast`) || {}).until;
-const hold = (agg, tgt) => globalThis.__dboSuperSpellHit(agg, tgt, FEED_HOLD);
+// Each hold comes after the werewolf's 3 s pace unless quick, so every refusal below is for its own reason
+const hold = (agg, tgt, quick) => { if (!quick) now += 3001; return globalThis.__dboSuperSpellHit(agg, tgt, FEED_HOLD); };
 
 store.set(`${WOLF}|private.supernatural`, { kind: 'werewolf' });
 store.set(`${VAMP}|private.supernatural`, { kind: 'vampire', stage: 2 });
@@ -79,6 +80,19 @@ hold(WOLF, BANDIT);
 ok(fedMeals.length === 1 && renown() === killed + 10, 'a body is eaten once', `${fedMeals.length} meal(s)`);
 hold(WOLF, DEER);
 ok(fedMeals.length === 2 && renown() === killed + 15, 'an animal right after it feeds too, for 5 renown', renown() - killed);
+
+// The hold is the client's word: one feed per 3 s per werewolf, and never a player's summon, raised corpse or companion
+const SECOND = 0xff001c46, SUMMON = 0xff001c47;
+for (const id of [SECOND, SUMMON]) { store.set(`${id}|worldOrCellDesc`, 'fort'); store.set(`${id}|pos`, [0, 0, 0]); store.set(`${id}|isDead`, true); }
+store.set(`${SECOND}|baseDesc`, 'b1:Skyrim.esm'); store.set(`${SUMMON}|private.dboCompanion`, 'summon');
+for (const id of [SECOND, SUMMON]) globalThis.__dboSuperDeath(id, WOLF);
+const m0 = fedMeals.length;
+hold(WOLF, SECOND, true);
+ok(fedMeals.length === m0, 'a second body within 3 s of a feed waits (a modified client cannot eat every body at once)');
+hold(WOLF, SECOND);
+ok(fedMeals.length === m0 + 1, 'and is eaten once the 3 s have passed');
+hold(WOLF, SUMMON);
+ok(fedMeals.length === m0 + 1, "a player's summon is never eaten");
 
 const n = fedMeals.length;
 hold(WOLF, LIVING);
