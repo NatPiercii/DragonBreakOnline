@@ -24,6 +24,7 @@ import {
   Weapon,
 } from "skyrimPlatform";
 import { baseIsPlayers } from "./appearance";
+import { GHOST_CHECK_FRAMES, ghostCandidates, ghostExcess, serverTotals } from "./ghostItems";
 // @ts-expect-error (TODO: Remove in 2.10.0)
 import { createEnchantment, once } from "skyrimPlatform";
 import { queueCopyNiNodeUpdate, queuePlayerNiNodeUpdate } from "../view/niNodeQueue";
@@ -530,6 +531,56 @@ const reequipAmmoLater = (ammoId: number, frames = REEQUIP_AMMO_FRAMES): void =>
   });
 };
 
+// Ingredients, potions and misc items stack, so a count says everything about them (ghostItems.ts)
+const isStackable = (baseId: number): boolean => {
+  const f = Game.getFormEx(baseId);
+  const t = f ? f.getType() : 0;
+  return t === FormType.Ingredient || t === FormType.Potion || t === FormType.Misc;
+};
+
+// Only the newest player apply checks: an older one's server counts are stale by then
+let ghostGeneration = 0;
+
+const checkGhostsLater = (target: Inventory, ids: number[]): void => {
+  const generation = ++ghostGeneration;
+  if (!ids.length) {
+    return;
+  }
+  const totals = serverTotals(target.entries, ids);
+  let frames = GHOST_CHECK_FRAMES;
+  const tick = () => {
+    if (generation !== ghostGeneration) {
+      return;
+    }
+    if (--frames > 0) {
+      once("update", tick);
+      return;
+    }
+    const player = Game.getPlayer();
+    if (!player) {
+      return;
+    }
+    totals.forEach((serverCount, id) => {
+      const f = Game.getFormEx(id);
+      if (!f) {
+        return;
+      }
+      const held = player.getItemCount(f);
+      const excess = ghostExcess(serverCount, held);
+      if (!excess) {
+        return;
+      }
+      // Papyrus RemoveItem takes from any stack, whatever extra data the copy carries
+      try { player.removeItem(f, excess, true, null); } catch (e) { return; }
+      const note = (globalThis as { __dboDiagNote?: (kind: string, text: string) => void }).__dboDiagNote;
+      try {
+        if (typeof note === "function") note("invGhost", `removed ${excess} ghost ${(id >>> 0).toString(16)} (held ${held}, server ${serverCount})`);
+      } catch { /* diagnostics only */ }
+    });
+  };
+  once("update", tick);
+};
+
 const isPropertyKey = (e: Entry): boolean => (e.baseId >>> 0) === PROPERTY_KEY_BASE_ID;
 
 // addItemEx removes through a new extra list, never the held one, so the engine may take another key of the base;
@@ -559,6 +610,9 @@ const applyInventoryInner = (
     revertBaseIds.clear();
   }
   const diff = withKeysRebuilt(refr, target, getDiff(target, getInventory(refr), ignoreWorn, "apply", reverted).entries);
+  if (refr.getFormID() === 0x14) {
+    checkGhostsLater(target, ghostCandidates(diff, isStackable, target.entries));
+  }
 
   let res = true;
 
