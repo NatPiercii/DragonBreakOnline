@@ -1424,13 +1424,15 @@ export class HousingSystem implements System {
   }
 
   // Each key cut gets a name of its own ("Key to the X No. 2", "Property Key No. 2 (TAG)"), so two keys never stack
+  // A room key's copy says "copy" ("Key to the X: Chest 2, copy 2 (TAG)"), so it is not read as another room's number
   private keyCopyToCut(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
     const taken = this.takenKeyNames(ctx, primary);
     const base = this.keyNameToCut(ctx, primary, rec, taken);
     const issued = rec.issued || [];
     const cred = /^(.*) (\([0-9A-F]+(?:-\d+)?\))$/.exec(base);
+    const copy = cred && cred[1].startsWith("Key to ") ? ", copy" : " No.";
     for (let n = 1; ; n++) {
-      const name = n === 1 ? base : cred ? `${cred[1]} No. ${n} ${cred[2]}` : `${base} No. ${n}`;
+      const name = n === 1 ? base : cred ? `${cred[1]}${copy} ${n} ${cred[2]}` : `${base} No. ${n}`;
       if (issued.indexOf(name) === -1 && !taken.has(name)) return name;
     }
   }

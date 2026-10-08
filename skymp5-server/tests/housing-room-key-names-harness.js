@@ -113,9 +113,10 @@ const KEY_BASE = 0xdb0e2;
     const w = world();
     const b1 = w.cut(BOX1), b1b = w.cut(BOX1);
     check('a key cut at a chest of a named place is called after the place and the chest, credential kept', b1 === 'Key to the Castle Bruma: Strongbox (806C501)', b1);
-    check('...and its copies are numbered, credential kept', b1b === 'Key to the Castle Bruma: Strongbox No. 2 (806C501)', b1b);
-    const b2 = w.cut(BOX2);
+    check('...and its copies say "copy", credential kept', b1b === 'Key to the Castle Bruma: Strongbox, copy 2 (806C501)', b1b);
+    const b2 = w.cut(BOX2), b2b = w.cut(BOX2);
     check('two chests of one kind are told apart as the Rooms and chests panel tells them apart', b2 === 'Key to the Castle Bruma: Strongbox 2 (806C502)', b2);
+    check('...and a copy number cannot be read as a room number', b2b === 'Key to the Castle Bruma: Strongbox 2, copy 2 (806C502)' && w.opens(BOX2, b2b) && !w.opens(BOX1, b2b), b2b);
     const wd = w.cut(WARDROBE);
     check('another chest of the place has a name of its own', wd === 'Key to the Castle Bruma: Wardrobe (806C503)', wd);
     check('each chest key opens its own chest', w.opens(BOX1, b1) && w.opens(BOX1, b1b) && w.opens(BOX2, b2) && w.opens(WARDROBE, wd));
@@ -127,11 +128,12 @@ const KEY_BASE = 0xdb0e2;
     check('a chest of an unnamed place is called after the place\'s door', s === 'Key to Bruma Shack: Barrel (8067701)', s);
     const hb = w.cut(HUT_BOX);
     check('a chest of an unnamed place doors.json does not name is called after the place\'s owner', hb === 'Key to Frigga\'s property: Barrel (8068101)', hb);
-    const l = w.cut(LONE);
-    check('a chest in no place keeps the credential name', l === 'Property Key (8070001)', l);
-    const h = w.cut(CASTLE);
-    check('the place\'s own key keeps its name and opens no chest of it', h === 'Key to the Castle Bruma' && !w.opens(BOX1, h) && !w.opens(BOX2, h), h);
-    const all = [b1, b1b, b2, wd, d, s, hb, l, h];
+    const l = w.cut(LONE), lb = w.cut(LONE);
+    check('a chest in no place keeps the credential name, its copies as before', l === 'Property Key (8070001)' && lb === 'Property Key No. 2 (8070001)', [l, lb]);
+    const h = w.cut(CASTLE), hb2 = w.cut(CASTLE);
+    check('the place\'s own key keeps its name, its copies as before, and opens no chest of it',
+      h === 'Key to the Castle Bruma' && hb2 === 'Key to the Castle Bruma No. 2' && !w.opens(BOX1, h) && !w.opens(BOX2, h), [h, hb2]);
+    const all = [b1, b1b, b2, b2b, wd, d, s, hb, l, lb, h, hb2];
     check('every key cut has a name of its own', new Set(all).size === all.length, all);
   }
 
@@ -208,7 +210,7 @@ const KEY_BASE = 0xdb0e2;
     w.sys.claimed.push(LONG);
     let longest = ''; for (let i = 0; i < 12; i++) longest = w.cut(LONG);
     check('a key name stays under the 128 characters an item name is cropped at, credential kept', longest.length < 128 && /\(806C506-999\)$/.test(longest), [longest.length, longest]);
-    check('...and it opens its door', w.opens(LONG, longest));
+    check('...its copy number says "copy", and it opens its door', w.opens(LONG, longest) && longest.includes(', copy 12 ('), longest);
     check('...and it still says which room, cut inside a 40-letter word rather than losing it', /^Key to the N{32}: D+ \(recut/.test(longest), longest);
   }
   {
