@@ -2,7 +2,7 @@
 // metal goes to the smelter at that metal's tier (steel and elven at Novice, Nate 3 Oct), equal counts going to the harder metal; an item with no recipe and no
 // template takes the cheapest recipe of an item of its type, shape and material keyword (Beyond Skyrim's Elven copies,
 // Sentinel's Northern Iron). Reads the committed salvage.json, so a regenerated file is checked as it ships.
-//   node tests/salvage-coverage-harness.js   (from server/)
+//   node tests/salvage-coverage-harness.js [--plugins /opt/skyrim-data]   (from server/)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -30,5 +30,32 @@ const leatherOnly = Object.entries(items).filter(([, v]) => v[0] === 'smelter' &
 ok(!leatherOnly.length, 'leather-only gear still goes to the tanning rack', leatherOnly.slice(0, 3));
 ok(Object.keys(items).length > 8000, 'coverage did not shrink', Object.keys(items).length);
 ok(/def main_of\(mats, item=None\)/.test(gen) && /standin\.get\(\(e\['t'\], material\(e\)\.lower\(\), e\['shape'\]\)\)/.test(gen), 'the generator carries both rules');
+
+// The recipes deployed after 3 Oct (88 faction armour recipes 5 Oct, 195 loom and 2 forge recipes 7 Oct) are in salvage.json
+const thread = (d) => at(d) && at(d)[0] === 'loom' && mats(d).length === 1 && mats(d)[0][0] === 'MCE_Thread';
+ok(thread('d3dea:Skyrim.esm'), 'College robes (a 7 Oct loom recipe): the loom, thread', at('d3dea:Skyrim.esm'));
+ok(thread('80f95:BSHeartland.esm'), 'fur clothes now made of thread at the loom (Colovian Fur Clothes) go back to the loom, not to the rack for leather', at('80f95:BSHeartland.esm'));
+// Clothing (BOD2 armour type 2) is its own stand-in pool: hide armour with no recipe never takes a fur clothes' thread one
+const hideArmour = ['801', '802', '803', '808', '80d', '80e', '812', '904', '905', '906'].map((x) => `${x}:Sentinel.esp`).concat('e63d2:Journey to Baan Malur.esp');
+const rack = hideArmour.filter((d) => at(d) && at(d)[0] === 'tanning' && mats(d).every(([m]) => /Leather/.test(m)));
+ok(rack.length === hideArmour.length, "hide armour with no recipe (Sentinel's fur cuirasses, the Slaver's Cuirass): the tanning rack, leather and strips", hideArmour.filter((d) => !rack.includes(d)).map((d) => [d, at(d)]));
+ok(/len\(shape\) >= 8 and struct\.unpack_from\('<I', shape, 4\)\[0\] == 2/.test(gen), 'the generator keeps clothing apart in the stand-in pool');
+// The 7 Oct forge recipes: Seadog Earrings (gold) and the Windhelm restored circlet (glass, Adept)
+const forge = [['2859:Hothtrooper44_ArmorCompilation.esp', 'IngotGold', 1], ['1715f0:WindhelmSSE.esp', 'IngotMalachite', 2]];
+ok(forge.every(([d, m, t]) => at(d) && at(d)[0] === 'smelter' && at(d)[1] === t && mats(d)[0][0] === m), 'the 7 Oct forge recipes (Seadog Earrings, the restored Windhelm circlet) break down at the smelter', forge.map(([d]) => at(d)));
+const hide = at('23181:Hothtrooper44_ArmorCompilation.esp');
+ok(hide && mats('23181:Hothtrooper44_ArmorCompilation.esp').every(([m, n]) => n <= 1), 'gear with a new cheaper recipe gives back no more than that recipe takes', hide);
+
+// With --plugins <data dir>: the generator run on those plugins must give exactly this salvage.json (stale after a plugin deploy)
+const pi = process.argv.indexOf('--plugins');
+if (pi > 0 && process.argv[pi + 1]) {
+  const dir = process.argv[pi + 1];
+  const tmp = path.join(require('os').tmpdir(), `salvage-check-${process.pid}.json`);
+  require('child_process').execFileSync('python3', [path.resolve(__dirname, '..', 'tooling', 'make_salvage.py'), tmp, dir, path.join(dir, 'loadorder.txt')], { stdio: 'ignore' });
+  const fresh = JSON.parse(fs.readFileSync(tmp, 'utf8')).items;
+  fs.unlinkSync(tmp);
+  const differ = Object.keys(Object.assign({}, items, fresh)).filter((d) => JSON.stringify(items[d]) !== JSON.stringify(fresh[d]));
+  ok(!differ.length, `salvage.json matches the plugins in ${dir} (${differ.length} entries differ)`, differ.slice(0, 5));
+}
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

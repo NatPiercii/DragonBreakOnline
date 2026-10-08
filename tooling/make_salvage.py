@@ -4,7 +4,7 @@
 # An item gives back the materials of the recipe that makes it (a forge, skyforge, tanning rack or loom COBJ; the last
 # override in the load order wins). An enchanted or variant item with no recipe of its own takes its template's (WEAP
 # CNAM, ARMO TNAM), and one with neither takes the cheapest recipe of an item of its type, shape (WEAP DNAM animation type,
-# ARMO BOD2 slots) and material keyword. Only materials come back: ingots, ore, bone and scales, chitin, leather, strips, hides and pelts,
+# ARMO BOD2 slots, clothing apart) and material keyword. Only materials come back: ingots, ore, bone and scales, chitin, leather, strips, hides and pelts,
 # cloth and thread. Ingredients, soul gems, gems, gold and firewood never do, so nothing rare is laundered through a
 # breakdown. The station follows the recipe's main material (its main metal if it has one, else the one it takes most of): metal at the smelter
 # (Blacksmith), leather and hide at the tanning rack (Skinner), cloth at the loom (Tailor). A Blacksmith needs the tier
@@ -13,6 +13,7 @@
 #
 # Recipe (CT 115, 2026-09-28, about a second):
 #   python3 tooling/make_salvage.py salvage.json [/opt/skyrim-data] [../fork/deploy/skyrim-data/loadorder.txt]
+# Rerun after any plugin deploy that adds or changes recipes; node tests/salvage-coverage-harness.js --plugins /opt/skyrim-data says when it is stale.
 import json, os, re, struct, sys, zlib
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'salvage.json'
@@ -93,9 +94,14 @@ def load(name):
                     e['tmpl'] = res(struct.unpack_from('<I', t, 0)[0]) if t else None
                     kw = one(b'KWDA')
                     e['kw'] = [res(struct.unpack_from('<I', kw, j)[0]) for j in range(0, len(kw) - 3, 4)] if kw else []
-                    # The shape a stand-in recipe must share: WEAP DNAM animation type, ARMO BOD2 slots
+                    # The shape a stand-in recipe must share: WEAP DNAM animation type, ARMO BOD2 slots and clothing or not (armour type 2)
                     shape = one(b'DNAM') if sig == b'WEAP' else one(b'BOD2')
-                    e['shape'] = (shape[0] if sig == b'WEAP' else struct.unpack_from('<I', shape, 0)[0]) if shape and len(shape) >= 4 else None
+                    if not shape or len(shape) < 4:
+                        e['shape'] = None
+                    elif sig == b'WEAP':
+                        e['shape'] = shape[0]
+                    else:
+                        e['shape'] = (struct.unpack_from('<I', shape, 0)[0], len(shape) >= 8 and struct.unpack_from('<I', shape, 4)[0] == 2)
                 recs[res(fid)] = e
                 q += 24 + rs
         pos += size

@@ -8,6 +8,8 @@
 // of an enchantment already taught this session (the server's own removal seen by the client) takes nothing. Review
 // R-1004b: the report names the base only, so a base whose copies carry more enchantments than copies left is taken from
 // not at all (DISENCHANT-AMBIGUOUS for staff), nor is a plain-able base while a reusable soul gem is held and unreported.
+// Review 8 Oct: unless every candidate teaches the same effects and no plain copy is held; then the plainest copy goes
+// (disenchant-ambiguous-learn-harness).
 // Run it from this folder's parent with
 //
 //   node tests/disenchant-harness.js
