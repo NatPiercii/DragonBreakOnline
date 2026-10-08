@@ -68,6 +68,7 @@ module.exports = (api) => {
   const on = () => C.enabled === true;
   const S = globalThis.__dboRacialState || (globalThis.__dboRacialState = { owed: new Map(), highbornUntil: new Map() });
   if (!(S.castAt instanceof Map)) S.castAt = new Map(); // state built by an older racial.js has none
+  if (!(S.channel instanceof Map)) S.channel = new Map(); // open concentration casts: actor -> { at, magicka }
 
   // ---- who ----------------------------------------------------------------------------------------------------------
   const isPlayer = (a) => { try { return profileOf(a >>> 0) >= 0; } catch (e) { return false; } };
@@ -164,9 +165,33 @@ module.exports = (api) => {
   // regeneration tick that writes them back then refills the caster (#bugs 1556641893054681179: an Altmer's Conjure
   // Familiar cost nothing). Every server-side regeneration (this gift, the blessings, the Ayleid well) waits
   // castHoldSeconds after the player's last cast.
+  // A concentration channel sends no bars until it ends and its keep-alives never reach here, so its hold lasts until
+  // the client's report moves the server's magicka, at most channelHoldSeconds (8 Oct: Flames past 3 s cost nothing)
+  const SPIT_CONC = new Map();
+  const concentration = (spellId) => {
+    const id = spellId >>> 0;
+    if (!SPIT_CONC.has(id)) {
+      let yes = false;
+      try {
+        const r = recordOf(id);
+        const f = r && r.record.type === 'SPEL' ? (r.record.fields || []).find((x) => x && x.type === 'SPIT' && x.data instanceof Uint8Array && x.data.byteLength >= 20) : null;
+        yes = !!f && new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(16, true) === 2; // castType 2 = concentration
+      } catch (e) { yes = false; }
+      SPIT_CONC.set(id, yes);
+    }
+    return SPIT_CONC.get(id);
+  };
+  const magickaOf = (a) => { try { const p = mp.get(a >>> 0, 'percentages'); return p ? Number(p.magicka) : NaN; } catch (e) { return NaN; } };
   const castHeld = (a, now = Date.now()) => {
     const d = now - (S.castAt.get(a >>> 0) || -Infinity);
-    return d >= 0 && d < Math.max(0, num(C.castHoldSeconds, 3)) * 1000;
+    if (d >= 0 && d < Math.max(0, num(C.castHoldSeconds, 3)) * 1000) return true;
+    const ch = S.channel.get(a >>> 0);
+    if (!ch) return false;
+    const e = now - ch.at;
+    if (e < 0) return false;
+    if (e < Math.max(0, num(C.channelHoldSeconds, 30)) * 1000 && magickaOf(a) === ch.magicka) return true;
+    S.channel.delete(a >>> 0); // the report came in, or the cap ran out
+    return false;
   };
   globalThis.__dboCastHeld = castHeld;
   // The race's factor on one bar's regeneration now (1 = none), capped by the rule for its kind
@@ -249,6 +274,9 @@ module.exports = (api) => {
   const onCast = (a, spellId, at = Date.now()) => {
     S.castAt.set(a >>> 0, at);
     if (S.castAt.size > 500) for (const [k, t] of S.castAt) if (at - t > 60000) S.castAt.delete(k);
+    // Stamped with the server's magicka from before the channel; a fire-and-forget cast in the other hand keeps it
+    if (concentration(spellId)) S.channel.set(a >>> 0, { at, magicka: magickaOf(a) });
+    if (S.channel.size > 500) for (const [k, c] of S.channel) if (at - c.at > 60000) S.channel.delete(k);
     if ((spellId >>> 0) !== HIGHBORN) return;
     S.highbornUntil.set(a >>> 0, Date.now() + 60000);
     for (const [k, t] of S.highbornUntil) if (t < Date.now()) S.highbornUntil.delete(k);
