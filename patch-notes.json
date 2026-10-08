@@ -1,5 +1,19 @@
 [
   {
+    "title": "The Bruma border holds",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "The world",
+        "items": [
+          "Walking past the edge of the alpha region now brings you back to where you last stood inside it, instead of letting you wander off the map."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Real trees around Bruma, Fort Coldcorn and the border",
     "date": "SHIP_DATE",
     "version": "Server update",

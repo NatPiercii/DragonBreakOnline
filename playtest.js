@@ -74,6 +74,31 @@ module.exports = (api) => {
     return false;
   };
 
+  // The border outline (Nate, 8 Oct: the plugin's border region alone let players walk out): border.points are cell
+  // coordinates (1 cell = 4096 units) of CYRBrumaReleaseBorderRegion in border.world; outside it, a player is put back where
+  // they last stood inside
+  const B = C.border && Array.isArray(C.border.points) && C.border.points.length >= 3 ? C.border : null;
+  const borderWorld = B ? normDesc(B.world) : '';
+  const inPolygon = (x, y, P) => {
+    let c = false;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const [x1, y1] = P[i], [x2, y2] = P[j];
+      if ((y1 > y) !== (y2 > y) && x < (x2 - x1) * (y - y1) / (y2 - y1) + x1) c = !c;
+    }
+    return c;
+  };
+  const posOf = (a) => { try { const p = mp.get(a, 'pos'); return Array.isArray(p) ? p : null; } catch (e) { return null; } };
+  const outsideBorder = (a, place) => {
+    if (!B || place !== borderWorld) return false;
+    const p = posOf(a);
+    return !!p && !inPolygon(p[0] / 4096, p[1] / 4096, B.points);
+  };
+  const lastInside = new Map();
+  const rememberInside = (a, place) => {
+    if (!B || place !== borderWorld) return;
+    try { const l = mp.get(a, 'locationalData'); if (l && Array.isArray(l.pos)) lastInside.set(a, l); } catch (e) { /* next tick */ }
+  };
+
   // Anyone who ends up outside the region is brought back (after the connect grace).
   const bounced = new Map();
   const check = () => {
@@ -86,7 +111,20 @@ module.exports = (api) => {
         if (now - (connectedAt.get(a) || 0) < C.graceSeconds * 1000) continue;
         if (mp.get(a, 'private.creationPending') === true) continue;
         const place = placeOf(a);
-        if (isAllowedPlace(place)) continue;
+        if (isAllowedPlace(place) && !outsideBorder(a, place)) { rememberInside(a, place); continue; }
+        if (isAllowedPlace(place)) {
+          if (now - (bounced.get(a) || 0) < 3000) continue;
+          bounced.set(a, now);
+          const back = lastInside.get(a);
+          let moved = false;
+          try { if (back) { mp.set(a, 'locationalData', back); moved = true; } } catch (e) { log('playtest border move failed', e.message); }
+          if (!moved) moved = sendToArrival(a, 'border');
+          if (moved) {
+            system(a, `That is the edge of the alpha region: ${C.name} ends here for now. You have been brought back.`);
+            audit(`PLAYTEST ${who(a)} crossed the ${C.name} border (${place}) and was returned ${back ? 'to where they last stood inside' : 'to the arrival spot'}`);
+          }
+          continue;
+        }
         if (now - (bounced.get(a) || 0) < 10000) continue;
         bounced.set(a, now);
         if (sendToArrival(a, 'bounce')) {
