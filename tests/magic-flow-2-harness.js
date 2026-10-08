@@ -447,6 +447,61 @@ check('/schools shows resting schools, the picks and the last change', /Illusion
   ui('studyClose', OPENBOOK, []);
 }
 
+// ---- the shelf menu's Study row with books already open: a sitting in progress, or Priest Studies (A's review, 8 Oct) ----
+{
+  const ST = globalThis.__dboSchoolsState;
+  const PSTUDY_BASE = '16daf4:DragonBreak Online Edits.esp', PSTUDY = idOf('16db15:DragonBreak Online Edits.esp');
+  RECORDS[idOf(PSTUDY_BASE)] = { type: 'ACTI', editorId: 'PriestStudy', fields: [] };
+  put(PSTUDY, 'baseDesc', PSTUDY_BASE); at(PSTUDY, SYNOD, [100, 0, 0]);
+  const mage76 = (a) => {
+    put(a, 'profileId', a); at(a, SYNOD, [0, 0, 0]); online.push(a); ui('uiCaps', a, ['bank', 'spellbook', 'schools']); arcane(a, 76);
+    put(a, 'private.dboSchools', { v: 1, primary: 'Alteration', secondary: null, grandfathered: [], levels: { Alteration: { level: 1, xp: 0 } }, study: { log: [] }, priestStudy: { log: [] }, cast: { day: '', units: {} }, ring: [], classAt: 0, paidAt: 0, teacher: null, picks: {}, firstOffered: 1, secondaryTold: 1 });
+  };
+  const panel = (a) => { const l = widgetsOf(a, 73); return l.length ? l[l.length - 1].w : null; };
+  const began = (a) => out.audits.filter((l) => l.startsWith(`SCHOOLS P${a.toString(16)} began studying`)).length;
+  const halfMinutes = (k) => { for (let i = 0; i < k; i++) { advance(30000); tick('schools.tick'); } };
+  // A sitting begun from the panel while the shelf's menu is still open behind it
+  const TWICE = 0x37;
+  mage76(TWICE);
+  activate(BOOKCASE, TWICE); menuChoose(TWICE, 'study');
+  ui('studyStop', TWICE, [panel(TWICE).nonce]);
+  activate(BOOKCASE, TWICE);
+  check('a sitting stopped, the shelf again: its menu with Study, the panel still open behind it', contextOf(TWICE).actions.some((x) => x.id.endsWith('|study')) && !ST.studying.has(TWICE) && panel(TWICE).mode === 'idle', contextOf(TWICE).actions);
+  ui('studyStart', TWICE, [panel(TWICE).nonce]);
+  const sitting = ST.studying.get(TWICE), since = sitting && sitting.at, begun = began(TWICE);
+  halfMinutes(30);
+  let n = out.widgets.length;
+  ui('studyStart', TWICE, [panel(TWICE).nonce]);
+  check('...the panel\'s Study during the sitting does nothing, as before', !!sitting && ST.studying.get(TWICE) === sitting && out.widgets.length === n && sitting.gained === 90, sitting && sitting.gained);
+  n = out.closed.length;
+  menuChoose(TWICE, 'study');
+  const after = ST.studying.get(TWICE);
+  check('the menu\'s Study during a sitting keeps that sitting: not begun again, its time still counts', ST.studying.get(TWICE) === sitting && ST.studying.get(TWICE).at === since && began(TWICE) === begun, [ST.studying.get(TWICE) === sitting, began(TWICE) - begun]);
+  check('...the panel shows the sitting, nothing refused, and the menu closes', panel(TWICE).mode === 'studying' && !panel(TWICE).result && !panel(TWICE).resultKind && out.closed.slice(n).some(([x, id]) => x === TWICE && id === 77), panel(TWICE));
+  halfMinutes(45);
+  const total = sitting.gained + (after && after !== sitting ? after.gained : 0);
+  check('...so the window holds at 120 units: the books close at 20 minutes', total === 120 && !ST.studying.has(TWICE) && saidAny(TWICE, /You've done enough studying for the day/), total);
+  ui('studyClose', TWICE, []);
+  // Priest Studies begun at the PriestStudy beside the shelf while its menu is open
+  const BOTH = 0x38;
+  mage76(BOTH);
+  activate(BOOKCASE, BOTH);
+  check('a mage at the shelf\'s menu (with Study) takes up Priest Studies beside it', contextOf(BOTH).actions.some((x) => x.id.endsWith('|study')) && activate(PSTUDY, BOTH) === true && ST.priestStudying.has(BOTH) && !ST.studying.has(BOTH));
+  n = out.widgets.length; const nc = out.closed.length;
+  menuChoose(BOTH, 'study');
+  const refusedOnce = (from) => out.widgets.slice(from).filter((x) => x.a === BOTH && x.w.id === 73).length === 1;
+  check('the menu\'s Study during Priest Studies is refused: one set of books at a time', !ST.studying.has(BOTH) && ST.priestStudying.has(BOTH) && !!panel(BOTH) && panel(BOTH).result === 'You are already at the books of Restoration.' && panel(BOTH).resultKind === 'refused', panel(BOTH));
+  check('...said once, and the menu closes', refusedOnce(n) && out.closed.slice(nc).some(([x, id]) => x === BOTH && id === 77), out.widgets.slice(n).filter((x) => x.a === BOTH).map((x) => x.w.id));
+  n = out.widgets.length;
+  if (panel(BOTH)) ui('studyStart', BOTH, [panel(BOTH).nonce]);
+  check('...the panel\'s own Study is refused once too, as before', !ST.studying.has(BOTH) && refusedOnce(n) && panel(BOTH).result === 'You are already at the books of Restoration.', panel(BOTH));
+  ui('priestStudyClose', BOTH, []);
+  n = began(BOTH);
+  if (panel(BOTH)) ui('studyStart', BOTH, [panel(BOTH).nonce]);
+  check('...with Priest Studies closed, Study begins', ST.studying.has(BOTH) && began(BOTH) === n + 1);
+  ui('studyClose', BOTH, []);
+}
+
 // ---- a hot reload ----
 load();
 for (const a of online) ui('uiCaps', a, ['bank', 'spellbook', 'schools']);

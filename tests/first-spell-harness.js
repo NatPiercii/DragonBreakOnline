@@ -255,7 +255,7 @@ check('...and a second pick sent anyway is refused', !studied(NOVICE).includes(T
 arcane(ADEPT, 25);
 const adeptOpen = widgetsOf(ADEPT, 73).length;
 tick('schools.first');
-check('25 reached by casting: the line, pointing to K, and no panel thrust open', said(ADEPT) === FIRST_LINE + ' Open your skills (K) to choose on the Arcane Arts page, or go to a Study Magic shelf.' && widgetsOf(ADEPT, 73).length === adeptOpen, said(ADEPT));
+check('25 reached by casting: the line, pointing to a Study Magic shelf, and no panel thrust open', said(ADEPT) === FIRST_LINE + ' Make your choice at a Study Magic shelf, or when you next log in.' && widgetsOf(ADEPT, 73).length === adeptOpen, said(ADEPT));
 const adeptLines = out.said.filter((x) => x[0] === ADEPT).length;
 tick('schools.first');
 check('...said once', out.said.filter((x) => x[0] === ADEPT).length === adeptLines);

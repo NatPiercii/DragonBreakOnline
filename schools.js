@@ -487,7 +487,7 @@ module.exports = (api) => {
       const shelf = ref || studyAt.get(a >>> 0);
       if (shelf) { if (!told) personal(a, FIRST_LINE); openStudy(a, shelf); return true; }
       if (why === 'login') { personal(a, told ? 'Your first spell and your school of magic wait to be chosen.' : FIRST_LINE); openStudy(a, 0); return true; }
-      if (!told) personal(a, `${FIRST_LINE} Open your skills (K) to choose on the Arcane Arts page, or go to a Study Magic shelf.`);
+      if (!told) personal(a, `${FIRST_LINE} Make your choice at a Study Magic shelf, or when you next log in.`);
       return false;
     }
     // The secondary school is told once, with where to choose it
@@ -593,7 +593,7 @@ module.exports = (api) => {
     const s = stateOf(a);
     const you = !whose || whose === 'You';
     if (beforeFirst(a, s)) return you ? notYet(arcaneOf(a).level) : `${whose} has not reached Arcane Arts ${FIRST_AT} yet.`;
-    if (!s.primary) return you ? `Choose your school of magic first: open your skills (K) and pick one on the Arcane Arts page, or use Study Magic at a place of learning.` : `${whose} has not chosen a school of magic yet.`;
+    if (!s.primary) return you ? `Choose your school of magic first, at a Study Magic shelf.` : `${whose} has not chosen a school of magic yet.`;
     if (!active(s, school)) return you ? `${school} is not one of your schools of magic.` : `${school} is not one of ${whose}'s schools of magic.`;
     const r = schoolRank(s, school);
     if (Number(rank) > r) return `${you ? 'Your' : `${whose}'s`} study of ${school} is ${RANKS[Math.max(0, r)]}; ${/^[AEIOU]/.test(RANKS[rank]) ? 'an' : 'a'} ${RANKS[rank]} spell needs more.`;
@@ -849,6 +849,9 @@ module.exports = (api) => {
   // A panel's Study button starts a sitting only within activation reach of its books (6.5 m, as gamemode.js allows)
   const atBooks = (a, ref) => { try { return distanceMeters(a, ref) <= 6.5; } catch (e) { return false; } };
   const startStudy = (a, ref) => {
+    // One sitting at a time for every caller: a sitting in progress is shown, never begun again; Priest Studies refuses
+    const busy = S.studying.has(a >>> 0) ? '' : S.priestStudying.has(a >>> 0) ? 'You are already at the books of Restoration.' : null;
+    if (busy !== null) return openStudy(a, ref, busy, busy ? 'refused' : '');
     const s = stateOf(a);
     const why = studyRefusal(a, s);
     if (why) return openStudy(a, ref, why, 'refused');
@@ -1659,7 +1662,7 @@ module.exports = (api) => {
       v: 1, open: true,
       arcane: { held: arc.held, level: arc.level }, priest: { held: pr.held, level: pr.level },
       primary: s.primary || '', secondary: s.secondary || '',
-      note: beforeFirst(a, s) ? notYet(arc.level) : !s.primary && arc.held ? 'Choose your school of magic on the Arcane Arts page of your skills (K) or at a Study Magic shelf.' : secondaryWaits(a, s) ? SECOND_WHERE : '',
+      note: beforeFirst(a, s) ? notYet(arc.level) : !s.primary && arc.held ? 'Choose your school of magic at a Study Magic shelf.' : secondaryWaits(a, s) ? SECOND_WHERE : '',
       ranks: RANKS.slice(), floors: FLOORS.slice(), firstSpellAt: PICK_AT,
       schools,
       book: book || { max: 0, canPrepare: false, hint: '', prepared: [], known: [], outside: [] },
