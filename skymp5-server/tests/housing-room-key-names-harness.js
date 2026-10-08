@@ -137,6 +137,20 @@ const KEY_BASE = 0xdb0e2;
     check('every key cut has a name of its own', new Set(all).size === all.length, all);
   }
 
+  // ── An owner's name in it ──
+  const ownerKey = (ownerName) => {
+    const w = world();
+    const r = w.recOf(HUT); r.ownerName = ownerName; w.mp.set(HUT, HP, r);
+    return w.cut(HUT_BOX);
+  };
+  {
+    const k = ownerKey('Frígga');
+    check('an accented owner\'s name keeps its letters without the accents', k === 'Key to Frigga\'s property: Barrel (8068101)', k);
+    const k2 = ownerKey('Ragnhild Ironheart-Stormcloak of Windhelm');
+    check('a long owner\'s name is cut to 25 letters, so "\'s property" still shows whole',
+      k2 === 'Key to Ragnhild Ironheart-Stormc\'s property: Barrel (8068101)', k2);
+  }
+
   // ── Keys cut before ──
   {
     const w = world();

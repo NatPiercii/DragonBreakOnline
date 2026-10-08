@@ -77,6 +77,8 @@ const MAX_KEYS_CARRIED = 64;
 const MAX_ROOM_KEY_LABEL = 64;
 // The place's part of it, so the room always shows ("the " and a 32-letter name fit)
 const MAX_PLACE_KEY_LABEL = 36;
+// An owner's name in it, so "<name>'s property" fits the place's part whole
+const MAX_OWNER_KEY_LABEL = 25;
 const MAX_ESPM_CACHE = 4096;
 const DEFAULT_MAX_CLAIMS = 8;
 const DEFAULT_MAX_DISTANCE = 512;
@@ -1388,7 +1390,9 @@ export class HousingSystem implements System {
     const room = this.roomsOf(ctx, rec.memberOf, root).find((r) => r.ref === primary);
     if (!room) return "";
     const named = (root.name || "").trim();
-    const owner = (root.ownerName || "").replace(/[^\x20-\x7e]/g, "").trim();
+    // Accents dropped rather than the letters ("Frígga" is Frigga), then cut
+    const owner = (root.ownerName || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]/g, "").trim()
+      .slice(0, MAX_OWNER_KEY_LABEL).trim();
     const place = this.fitWords(named ? `the ${named}` : this.doorLabel(ctx, rec.memberOf) || (owner ? `${owner}'s property` : ""), MAX_PLACE_KEY_LABEL);
     return this.fitWords(place ? `${place}: ${room.label}` : String(room.label), MAX_ROOM_KEY_LABEL);
   }
