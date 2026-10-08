@@ -94,9 +94,25 @@ module.exports = (api) => {
     return !!p && !inPolygon(p[0] / 4096, p[1] / 4096, B.points);
   };
   const lastInside = new Map();
+  // Only a spot at least border.marginCells inside counts: one on the line recrossed it on settling, and the player was
+  // bounced again and again (Old Grimbo x6, 8 Oct)
+  const MARGIN = Math.max(0, Number(B && B.marginCells) || 0.15);
+  const edgeDistance = (x, y, P) => {
+    let best = Infinity;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const [x1, y1] = P[j], [x2, y2] = P[i];
+      const dx = x2 - x1, dy = y2 - y1, len = dx * dx + dy * dy;
+      const t = len ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len)) : 0;
+      best = Math.min(best, Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)));
+    }
+    return best;
+  };
   const rememberInside = (a, place) => {
     if (!B || place !== borderWorld) return;
-    try { const l = mp.get(a, 'locationalData'); if (l && Array.isArray(l.pos)) lastInside.set(a, l); } catch (e) { /* next tick */ }
+    try {
+      const l = mp.get(a, 'locationalData');
+      if (l && Array.isArray(l.pos) && edgeDistance(l.pos[0] / 4096, l.pos[1] / 4096, B.points) >= MARGIN) lastInside.set(a, l);
+    } catch (e) { /* next tick */ }
   };
 
   // Anyone who ends up outside the region is brought back (after the connect grace).

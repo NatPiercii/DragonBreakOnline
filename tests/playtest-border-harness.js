@@ -19,5 +19,10 @@ ok(props[1].locationalData.pos[0] === 14 * 4096 && audits.some((s) => /crossed t
 ok(props[2].pos[0] === -10 * 4096, 'an admin outside is not moved');
 at(1, 1.84, 46.39); t += 5000; intervalFn();
 ok(props[1].pos[0] === 1.84 * 4096, 'the new western strip (border A) counts as inside');
+// A spot right on the line is not remembered: the bounce goes to the last spot well inside (Old Grimbo, 8 Oct)
+at(1, 14, 50); t += 5000; intervalFn();
+at(1, 46.39, 45); t += 5000; intervalFn();   // 0.01 cell inside the east edge (x 46.4)
+at(1, 46.5, 45); t += 5000; intervalFn();
+ok(props[1].locationalData.pos[0] === 14 * 4096, 'a bounce from the edge lands on the last spot well inside, not on the line');
 Date.now = realNow;
 console.log(fail ? fail + ' failed' : 'all passed'); process.exit(fail ? 1 : 0);
