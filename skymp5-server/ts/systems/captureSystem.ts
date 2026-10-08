@@ -415,9 +415,9 @@ export class CaptureSystem implements System {
         own.offlineCarrierActorId = carrier;
       }
     }
-    // Release anyone they had captured.
+    // Release anyone they had captured; a captive who is offline is judged at their relog by onActorAssigned
     for (const [tid, info] of Array.from(this.restraints)) {
-      if (info.captorActorId === actorId) {
+      if (info.captorActorId === actorId && this.userOf(ctx, tid) >= 0) {
         this.releaseTarget(ctx, tid);
       }
     }
