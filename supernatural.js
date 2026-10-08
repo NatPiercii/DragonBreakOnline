@@ -1603,14 +1603,44 @@ module.exports = (api) => {
     return `${display(t)} now carries ${disease}. The fever peaks after ${C.incubationDays} game days of their play.`;
   };
   globalThis.__dboSuperAdminInfect = (t, kind, gm) => (kind === 'vampire' || kind === 'werewolf' ? giveDisease(t >>> 0, kind, String(gm || 'unknown')) : `There is no ${kind} disease.`);
+  // Staff (Nate, 8 Oct): an admin's X menu on a cursed or feverish player lifts the curse or the fever, as the shrine rite
+  // and a Cure Disease would; audited with the admin's name
+  const adminEntries = (a, t) => {
+    if (!isAdmin(a)) return [];
+    const st = stateOf(t); if (!st) return [];
+    const out = [];
+    if (st.kind === 'vampire') out.push({ id: 'super:admincure', label: 'Remove Vampirism' });
+    if (st.kind === 'werewolf') out.push({ id: 'super:admincure', label: 'Remove Lycanthropy' });
+    if (st.disease) out.push({ id: 'super:admincurefever', label: st.disease.kind === 'werewolf' ? 'Cure the Hunt Fever' : 'Cure the Vampire Fever' });
+    return out;
+  };
   globalThis.__dboSuperMenuEntries = (a, t) => {
-    if (kindOf(a) !== 'vampire' || beastForm(a) || (!boundCaptive(t) && !askable(a, t))) return [];
+    const staff = adminEntries(a, t);
+    if (kindOf(a) !== 'vampire' || beastForm(a) || (!boundCaptive(t) && !askable(a, t))) return staff;
     const out = [{ id: 'super:feed', label: 'Feed' }];
     if (canFeedDeeply(a)) out.push({ id: 'super:feedlong', label: 'Feed Deeply' });
-    return out;
+    return out.concat(staff);
   };
   // nameFor(viewer, actor): the name a viewer knows another player by (playermenu.js: introduced, else Stranger)
   globalThis.__dboSuperMenuAction = (a, id, t, nameFor) => {
+    if (id === 'super:admincure' || id === 'super:admincurefever') {
+      if (!isAdmin(a)) return true;
+      const st = stateOf(t);
+      if (id === 'super:admincure') {
+        if (!st || !st.kind) { personal(a, `${nameOf(t)} carries no curse.`); return true; }
+        const kind = st.kind;
+        endCurse(t, `lifted by staff (${display(a)})`);
+        audit(`GM ${who(a)} removed ${kind === 'vampire' ? 'vampirism' : 'lycanthropy'} from ${who(t)}`);
+        personal(t, 'The curse leaves you. You are mortal again.');
+        personal(a, `${nameOf(t)} is no longer a ${kind}.`);
+      } else {
+        if (!st || !st.disease) { personal(a, `${nameOf(t)} has no fever.`); return true; }
+        cureDisease(t, `cured by staff (${display(a)})`);
+        audit(`GM ${who(a)} cured the ${st.disease.kind} fever of ${who(t)}`);
+        personal(a, `${nameOf(t)}'s fever is gone.`);
+      }
+      return true;
+    }
     if (id !== 'super:feed' && id !== 'super:feedlong') return false;
     if (kindOf(a) !== 'vampire') return true;
     const name = (viewer, x) => (typeof nameFor === 'function' ? nameFor(viewer, x) : nameOf(x));

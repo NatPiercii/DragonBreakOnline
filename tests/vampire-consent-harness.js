@@ -74,7 +74,8 @@ fire('uiCaps', T, ['robPrompt', 'feedPrompt']);
 fire('uiCaps', V, ['feedPrompt']);   // the vampire's client can wash blood off (VampireFeedService)
 
 // ---- the menu --------------------------------------------------------------------------------------------------
-const entries = (a, t) => globalThis.__dboSuperMenuEntries(a, t).map((e) => e.id).join(',');
+// isAdmin is true for everyone here: the staff entries (vampire-feeding-harness) are left out
+const entries = (a, t) => globalThis.__dboSuperMenuEntries(a, t).filter((e) => !/^super:admin/.test(e.id)).map((e) => e.id).join(',');
 ok(entries(V, T) === 'super:feed', 'a Fledgling sees Feed on a free person', entries(V, T));
 ok(entries(V, W2) === '', 'but not on another vampire (dead blood)');
 store.set(`${B}|isDead`, true); ok(entries(V, B) === '', 'nor on the dead (E feeds on bodies)'); store.set(`${B}|isDead`, false);

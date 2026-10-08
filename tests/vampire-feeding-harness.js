@@ -219,6 +219,13 @@ onEat(V, 0x100); onEat(V, 0x100); onEat(CAPTIVE, 0x100);
 ok(JSON.stringify(credited) === JSON.stringify([[V, 10], [V, 10], [CAPTIVE, 40]]), 'a vampire\'s meal counts a quarter (40 -> 10), a mortal\'s all of it', credited);
 ok(ash.length === 1 && /ash/.test(ash[0][1]), 'the vampire is told once, not for every bite', ash);
 
+
+// Staff (Nate, 8 Oct): an admin's X menu on a vampire offers Remove Vampirism, and it lifts the curse
+cmds.curse(V, 'me vampire');
+ok(globalThis.__dboSuperMenuEntries(W, V).some((e) => e.id === 'super:admincure' && e.label === 'Remove Vampirism'), 'an admin is offered Remove Vampirism on a vampire');
+ok(globalThis.__dboSuperMenuAction(W, 'super:admincure', V, null) === true, 'the action is handled');
+ok(!globalThis.__dboSuperMenuEntries(W, V).some((e) => e.id === 'super:admincure'), 'after it the vampire carries no curse');
+
 global.setTimeout = realSetTimeout;
 console.log(fail ? `${fail} failed` : 'all checks passed');
 process.exit(fail ? 1 : 0);
