@@ -231,6 +231,20 @@ const nine = rec(MAGE).levels.Destruction.xp;
 check('the same spell again within the hour is worth less', nine < 9 * 1 && nine > 1 * 5, nine);
 globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
 check('an Illusion cast (a closed school) adds nothing', !rec(MAGE).levels.Illusion);
+// 7 Oct (four "magic does not level" reports): a cast that trains no school says why, once a login (and after 4 hours)
+check('...and says why: it trains Arcane Arts only', said(MAGE) === 'Illusion is not one of your schools of magic: casting it trains Arcane Arts only, not Illusion.', said(MAGE));
+{
+  const told = () => out.said.filter((x) => x[0] === MAGE && /^Illusion is not one of your schools/.test(x[1])).length;
+  advance(31 * MIN); globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
+  check('...not again within the login, even half an hour later', told() === 1, told());
+  load(); globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
+  check('...nor after a hot reload (the throttle lives on globalThis)', told() === 1, told());
+  globalThis.__dboSchoolsLogin(MAGE); globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
+  check('...but again at the next login', told() === 2, told());
+  advance(-31 * MIN);
+}
+globalThis.__dboSchoolsCast(MAGE, idOf(T.oakflesh[1]));
+check('Oakflesh by a mage without Alteration: told it trains Priest, not a school', !rec(MAGE).levels.Alteration && said(MAGE) === 'Alteration is not one of your schools of magic, so this spell trains Priest, not Arcane Arts or a school.', said(MAGE));
 globalThis.__dboSchoolsCast(MAGE, idOf(HEALING));
 check('a Restoration cast adds nothing: Restoration stays with Priest', Object.keys(rec(MAGE).levels).join() === 'Destruction');
 const npcBefore = out.audits.length;
@@ -239,10 +253,41 @@ check('an NPC cast is ignored', !props.get(NPC + '|private.dboSchools') && out.a
 advance(2 * HOUR);
 for (let i = 0; i < 700; i++) globalThis.__dboSchoolsCast(MAGE, idOf(i % 2 ? T.flames[1] : T.firebolt[1]));
 check('casting stops paying at the daily cap of 40 units a school', Math.abs(rec(MAGE).cast.units.Destruction - 40) < 1e-9, rec(MAGE).cast);
+check('...the caster is told the cap was reached and when it resets (midnight UTC, 10 hours away)', out.said.filter((x) => x[0] === MAGE && /^Casting has taught you all it can of Destruction for today\. It counts again after midnight UTC, in 10 hours\. A class at a Class Lectern still counts\.$/.test(x[1])).length === 1, out.said.filter((x) => x[0] === MAGE).slice(-2));
+check('...and the K menu says so under Destruction', /· casting done for today \(resets 00:00 UTC\)$/.test(progress(MAGE).schools[0].hint), progress(MAGE).schools[0].hint);
 advance(24 * HOUR);
 const capLevel = level(MAGE, 'Destruction');
 globalThis.__dboSchoolsCast(MAGE, idOf(T.flames[1]));
 check('...and pays again the next day', rec(MAGE).cast.units.Destruction === 0.2 && level(MAGE, 'Destruction') >= capLevel, rec(MAGE).cast);
+check('...and the K menu no longer shows the cap', !/casting done/.test(progress(MAGE).schools[0].hint), progress(MAGE).schools[0].hint);
+{
+  const capLines = () => out.said.filter((x) => x[0] === MAGE && /^Casting has taught you all it can of Destruction/.test(x[1])).length;
+  const keep = wallClock;
+  const midnight = Date.UTC(new Date(wallClock).getUTCFullYear(), new Date(wallClock).getUTCMonth(), new Date(wallClock).getUTCDate() + 2);
+  wallClock = midnight - 5 * MIN;
+  const n = capLines();
+  for (let i = 0; i < 700; i++) globalThis.__dboSchoolsCast(MAGE, idOf(i % 2 ? T.flames[1] : T.firebolt[1]));
+  wallClock = midnight + 5 * MIN;
+  for (let i = 0; i < 700; i++) globalThis.__dboSchoolsCast(MAGE, idOf(i % 2 ? T.flames[1] : T.firebolt[1]));
+  check('capped at 23:55 and again at 00:05 UTC: told both times (the day is in the throttle key, not only 30 minutes)', capLines() === n + 2, capLines() - n);
+  wallClock = keep;
+}
+// A school never starts above 100 (the log had "chose Conjuration (level 150)" from an Arcane Arts above the cap)
+{
+  const HIGH = 0x22; put(HIGH, 'profileId', HIGH); at(HIGH, SYNOD, [0, 0, 0]); arcane(HIGH, 150); ui('uiCaps', HIGH, ['schools']);
+  ui('schoolChoose', HIGH, [progress(HIGH).nonce, 'Conjuration', 'primary']);
+  check('a mage whose Arcane Arts is above 100 starts the school at 100', rec(HIGH).primary === 'Conjuration' && level(HIGH, 'Conjuration') === 100, rec(HIGH) && rec(HIGH).levels);
+  for (let i = 0; i < 700; i++) globalThis.__dboSchoolsCast(HIGH, idOf(T.boundSword[1]));
+  check('...and at 100 the cap is neither told nor shown: there is nothing left to learn', !out.said.some((x) => x[0] === HIGH && /all it can/.test(x[1])) && !/casting done/.test(progress(HIGH).schools[2].hint), progress(HIGH).schools[2]);
+}
+// A school changed away from rests: its spells train Arcane Arts only, and the caster is told
+{
+  const REST = 0x23; put(REST, 'profileId', REST); at(REST, SYNOD, [0, 0, 0]); arcane(REST, 60); ui('uiCaps', REST, ['schools']);
+  ui('schoolChoose', REST, [progress(REST).nonce, 'Conjuration', 'primary']);
+  setLevel(REST, 'Destruction', 50);
+  globalThis.__dboSchoolsCast(REST, idOf(T.flames[1]));
+  check('a resting school: told it rests and trains Arcane Arts only', level(REST, 'Destruction') === 50 && said(REST) === 'Destruction is resting: casting it trains Arcane Arts only, not Destruction.', said(REST));
+}
 
 // ---- Study Magic ----
 check('another bookcase in the Conclave is not a study point', activate(OTHER_SHELF, NOVICE) === false);
@@ -810,6 +855,18 @@ check('scale: Master full, none below', S[4].join() === '0,0,0,0,1');
     ui('preachClose', PREACHER2);
   }
   online = online.filter((a) => ![PREACHER, LISTENER, NEWCOMER, APPRENTICE, DAEDRIC, PREACHER2, AWAY].includes(a));
+}
+
+// Before the first school (firstSchoolAt 25, the shipped flow): casting trains Arcane Arts only, and a mage is told so
+{
+  load({ firstSchoolAt: 25 });
+  const EARLY = 0x24; put(EARLY, 'profileId', EARLY); at(EARLY, SYNOD, [0, 0, 0]); arcane(EARLY, 10); ui('uiCaps', EARLY, ['schools']);
+  globalThis.__dboSchoolsCast(EARLY, idOf(T.flames[1]));
+  check('before Arcane Arts 25: told schools open at 25 and casting trains Arcane Arts only', said(EARLY) === 'Your schools of magic open at Arcane Arts 25; until then casting trains Arcane Arts only.' && !(rec(EARLY) && rec(EARLY).levels.Destruction), said(EARLY));
+  const NOARC = 0x25; put(NOARC, 'profileId', NOARC); at(NOARC, SYNOD, [0, 0, 0]); ui('uiCaps', NOARC, ['schools']);
+  globalThis.__dboSchoolsCast(NOARC, idOf(T.flames[1]));
+  check('...but someone who never took up Arcane Arts is not told', said(NOARC) === '', said(NOARC));
+  load();
 }
 
 console.log(`\n${checks - failures}/${checks} passed`);
