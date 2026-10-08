@@ -82,12 +82,13 @@ function vortexDownloadDirs({ userDataDirs, username = '', gameId = 'skyrimse', 
   return out
 }
 
-// Archives (and .meta files) in our downloads folder; one hard-linked from Vortex only loses our name for it
-function clearDownloads(dir, protect = []) {
+// Archives (and .meta files) in our downloads folder but those named in keep; one hard-linked from Vortex only loses our name
+function clearDownloads(dir, protect = [], keep = []) {
   if (isProtected(dir, protect)) return { removed: 0, bytes: 0, refused: true }
+  const kept = new Set(keep.map(n => String(n).toLowerCase()))
   let removed = 0, bytes = 0
   for (const a of filesIn(dir, ARCHIVE_RE)) {
-    if (!remove(a.full)) continue
+    if (kept.has(a.name.toLowerCase()) || !remove(a.full)) continue
     removed++
     if (a.nlink <= 1) bytes += a.size
     remove(`${a.full}.meta`)

@@ -51,9 +51,10 @@ test("clearing our downloads removes archives and .meta only, and a hard link le
   put(path.join(ours, 'Own-2.zip'), '12345')
   put(path.join(ours, 'Own-2.zip.meta'), 'meta')
   put(path.join(ours, 'readme.txt'), 'keep')
-  const r = d.clearDownloads(ours, [vortex])
+  put(path.join(ours, 'skse64_2_02_06.7z'), 'skse')
+  const r = d.clearDownloads(ours, [vortex], ['SKSE64_2_02_06.7z'])
   assert.deepEqual(r, { removed: 2, bytes: 5, refused: false })
-  assert.deepEqual(fs.readdirSync(ours), ['readme.txt'])
+  assert.deepEqual(fs.readdirSync(ours).sort(), ['readme.txt', 'skse64_2_02_06.7z'])
   assert.equal(fs.readFileSync(path.join(vortex, 'Linked-1.7z'), 'utf8'), 'linked archive')
 })
 

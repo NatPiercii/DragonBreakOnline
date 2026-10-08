@@ -30,6 +30,7 @@ const downgrade = require('./downgrade')
 const report = require('./report')
 const crashWatch = require('./crashWatch')
 const bugLogs = require('./bugLogs')
+const debloat = require('./debloat')
 const selfRepair = require('./selfRepair')
 const downloadLib = require('./download')
 const nxmLinks = require('./nxm')
@@ -334,6 +335,7 @@ app.whenReady().then(() => {
   createWindow()
   // No install waits yet: links left with us by a crash, or by a launcher up to 2.1.29, go back
   nxm.release()
+  setTimeout(() => { if (!installGate.running()) tidyDisk() }, 30_000)
   app.on('second-instance', (_e, argv) => {
     if (win) { if (win.isMinimized()) win.restore(); win.focus() }
     handleNxmArgv(argv)
@@ -1772,9 +1774,11 @@ function watchGameExit() {
     send: note => postJSON(`${config.apiUrl}/api/files/session-end`,
       { ...note, launcherVersion: app.getVersion(), filesVersion: store.get('filesVersion') || '' },
       { 'x-session': store.get('gameSession') || session }),
-  }).then(note => offerCrashReport(note))
-    .catch(err => log(`[crashWatch] ${err.message}`))
-    .finally(() => { gameWatchRunning = false; clearInterval(bugTimer); bugLogPoller.poll() })
+  }).then(note => {
+    if (note && note.outcome !== 'crash') afterSuccessfulLaunch()
+    return offerCrashReport(note)
+  }).catch(err => log(`[crashWatch] ${err.message}`))
+    .finally(() => { gameWatchRunning = false; clearInterval(bugTimer); bugLogPoller.poll(); tidyDisk() })
 }
 
 // After a crash, offer the report there and then. crashWatch has already found the crash log and the player should
@@ -3621,6 +3625,7 @@ async function installClientFilesCore(skyrimPath, srv, serverInfo, force = false
     // 4. Write server settings
     writeClientSettings(clientSettingsPath, srv, serverInfo)
     store.set('filesVersion', serverVersion)
+    debloat.pruneClientZips(os.tmpdir(), tempZip)
     if (directRun) installStep('finish', { index: 1, total: 1 })
 
     return { success: true }
@@ -3745,14 +3750,68 @@ function openDownloadList(downloadsDir, missing) {
   shell.openExternal(`${config.apiUrl}/api/nexus-downloads${query}`)
 }
 
-// Vortex's Skyrim SE download folder at its default place ({USERDATA}\downloads\<game id>, Vortex's
-// getDownloadPath), or '' when there is none; a moved one is set by the player (archiveDir)
-function vortexDownloadsDir() {
-  const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-  const dir = path.join(appData, 'Vortex', 'downloads', 'skyrimse')
-  return fs.existsSync(dir) ? dir : ''
+// Vortex's Skyrim SE download folders: the default ({USERDATA}\\downloads\\<game id>) and a moved one its settings name;
+// any other folder is set by the player (archiveDir)
+let _vortexDirs = null
+function vortexDownloadDirs() {
+  if (!_vortexDirs || !_vortexDirs.length) {
+    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+    const programData = process.env.ProgramData || 'C:\\ProgramData'
+    let username = ''
+    try { username = os.userInfo().username } catch {}
+    _vortexDirs = debloat.vortexDownloadDirs({ userDataDirs: [path.join(appData, 'Vortex'), path.join(programData, 'vortex')], username })
+  }
+  return _vortexDirs
 }
-const otherArchiveDirs = () => [store.get('archiveDir'), vortexDownloadsDir()].filter(d => d && fs.existsSync(d))
+const vortexDownloadsDir = () => vortexDownloadDirs()[0] || ''
+const otherArchiveDirs = () => [store.get('archiveDir'), ...vortexDownloadDirs()].filter(d => d && fs.existsSync(d))
+// Folders the launcher never deletes from: the player's own Downloads, their archive folder, and Vortex's
+function protectedDirs() {
+  let userDownloads = ''
+  try { userDownloads = app.getPath('downloads') } catch {}
+  return [userDownloads, store.get('archiveDir'), ...vortexDownloadDirs().flatMap(d => [d, path.dirname(d)])].filter(Boolean)
+}
+
+// Disk use (Jake, 7 Oct: the launcher took about 100 GB): our archive copies go once the game has run on them
+const DOWNLOADS_CLEAR_KEY = 'downloadsClearOnLaunch'
+const DUPES_CLEARED_KEY = 'archiveDupesCleared'
+const mbOf = n => (n / 1024 / 1024).toFixed(0)
+
+function crashFileDirs() {
+  const docs = documentsDirOrNull()
+  return [...(docs ? MYGAMES_VARIANTS.map(v => path.join(docs, 'My Games', v, 'SKSE')) : []), path.join(mo2.getRoot(), 'overwrite', 'SKSE')]
+}
+
+function tidyDisk() {
+  try {
+    const crash = debloat.capCrashFiles(crashFileDirs(), { protect: protectedDirs() })
+    const parts = debloat.pruneStaleParts(mo2.getDownloadsDir(), { protect: protectedDirs() }) +
+      debloat.pruneStaleParts(os.tmpdir(), { nameRe: /^alduinak-client.*\.part$/i })
+    if (crash.removed || parts) log(`[debloat] removed ${crash.removed} old crash file(s) and ${parts} stale partial download(s)`)
+  } catch (err) { log(`[debloat] tidy failed: ${err.message}`) }
+}
+
+// After a verified mod install: once, our copies of archives Vortex holds; then the rest wait for a launch
+function afterVerifiedInstall() {
+  store.set(DOWNLOADS_CLEAR_KEY, true)
+  if (store.get(DUPES_CLEARED_KEY)) return
+  try {
+    const r = debloat.clearDuplicates(mo2.getDownloadsDir(), otherArchiveDirs(), protectedDirs())
+    if (!r.refused) store.set(DUPES_CLEARED_KEY, true)
+    log(`[debloat] duplicate archives: ${r.refused ? 'refused, the downloads folder is a protected one' : `removed ${r.removed} (${mbOf(r.bytes)} MB freed)`}`)
+  } catch (err) { log(`[debloat] duplicate cleanup failed: ${err.message}`) }
+}
+
+// The game ran on the installed mods, so their archives in our downloads folder are no longer needed
+function afterSuccessfulLaunch() {
+  if (!store.get(DOWNLOADS_CLEAR_KEY) || installGate.running()) return
+  try {
+    // The SKSE archive stays: Check Files compares the game root against it
+    const r = debloat.clearDownloads(mo2.getDownloadsDir(), protectedDirs(), [mo2.skseSourceFor(effectiveGamePath()).fileName])
+    store.set(DOWNLOADS_CLEAR_KEY, false)
+    log(`[debloat] downloads folder: ${r.refused ? 'refused, it is a protected one' : `removed ${r.removed} archive(s) (${mbOf(r.bytes)} MB freed)`}`)
+  } catch (err) { log(`[debloat] clearing the downloads folder failed: ${err.message}`) }
+}
 
 // One Nexus page at a time for the files still missing (nxm.js)
 const nexusGuide = items => nxmLinks.createGuide(items, { open: url => shell.openExternal(url), say: msg => send('install:log', msg) })
@@ -3863,6 +3922,7 @@ async function runMO2Install(opts = {}) {
       }
       finishOrder()
       store.set('modpackState', 'ready')
+      afterVerifiedInstall()
       send('install:complete', {
         success: true, mo2: true, upToDate: coreUpToDate, modsTotal: 0,
         warning: [vanillaWarning, 'The install manifest has no mods yet - compile it from the reference MO2 install on the backend.']
@@ -3928,6 +3988,7 @@ async function runMO2Install(opts = {}) {
     if (modsToInstall.length === 0 && !needsRoot) {
       finishOrder()
       store.set('modpackState', 'ready')
+      afterVerifiedInstall()
       send('install:complete', {
         success: true, mo2: true, upToDate: true, modsTotal: manifest.mods.length,
         ...(vanillaWarning ? { warning: vanillaWarning } : {}),
@@ -3963,11 +4024,10 @@ async function runMO2Install(opts = {}) {
         send('install:progress', { phase: 'mods', file: `Checking ${name}…`, index: 0, total: 0, skipped: false })
         if (await mo2.verifyArchiveAsync(p, a.hash)) return p
       }
-      // A manually moved / renamed file, or one Vortex already downloaded (the collection), linked in without a copy
+      // A manually moved / renamed file, or one Vortex already downloaded (the collection), extracted where it is
       const found = await mo2.findArchiveByHash(a.hash, a.size, otherArchiveDirs())
-      if (!found || path.dirname(found) === downloadsDir) return found
-      reused++
-      return mo2.adoptArchive(found)
+      if (found && path.dirname(found) !== downloadsDir) reused++
+      return found
     }
     let reused = 0
 
@@ -4168,6 +4228,7 @@ async function runMO2Install(opts = {}) {
     finishTick()
 
     store.set('modpackState', 'ready')
+    afterVerifiedInstall()
     send('install:complete', {
       success: true, mo2: true, upToDate: coreUpToDate, modsTotal: manifest.mods.length,
       ...(vanillaWarning ? { warning: vanillaWarning } : {}),
