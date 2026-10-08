@@ -5,6 +5,7 @@ import { loginsCounter, loginErrorsCounter } from "./metricsSystem";
 import { hasDiscordBanRole } from "./discordBanSystem";
 import { kickWithReason } from "./kickUtil";
 import { bindRolesToProfile } from "./patronTiers";
+import { guidOf } from "./actorUtil";
 
 const loginFailedNotInTheDiscordServer = JSON.stringify({ customPacketType: "loginFailedNotInTheDiscordServer" });
 const loginFailedBanned = JSON.stringify({ customPacketType: "loginFailedBanned" });
@@ -90,7 +91,7 @@ export class Login implements System {
     };
   }
 
-  private async getUserProfile(session: string, userId: number, ctx: SystemContext): Promise<UserProfile> {
+  private async getUserProfile(session: string, userId: number, ctx: SystemContext, assertSameConnection: (op: string) => void): Promise<UserProfile> {
     const response = await this.fetchRetry(
       `${this.masterUrl}/api/servers/${this.masterKey}/sessions/${encodeURIComponent(session)}`,
       this.getFetchOptions('getUserProfile')
@@ -98,10 +99,12 @@ export class Login implements System {
 
     if (!response.ok) {
       if (response.status === 404) {
+        assertSameConnection("getUserProfile");
         ctx.svr.sendCustomPacket(userId, loginFailedSessionNotFound);
       } else if (response.status === 403) {
         const body = await response.json().catch(() => ({}));
         const error = String(body?.error || "");
+        assertSameConnection("getUserProfile");
         if (error === "banned") {
           ctx.svr.sendCustomPacket(userId, loginFailedBanned);
         } else {
@@ -198,16 +201,20 @@ export class Login implements System {
       (async () => {
         this.emit(ctx, "userAssignSession", userId, gameData.session);
 
+        // A dropped connection's userId goes to the next one and every client shares the relay ip, so only the guid tells them apart
         const guidBeforeAsyncOp = ctx.svr.getUserGuid(userId);
-        const profile = await this.getUserProfile(gameData.session, userId, ctx);
-        const guidAfterAsyncOp = ctx.svr.isConnected(userId) ? ctx.svr.getUserGuid(userId) : "<disconnected>";
+        const assertSameConnection = (op: string): void => {
+          const guidAfterAsyncOp = guidOf(ctx.svr, userId);
+          if (guidBeforeAsyncOp !== guidAfterAsyncOp) {
+            console.error(`User ${userId} changed guid from ${guidBeforeAsyncOp} to ${guidAfterAsyncOp} during async ${op}`);
+            throw new Error(`Guid mismatch after ${op}`);
+          }
+        };
 
-        console.log({ guidBeforeAsyncOp, guidAfterAsyncOp, op: "getUserProfile" });
+        const profile = await this.getUserProfile(gameData.session, userId, ctx, assertSameConnection);
 
-        if (guidBeforeAsyncOp !== guidAfterAsyncOp) {
-          console.error(`User ${userId} changed guid from ${guidBeforeAsyncOp} to ${guidAfterAsyncOp} during async getUserProfile`);
-          throw new Error("Guid mismatch after getUserProfile");
-        }
+        console.log({ guidBeforeAsyncOp, guidAfterAsyncOp: guidOf(ctx.svr, userId), op: "getUserProfile" });
+        assertSameConnection("getUserProfile");
 
         console.log("getUserProfileId:", profile);
 
@@ -237,6 +244,7 @@ export class Login implements System {
 
         // Backend ban store check by discordId/hwid/ip; also records the connecting ip
         const connectionAllowed = await this.checkConnectionAllowed(profile.id, ip);
+        assertSameConnection("checkConnectionAllowed");
         if (!connectionAllowed) {
           ctx.svr.sendCustomPacket(userId, loginFailedBanned);
           throw new Error("Banned by backend connection-check");
@@ -294,6 +302,7 @@ export class Login implements System {
                 shouldHideIp = true;
               }
             }
+            assertSameConnection("discordAuth guild member fetch");
           }
 
 
@@ -308,7 +317,7 @@ export class Login implements System {
           }
 
           if (ip !== ctx.svr.getUserIp(userId)) {
-            // Quick and dirty same-user check: during the async http call the userId could be freed and reused by someone else
+            // Not a reuse guard: every client arrives from the relay ip, so a reused userId passes; assertSameConnection is the guard
             ctx.svr.sendCustomPacket(userId, loginFailedIpMismatch);
             throw new Error("IP mismatch");
           }
@@ -339,9 +348,11 @@ export class Login implements System {
           gameFactions: (profile as any).gameFactions || [],
           factions: (profile as any).factions || [],
         };
+        // Nothing may await between this check and the emit; spawnAllowed carries the guid so its listeners can check it too
+        assertSameConnection("login");
         // spawn.ts counts this account's earned character slots through this array (patronTiers.ts earnedSlotsFor)
         bindRolesToProfile(rolesToAssign, profile.id);
-        this.emit(ctx, "spawnAllowed", userId, profile.id, rolesToAssign, profile.discordId, skympAccess);
+        this.emit(ctx, "spawnAllowed", userId, profile.id, rolesToAssign, profile.discordId, skympAccess, guidBeforeAsyncOp);
         loginsCounter.inc();
         this.log("Logged as " + profile.id);
       })()

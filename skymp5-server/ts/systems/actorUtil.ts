@@ -12,6 +12,15 @@ export const userOf = (mp: Mp, actorId: number): number => {
   }
 };
 
+// Guid of the connection holding a userId now, "<disconnected>" for a free slot; a reused userId gets the new connection's guid
+export const guidOf = (mp: Mp, userId: number): string => {
+  try {
+    return mp.isConnected(userId) ? String(mp.getUserGuid(userId)) : "<disconnected>";
+  } catch {
+    return "<disconnected>";
+  }
+};
+
 export const baseIdOf = (mp: Mp, actorId: number): number => {
   try {
     const desc = mp.get(actorId, "baseDesc");

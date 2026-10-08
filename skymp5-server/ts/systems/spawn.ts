@@ -7,6 +7,7 @@ import { System, Log, SystemContext, Content } from "./system";
 import { filterAccessForSlot } from "../backendFactionApi";
 import { validateResult, CharCreatorConfig } from "./charCreatorData";
 import { scanModHair, ModHairCatalog } from "./hairCatalog";
+import { guidOf } from "./actorUtil";
 
 const NAME_INDEX_PROP = "private.indexed.charName";
 
@@ -162,7 +163,12 @@ export class Spawn implements System {
     this.installAppearanceHook(ctx);
     this.installEquipmentHook(ctx);
 
-    const listenerFn = (userId: number, userProfileId: number, discordRoleIds: string[], discordId?: string, access?: unknown) => {
+    const listenerFn = (userId: number, userProfileId: number, discordRoleIds: string[], discordId?: string, access?: unknown, guid?: string) => {
+      // Login passes the guid it authenticated; a login that outlived its connection must not reach the next holder of the userId
+      if (guid !== undefined && guidOf(ctx.svr, userId) !== guid) {
+        this.log("Dropped a stale login for user", userId, "profile", userProfileId, "(the connection changed)");
+        return;
+      }
       if (!this.admit(ctx, userId, discordRoleIds || [])) return;
       if (this.characterSelect) {
         const auth = { profileId: userProfileId, roles: discordRoleIds, discordId, access };
@@ -215,11 +221,20 @@ export class Spawn implements System {
     }
   }
 
-  disconnect(userId: number, ctx: SystemContext): void {
+  // userIds are reused, so a new connection starts with nothing stored for its slot after the last disconnect
+  connect(userId: number): void {
+    this.forgetUser(userId);
+  }
+
+  private forgetUser(userId: number): void {
     this.pending.delete(userId);
     this.authCache.delete(userId);
     this.lastMenuRequestMs.delete(userId);
     this.lastAssignMs.delete(userId);
+  }
+
+  disconnect(userId: number, ctx: SystemContext): void {
+    this.forgetUser(userId);
     // Logout grace: parkTimers is actorId-keyed and deliberately NOT cleaned here, the timer must outlive the connection; re-selecting the character cancels it
     try {
       const actorId = ctx.svr.getUserActor(userId);
