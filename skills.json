@@ -25,6 +25,7 @@
   "expertAbove": 75,
   "expertCount": 3,
   "transferFloor": 25,
+  "waningFloor": 1,
   "firstTouchCost": 1,
   "bucketBurst": 13,
   "bucketPerHour": 20,

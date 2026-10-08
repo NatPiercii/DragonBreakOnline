@@ -52,8 +52,8 @@ check('Skills: the tab draws in the journal body, in the violet', /journal__body
 check('...the Wheel: 44 / 300 spokes', /44 \/ 300/.test(t) && /spokes of the Wheel/.test(t), t.slice(0, 200));
 check('...the groups and every skill in the list', /Combat/.test(t) && /Professions/.test(t) && (html.match(/class="mastery__item[ "]/g) || []).length === 5);
 check('...the first held skill opens: name, epithet, lore line and rule apart', /Defense/.test(t) && /The Iron Wall/.test(t) && /journal-skills__lore">The shield-wall/.test(html) && /journal-skills__rules">Defense rule text/.test(html), t.slice(0, 400));
-check('...level of its ceiling, the tier and the three moons', /52 of 100/.test(t) && /Waxing/.test(t) && /Held/.test(t) && /Waning/.test(t) && /mastery__lock mastery__lock--on[^>]*>[^<]*<span class="mastery__lock-glyph">●/.test(html));
-check('...the floor line from the server (nothing falls below 25)', /nothing falls below 25/.test(t));
+check('...level of its ceiling, the tier and the three modes in plain words', /52 of 100/.test(t) && /Raise/.test(t) && /Hold/.test(t) && /Lower/.test(t) && /mastery__lock mastery__lock--on[^>]*>[^<]*<span class="mastery__lock-glyph">●/.test(html));
+check('...the floor line from the server (Lower down to its floor, raised skills down to 25)', /points come from a skill set to Lower/.test(t) && /down to 25\)/.test(t), t.slice(0, 600));
 check('...five tiers, Adept for tier 3, with its line, the current marked and the higher dimmed', /Adept/.test(t) && /mastery__rank-lore">Adept line/.test(html) && (html.match(/mastery__rank--reached/g) || []).length === 3 && /mastery__rank--current/.test(html) && !/Journeyman/.test(t));
 check('...the epigraph once', (t.match(/Time broke over Nirn/g) || []).length === 1);
 html = render(hub('skills', { skills: menu({ focus: 'archery' }) }));

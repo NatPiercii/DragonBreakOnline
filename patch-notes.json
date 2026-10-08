@@ -1,5 +1,20 @@
 [
   {
+    "title": "Wheel of Skills: plainer words",
+    "date": "2026-10-08",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "Waxing, Held and Waning are now called Raise, Hold and Lower, with a one-line explanation each in the Wheel.",
+          "A skill set to Lower can now give its points all the way down to level 1 (it stopped at 25 before), so you can move points out of a skill you no longer use. Raised skills still stop at 25, and held skills never give points away."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Legion armour",
     "date": "2026-10-08",
     "version": "Server update",
