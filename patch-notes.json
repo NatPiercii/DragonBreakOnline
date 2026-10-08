@@ -1,5 +1,19 @@
 [
   {
+    "title": "Legion armour",
+    "date": "2026-10-08",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Crafting",
+        "items": [
+          "The Imperial General's set, the Emperor's set, the Imperial Legate Armor and the Imperial Officer's Cloak are now Imperial Legion gear: only the Legion's smiths, tailors and leader make them, and they no longer come from loot or get swapped."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Placed chopping blocks play the mini-game",
     "date": "SHIP_DATE",
     "version": "Server update",

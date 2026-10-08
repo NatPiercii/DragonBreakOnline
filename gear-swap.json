@@ -2315,46 +2315,6 @@
 "kind": "weapon Sword",
 "province": "skyrim"
 },
-"1301:dis_heavy_legion.esp": {
-"to": "13955:Skyrim.esm",
-"edid": "DIS_General_Shield",
-"toEdid": "ArmorSteelShield",
-"family": "EBONY",
-"kind": "heavy shield",
-"province": "skyrim"
-},
-"1302:dis_heavy_legion.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "DIS_General_Boots",
-"toEdid": "ArmorSteelBootsA",
-"family": "EBONY",
-"kind": "heavy feet",
-"province": "skyrim"
-},
-"1303:dis_heavy_legion.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "DIS_General_Cuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "EBONY",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"1304:dis_heavy_legion.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "DIS_General_Gauntlets",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "EBONY",
-"kind": "heavy hands",
-"province": "skyrim"
-},
-"1305:dis_heavy_legion.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "DIS_General_Helmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "EBONY",
-"kind": "heavy head",
-"province": "skyrim"
-},
 "1391a:skyrim.esm": {
 "to": "13920:Skyrim.esm",
 "edid": "ArmorElvenBoots",

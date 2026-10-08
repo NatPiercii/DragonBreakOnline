@@ -4101,6 +4101,114 @@
    ],
    "role": "blacksmith",
    "recipes": []
+  },
+  "186e:DIS_Heavy_Legion.esp": {
+   "name": "Imperial General's Shield",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1873:DIS_Heavy_Legion.esp": {
+   "name": "Imperial General's Boots",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1874:DIS_Heavy_Legion.esp": {
+   "name": "Imperial General's Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1875:DIS_Heavy_Legion.esp": {
+   "name": "Imperial General's Bracers",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1876:DIS_Heavy_Legion.esp": {
+   "name": "Imperial General's Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "187d:DIS_Heavy_Legion.esp": {
+   "name": "Imperial Officer's Cloak",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "tailor",
+   "recipes": []
+  },
+  "1301:DIS_Heavy_Legion.esp": {
+   "name": "Emperor's Shield",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1302:DIS_Heavy_Legion.esp": {
+   "name": "Emperor's Boots",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1303:DIS_Heavy_Legion.esp": {
+   "name": "Emperor's Cuirass",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1304:DIS_Heavy_Legion.esp": {
+   "name": "Emperor's Gauntlets",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "1305:DIS_Heavy_Legion.esp": {
+   "name": "Emperor's Helmet",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "5934:DIS_Heavy_Legion.esp": {
+   "name": "Imperial Legate Armor",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
   }
  },
  "_uniformsComment": "War uniforms (realm.js, config war.uniforms): in a battle only fighters wearing a body piece of their faction's uniform count at a standard. A faction's uniform is its items above plus these worn-only extras; a faction with neither (the Fighters Guild today) is not held to it.",

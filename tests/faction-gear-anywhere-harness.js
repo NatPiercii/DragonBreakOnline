@@ -71,5 +71,11 @@ const ENH = idOf('f19e:Dawnguard.esm'), PLAIN = idOf('801:Dawnguard.esm');
 ok(globalThis.__dboFactionCraft(A.DG_SMITH, ENH) === true && globalThis.__dboFactionCraft(A.DG_SMITH, PLAIN) === true && globalThis.__dboFactionCraft(A.OUT, ENH) === false && globalThis.__dboFactionCraft(A.OUT, PLAIN) === false, 'a Dawnguard smith makes any crossbow, an outsider none');
 const swapMap = JSON.parse(fs.readFileSync(path.join(SERVER, 'gear-swap.json'), 'utf8')).items;
 ok(!Object.keys(swapMap).some((k) => all[k] && /crossbow/i.test(all[k].name)) && !Object.values(swapMap).some((v) => String(v.to).toLowerCase() === '801:dawnguard.esm'), 'gear swap maps no crossbow and nothing to the plain Crossbow');
+// DIS_Heavy_Legion's General's, Emperor's and Legate sets are the Legion's (#fac-0084, 8 Oct: the Legion's smiths found no General's armour)
+const legion = JSON.parse(fs.readFileSync('faction-gear.json', 'utf8')).items;
+const DIS = ['186e', '1873', '1874', '1875', '1876', '187d', '1301', '1302', '1303', '1304', '1305', '5934'].map((h) => `${h}:DIS_Heavy_Legion.esp`);
+ok(DIS.every((dsc) => legion[dsc] && JSON.stringify(legion[dsc].factions) === '["imperial-legion"]'), 'the General\'s, Emperor\'s and Legate pieces are Imperial Legion gear', DIS.filter((dsc) => !legion[dsc]));
+const swapNow = JSON.parse(fs.readFileSync(path.join(SERVER, 'gear-swap.json'), 'utf8')).items;
+ok(!DIS.some((dsc) => swapNow[dsc.toLowerCase()] || swapNow[dsc]), 'gear swap no longer takes the Emperor\'s set');
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);
