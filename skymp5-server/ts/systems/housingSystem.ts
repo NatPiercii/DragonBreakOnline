@@ -75,6 +75,8 @@ const MAX_NAME_LEN = 32;
 const MAX_KEYS_CARRIED = 64;
 // Place and room part of a room key's name: with "Key to", a rank, a recut, a copy number and the credential under 128
 const MAX_ROOM_KEY_LABEL = 64;
+// The place's part of it, so the room always shows ("the " and a 32-letter name fit)
+const MAX_PLACE_KEY_LABEL = 36;
 const MAX_ESPM_CACHE = 4096;
 const DEFAULT_MAX_CLAIMS = 8;
 const DEFAULT_MAX_DISTANCE = 512;
@@ -1378,7 +1380,7 @@ export class HousingSystem implements System {
     }
   }
 
-  // A member of a place after the place's name or door and the room as the Rooms and chests panel names it
+  // A member of a place after its place (name, else door, else owner) and its room as Rooms and chests names it
   private roomKeyLabel(ctx: SystemContext, primary: number, rec: PropertyRecord): string {
     if (!this.placesOn() || !rec.memberOf || rec.memberOf === primary) return "";
     const root = this.read(ctx, rec.memberOf);
@@ -1386,8 +1388,20 @@ export class HousingSystem implements System {
     const room = this.roomsOf(ctx, rec.memberOf, root).find((r) => r.ref === primary);
     if (!room) return "";
     const named = (root.name || "").trim();
-    const place = named ? `the ${named}` : this.doorLabel(ctx, rec.memberOf);
-    return (place ? `${place}: ${room.label}` : String(room.label)).slice(0, MAX_ROOM_KEY_LABEL).trimEnd();
+    const owner = (root.ownerName || "").replace(/[^\x20-\x7e]/g, "").trim();
+    const place = this.fitWords(named ? `the ${named}` : this.doorLabel(ctx, rec.memberOf) || (owner ? `${owner}'s property` : ""), MAX_PLACE_KEY_LABEL);
+    return this.fitWords(place ? `${place}: ${room.label}` : String(room.label), MAX_ROOM_KEY_LABEL);
+  }
+
+  // Cut to max at a word boundary (inside a word only past 16 letters of it), keeping a number at the end ("Chest 2")
+  private fitWords(text: string, max: number): string {
+    if (text.length <= max) return text;
+    const tail = (/ \d+$/.exec(text) || [""])[0];
+    const body = text.slice(0, text.length - tail.length);
+    let head = body.slice(0, Math.max(0, max - tail.length));
+    const space = head.lastIndexOf(" ");
+    if (body.charAt(head.length) !== " " && space > 0 && space >= head.length - 16) head = head.slice(0, space);
+    return head.replace(/[\s:,]+$/, "") + tail;
   }
 
   // The readable name doors.json gives this door ("Bruma Castle"), or ""; the file is read again when it changes

@@ -18,10 +18,11 @@ const out = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-jake-b-roomkeys-'));
 let failures = 0;
 const check = (name, ok, got) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${got !== undefined ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 
-// A named place (the castle), an unnamed one doors.json names (the shack), and a chest in no place
+// A named place (the castle), an unnamed one doors.json names (the shack), an unnamed one it does not (the hut), and a chest
+// in no place
 const CASTLE = 0x0806c473, BOX1 = 0x0806c501, BOX2 = 0x0806c502, WARDROBE = 0x0806c503, HALL_DOOR = 0x0806c504, HALL_FAR = 0x0806c505;
-const SHACK = 0x0806766b, SHACK_BOX = 0x08067701, LONE = 0x08070001;
-const CASTLE_CELL = '6c4d9:BSHeartland.esm', SHACK_CELL = '6765c:BSHeartland.esm', WORLD = 'a764b:BSHeartland.esm';
+const SHACK = 0x0806766b, SHACK_BOX = 0x08067701, LONE = 0x08070001, HUT = 0x08068001, HUT_BOX = 0x08068101;
+const CASTLE_CELL = '6c4d9:BSHeartland.esm', SHACK_CELL = '6765c:BSHeartland.esm', HUT_CELL = '68000:BSHeartland.esm', WORLD = 'a764b:BSHeartland.esm';
 const OWNER = 0xff000014, FRIEND = 0xff000015, STAFF = 0xff000016;
 const USER = { [OWNER]: 3, [FRIEND]: 4, [STAFF]: 5 }, PROFILE = { [OWNER]: 70, [FRIEND]: 91, [STAFF]: 55 };
 const KEY_BASE = 0xdb0e2;
@@ -44,10 +45,11 @@ const KEY_BASE = 0xdb0e2;
   // A fresh server with both places claimed by the owner; the friend and a staff member are online too
   const world = () => {
     const CELLS = { [CASTLE]: CASTLE_CELL, [BOX1]: CASTLE_CELL, [BOX2]: CASTLE_CELL, [WARDROBE]: CASTLE_CELL, [HALL_DOOR]: CASTLE_CELL,
-      [HALL_FAR]: CASTLE_CELL, [SHACK]: SHACK_CELL, [SHACK_BOX]: SHACK_CELL, [LONE]: WORLD };
+      [HALL_FAR]: CASTLE_CELL, [SHACK]: SHACK_CELL, [SHACK_BOX]: SHACK_CELL, [HUT]: HUT_CELL, [HUT_BOX]: HUT_CELL, [LONE]: WORLD };
     const TYPES = { [CASTLE]: 'DOOR', [HALL_DOOR]: 'DOOR', [HALL_FAR]: 'DOOR', [SHACK]: 'DOOR', [BOX1]: 'CONT', [BOX2]: 'CONT', [WARDROBE]: 'CONT',
-      [SHACK_BOX]: 'CONT', [LONE]: 'CONT' };
-    const LABELS = { [BOX1]: 'Strongbox', [BOX2]: 'Strongbox', [WARDROBE]: 'Wardrobe', [HALL_DOOR]: 'Door to Great Hall', [SHACK_BOX]: 'Barrel', [LONE]: 'Chest' };
+      [SHACK_BOX]: 'CONT', [HUT]: 'DOOR', [HUT_BOX]: 'CONT', [LONE]: 'CONT' };
+    const LABELS = { [BOX1]: 'Strongbox', [BOX2]: 'Strongbox', [WARDROBE]: 'Wardrobe', [HALL_DOOR]: 'Door to Great Hall', [SHACK_BOX]: 'Barrel',
+      [HUT_BOX]: 'Barrel', [LONE]: 'Chest' };
     const PARTNER = { [HALL_DOOR]: HALL_FAR, [HALL_FAR]: HALL_DOOR };
     const props = new Map();
     const actorOfUser = Object.fromEntries(Object.entries(USER).map(([a, u]) => [u, Number(a)]));
@@ -79,10 +81,11 @@ const KEY_BASE = 0xdb0e2;
     sys.isWorldDesc = (c, d) => d === WORLD;
     sys.refsInCell = (c, desc) => Object.keys(CELLS).map(Number).filter((id) => CELLS[id] === desc);
     sys.labelOf = (c, id) => LABELS[id >>> 0] || 'Door';
-    sys.claimed = [CASTLE, SHACK, LONE, BOX1];
+    sys.claimed = [CASTLE, SHACK, HUT, LONE, BOX1];
     const record = (o) => Object.assign({ owner: 70, ownerName: 'Frigga', name: null, locked: false, serial: 1, partner: 0, containers: [], issued: [] }, o);
     mp.set(CASTLE, HP, record({ name: 'Castle Bruma', place: { cells: [CASTLE_CELL], builtAt: 1 } }));
     mp.set(SHACK, HP, record({ place: { cells: [SHACK_CELL], builtAt: 1 } }));
+    mp.set(HUT, HP, record({ place: { cells: [HUT_CELL], builtAt: 1 } }));
     mp.set(LONE, HP, record({}));
     // A chest the migration took into the castle, with a key cut before; the second strongbox and the wardrobe nobody claimed yet
     mp.set(BOX1, HP, record({ memberOf: CASTLE, ownerOnly: true, issued: ['Property Key (806C501)'] }));
@@ -122,11 +125,13 @@ const KEY_BASE = 0xdb0e2;
     check('...and opens that door only', w.opens(HALL_DOOR, d) && !w.opens(BOX1, d) && !w.opens(CASTLE, d));
     const s = w.cut(SHACK_BOX);
     check('a chest of an unnamed place is called after the place\'s door', s === 'Key to Bruma Shack: Barrel (8067701)', s);
+    const hb = w.cut(HUT_BOX);
+    check('a chest of an unnamed place doors.json does not name is called after the place\'s owner', hb === 'Key to Frigga\'s property: Barrel (8068101)', hb);
     const l = w.cut(LONE);
     check('a chest in no place keeps the credential name', l === 'Property Key (8070001)', l);
     const h = w.cut(CASTLE);
     check('the place\'s own key keeps its name and opens no chest of it', h === 'Key to the Castle Bruma' && !w.opens(BOX1, h) && !w.opens(BOX2, h), h);
-    const all = [b1, b1b, b2, wd, d, s, l, h];
+    const all = [b1, b1b, b2, wd, d, s, hb, l, h];
     check('every key cut has a name of its own', new Set(all).size === all.length, all);
   }
 
@@ -204,6 +209,31 @@ const KEY_BASE = 0xdb0e2;
     let longest = ''; for (let i = 0; i < 12; i++) longest = w.cut(LONG);
     check('a key name stays under the 128 characters an item name is cropped at, credential kept', longest.length < 128 && /\(806C506-999\)$/.test(longest), [longest.length, longest]);
     check('...and it opens its door', w.opens(LONG, longest));
+    check('...and it still says which room, cut inside a 40-letter word rather than losing it', /^Key to the N{32}: D+ \(recut/.test(longest), longest);
+  }
+  {
+    const w = world();
+    // Two rooms of one long name: the cut falls at a word boundary and keeps the number that tells them apart
+    const ROOM = 'Door to the Long Hallway Beneath the Old Barracks of Bruma';
+    const A = 0x0806c508, A_FAR = 0x0806c509, B = 0x0806c50a, B_FAR = 0x0806c50b;
+    for (const [id, far] of [[A, A_FAR], [B, B_FAR]]) {
+      w.CELLS[id] = CASTLE_CELL; w.CELLS[far] = CASTLE_CELL; w.TYPES[id] = 'DOOR'; w.TYPES[far] = 'DOOR'; w.LABELS[id] = ROOM;
+      w.PARTNER[id] = far; w.PARTNER[far] = id;
+    }
+    const primaryOf0 = w.sys.primaryOf;
+    w.sys.primaryOf = (c, id) => (id >>> 0) === A_FAR ? A : (id >>> 0) === B_FAR ? B : primaryOf0(c, id);
+    const full = `the Castle Bruma: ${ROOM}`;
+    const ka = w.cut(A), kb = w.cut(B);
+    const shownA = ka.replace(/^Key to /, '').replace(/ \([0-9A-F]+(-\d+)?\)$/, ''), shownB = kb.replace(/^Key to /, '').replace(/ \([0-9A-F]+(-\d+)?\)$/, '');
+    check('a long room name is cut at a word boundary, nothing left hanging', full.startsWith(shownA) && full.charAt(shownA.length) === ' ' && shownA.length <= 64 && !/[\s:,]$/.test(shownA), [shownA.length, ka]);
+    check('...the second room of that name keeps its number past the cut', shownB === `${shownA} 2` && shownB.length <= 64, kb);
+    check('...and both keep their credentials and open their own doors only', /\(806C508\)$/.test(ka) && /\(806C50A\)$/.test(kb) && w.opens(A, ka) && w.opens(B, kb) && !w.opens(A, kb) && !w.opens(B, ka));
+    // A 48-letter door name for an unnamed place is cut so the room still shows
+    fs.writeFileSync(path.join(out, 'doors.json'), JSON.stringify({ doors: { '6766b:BSHeartland.esm': 'Bruma Shack Beside the Old Mill on the Lower Road' } }));
+    w.LABELS[SHACK_BOX] = 'Barrel of Salted Horker Meat';
+    const ks = w.cut(SHACK_BOX);
+    check('a long place name is cut at a word boundary so the room still shows', ks === 'Key to Bruma Shack Beside the Old Mill on: Barrel of Salted Horker Meat (8067701)', ks);
+    fs.writeFileSync(path.join(out, 'doors.json'), JSON.stringify({ doors: { '6766b:BSHeartland.esm': 'Bruma Shack' } }));
   }
 
   process.chdir(cwd0);
