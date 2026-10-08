@@ -301,6 +301,7 @@ export class MasterySystem implements System {
         seatAbove: num(ps.seatAbove, 90), seatCount: num(ps.seatCount, 1),
         expertAbove: num(ps.expertAbove, 75), expertCount: num(ps.expertCount, 3),
         transferFloor: num(ps.transferFloor, 25), firstTouchCost: num(ps.firstTouchCost, 1),
+        waningFloor: num(ps.waningFloor, num(ps.transferFloor, 25)),
         bucketBurst: num(ps.bucketBurst, 20), bucketPerHour: num(ps.bucketPerHour, 30),
         dailyCaps: { low: num(caps.low, 360), expert: num(caps.expert, 180), master: num(caps.master, 60) },
         characterDaily: num(ps.characterDaily, 1080),
@@ -1120,7 +1121,7 @@ export class MasterySystem implements System {
     const points = cfg ? {
       enabled: true, pool: cfg.pool, capPerSkill: cfg.capPerSkill,
       seatAbove: cfg.seatAbove, seatCount: cfg.seatCount, expertAbove: cfg.expertAbove, expertCount: cfg.expertCount,
-      transferFloor: cfg.transferFloor,
+      transferFloor: cfg.transferFloor, waningFloor: P.waningFloorOf(cfg),
       used: Object.values(rec.skills).reduce((n, pr) => n + (pr.level || 0), 0),
       offers: Object.entries(rec.skills)
         .filter(([, pr]) => pr.level < 1 && pr.offered)
