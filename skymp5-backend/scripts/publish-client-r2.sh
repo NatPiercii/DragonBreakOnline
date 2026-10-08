@@ -140,6 +140,13 @@ while IFS=$'\t' read -r size urlpath rel; do
   head=$(curl -sS -I --max-time 30 --retry 2 --retry-delay 2 "$BASE/$urlpath" 2>&1 | tr -d '\r')
   code=$(awk 'toupper($1) ~ /^HTTP\// { c = $2 } END { print c }' <<<"$head")
   len=$(awk 'tolower($1) == "content-length:" { l = $2 } END { print l }' <<<"$head")
+  # Cloudflare answers some types (index.html) without a content-length: then fetch the file and compare its sha256 with
+  # the verified local copy (a match proves the size too)
+  if [ "$code" = "200" ] && [ -z "$len" ]; then
+    got=$(curl -sS --max-time 120 --retry 2 --retry-delay 2 "$BASE/$urlpath" 2>/dev/null | sha256sum | cut -d' ' -f1)
+    want=$(sha256sum "$SRC/$rel" | cut -d' ' -f1)
+    if [ "$got" = "$want" ]; then len=$size; else len="a body with sha256 ${got:0:12} instead of ${want:0:12}, so the wrong"; fi
+  fi
   if [ "$code" != "200" ] || [ "$len" != "$size" ]; then
     BAD=$((BAD + 1)); [ "$BAD" -le 20 ] && say "  MISMATCH $rel: HTTP ${code:-none}, ${len:-no} bytes, expected $size"
   fi

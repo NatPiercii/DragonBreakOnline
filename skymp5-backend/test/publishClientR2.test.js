@@ -40,12 +40,17 @@ echo "connecting to $RCLONE_CONFIG_R2_ENDPOINT as $RCLONE_CONFIG_R2_ACCESS_KEY_I
 echo "host \${RCLONE_CONFIG_R2_ENDPOINT#https://} answered" >&2
 exit "\${FAKE_RCLONE_EXIT:-0}"
 `
-// curl: answers a HEAD from $FAKE/sizes (url TAB size); anything else is a 404
+// curl: answers a HEAD from $FAKE/sizes (url TAB size [TAB body file]). Size '-' answers 200 without a content-length,
+// as Cloudflare does for index.html; a GET (no -I) then gets the body file. Anything else is a 404.
 const CURL = `#!/bin/bash
 url="\${@: -1}"
-echo "$url" >> "$FAKE/curl.urls"
+head=0; for a in "$@"; do [ "$a" = "-I" ] && head=1; done
+[ "$head" = 1 ] && echo "$url" >> "$FAKE/curl.urls" || echo "$url" >> "$FAKE/curl.gets"
 size=$(awk -F'\\t' -v u="$url" '$1 == u { print $2 }' "$FAKE/sizes" 2>/dev/null)
-if [ -n "$size" ]; then printf 'HTTP/2 200\\r\\ncontent-type: application/octet-stream\\r\\ncontent-length: %s\\r\\n\\r\\n' "$size"
+body=$(awk -F'\\t' -v u="$url" '$1 == u { print $3 }' "$FAKE/sizes" 2>/dev/null)
+if [ "$head" = 0 ]; then [ -n "$body" ] && cat "$body"; exit 0; fi
+if [ "$size" = "-" ]; then printf 'HTTP/2 200\\r\\ncontent-type: text/html\\r\\n\\r\\n'
+elif [ -n "$size" ]; then printf 'HTTP/2 200\\r\\ncontent-type: application/octet-stream\\r\\ncontent-length: %s\\r\\n\\r\\n' "$size"
 else printf 'HTTP/2 404\\r\\ncontent-length: 9\\r\\n\\r\\n'; fi
 `
 
@@ -67,7 +72,7 @@ after(() => fs.rmSync(root, { recursive: true, force: true }))
 
 const URLS = Object.fromEntries(Object.entries(FILES).map(([p, b]) => [
   `https://files.example.com/client/0.4.1/files/${p.split('/').map(encodeURIComponent).join('/')}`, b.length]))
-function setSizes(sizes) { fs.writeFileSync(path.join(fake, 'sizes'), Object.entries(sizes).map(([u, s]) => `${u}\t${s}\n`).join('')) }
+function setSizes(sizes) { fs.writeFileSync(path.join(fake, 'sizes'), Object.entries(sizes).map(([u, s]) => `${u}\t${Array.isArray(s) ? s.join('\t') : s}\n`).join('')) }
 // 0644 whatever the umask of the user running the tests (root 022, nate 002): the script keeps r2.json's mode
 function setR2(value) {
   const f = path.join(dataDir, 'r2.json')
@@ -279,4 +284,27 @@ test('--no-copy-dest uploads everything; with no earlier version there is nothin
   assert.equal(r.code, 0, r.all)
   assert.ok(!fs.readFileSync(path.join(fake, 'rclone.args'), 'utf8').includes('--copy-dest'))
   assert.deepEqual(JSON.parse(r2Text()).clientFiles, { '0.4.1': zipSize })
+})
+
+test('a 200 without content-length (Cloudflare and index.html) is checked by its body against the verified copy', () => {
+  const urls = Object.keys(URLS)
+  const rel = Object.keys(FILES)[0]
+  const local = path.join(cfDir, 'unpacked', '0.4.1', ...rel.split('/'))
+  const wrong = path.join(root, 'wrong-body')
+  fs.writeFileSync(wrong, 'not the file')
+  // the right body: listed, and only that one file is fetched
+  setR2(R2)
+  setSizes({ ...URLS, [urls[0]]: ['-', local] })
+  const ok = publish(['0.4.1'])
+  assert.equal(ok.code, 0, ok.all)
+  assert.deepEqual(fs.readFileSync(path.join(fake, 'curl.gets'), 'utf8').trim().split('\n'), [urls[0]])
+  assert.deepEqual(JSON.parse(r2Text()).clientFiles['0.4.1'], zipSize)
+  // the wrong body: refused, r2.json untouched
+  setR2(R2)
+  const before = r2Text()
+  setSizes({ ...URLS, [urls[0]]: ['-', wrong] })
+  const bad = publish(['0.4.1'])
+  assert.equal(bad.code, 1)
+  assert.match(bad.all, /MISMATCH .*sha256/)
+  assert.equal(r2Text(), before)
 })
