@@ -44,6 +44,7 @@ const bug = JSON.parse(fs.readFileSync(path.join(dir, 'bugs', files[0]), 'utf8')
 check('/bug saves the text, the picture and who sent it', files.length === 1 && bug.text === 'the troll near me [2026-09-25 18:00:00] is sinking' && bug.view.npcs.length === 2 && bug.by === 'Ann Aa #AAAA');
 check('with the last minute of log lines about the player and nearby NPCs only', bug.log.length === 2 && bug.log.every((l) => /ff000101|Ann Aa/.test(l)), bug.log);
 check('with the voice lines of every player who could be heard there (same world, voice range), not the reporter\'s (none kept)', JSON.stringify(bug.voice) === JSON.stringify([{ name: 'Bo Bb #BBBB', lines: [vline(1), vline(2)] }]), bug.voice);
+check('...and the reporter\'s profile, so the backend can match their launcher to it', Number.isInteger(bug.profileId) && bug.profileId >= 0, bug.profileId);
 check('and the BUGREPORT line for the monitor, on one line whatever the text holds', logs.some((l) => /^BUGREPORT Ann Aa #AAAA .*: the troll near me \[2026-09-25 18:00:00\] is sinking$/.test(l)) && !logs.some((l) => /\n/.test(l)));
 check('the reply says staff have it and how to add a screenshot (consolidation C8)', said.some((t) => t === 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.'), said[said.length - 1]);
 check('the snapshot is readable by its owner only (0600)', (fs.statSync(path.join(dir, 'bugs', files[0])).mode & 0o777) === 0o600, (fs.statSync(path.join(dir, 'bugs', files[0])).mode & 0o777).toString(8));
