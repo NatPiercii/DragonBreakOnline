@@ -2,9 +2,9 @@
 // not bind its profile to, or send anything to, the player who took the recycled userId. It bundles login.ts and
 // spawn.ts with esbuild (settings, metrics, fetch-retry, Discord ban roles and patron tiers stubbed), fakes the native
 // server with a connection table (a guid per userId, every client on the relay ip, calls on a free slot throw as the
-// native ones do), holds the master api, connection-check or Discord call open while the slot changes hands, then
-// checks what reached the new occupant. Normal logins (happy path, not in the guild, bans, offline mode) are checked
-// too. Run it from skymp5-server with node_modules present:
+// native ones do), holds the master api call (or the read of its body), connection-check or Discord call open while
+// the slot changes hands, then checks what reached the new occupant. Normal logins (happy path, not in the guild, no
+// discordId, bans, the gamemode's onLoginAttempt, offline mode) are checked too. Run it from skymp5-server with node_modules present:
 //
 //   node tests/login-guid-race-harness.js
 'use strict';
@@ -79,7 +79,14 @@ const svr = {
   findFormsByPropertyValue: () => [],
 };
 
-const json = (status, body) => ({ ok: status >= 200 && status < 300, status, statusText: String(status), json: async () => body });
+// A body read is an await of its own: with `route` set, it is recorded as '<route>-json' and can be held like the call
+const json = (status, body, route) => ({
+  ok: status >= 200 && status < 300, status, statusText: String(status),
+  json: async () => {
+    if (route) { calls.push(`${route}-json`); const g = gates.get(`${route}-json`); if (g) await g.promise; }
+    return body;
+  },
+});
 race.fetch = async (url) => {
   const u = new URL(url);
   let route = 'other';
@@ -92,7 +99,7 @@ race.fetch = async (url) => {
   if (gate) await gate.promise;
   if (route === 'session') {
     const s = world.sessions[decodeURIComponent(u.pathname.split('/').pop())];
-    return s ? json(s.status, s.body) : json(404, {});
+    return s ? json(s.status, s.body, route) : json(404, {}, route);
   }
   if (route === 'connection-check') return json(200, { allowed: world.connectionAllowed });
   if (route === 'discord-member') {
@@ -138,7 +145,7 @@ const fresh = async ({ discordAuth = true, offlineMode = false } = {}) => {
     discord: { '140140': { status: 200, roles: ['R140'] }, '111111': { status: 200, roles: ['R1'] } },
   };
   race.settings = settingsWith(discordAuth);
-  delete svr.onUpdateAppearanceAttempt; delete svr.onUpdateEquipmentAttempt; delete svr._onSpawnAllowed;
+  delete svr.onUpdateAppearanceAttempt; delete svr.onUpdateEquipmentAttempt; delete svr._onSpawnAllowed; delete svr.onLoginAttempt;
   ctx = { svr, gm: new EventEmitter() };
   const spawn = new Spawn(() => {});
   const login = new Login(() => {}, 100, offlineMode ? null : 'http://master.test', 7777, 'KEY', offlineMode);
@@ -207,6 +214,24 @@ async function raceCase(name, { route, discordAuth = true, before, emptySlot = f
     unmute();
     check('...the next connection on that slot cannot enter or list the stale profile\'s characters', assigned.length === 0 && sentTo(GUID_B).length === 0, { assigned: assigned.map((a) => a.actor.toString(16)), packets: brief(sentTo(GUID_B)) });
   }
+  {
+    // Synthetic: no await follows the Discord checks today, so only a slot change inside a synchronous call (here the
+    // event log's actor lookup) reaches the last check before the bind and the emit; it stands for an await added later
+    await fresh();
+    mute();
+    connect(2, GUID_A);
+    const lookup = svr.getActorsByProfileId;
+    let lookups = 0;
+    svr.getActorsByProfileId = (pid) => { if (pid === 140 && ++lookups === 2) { drop(2); connect(2, GUID_B); } return lookup(pid); };
+    login(2, SESSION_OLD);
+    await settle();
+    svr.getActorsByProfileId = lookup;
+    unmute();
+    const stale = emitted.filter((e) => e.args[1] === 140);
+    check('slot changes after the last await (synthetic): no spawnAllowed for the stale login', lookups === 2 && stale.length === 0, { lookups, stale: stale.map((e) => [e.args[0], e.args[1], e.guidNow]) });
+    check('...nothing is sent to the new occupant and the stale roles are not bound', sentTo(GUID_B).length === 0 && !race.binds.includes(140), { packets: brief(sentTo(GUID_B)), binds: race.binds });
+    check('...and it ends on the last check', mismatchLines().some((l) => /after login$/.test(l)), mismatchLines());
+  }
   check('the stale logins end on the guid check (checkConnectionAllowed)', r1.mismatch.some((l) => /after checkConnectionAllowed/.test(l)), r1.errors);
   check('the stale logins end on the guid check (Discord member fetch)', r4.mismatch.some((l) => /after discordAuth/.test(l)), r4.errors);
 
@@ -215,6 +240,15 @@ async function raceCase(name, { route, discordAuth = true, before, emptySlot = f
   await raceCase('session lookup answers 403 banned', { route: 'session', before: () => { world.sessions[SESSION_OLD] = { status: 403, body: { error: 'banned' } }; } });
   await raceCase('session lookup answers 403 serverLocked (kick)', { route: 'session', before: () => { world.sessions[SESSION_OLD] = { status: 403, body: { error: 'serverLocked' } }; } });
   await raceCase('session lookup answers 200', { route: 'session' });
+  // Refusals sent between getUserProfile and checkConnectionAllowed: only the guid check right after getUserProfile stops them
+  const noDiscordId = () => { world.sessions[SESSION_OLD] = { status: 200, body: { user: { id: 140, discordId: null } } }; };
+  const gamemodeRefuses = () => { svr.onLoginAttempt = (profileId) => profileId !== 140; };
+  await raceCase('session lookup answers 200, no discordId (Discord gate on)', { route: 'session', before: noDiscordId });
+  await raceCase('session lookup answers 200, the gamemode refuses the profile', { route: 'session', before: gamemodeRefuses });
+  await raceCase('session lookup 200 held while its body is read, no discordId', { route: 'session-json', before: noDiscordId });
+  await raceCase('session lookup 200 held while its body is read, the gamemode refuses', { route: 'session-json', before: gamemodeRefuses });
+  await raceCase('session lookup 403 banned held while its body is read', { route: 'session-json', before: () => { world.sessions[SESSION_OLD] = { status: 403, body: { error: 'banned' } }; } });
+  await raceCase('session lookup 403 serverLocked held while its body is read (kick)', { route: 'session-json', before: () => { world.sessions[SESSION_OLD] = { status: 403, body: { error: 'serverLocked' } }; } });
 
   // ---- 7 Oct end to end: the new occupant then plays and logs in itself ----
   section('7 Oct end to end: stale login, then the new occupant acts and logs in');
@@ -369,6 +403,36 @@ async function raceCase(name, { route, discordAuth = true, before, emptySlot = f
     await settle();
     unmute();
     check('a master api refusal (403 serverLocked): kicked with the reason', brief(sentTo('G5')).join() === 'kicked' && kicksOf('G5').length === 1 && /closed to players/.test(sentTo('G5')[0].body.reason), { sent: brief(sentTo('G5')), kicks: kicks.length });
+  }
+  {
+    await fresh();
+    world.sessions[SESSION_NEW] = { status: 200, body: { user: { id: 1, discordId: null } } };
+    mute();
+    connect(5, 'G5');
+    login(5, SESSION_NEW);
+    await settle();
+    unmute();
+    check('a master profile with no discordId (Discord gate on): refused with loginFailedNotInTheDiscordServer', brief(sentTo('G5')).join() === 'loginFailedNotInTheDiscordServer' && emitted.length === 0 && !calls.includes('connection-check'), { sent: brief(sentTo('G5')), emitted: emitted.length, calls });
+  }
+  {
+    await fresh();
+    svr.onLoginAttempt = (profileId) => profileId !== 1;
+    mute();
+    connect(5, 'G5');
+    login(5, SESSION_NEW);
+    await settle();
+    unmute();
+    check('the gamemode refuses the profile (onLoginAttempt): refused with loginFailedBanned', brief(sentTo('G5')).join() === 'loginFailedBanned' && emitted.length === 0 && !calls.includes('connection-check'), { sent: brief(sentTo('G5')), emitted: emitted.length, calls });
+  }
+  {
+    await fresh();
+    svr.onLoginAttempt = () => true;
+    mute();
+    connect(5, 'G5');
+    login(5, SESSION_NEW);
+    await settle();
+    unmute();
+    check('the gamemode lets the profile in (onLoginAttempt): spawnAllowed for profile 1', emitted.length === 1 && emitted[0].args[1] === 1 && emitted[0].args[5] === 'G5', emitted.map((x) => x.args));
   }
   {
     await fresh();
