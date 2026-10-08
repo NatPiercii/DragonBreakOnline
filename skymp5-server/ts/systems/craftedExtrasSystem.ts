@@ -79,6 +79,8 @@ const pluginOf = (id: number): number => ((id >>> 24) === 0xfe ? id >>> 12 : id 
 const REFUSED_EFFECT_AVS = new Set([16, 23, 106, 113, 145]);
 // ALCH ENIT flag
 const FLAG_POISON = 0x20000;
+// MGEF DATA flag: enchanting power scales the duration (Paralysis, Soul Trap); other effects keep the base game's fixed one
+const FLAG_POWER_AFFECTS_DURATION = 0x400000;
 const TEMPER_SUFFIX = /\s\((Fine|Superior|Exquisite|Flawless|Epic|Legendary)\)$/;
 // A poison OnEquip consumed stays claimable this long, since the report can wait for the inventory menu to close
 const POISON_CREDIT_MS = 10 * 60 * 1000;
@@ -98,6 +100,7 @@ const REFUSAL_TEXT: Record<RefusalReason, string> = {
   uncapped: "The server does not know that enchantment, so it cannot be put on an item",
   soul: "The server could not find the filled soul gem that enchantment used",
 };
+const HELD_TEXT = "Your enchantment was recorded at the strength your Enchanter rank allows";
 
 interface Cap {
   magnitude: number;
@@ -172,6 +175,12 @@ const chargeOf = (e: InventoryEntry): number => (typeof e.chargePercent === "num
 // Creation Kit effect cost; area is ignored, as it is for every vanilla enchantment
 const formulaCost = (baseCost: number, e: EnchantmentEffect): number =>
   baseCost * Math.pow(Math.max(e.magnitude, 1), 1.1) * Math.pow(Math.max(e.duration / 10, 1), 1.1);
+
+// The same effects as claimed, none of them stronger: what the server stores for a claim it held to the rank
+const heldBelow = (held?: EnchantmentEffect[], claim?: EnchantmentEffect[]): boolean =>
+  !!held && !!claim && held.length > 0 && held.length === claim.length && held.every((e, i) =>
+    e.effectId === claim[i].effectId && (e.magnitude <= claim[i].magnitude || sameFloat(e.magnitude, claim[i].magnitude)) &&
+    e.area <= claim[i].area && e.duration <= claim[i].duration);
 
 // Leading load order entries that are base game files (ids from 0 up to it); all five when there is no load order
 const baseGameFileCount = (loadOrder: unknown): number => {
@@ -257,6 +266,8 @@ export class CraftedExtrasSystem implements System {
 
     const added: InventoryEntry[] = [];
     const refused = new Set<number>();
+    // Enchantments the server already holds at a lower strength than the client's copy shows
+    const held = new Set<number>();
     let why: RefusalReason | null = null;
     for (const g of gained) {
       if (emptiedGems.has(g)) continue;
@@ -264,7 +275,10 @@ export class CraftedExtrasSystem implements System {
         this.refusal = null;
         const plan = this.findPlan(ctx, g, pool, souls, station, credits);
         if (!plan) {
-          if (this.isCraftClaim(g, pool)) {
+          // The client reports its stronger copy again until it takes the server's (7 Oct: refused as "cannot take an enchantment")
+          if (this.isHeldCopy(g, pool)) {
+            held.add(g.baseId >>> 0);
+          } else if (this.isCraftClaim(g, pool)) {
             refused.add(g.baseId >>> 0);
             if (this.refusal && (!why || REFUSAL_RANK.indexOf(this.refusal) < REFUSAL_RANK.indexOf(why))) why = this.refusal;
           }
@@ -283,11 +297,17 @@ export class CraftedExtrasSystem implements System {
       const rest: Inventory = { entries: inv.entries.map((e, j) => ({ ...e, count: counts[j] })).filter((e) => e.count > 0) };
       mp.set(actorId, "inventory", addEntries(rest, added));
     }
+    if (refused.size || held.size) {
+      // Both take the server's copy on the client
+      this.send(ctx, userId, { customPacketType: REFUSED_PACKET, baseIds: Array.from(new Set([...refused, ...held])) });
+    }
+    if (held.size) this.log(`[crafted] ${hex(actorId)}: kept the held enchantment ${Array.from(held, (id) => hex(id)).join(", ")}`);
     if (refused.size) {
-      this.send(ctx, userId, { customPacketType: REFUSED_PACKET, baseIds: Array.from(refused) });
       const reason = why ? REFUSAL_TEXT[why] : "";
       if (why) this.log(`[crafted] ${hex(actorId)}: refused (${why}) ${Array.from(refused, (id) => hex(id)).join(", ")}`);
       this.notify(ctx, userId, reason ? `${reason}. The item keeps its previous state.` : "The server did not accept that change to your item, so it keeps its previous state.");
+    } else if (held.size) {
+      this.notify(ctx, userId, `${HELD_TEXT}.`);
     }
   }
 
@@ -472,6 +492,13 @@ export class CraftedExtrasSystem implements System {
     return notes.length ? { entry: out, reserve, soul, credit, notes, enchantSoul, temperSteps } : null;
   }
 
+  // A server copy holds this enchantment below the claimed strength, and nothing else of the item differs
+  private isHeldCopy(g: InventoryEntry, pool: PoolEntry[]): boolean {
+    return pool.some((p) => sameBase(p.entry, g) && heldBelow(p.entry.enchantmentEffects, g.enchantmentEffects) &&
+      !sameEffects(p.entry.enchantmentEffects, g.enchantmentEffects) &&
+      sameItem({ ...g, enchantmentEffects: p.entry.enchantmentEffects, maxCharge: p.entry.maxCharge }, p.entry));
+  }
+
   // Something vanilla pays for (an enchantment, tempering, a new poison) rather than wear from use or Soul Siphon charge
   private isCraftClaim(g: InventoryEntry, pool: PoolEntry[]): boolean {
     const sources = pool.filter((p) => sameBase(p.entry, g)).map((p) => p.entry);
@@ -533,11 +560,14 @@ export class CraftedExtrasSystem implements System {
         this.logUncapped(e.effectId, weapon, ruled);
         return this.refuse(ruled ? "ruled" : "uncapped");
       }
+      // A fixed duration never drops below the base game's (7 Oct: Absorb Stamina's 1 second floored to 0 for a Novice)
+      const scaled = (this.mgefFlagsOf(ctx, e.effectId >>> 0) & FLAG_POWER_AFFECTS_DURATION) !== 0;
+      const durationCap = Math.floor(cap.duration * margin);
       const clamped: EnchantmentEffect = {
         effectId: e.effectId >>> 0,
         magnitude: Math.min(e.magnitude, cap.magnitude * margin),
         area: Math.min(e.area, Math.floor(cap.area * margin)),
-        duration: Math.min(e.duration, Math.floor(cap.duration * margin)),
+        duration: Math.min(e.duration, scaled ? durationCap : Math.max(cap.duration, durationCap)),
         cost: e.cost,
       };
       const estimate = formulaCost(this.baseCostOf(ctx, clamped.effectId), clamped);
@@ -628,6 +658,12 @@ export class CraftedExtrasSystem implements System {
   private primaryAvOf(ctx: SystemContext, mgefId: number): number {
     const data = this.fieldData(this.lookup(ctx, mgefId), "DATA");
     return data && data.byteLength >= 72 ? viewOf(data).getInt32(68, true) : -1;
+  }
+
+  // The MGEF's DATA flags, or 0
+  private mgefFlagsOf(ctx: SystemContext, mgefId: number): number {
+    const data = this.fieldData(this.lookup(ctx, mgefId), "DATA");
+    return data && data.byteLength >= 4 ? viewOf(data).getUint32(0, true) : 0;
   }
 
   private baseCostOf(ctx: SystemContext, mgefId: number): number {
