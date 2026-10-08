@@ -480,7 +480,10 @@ module.exports = (api) => {
   };
   // gamemode's onSpellHit: a vampire's drain gives back some of what it takes (the server applies only the damage)
   const VAMP_DRAIN_SET = new Set(VAMP_DRAIN.filter(Boolean));
+  // PlayerWerewolfFeedVictimSpell: a werewolf's feeding hold on a body is its feed (wolfFeedHold, below)
+  const WW_FEED_HOLD = idOf('106396:Skyrim.esm');
   globalThis.__dboSuperSpellHit = (agg, tgt, spellId) => {
+    if (WW_FEED_HOLD && (Number(spellId) >>> 0) === WW_FEED_HOLD) { wolfFeedHold(Number(agg) >>> 0, Number(tgt) >>> 0); return; }
     if (agg === tgt || !VAMP_DRAIN_SET.has(Number(spellId) >>> 0)) return;
     const p = health(agg); if (p && p.health > 0) setHealth(agg, p.health + 0.03);
   };
@@ -1572,6 +1575,20 @@ module.exports = (api) => {
     // A vampire who turned body feeding off (/feed off) searches the body instead (Fabian, 7 Oct); beasts always feed
     if (beastForm(a) !== 'werewolf' && !bodyFeedOn(a)) return false;
     startFeed(a, t, { onCorpse: true });
+    return true;
+  };
+  // The client's PlayerWerewolfFeed perk replaces a werewolf's E on a body, so its feeding hold is the feed, at once as in vanilla
+  const wolfFeedHold = (a, t) => {
+    if (a === t || !isPlayer(a) || beastForm(a) !== 'werewolf' || feeds.has(a)) return false;
+    const at = deathAt.get(t);
+    if (!at || Date.now() - at > C.corpseFreshMinutes * 60000 || fedOn.has(t)) return false;
+    let dead = false; try { dead = !!mp.get(t, 'isDead'); } catch (e) { return false; }
+    if (!dead || distance(a, t) > Number(C.feed.maxDistance)) return false;
+    if (!isHumanoid(t) && typeof globalThis.__dboHuntFed !== 'function') return false;
+    if (fedOn.size > 2048) fedOn.clear();
+    fedOn.add(t);
+    if (!feed(a, t, true)) { fedOn.delete(t); return false; }
+    log(`supernatural: ${display(a)} fed on ${display(t)} in beast form (feeding hold)`);
     return true;
   };
   // X menu: Feed (and Feed Deeply, from the rank bloodranks.js names) on another player, each victim once per
