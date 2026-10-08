@@ -3,6 +3,7 @@ import { ClientListener, CombinedController, Sp } from "./clientListener";
 import { RemoteServer } from "./remoteServer";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
 import { logError, logTrace } from "../../logging";
+import { setSpeaking } from "./voiceSpeaking";
 
 // Drives Actor.setExpressionPhoneme from the front's voice::speaking reports, contract in docs/dragonbreak_voice_chat.md
 
@@ -49,6 +50,7 @@ export class LipSyncService extends ClientListener {
       }
       // Applied on the next update, natives throw in the browser message context
       this.pending = report;
+      setSpeaking(report);
     } catch (err) {
       logError(this, `bad voice::speaking payload: ${err}`);
     }
@@ -56,6 +58,7 @@ export class LipSyncService extends ClientListener {
 
   private reset(): void {
     this.pending = new Map();
+    setSpeaking(new Map());
   }
 
   private onUpdate(): void {

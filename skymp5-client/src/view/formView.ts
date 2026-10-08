@@ -1,4 +1,5 @@
-import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
+import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextColor, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
+import { isSpeaking } from "../services/services/voiceSpeaking";
 import { isBeastRaceId } from "../sync/beastRaceIds";
 import { beastBodyAppearance, beastBodyOf } from "../sync/beastBody";
 import { TAKEOVER_RECHECK_SECONDS, isHostileTakeover, takeoverLine } from "./takeoverDiag";
@@ -847,6 +848,8 @@ export class FormView {
           this.createdSecondLine = FormView.secondLineOf(model, this.refrId);
           this.textNameId = createText(textXPos, textYPos, this.createdTagName, [1, 1, 1, 0.8]);
           setTextSize(this.textNameId, 0.5);
+          this.shownSpeaking = false;
+          this.showSpeaking();
           // DragonBreak Online: the character's #TAG, faint, under the name (falls back to the ffxxxxxx id)
           if (this.createdActorIdLine) {
             this.textActorIdId = createText(
@@ -874,6 +877,7 @@ export class FormView {
           }
           if (this.textNameId) {
             setTextPos(this.textNameId, textXPos, textYPos);
+            this.showSpeaking();
           }
           if (this.textActorIdId) {
             setTextPos(this.textActorIdId, textXPos, textYPos + FormView.actorIdLineOffset);
@@ -1267,6 +1271,18 @@ export class FormView {
   getLocalRefrId(): number {
     return this.refrId;
   }
+
+  // While LiveKit reports this player speaking, the name is green with an ASCII speaker mark (the Tavern font has no icons)
+  private showSpeaking(): void {
+    if (!this.textNameId) return;
+    const speaking = isSpeaking(this.getRemoteRefrId());
+    if (speaking === this.shownSpeaking) return;
+    this.shownSpeaking = speaking;
+    setTextString(this.textNameId, speaking ? `${this.createdTagName} <))` : this.createdTagName);
+    setTextColor(this.textNameId, speaking ? [0.55, 1, 0.55, 0.95] : [1, 1, 1, 0.8]);
+  }
+
+  private shownSpeaking = false;
 
   getRemoteRefrId(): number {
     return this.remoteRefrId as number;
