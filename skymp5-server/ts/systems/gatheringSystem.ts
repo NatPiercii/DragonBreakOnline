@@ -141,6 +141,8 @@ export class GatheringSystem implements System {
 
   private onActivate(ctx: SystemContext, targetId: number, casterId: number): Verdict {
     if (!this.isPlayer(ctx, casterId)) return undefined;
+    // The gameplay's labour.js owns chopping and mining (rounds, yield, audit); this system paid firewood unaudited beside it
+    if (typeof (globalThis as any).__dboLabour === "function") return undefined;
     const station = this.stationOf(ctx, targetId);
     if (!station) return undefined;
     switch (station.kind) {
