@@ -47573,7 +47573,46 @@
 "big": true
 }
 ],
-"zones": []
+"zones": [
+{
+"cell": "7cae0:BSHeartland.esm",
+"pos": [
+732.7,
+-3739.8,
+-654.2
+],
+"size": 1400,
+"fill": "own",
+"npcs": [
+{
+"edid": "CYRdunBorealStoneCaveOgre",
+"pos": [
+732.7,
+-3739.8,
+-654.2
+],
+"ref": "7cbd8:BSHeartland.esm",
+"options": [
+[
+1,
+"7cbd9:BSHeartland.esm"
+]
+],
+"boss": true,
+"storyOptions": [
+[
+1,
+"5f056:BSHeartland.esm"
+],
+[
+1,
+"d6b7f:BSHeartland.esm"
+]
+]
+}
+]
+}
+]
 },
 {
 "id": "BoulderfallCaveLocation",
@@ -59037,7 +59076,275 @@
 "big": true
 }
 ],
-"zones": []
+"zones": [
+{
+"cell": "5734:Dawnguard.esm",
+"pos": [
+9856.8,
+9866.5,
+523.4
+],
+"size": 4278,
+"fill": "own",
+"npcs": [
+{
+"edid": "DLC1LD_Forgemaster",
+"pos": [
+8800.9,
+9861.4,
+208.0
+],
+"ref": "15c5f:Dawnguard.esm",
+"options": [
+[
+1,
+"15401:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSphereAmbush",
+"pos": [
+9878.0,
+12558.0,
+1078.0
+],
+"ref": "14bef:Dawnguard.esm",
+"options": [
+[
+1,
+"15345:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSphereAmbush",
+"pos": [
+10350.0,
+12702.0,
+1130.0
+],
+"ref": "14bee:Dawnguard.esm",
+"options": [
+[
+1,
+"15345:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSphereAmbush",
+"pos": [
+10346.0,
+12374.0,
+910.0
+],
+"ref": "14bed:Dawnguard.esm",
+"options": [
+[
+1,
+"15345:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSphereAmbush",
+"pos": [
+10348.0,
+7408.0,
+932.0
+],
+"ref": "14be8:Dawnguard.esm",
+"options": [
+[
+1,
+"15345:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSphereAmbush",
+"pos": [
+9877.5,
+7099.7,
+1085.4
+],
+"ref": "14be7:Dawnguard.esm",
+"options": [
+[
+1,
+"15345:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSphereAmbush",
+"pos": [
+10336.0,
+7156.0,
+1084.0
+],
+"ref": "14be6:Dawnguard.esm",
+"options": [
+[
+1,
+"15345:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+9867.5,
+10778.3,
+208.0
+],
+"ref": "14be1:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+10708.3,
+10817.6,
+403.0
+],
+"ref": "14be0:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+9128.0,
+11024.5,
+208.0
+],
+"ref": "14bdf:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+8848.0,
+10752.0,
+208.0
+],
+"ref": "14bde:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+10262.4,
+10476.8,
+208.0
+],
+"ref": "14bdd:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+10291.5,
+9247.0,
+208.0
+],
+"ref": "14bdc:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+10662.8,
+8872.8,
+403.0
+],
+"ref": "14bdb:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+9860.3,
+8954.2,
+208.0
+],
+"ref": "14bda:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+8856.0,
+8960.0,
+208.0
+],
+"ref": "14bd9:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+},
+{
+"edid": "DLC1LD_LvlDwarvenSpiderAmbush",
+"pos": [
+9144.0,
+8688.0,
+208.0
+],
+"ref": "14bd8:Dawnguard.esm",
+"options": [
+[
+1,
+"15346:Dawnguard.esm"
+]
+]
+}
+]
+}
+]
 },
 {
 "id": "BthardamzLocation",
@@ -184920,7 +185227,321 @@
 "big": false
 }
 ],
-"zones": []
+"zones": [
+{
+"cell": "142f6:Dragonborn.esm",
+"pos": [
+-2130.8,
+4437.4,
+-709.8
+],
+"size": 2940,
+"fill": "own",
+"npcs": [
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeBerserkerMale",
+"pos": [
+-1926.0,
+3645.0,
+-816.0
+],
+"ref": "38045:Dragonborn.esm",
+"options": [
+[
+1,
+"37ff9:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeMissileMale",
+"pos": [
+-953.0,
+4248.0,
+-748.0
+],
+"ref": "38042:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffc:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeMissileFemale",
+"pos": [
+-966.0,
+4613.0,
+-748.0
+],
+"ref": "3803f:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffb:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeBerserkerMale",
+"pos": [
+-962.0,
+3814.0,
+-752.0
+],
+"ref": "3803c:Dragonborn.esm",
+"options": [
+[
+1,
+"37ff9:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostWizardFemale",
+"pos": [
+-1943.0,
+5063.0,
+-812.0
+],
+"ref": "38039:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffd:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeTankMale",
+"pos": [
+-2375.0,
+4169.0,
+-812.0
+],
+"ref": "38036:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffa:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeBerserkerFemale",
+"pos": [
+-3417.0,
+4446.0,
+-592.0
+],
+"ref": "38033:Dragonborn.esm",
+"options": [
+[
+1,
+"37ff8:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostWizardMale",
+"pos": [
+-2954.0,
+4745.0,
+-592.0
+],
+"ref": "38030:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffe:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMelee2HMale",
+"pos": [
+-3010.0,
+4146.0,
+-592.0
+],
+"ref": "3802e:Dragonborn.esm",
+"options": [
+[
+1,
+"37ff7:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostWizardFemale",
+"pos": [
+-591.0,
+4411.0,
+-755.0
+],
+"ref": "38014:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffd:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMelee1HFemale",
+"pos": [
+-2312.0,
+4828.0,
+-820.0
+],
+"ref": "38013:Dragonborn.esm",
+"options": [
+[
+1,
+"37ff4:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeBerserkerMale",
+"pos": [
+-2616.0,
+3896.0,
+-816.0
+],
+"ref": "38012:Dragonborn.esm",
+"options": [
+[
+1,
+"37ff9:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeTankFemale",
+"pos": [
+-2552.0,
+5084.0,
+-816.0
+],
+"ref": "38011:Dragonborn.esm",
+"options": [
+[
+1,
+"37fff:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostWizardMale",
+"pos": [
+-1012.0,
+5088.0,
+-752.0
+],
+"ref": "38010:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffe:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeTankMale",
+"pos": [
+-1924.0,
+4152.0,
+-818.0
+],
+"ref": "3800f:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffa:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeMissileMale",
+"pos": [
+-1252.0,
+4024.0,
+-752.0
+],
+"ref": "3800e:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffc:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir_LvlBanditGhostMeleeMissileFemale",
+"pos": [
+-1700.0,
+5088.0,
+-816.0
+],
+"ref": "3800d:Dragonborn.esm",
+"options": [
+[
+1,
+"37ffb:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknirThalinEbonhand",
+"pos": [
+-3284.0,
+5064.0,
+-399.8
+],
+"ref": "37fe9:Dragonborn.esm",
+"options": [
+[
+1,
+"37fe5:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknirGarukWindrime",
+"pos": [
+-3276.0,
+3788.0,
+-396.0
+],
+"ref": "37fe4:Dragonborn.esm",
+"options": [
+[
+1,
+"37fe3:Dragonborn.esm"
+]
+]
+},
+{
+"edid": "DLC2dunHaknir",
+"pos": [
+-3592.0,
+4436.0,
+-592.0
+],
+"ref": "37fea:Dragonborn.esm",
+"options": [
+[
+1,
+"1a373:Dragonborn.esm"
+]
+],
+"boss": true
+}
+]
+}
+]
 },
 {
 "id": "HaemarsShameLocation",

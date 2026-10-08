@@ -723,9 +723,9 @@
   "housing": false
  },
  "dungeons": {
-  "_comment": "exclude: dungeon ids never leased. AbandonedPrisonLocation is out because its main cell is now Windhelm's prison, a jail (Nat, 2026-09-23); its other cell is the spare prison template. CYRMountainwatchFrostironmine is out because Frostiron Mine is a working mine, not a dungeon (Nat, 7 Oct).",
+  "_comment": "exclude: dungeon ids never leased. AbandonedPrisonLocation is out because its main cell is now Windhelm's prison, a jail (Nat, 2026-09-23); its other cell is the spare prison template. CYRMountainwatchFrostironmine is out because Frostiron Mine is a working mine, not a dungeon (Nat, 7 Oct). The rest hold nothing living to fight in the plugins (only corpses, a unique or quest character), so a claim had no enemy (#bugs 8 Oct, Echo Cave): Echo Cave, Hjaltis Refuge, Frozen Grotto, Anise's Cabin, Guldun Rock, Moesring Pass, Robbers Gorge, the SurWR rat cellar. Take one off when its data gets enemies (tests/dungeon-empty-harness.js).",
   "restoreOutfits": true,
-  "exclude": ["AbandonedPrisonLocation", "CYRMountainwatchFrostironmine"],
+  "exclude": ["AbandonedPrisonLocation", "CYRMountainwatchFrostironmine", "CYREchoCaveLocation", "CYRHjaltisRefugeLocation", "CYRFrozenGrottoLocation", "AnisesCabinLocation", "GuldunRockLocation", "DLC2MoesringPassLocation", "RobbersGorgeLocation", "0WRQuestRatIgnaBasement"],
   "_count": "Enemies per placement by party size n (dungeons.js partyCountMult): countBase + countPerPlayer x n, between countMin 0.6 and countMax 1.8. Nate, 4 Oct: half the add per member (was 0.4 + 0.3 n): solo 0.7, 2 0.85, 3 1.0, 4 1.15, 6 1.45.",
   "countBase": 0.55,
   "countPerPlayer": 0.15,

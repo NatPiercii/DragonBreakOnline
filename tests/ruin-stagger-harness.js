@@ -15,7 +15,9 @@ const idOf = (d) => { const k = String(d).toLowerCase(); if (!ids.has(k)) ids.se
 const all = JSON.parse(fs.readFileSync(path.join(ROOT, 'dungeons.json'), 'utf8')).dungeons;
 const hasDoor = (d) => (d.entrances || []).some((e) => e && (e.doorPos || e.pos) && e.outsideDesc && e.insideCell);
 const RIELLE = all.find((d) => d.id === 'CYRRielleLocation');
-const OTHER = all.find((d) => d.id !== 'CYRRielleLocation' && hasDoor(d) && !(d.entrances || []).some((e) => e && e.expedition));
+// A second dungeon that can be claimed: not one config dungeons.exclude leaves out (the SurWR rat cellar since 8 Oct)
+const EXCLUDED = new Set(((JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).dungeons || {}).exclude) || []);
+const OTHER = all.find((d) => d.id !== 'CYRRielleLocation' && hasDoor(d) && !EXCLUDED.has(d.id) && !(d.entrances || []).some((e) => e && e.expedition));
 if (!RIELLE || !hasDoor(RIELLE) || !OTHER) { console.log('FAIL  Rielle (with a door) or a second dungeon is missing from dungeons.json'); process.exit(1); }
 const doorOf = (d) => d.entrances.find((e) => e && (e.doorPos || e.pos) && e.outsideDesc && e.insideCell);
 

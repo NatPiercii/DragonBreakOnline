@@ -136,7 +136,9 @@ const EXP = JSON.parse(fs.readFileSync(path.join(ROOT, 'expeditions.json'), 'utf
 // Every ordinary dungeon a player can reach in the Bruma playtest (an entrance in the Cyrodiil world inside the border
 // region 0B0CBCDD of DragonBreak Online Edits, not excluded), plus Echo Cave, which Nate asked about
 const ORD_IDS = ['CYRAngaLocation', 'CYRBeastsMawLocation', 'CYRBorealStoneCaveLocation', 'CYRBrumaCavernsLocation', 'CYRCapstoneCaveLocation', 'CYRFingerbowlCaveLocation', 'CYRFortCutpurseLocation', 'CYRFortHorunnLocation', 'CYRFreezewindHollowLocation', 'CYRFrostfireGladeLocation', 'CYRFrozenGrottoLocation', 'CYRGuttedMineLocation', 'CYRHjaltisRefugeLocation', 'CYRLakesideRetreatLocation', 'CYRNorthfringeSanctumLocation', 'CYROutlawEndreCaveLocation', 'CYRPlunderedMineLocation', 'CYRRedRubyCaveLocation', 'CYRRielleLocation', 'CYRSedorLocation', 'CYRSerpentsTrailLocation', 'CYRSilvertoothCaveLocation', 'CYRToadstoolHollowLocation', 'CYRUnderpallLocation', 'CYRUnmarkedCaveLocation', 'CYREchoCaveLocation'];
-const ORD = JSON.parse(fs.readFileSync(path.join(ROOT, 'dungeons.json'), 'utf8')).dungeons.filter((d) => ORD_IDS.includes(d.id)).map((d) => ({ raw: d, expedition: false, name: d.name, kind: 'ordinary' }));
+// A site config dungeons.exclude takes out (Echo Cave, Hjaltis Refuge, Frozen Grotto: nothing to fight, 8 Oct) is no claim to measure
+const EXCLUDED = new Set(((JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8')).dungeons || {}).exclude) || []);
+const ORD = JSON.parse(fs.readFileSync(path.join(ROOT, 'dungeons.json'), 'utf8')).dungeons.filter((d) => ORD_IDS.includes(d.id) && !EXCLUDED.has(d.id)).map((d) => ({ raw: d, expedition: false, name: d.name, kind: 'ordinary' }));
 const DIFFS = ['story', 'normal', 'hard', 'nightmare'];
 const rows = [];
 const ORD_CLAIMS = Number(process.env.ORD_CLAIMS) || (TABLE_ONLY ? CLAIMS : 60);

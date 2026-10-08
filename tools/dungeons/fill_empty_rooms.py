@@ -5,7 +5,8 @@ never placed stays empty in every claim ("20 of 86 multi-room dungeons have a ro
 
     sudo python3 tools/dungeons/fill_empty_rooms.py [--in dungeons.json] [--out dungeons.json] [--report]
 
-For each cell of a multi-room dungeon that has no zone:
+For each cell of a multi-room dungeon that has no zone, and a one-room dungeon with no zone at all (Boreal Stone Cave,
+8 Oct: its ogre is placed disabled for a quest to enable; only the own rule applies there, it has no kind to copy):
   unreachable   no load door from another cell of the same dungeon leads into it (templates such as 000EmptyCell and
                 AbandonedPrisonDUPLICATE002, orphan cells, a Soul Cairn cell tagged to Reachcliff): left alone
   connector     its only load doors lead outside (Blackreach's lift rooms, Mzulft04z): left alone
@@ -33,6 +34,10 @@ UNDEAD = re.compile(r'Undead|undead|UNDEAD')
 BOSSY = re.compile(r'boss', re.I)
 QUESTY = re.compile(r'^(MQ|MG|DB|TG|CW|DA|DLC\dMQ|DLC\d[A-Z]*MQ)\d|Miraak|Caller', re.I)
 MIN_PER_ROOM, MAX_PER_ROOM = 2, 4
+BOSS_LCRT = ('skyrim.esm', 0x130F7)   # the Boss location ref type: an own placement with it is written boss: true
+# An own boss with one fixed high level gets a Novice line (dungeons.js storyOptions), as Silorn's lich has; balance call
+# for Nate. By placement ref: Boreal Stone Cave's level-32 ogre -> CYRLCharOgre's level-1 ogres (CYREncOgre01, 01a)
+NOVICE = {'7cbd8:BSHeartland.esm': [[1, '5f056:BSHeartland.esm'], [1, 'd6b7f:BSHeartland.esm']]}
 SPREAD = 350   # units between two fill spots of one room
 
 
@@ -79,9 +84,11 @@ def main():
     for d in D:
         for c in d['cells']:
             cell_of[key(c['desc'])] = d
-        if len(d['cells']) < 2 or d['id'] in excluded:
+        if d['id'] in excluded:
             continue
         zc = {key(z['cell']) for z in d['zones']}
+        if len(d['cells']) < 2 and zc:
+            continue
         for c in d['cells']:
             if key(c['desc']) not in zc:
                 empty[key(c['desc'])] = (d, c)
@@ -126,7 +133,9 @@ def main():
             if len(s.get(b'NAME', b'')) < 4 or len(s.get(b'DATA', b'')) < 12:
                 continue
             b = pl.modindex_source(struct.unpack('<I', s[b'NAME'][:4])[0])
-            actors[ck].append((k, b, fl, b'XESP' in s, struct.unpack('<3f', s[b'DATA'][:12])))
+            lrt = s.get(b'XLRT', b'')
+            boss = any(pl.modindex_source(x) == BOSS_LCRT for x in struct.unpack('<%dI' % (len(lrt) // 4), lrt[:len(lrt) // 4 * 4]))
+            actors[ck].append((k, b, fl, b'XESP' in s, struct.unpack('<3f', s[b'DATA'][:12]), boss))
     report, added = [], 0
     for ck, (d, c) in sorted(empty.items(), key=lambda kv: (kv[1][0]['id'], kv[1][1]['edid'])):
         from_inside = [p for p, src, ext in arrivals[ck] if not ext and src in cell_of and cell_of[src] is d and src != ck]
@@ -143,7 +152,7 @@ def main():
             report.append((d['id'], c['edid'], 'connector', 0)); continue
         # own placements: living, generic, disabled at start, not quest-parented, not unique
         own = []
-        for ref, b, fl, parent, pos in actors[ck]:
+        for ref, b, fl, parent, pos, boss in actors[ck]:
             e = bedid(b)
             if fl & 0x200 or parent or is_skip(e) or QUESTY.search(e) or not fl & 0x800:
                 continue
@@ -151,7 +160,7 @@ def main():
                 acbs = subs(base[b]).get(b'ACBS', b'')
                 if len(acbs) >= 4 and struct.unpack('<I', acbs[:4])[0] & 0x20:   # Unique
                     continue
-            own.append((ref, b, e, pos))
+            own.append((ref, b, e, pos, boss))
         family = collections.Counter()
         opts_of = {}
         for z in d['zones']:
@@ -162,9 +171,13 @@ def main():
                 opts_of.setdefault(n['edid'], n['options'])
         npcs = []
         if own:
-            for ref, b, e, pos in own:
+            for ref, b, e, pos, boss in own:
                 opts = opts_of.get(e) or [[1, desc(b)]]
                 npcs.append({'edid': e, 'pos': [round(v, 1) for v in pos], 'ref': desc(ref), 'options': opts})
+                if boss:
+                    npcs[-1]['boss'] = True
+                if desc(ref) in NOVICE:
+                    npcs[-1]['storyOptions'] = NOVICE[desc(ref)]
             why = 'own'
         elif family:
             spots = []
