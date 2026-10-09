@@ -166,7 +166,7 @@ module.exports = (api) => {
   const dateText = (t) => { if (!t) return ''; const d = new Date(Number(t)); return `${d.getUTCDate()} ${MONTHS_EN[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
   const statsData = (a) => { try { return typeof globalThis.__dboStatsData === 'function' ? globalThis.__dboStatsData(a) : null; } catch (e) { return null; } };
 
-  const profileView = (a) => {
+  const profileView = (a, own) => {
     const levels = skillLevels(a);
     const titles = titlesFor(a, levels);
     const p = profileDoc(a) || {};
@@ -180,32 +180,59 @@ module.exports = (api) => {
       skills: levels.slice(0, 3).map(skillView),
       title: chosen.label, titleEpithet: chosen.epithet, titleId: chosen.id,
       titles: titles.length > 1 ? titles.map((t) => ({ id: t.id, label: t.label })) : [],
+      status: own === false ? [] : statusView(a),
     };
   };
   const km = (units) => Number(units) / 70 / 1000;
   // own: the player's own journal; staff reading another's never see that player's reroll tokens (patrons.js)
   const rerollGroup = (a) => { try { return typeof globalThis.__dboRerollStatsGroup === 'function' ? globalThis.__dboRerollStatsGroup(a) : null; } catch (e) { log('journal: reroll tokens failed', e.message); return null; } };
-  // What /status reports (gamemode.js statusParts), first on the Stats tab: Death's Chill above all, which an undead never
-  // sees among active effects because it resists the disease it counts as (#suggestions 'Chill of the grave', 9 Oct)
-  const EFFECTS = [['chill', ["Death's Chill"]], ['hunger', ['Hunger']], ['rest', ['Well Rested', 'Well Fed']], ['sentence', ['Sentence']]];
-  const effectsGroup = (a) => {
+  // What /status reports (gamemode.js statusParts), as journal rows: each module's line split into its name and the rest
+  // of its /status wording. NAMES gives the names a line starts with; a line without one (blood, hunt: a rank) gets LABEL.
+  const NAMES = { level: ['Level'], hunger: ['Hunger'], rest: ['Well Rested', 'Well Fed'], chill: ["Death's Chill"], sentence: ['Sentence'],
+    rerolls: ['Rerolls'], boost: ['Skill boost'] };
+  const LABEL = { blood: 'Vampire rank', hunt: 'Great Hunt' };
+  const chillHint = () => {
+    let tier = 0; try { tier = Number(globalThis.__dboChillCureTier && globalThis.__dboChillCureTier()) || 0; } catch (e) { tier = 0; }
+    return tier ? `A Priest of tier ${tier} or higher can lift it with a healing spell` : 'A Priest can lift it with a healing spell';
+  };
+  // keys: only these, in this order; otherwise every registered line in /status order
+  const statusRows = (a, keys) => {
     const parts = globalThis.__dboStatusParts;
-    if (!(parts instanceof Map)) return null;
+    if (!(parts instanceof Map)) return [];
+    const list = keys ? keys.map((k) => [k, parts.get(k)]) : [...parts].sort((x, y) => x[1].order - y[1].order);
     const rows = [];
-    for (const [key, names] of EFFECTS) {
-      const part = parts.get(key);
+    for (const [key, part] of list) {
       if (!part || typeof part.fn !== 'function') continue;
       let line = null;
       try { line = part.fn(a); } catch (e) { log(`journal: status ${key} failed`, e.message); continue; }
       if (typeof line !== 'string' || !line.trim()) continue;
-      for (const piece of line.trim().split(', ')) {
+      const names = NAMES[key] || [];
+      for (const piece of (names.length > 1 ? line.trim().split(', ') : [line.trim()])) {
         const name = names.find((n) => piece.startsWith(n));
-        const row = name ? { label: name, value: piece.slice(name.length).trim() } : { label: piece, value: '' };
-        if (key === 'chill') row.hint = 'Shown here because the undead do not see it among their active effects';
+        const label = name || LABEL[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+        const row = { label, value: name ? piece.slice(name.length).replace(/^[,:]\s*/, '').trim() : piece };
+        if (key === 'chill') row.hint = chillHint();
         rows.push(row);
       }
     }
+    return rows;
+  };
+  // Stats tab, first: Death's Chill above all, which an undead never sees among active effects because it resists the
+  // disease it counts as (#suggestions 'Chill of the grave', 9 Oct)
+  const effectsGroup = (a) => {
+    const rows = statusRows(a, ['chill', 'hunger', 'rest', 'sentence']);
+    for (const r of rows) if (r.label === "Death's Chill") r.hint = 'Shown here because the undead do not see it among their active effects';
     return rows.length ? { name: 'Current Effects', rows } : null;
+  };
+  // Profile tab's Status (Nate, 9 Oct: "streamline a lot of commands ... a status section on Character"): every /status line
+  // and the dungeons resting for you (/dungeon), in place of /status, /level, /chill, /hunger, /rest, /sentence, /tokens,
+  // /boost, /blood and /hunt
+  const statusView = (a) => {
+    const rows = statusRows(a, null);
+    let rests = [];
+    try { rests = typeof globalThis.__dboDungeonRestsFor === 'function' ? globalThis.__dboDungeonRestsFor(a) || [] : []; } catch (e) { log('journal: dungeon rests failed', e.message); }
+    if (rests.length) rows.push({ label: 'Dungeons resting', value: rests.map((r) => `${r.name} ${r.minutes} min`).join(', '), hint: 'Claims you cannot make again yet' });
+    return rows;
   };
   const statsView = (a, own) => {
     const st = statsData(a);
@@ -269,7 +296,7 @@ module.exports = (api) => {
   // One draw asks each module once: visible() and view() of the supernatural tab share their answer
   const memo = (m, k, f) => (k in m ? m[k] : (m[k] = f()));
   const factionTabInfo = (a) => { try { return typeof globalThis.__dboFactionTabInfo === 'function' ? globalThis.__dboFactionTabInfo(a) : null; } catch (e) { return null; } };
-  SECTIONS.profile = { visible: () => true, view: (a) => profileView(a) };
+  SECTIONS.profile = { visible: () => true, view: (a, o) => profileView(a, !(o && o.readOnly)) };
   SECTIONS.stats = { visible: () => true, view: (a, o) => statsView(a, !(o && o.readOnly)) };
   // A member, someone invited, or staff (who see every faction); without guilds.js's count it shows, as before the hub.
   // Hold and stronghold memberships count here only when the viewer's front has no Court tab (m.viewer: who is looking)
