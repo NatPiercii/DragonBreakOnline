@@ -45,7 +45,15 @@ module.exports = (api) => {
     const r = REPLACE[sp.kind];
     if (!r || typeof r !== 'object') return sp;
     const bases = r.bases || {};
-    const opts = Array.isArray(bases[sp.base]) && bases[sp.base].length ? bases[sp.base] : null;
+    const list = Array.isArray(bases[sp.base]) ? bases[sp.base].filter((o) => Array.isArray(o) && Number(o[0]) > 0 && o[1]) : [];
+    // [weight, desc]: one per spot, fixed by the spot's own id (the plugin's options are [level, desc], picked by level)
+    let opts = null;
+    if (list.length) {
+      const total = list.reduce((n, o) => n + Number(o[0]), 0);
+      let roll = (parseInt(crypto.createHash('sha1').update(String(sp.src)).digest('hex').slice(0, 8), 16) / 0x100000000) * total;
+      const hit = list.find((o) => (roll -= Number(o[0])) < 0) || list[list.length - 1];
+      opts = [[0, String(hit[1])]];
+    }
     const count = Math.max(1, Math.min(4, Math.floor(Number(r.count) || 1)));   // how many stand in each spot
     return Object.assign({}, sp, { kind: String(r.kind || sp.kind), options: opts || sp.options, count });
   };

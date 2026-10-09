@@ -65,6 +65,8 @@ try {
   const undead = z2.filter((z) => z.Name.startsWith('wild:undead:'));
   ok(z2.length === 45 && !z2.some((z) => z.Name.startsWith('wild:minotaur:')) && undead.length === minoSrc.length && minoSrc.length > 0,
     'every minotaur spot becomes an undead zone, the rest unchanged', { all: z2.length, undead: undead.length, mino: minoSrc.length });
+  const kinds = new Set(undead.map((z) => z.NPC[0].id));
+  ok(kinds.size >= 3, 'the spots get a mix of undead, not one base', [...kinds]);
   ok(undead.every((z) => { const sp = minoSrc.find((x) => z.Name.endsWith(`:p${x.src.split(':')[0]}-dragonbreakonlineedits`)); return sp && rep.bases[sp.base].some(([, d]) => d === z.NPC[0].id) && z.Hostile === true && z.NPC[0].count === rep.count; }),
     'each undead zone spawns one of its spot\'s replacements (a Lord spot a level-25 zombie) and attacks on sight, as many as replace.count');
 } finally {
