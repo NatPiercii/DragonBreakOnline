@@ -230,6 +230,35 @@
   "mult": 0.5
  },
  "hostCooldown": { "_comment": "hostcooldown.js: an NPC stays with its live host this long after it changes hands (handoverMs) or after any hit it gives or takes (fightMs). Nate, 9 Oct: a minotaur fighting him moved to the next player who hit it and stopped attacking; the 5 s default let it change hands between swings.", "enabled": true, "handoverMs": 10000, "fightMs": 30000 },
+ "summonBuff": {
+  "_comment": "A player's summon or raised corpse by its owner's Conjuration school rank (Novice..Master; outside the school counts as Novice), gamemode.js: damage it takes, damage it deals to creatures and NPCs (never players), and +% duration (fork conjurationSystem). #suggestions 1557224448699146313, Nate 9 Oct.",
+  "enabled": true,
+  "kinds": [
+   "summon",
+   "reanimated"
+  ],
+  "takenByTier": [
+   0.6,
+   0.5,
+   0.42,
+   0.35,
+   0.3
+  ],
+  "dealtByTier": [
+   1.2,
+   1.35,
+   1.5,
+   1.7,
+   2
+  ],
+  "durationPctByTier": [
+   50,
+   75,
+   100,
+   150,
+   200
+  ]
+ },
  "npcDamage": {
   "_comment": "byKind scales every hit one kind of creature or NPC lands on a player (gamemode.js npcKindDamageMult), on top of npcPowerHits; the kind is the middle of the attacker's wild:<kind>:... spawn tag (wildlife.js, owned-spawns.json). Players' own hits, PvP and hits on NPCs are never touched. Empty until Nate sets a value: the proposal for Bruma's boars (BSKEncBoar01, level 7, unarmed 25) is boar 0.4, a 20-point bite on a new character (150 health) instead of 50, so they survive 7 bites and go down on the 8th (Worker F, 1 Oct). Hot reload. takenByKind scales the hits a player, or someone fighting for one (ff_companionOf), lands on a creature or NPC of that kind (gamemode.js npcTakenDamageMult): above 1 they die faster, the extra taken off before the engine's blow on a weapon hit so that blow kills. Empty until set: the proposal for boars is 5 (a new character's iron sword 7 -> 35 a blow, a 200-health boar in 6 blows instead of 29; dagger or fists 10 instead of 50).",
   "byKind": { "boar": 0.4, "minotaur": 12 },

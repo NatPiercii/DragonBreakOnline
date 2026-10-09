@@ -1,5 +1,21 @@
 [
   {
+    "title": "Stronger summons",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Conjuration",
+        "items": [
+          "Summons and raised dead now grow with your Conjuration rank. A Novice's summon takes 40% less damage and hits 20% harder; a Master's takes 70% less and hits twice as hard.",
+          "A single bite or spell no longer wipes out a summon it would not have killed after that reduction.",
+          "Summons last longer too: from 50% longer at Novice to three times as long at Master."
+        ]
+      }
+    ]
+  },
+  {
     "title": "More wood",
     "date": "SHIP_DATE",
     "version": "Server update",

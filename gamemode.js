@@ -5590,7 +5590,7 @@ const npcHitLog = (agg, tgt, src, dmg, mult, flags) => {
 // Returns null when it did nothing, else { health: the raised fraction, rest }. Players' hits and PvP are never touched.
 const npcLethalGuard = (agg, tgt, dmg, mult, flags) => {
   if (!(mult > 0 && mult < 1) || !(dmg > 0) || agg === tgt) return null;
-  if (profileOf(agg) >= 0 || profileOf(tgt) < 0) return null;
+  if (profileOf(agg) >= 0 || (profileOf(tgt) < 0 && !playerSummonOf(tgt))) return null;
   const f = flags && typeof flags === 'object' ? flags : {};
   // Weapon hits only. A spell hit snapshots the target before this hook and writes the snapshot back after it (fork
   // 713d6463 ActionListener.cpp OnSpellHit: 2099, 2145-2152), so a raise here would be lost while no give-back is pending
@@ -5642,6 +5642,58 @@ const npcTakenLowerFirst = (tgt, dmg, m, flags) => {
   const lowered = Math.max(0.0001, p.health - (dmg * (m - 1)) / max);
   if (!(lowered < p.health)) return false;
   try { mp.set(tgt, 'percentages', { health: lowered, magicka: p.magicka, stamina: p.stamina }); } catch (e) { return false; }
+  return true;
+};
+// ---- player summons by the caster's Conjuration rank (#suggestions 1557224448699146313, Nate 9 Oct) ------------------
+// A Conjure Familiar fell to one boar bite and a 30-point spell undid most summons. gamemode-config summonBuff scales,
+// by the owner's Conjuration school rank (schools.js; Novice to Master, a caster outside the school counts as Novice), the
+// damage a player's summon or raised corpse takes (takenByTier) and deals to creatures and NPCs (dealtByTier, never to a
+// player), and how long it stays (durationPctByTier, read by the fork's conjurationSystem through __dboSummonDurationMult).
+// kinds are companionSystem's (private.dboCompanion). Read per hit, so a config edit or a hot reload takes effect at once.
+const SUMMON_BUFF = { enabled: true, kinds: ['summon', 'reanimated'], takenByTier: [0.6, 0.5, 0.42, 0.35, 0.3], dealtByTier: [1.2, 1.35, 1.5, 1.7, 2], durationPctByTier: [50, 75, 100, 150, 200] };
+const summonBuffCfg = () => Object.assign({}, SUMMON_BUFF, cfg.summonBuff || {});
+const byTier = (list, tier, fallback) => { const v = Number(Array.isArray(list) ? list[Math.max(0, Math.min(tier, list.length - 1))] : NaN); return Number.isFinite(v) && v > 0 ? v : fallback; };
+const conjurationTierOf = (owner) => {
+  let r = -1; try { r = typeof globalThis.__dboSchoolRank === 'function' ? Number(globalThis.__dboSchoolRank(owner, 'Conjuration')) : -1; } catch (e) { r = -1; }
+  return Number.isInteger(r) && r >= 0 ? Math.min(4, r) : 0;
+};
+// { owner, tier } for a player's summon or raised corpse, else null
+const playerSummonOf = (a) => {
+  const C = summonBuffCfg();
+  if (C.enabled === false) return null;
+  let kind = '', owner = 0;
+  try { kind = String(mp.get(a, 'private.dboCompanion') || ''); owner = Number(mp.get(a, 'ff_companionOf')) >>> 0; } catch (e) { return null; }
+  if (!owner || profileOf(owner) < 0 || !(Array.isArray(C.kinds) ? C.kinds : []).includes(kind)) return null;
+  return { owner, tier: conjurationTierOf(owner) };
+};
+const summonTakenMult = (agg, tgt, dmg) => {
+  if (!(dmg > 0) || agg === tgt) return 1;
+  const s = playerSummonOf(tgt);
+  return s ? byTier(summonBuffCfg().takenByTier, s.tier, 1) : 1;
+};
+const summonDealtMult = (agg, tgt, dmg) => {
+  if (!(dmg > 0) || agg === tgt || profileOf(tgt) >= 0) return 1;
+  const s = playerSummonOf(agg);
+  return s ? byTier(summonBuffCfg().dealtByTier, s.tier, 1) : 1;
+};
+// How much longer a summon cast now stays: 1 + durationPct / 100 (fork conjurationSystem asks this at the spawn)
+globalThis.__dboSummonDurationMult = (owner, kind) => {
+  const C = summonBuffCfg();
+  if (C.enabled === false || !(Array.isArray(C.kinds) ? C.kinds : []).includes(String(kind))) return 1;
+  const pct = byTier(C.durationPctByTier, conjurationTierOf(Number(owner) >>> 0), 0);
+  return pct > 0 ? 1 + pct / 100 : 1;
+};
+// A spell hit a summon would not live through but the scaled hit would: the snapshot OnSpellHit writes back makes a raise
+// before the hit useless, so the hit is refused and the scaled damage taken off just after. Returns true when it did.
+const summonSpellGuard = (agg, tgt, dmg, mult, flags) => {
+  const f = flags && typeof flags === 'object' ? flags : {};
+  if (!f.spell || !(mult > 0 && mult < 1) || !(dmg > 0) || !playerSummonOf(tgt)) return false;
+  const max = Number(f.targetMaxHealth); if (!(max > 0)) return false;
+  let p = null; try { p = mp.get(tgt, 'percentages'); } catch (e) { return false; }
+  if (!p || !(p.health > 0)) return false;
+  const health = p.health * max;
+  if (dmg < health || dmg * mult >= health) return false;
+  setTimeout(() => { try { const q = mp.get(tgt, 'percentages'); if (q && q.health > 0) mp.set(tgt, 'percentages', { health: Math.max(0.01, q.health - (dmg * mult) / max), magicka: q.magicka, stamina: q.stamina }); } catch (e) { /* gone */ } }, 0);
   return true;
 };
 const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => {
@@ -5742,7 +5794,10 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     mult *= npcKindDamageMult(agg, tgt, dmg);
     // An enemy of a claimed dungeon by the lease's difficulty, and any NPC's spell (npcDamage.byDifficulty, spellMult)
     mult *= npcDifficultyDamageMult(agg, tgt, dmg, flags);
+    // A player's summon takes less by its owner's Conjuration rank (summonBuff.takenByTier)
+    mult *= summonTakenMult(agg, tgt, dmg);
     try { npcHitLog(agg, tgt, src, dmg, mult, flags); } catch (e) { log('npc hit log failed', e.message); }
+    if (summonSpellGuard(agg, tgt, dmg, mult, flags)) return false;
     // Would the engine's full hit down a player the scaled hit would not? Then it lands scaled from the start, and what a
     // capped raise could not hold back is given back after it like any scaled hit
     const guard = npcLethalGuard(agg, tgt, dmg, mult, flags);
@@ -5754,7 +5809,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     const before = mp.get(tgt, 'percentages');
     // A player's hit on a kind of creature or NPC (npcDamage.takenByKind): more lands before the engine's hit when it can
     // (weapon hits), else it joins the give-back's mult like any other factor
-    const taken = npcTakenDamageMult(agg, tgt, dmg);
+    const taken = npcTakenDamageMult(agg, tgt, dmg) * summonDealtMult(agg, tgt, dmg);
     if (!(taken > 1 && npcTakenLowerFirst(tgt, dmg, taken, flags))) mult *= taken;
     if (mult !== 1 && dmg > 0) {
       if (before && before.health > 0) globalThis.__dboMasteryPending = { agg, tgt, mult, health: before.health };
@@ -6443,7 +6498,7 @@ try {
   const SCHOOLS_JS = path.resolve('schools.js');
   delete require.cache[SCHOOLS_JS];
   require(SCHOOLS_JS)({ mp, log, personal, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, every, sendPacket, isAdmin, findByName, isWorldspace, profileOf });
-} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin', '__dboSchoolsLedgerActions', '__dboSchoolsLedgerChoose', '__dboMagicTab', '__dboMagicView', '__dboMagicAction', '__dboAdminSetSchool', '__dboSchoolsArrived', '__dboSchoolsLeave']) globalThis[k] = null; }
+} catch (e) { log('schools.js failed to load:', e.stack || e.message); for (const k of ['__dboSchoolsRefusal', '__dboSchoolsCast', '__dboSchoolsProgress', '__dboSchoolsProgressSend', '__dboSchoolsActivate', '__dboSchoolsAlteration', '__dboCastSkill', '__dboSchoolsGrandfathered', '__dboSchoolsLogin', '__dboSchoolsLedgerActions', '__dboSchoolsLedgerChoose', '__dboMagicTab', '__dboMagicView', '__dboMagicAction', '__dboAdminSetSchool', '__dboSchoolsArrived', '__dboSchoolsLeave', '__dboSchoolRank']) globalThis[k] = null; }
 
 // ---- the bank: one account per character in every town's bank, treasuries pay-in only (server\bank.js, WAR_DESIGN.md) ----
 try {
