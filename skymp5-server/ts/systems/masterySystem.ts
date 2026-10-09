@@ -359,7 +359,7 @@ export class MasterySystem implements System {
       if (shape.tierSkill) detail[`tier:${shape.tierSkill}`] = shape.tier;   // the tier gate names its skill
       return [actorId, detail];
     });
-    chain("onActivate", "activate", ([refrId, casterId]) => [casterId, { refrId }], ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
+    chain("onActivate", "activate", ([refrId, casterId]) => (this.isPicked(ctx, Number(refrId) >>> 0) ? null : [casterId, { refrId }]), ([refrId, casterId]) => this.gateActivation(ctx, Number(refrId) >>> 0, Number(casterId) >>> 0));
     chain("onEatItem", "eat", ([actorId, baseId]) => [actorId, { baseId }]);
     const prevPerk = typeof mp.onCraftPerkRequired === "function" ? mp.onCraftPerkRequired : null;
     mp.onCraftPerkRequired = (...args: unknown[]) => {
@@ -574,7 +574,7 @@ export class MasterySystem implements System {
         return false;
       }
     }
-    if (base.type === "FLOR" || base.type === "TREE") return this.rollHarvest(ctx, casterId, userId, rec, base);
+    if (base.type === "FLOR" || base.type === "TREE") return this.isPicked(ctx, refrId) ? true : this.rollHarvest(ctx, casterId, userId, rec, base);
     return true;
   }
 
@@ -1521,6 +1521,15 @@ export class MasterySystem implements System {
       }
     }
     this.inputCache.set(recipeId, out); return out;
+  }
+
+  // A plant or tree already picked gives nothing until it regrows; read before ProcessActivate marks it harvested
+  private isPicked(ctx: SystemContext, refrId: number): boolean {
+    const base = refrId ? this.baseOf(ctx, refrId) : null;
+    if (!base || (base.type !== "FLOR" && base.type !== "TREE")) return false;
+    const mp = ctx.svr as Mp;
+    try { return mp.callPapyrusFunction("method", "ObjectReference", "IsHarvested", { type: "form", desc: mp.getDescFromId(refrId) }, []) === true; }
+    catch { return false; }
   }
 
   private baseOf(ctx: SystemContext, refrId: number): BaseInfo | null {
