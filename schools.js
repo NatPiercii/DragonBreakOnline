@@ -709,6 +709,12 @@ module.exports = (api) => {
     };
   };
   globalThis.__dboSchoolsProgress = progressOf;
+  // A school's rank 0-4 (Novice to Master) while it is the primary or secondary, else -1; read only, never migrates the record
+  globalThis.__dboSchoolRank = (a, school) => {
+    const s = get(a >>> 0, PROP, null);
+    if (!s || typeof s !== 'object' || !s.levels || typeof s.levels !== 'object') return -1;
+    return schoolRank(Object.assign(fresh(), s), String(school));
+  };
   // The primary school's name ('' before one is chosen), for the journal's mage titles (stateOf migrates an old record the first time, as the K menu would)
   globalThis.__dboSchoolsPrimary = (a) => { try { return ready(a) ? String(stateOf(a).primary || '') : ''; } catch (e) { return ''; } };
   globalThis.__dboSchoolsProgressSend = (a) => {
