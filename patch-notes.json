@@ -1,5 +1,34 @@
 [
   {
+    "title": "Moranda and the Sancre Tor Ruins",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Moranda",
+        "items": [
+          "A new Ayleid ruin near Bruma: Moranda. Claim it at its door like any other dungeon, for a party of up to six.",
+          "Skeletons and Ayleid undead guard its halls, and an Ayleid lich waits at the end beside its treasure. On Novice a lesser undead takes the lich's place."
+        ]
+      },
+      {
+        "heading": "Sancre Tor Ruins",
+        "items": [
+          "The ruins of Sancre Tor, near Bruma, are now a world dungeon: open to everyone, no claim needed, and overrun by minotaurs, Minotaur Lords among them.",
+          "Minotaurs come back about half an hour after they fall. The ruin's eight chests, three of them boss chests, refill for each player every hour.",
+          "Minotaurs also hold Minotaur's Rest, with a chest of their own."
+        ]
+      },
+      {
+        "heading": "Cooking",
+        "items": [
+          "Ovens are Cook stations, like cooking pots: only a Cook can bake. Castle Bruma's kitchen has a new oven and cooking pot."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Smoother big dungeons",
     "date": "2026-10-08",
     "version": "Server update",
