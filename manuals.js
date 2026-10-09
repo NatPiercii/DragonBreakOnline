@@ -53,6 +53,13 @@ module.exports = (api) => {
     provinces: Object.assign({}, D.provinces, raw.provinces || {}),
   });
   const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  // Smithing rework (smithing.js, config "smithing", Nate 9 Oct): a manual is the technique of a smithing.json family on the
+  // 7 craft tiers, "Schematics: <Family>", its book from smithing.books; no marker spell (the forge gate is server-side),
+  // read by the Scholar tier rule, no Orcish book (apprentice only), Dragon given only by staff
+  const SMC = cfg.smithing || {};
+  const SMITH = SMC.enabled === true;
+  const scholarNeed = (tier) => Number((SMC.scholarForBook || { 2: 1, 3: 1, 4: 1, 5: 2, 6: 3, 7: 3 })[tier]) || 0;
+  const scholarTier = (a) => (typeof globalThis.__dboSmithScholarTier === 'function' ? Number(globalThis.__dboSmithScholarTier(a)) || 0 : rankIn(a, C.scholarSkill) + 1);
   const REC = 'private.dboManuals', BOOKS_READ = 'private.dboSkillBooks', COPIES = 'private.scholarCopies', OWED = 'private.dboManualsOwed';
 
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
@@ -72,7 +79,14 @@ module.exports = (api) => {
   // ---- the table ------------------------------------------------------------------------------------------------
   let table = { manuals: [] };
   try { table = JSON.parse(fs.readFileSync(path.resolve('manuals.json'), 'utf8')); } catch (e) { /* no table yet */ }
-  const MANUALS = (Array.isArray(table.manuals) ? table.manuals : []).map((m) => {
+  const bookValue = (bookRec) => { const f = bookRec && (bookRec.record.fields || []).find((x) => x && x.type === 'DATA' && x.data); return f && f.data.byteLength >= 12 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(8, true) : 0; };
+  let smithFamilies = [];
+  if (SMITH) { try { smithFamilies = JSON.parse(fs.readFileSync(path.resolve('smithing.json'), 'utf8')).families || []; } catch (e) { log('manuals: smithing.json unreadable', e.message); } }
+  const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice').map((f) => {
+    const bookId = idOf((SMC.books || {})[f.id]), bookRec = lookup(bookId);
+    return { key: f.id, name: f.name, title: `Schematics: ${f.name}`, tier: Math.max(2, Math.min(7, Number(f.tier) || 2)), bookId, markerId: 0,
+      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', ready: !!(bookId && bookRec) };
+  }) : (Array.isArray(table.manuals) ? table.manuals : []).map((m) => {
     const key = String(m.material || m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const bookId = idOf(m.book), markerId = idOf(m.marker);
     const bookRec = lookup(bookId);
@@ -135,6 +149,11 @@ module.exports = (api) => {
     if (left.length !== owed.length || left.some((x, i) => x.missing !== owed[i].missing)) set(a, OWED, left);
   };
   const learn = (a, m, how) => {
+    if (SMITH) {
+      set(a, REC, Object.assign({}, recordOf(a), { [m.key]: { at: Date.now(), how: 'book', from: how } }));
+      audit(`MANUAL ${who(a)} learned ${m.name} (craft tier ${m.tier}) from ${how}`);
+      return true;
+    }
     if (!papyrus(a, 'AddSpell', m.markerId, [false])) {
       const held = learnedIds(a);
       if (!held || !held.has(m.markerId)) { log(`manuals: ${who(a)} could not be given ${descOf(m.markerId)}`); return false; }
@@ -146,8 +165,16 @@ module.exports = (api) => {
   // An inventory read: false refuses it (the book is kept), true learned it, null leaves it to the rest of the chain
   const readManual = (a, m, fromInventory) => {
     if (knows(a, m)) { personal(a, `You already know how to work ${m.name}. Read on if you like; the book stays yours.`); return null; }
+    if (SMITH) {
+      const need = scholarNeed(m.tier), have = scholarTier(a);
+      if (have < need) {
+        personal(a, `You can't follow this yet: ${m.title} needs a Scholar of tier ${need} or better to make sense of it. You keep the book.`);
+        audit(`MANUAL ${who(a)} could not follow ${m.name} (craft tier ${m.tier}) at Scholar tier ${have}`);
+        return false;
+      }
+    }
     const rank = rankIn(a, C.skill);
-    if (rank < m.tier - 1) {
+    if (!SMITH && rank < m.tier - 1) {
       personal(a, `You can't follow this yet: ${m.title} is for a Blacksmith of ${tierName(m.tier)} rank or better. You keep the book.`);
       audit(`MANUAL ${who(a)} could not follow ${m.name} (T${m.tier}) at Blacksmith ${rank < 0 ? 'none' : TIER_NAMES[rank]}`);
       return false;
@@ -220,6 +247,7 @@ module.exports = (api) => {
   // { id, name } of a manual for this boss chest, or null
   globalThis.__dboManualsBossLoot = (difficulty, province) => {
     if (!C.enabled || !C.loot.enabled) return null;
+    if (SMITH) return globalThis.__dboTechniqueDrop('boss', difficulty);
     const chance = Number((C.loot.chance || {})[difficulty]) || 0;
     if (!(Math.random() < chance)) return null;
     const maxTier = Number((C.loot.maxTier || {})[difficulty]) || 0;
@@ -233,6 +261,7 @@ module.exports = (api) => {
     const cap = typeof globalThis.__dboLootCap === 'string' ? globalThis.__dboLootCap : '';
     if (!cap) return null;
     const capKeys = cap === 'none' ? null : new Set(((C.loot.capManuals || {})[cap] || []).map((k) => String(k).toLowerCase()));
+    if (SMITH) return null;
     const pool = READY.filter((m) => m.tier <= maxTier && m.tier < Number(C.loot.staffTier) && inProvince(m, province) && !banned.test(String(m.material || m.name || '')) && (!capKeys || capKeys.has(m.key)));
     if (!pool.length) return null;
     const weight = (m) => (m.tier >= Number(C.loot.rareTier) ? Number(C.loot.rareWeight) || 0 : 1);
@@ -243,21 +272,37 @@ module.exports = (api) => {
     return { id: pick.book, name: pick.title };
   };
 
+  // A technique book for this find (smithing.drops.<where> = { chance, families: [...] }, or per difficulty
+  // { <difficulty>: { chance, families } }): { id, name } or null. Empty by default: no drop until the books exist and the
+  // rates are set. Staff-only families (Dragon) never drop.
+  globalThis.__dboTechniqueDrop = (where, difficulty) => {
+    if (!C.enabled || !SMITH) return null;
+    let rule = (SMC.drops || {})[where];
+    if (rule && difficulty && rule[difficulty] && typeof rule[difficulty] === 'object') rule = rule[difficulty];
+    if (!rule || !(Math.random() < (Number(rule.chance) || 0))) return null;
+    const allowed = new Set((rule.families || []).map(String));
+    const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly);
+    if (!pool.length) return null;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    return { id: pick.book, name: pick.title };
+  };
+
   // ---- the Scholars' Ledger (salvage.js): the Synod's manuals, and a Scholar's copies ----------------------------
   const inShop = (a) => (C.shop.cells || []).map(norm).includes(norm(get(a, 'worldOrCellDesc', '')));
+  const shopMax = () => Number(SMITH ? (C.shop.smithingMaxTier || 3) : C.shop.maxTier);
   const priceOf = (m) => Math.max(1, Math.round((m.value || 0) * (Number(C.shop.priceMultiplier) || 1)));
   const goldOf = (a) => countOf(a, 0xf);
   // The Synod's stock at this ledger, or [] where it sells none
   globalThis.__dboManualsShop = (a) => {
     if (!C.enabled || !C.shop.enabled || !inShop(a)) return [];
     const gold = goldOf(a);
-    return READY.filter((m) => m.tier <= Number(C.shop.maxTier)).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
+    return READY.filter((m) => m.tier <= shopMax() && !m.staffOnly).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
       .map((m) => ({ bookId: m.bookId, label: `${m.title} (T${m.tier}), ${priceOf(m)} gold${gold < priceOf(m) ? ': more than you carry' : ''}` }));
   };
   // { ok, text }
   globalThis.__dboManualsBuy = (a, bookId) => {
     const m = BY_BOOK.get(bookId >>> 0);
-    if (!C.enabled || !C.shop.enabled || !m || m.tier > Number(C.shop.maxTier)) return { ok: false, text: 'The Synod does not sell that manual.' };
+    if (!C.enabled || !C.shop.enabled || !m || m.tier > shopMax() || m.staffOnly) return { ok: false, text: 'The Synod does not sell that manual.' };
     if (!inShop(a)) return { ok: false, text: 'The Synod sells its manuals in the Synod Conclave.' };
     const price = priceOf(m);
     if (!takeGold(a, price)) return { ok: false, text: `${m.title} costs ${price} gold, and you do not have it.` };
@@ -276,7 +321,7 @@ module.exports = (api) => {
     const rank = rankIn(a, C.scholarSkill);
     if (rank < 0) return [];
     const mine = recordOf(a);
-    return READY.filter((m) => mine[m.key] && rank >= m.tier - 1).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
+    return READY.filter((m) => mine[m.key] && !m.staffOnly && (SMITH ? scholarTier(a) >= scholarNeed(m.tier) : rank >= m.tier - 1)).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
       .map((m) => ({ bookId: m.bookId, label: `Copy ${m.title} (T${m.tier})` }));
   };
   // Why this Scholar cannot copy now, or ''
@@ -308,6 +353,7 @@ module.exports = (api) => {
   const regrant = (a) => {
     // A login: nothing is on screen yet, so what is owed from before the logout is used up
     settleOwed(a, 'login', false);
+    if (SMITH) return;
     const mine = recordOf(a);
     const want = READY.filter((m) => mine[m.key]);
     if (!want.length) return;
@@ -330,7 +376,7 @@ module.exports = (api) => {
   });
 
   // ---- staff: the T5 manuals are given in roleplay, like artifacts -----------------------------------------------
-  const findManual = (q) => { const k = String(q || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return MANUALS.find((m) => m.key === k) || null; };
+  const findManual = (q) => { const k = String(q || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return MANUALS.find((m) => m.key.toLowerCase().replace(/[^a-z0-9]/g, '') === k) || null; };
   registerChatCommand('manual', (a, args) => {
     const words = String(Array.isArray(args) ? args.join(' ') : args || '').trim().split(/\s+/).filter(Boolean);
     const verb = (words[0] || '').toLowerCase();
