@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, display, who, openWidget, closeWidget, every, itemName } = api;
+  const { mp, log, personal, audit, display, who, openWidget, closeWidget, every, itemName, onUi } = api;
 
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { log(`alchemy: ${file} unreadable (${e.message})`); return fallback; } };
   const TABLE = readJson('alchemy-potions.json', { effects: {} }).effects || {};
@@ -134,10 +134,69 @@ module.exports = (api) => {
     const lines = list.length
       ? list.slice(0, PANEL_LINES).map((p) => `${p.name}: ${p.pair.map(ingredientName).join(' + ')}`).concat(list.length > PANEL_LINES ? [`and ${list.length - PANEL_LINES} more`] : [])
       : ['Nothing yet: no two of your ingredients share an effect.'];
+    if (BREW.length) lines.push('Crouch and use the lab to brew drinks.');
     openWidget(a, { type: 'contextMenu', id: PANEL_ID, mode: 'inspect', targetName: list.length ? `You can brew (${list.length})` : 'You can brew', lines }, false);
   };
+  // ---- drinks (Nate, 8 Oct: "add or create alcohol recipes for alchemy, includes skooma etc") ------------------------
+  // Crouching at a lab opens the Brewing panel instead of the lab's menu: every recipe of brewing.json at or under the
+  // brewer's Alchemist tier, one brewed per click, the inputs taken here (none of these is a two-ingredient mix the lab's
+  // own menu could make). The sneak state is the server's copy of the IsSneaking animation variable, as pickpocket.js reads.
+  const BREW_PANEL = 72;
+  const BREW = (() => {
+    const file = readJson('brewing.json', { recipes: [] });
+    const names = file.ingredients || {};
+    const id = (d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } };
+    const list = [];
+    for (const r of file.recipes || []) {
+      const product = id(r.product);
+      const inputs = (r.inputs || []).map(([d, n]) => ({ id: id(d), n: Math.max(1, Math.floor(Number(n) || 1)), name: names[d] || String(d) }));
+      if (!product || !inputs.length || inputs.some((x) => !x.id)) { log(`alchemy: drink ${r.name || r.product} left out (an item the server cannot resolve)`); continue; }
+      list.push({ product, name: String(r.name || r.product), tier: Math.max(1, Math.min(5, Math.floor(Number(r.tier) || 1))), inputs, contraband: r.contraband === true });
+    }
+    return list;
+  })();
+  const sneaking = (a) => { try { return !!mp.callPapyrusFunction('method', 'ObjectReference', 'GetAnimationVariableBool', { type: 'form', desc: mp.getDescFromId(a >>> 0) }, ['IsSneaking']); } catch (e) { return false; } };
+  const canBrew = (entries, r) => r.inputs.every((x) => countOf(entries, x.id) >= x.n);
+  const brewLab = globalThis.__dboBrewLab instanceof Map ? globalThis.__dboBrewLab : (globalThis.__dboBrewLab = new Map());
+  const openBrewing = (a, lab) => {
+    const tier = alchemistTier(a);
+    if (!tier) { personal(a, 'Brewing drinks is the Alchemist\'s trade. Take it up first.'); return; }
+    brewLab.set(a >>> 0, lab >>> 0);
+    const entries = invOf(a);
+    const mine = BREW.filter((r) => r.tier <= tier);
+    const actions = mine.map((r, i) => ({ id: `brew:${i}`, label: `${r.name}: ${r.inputs.map((x) => `${x.name} x${x.n}`).join(', ')}${canBrew(entries, r) ? '' : ' (missing)'}` }));
+    const locked = BREW.length - mine.length;
+    openWidget(a, { type: 'contextMenu', id: BREW_PANEL, mode: 'menu', targetName: `Brewing (Alchemist tier ${tier}${locked ? `; ${locked} more at higher tiers` : ''})`,
+      actions, events: { action: 'dbo:brewChoose', close: 'dbo:brewClose' } }, true);
+  };
+  const brewDrink = (a, choice) => {
+    const lab = brewLab.get(a >>> 0);
+    if (!lab || !atLab(a, lab)) { brewLab.delete(a >>> 0); return closeWidget(a, BREW_PANEL); }
+    const tier = alchemistTier(a);
+    const mine = BREW.filter((r) => r.tier <= tier);
+    const r = mine[Number(String(choice).split(':')[1])];
+    if (!r) return;
+    const entries = invOf(a);
+    if (!canBrew(entries, r)) { personal(a, `${r.name} needs ${r.inputs.map((x) => `${x.name} x${x.n}`).join(', ')}.`); return openBrewing(a, lab); }
+    for (const x of r.inputs) take(entries, x.id, x.n);
+    give(entries, r.product, 1);
+    try { mp.set(a, 'inventory', { entries: entries.filter((e) => Number(e.count) > 0) }); } catch (e) { log(`alchemy: inventory write failed for ${display(a)}: ${e.message}`); return; }
+    personal(a, `You brew ${r.name}.`);
+    creditBrew(a, r.product, tier);
+    log(`alchemy: ${display(a)} brewed ${r.name} (tier ${tier})`);
+    audit(`ALCHEMY ${who(a)} brewed ${r.name}${r.contraband ? ' (contraband)' : ''}`);
+    openBrewing(a, lab);
+  };
+  if (onUi) {
+    onUi('brewChoose', (a, args) => { try { brewDrink(a >>> 0, args && args[0]); } catch (e) { log(`alchemy: brewing failed: ${e.message}`); } });
+    onUi('brewClose', (a) => { brewLab.delete(a >>> 0); closeWidget(a, BREW_PANEL); });
+  }
+  globalThis.__dboBrewDrinks = BREW;
+
+  // true when the lab opened the Brewing panel instead of its own menu (gamemode.js then refuses the activation)
   globalThis.__dboAlchemyLab = (targetId, casterId) => {
     if (!openWidget || !isLab(targetId)) return false;
+    if (BREW.length && onUi && sneaking(casterId >>> 0)) { openBrewing(casterId >>> 0, targetId >>> 0); return true; }
     S.panels.set(casterId >>> 0, targetId >>> 0);
     try { showBrewable(casterId >>> 0); } catch (e) { log(`alchemy: brew list failed: ${e.message}`); }
     return false;   // the lab's own menu still opens
