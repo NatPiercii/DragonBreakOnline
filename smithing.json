@@ -10,6 +10,7 @@
   { "id": "steel", "name": "Steel", "tier": 2, "where": "sold at the Scholars' Ledger in the Synod Conclave" },
   { "id": "ancient_nord", "name": "Ancient Nord", "tier": 2, "where": "sold at the Scholars' Ledger in the Synod Conclave" },
   { "id": "ancient_nord_honed", "name": "Honed Ancient Nord", "tier": 2, "where": "sold at the Scholars' Ledger in the Synod Conclave" },
+  { "id": "ancient_imperial", "name": "Ancient Imperial", "tier": 2, "where": "found in Cyrodiil's ruins and forts, or sold at the Scholars' Ledger in the Synod Conclave" },
   { "id": "goblin", "name": "Goblin", "tier": 2, "where": "found in goblin camps" },
   { "id": "nordic", "name": "Nordic", "tier": 3, "where": "sold at the Scholars' Ledger in the Synod Conclave" },
   { "id": "orcish", "name": "Orcish", "tier": 3, "book": "apprentice", "supervisorRace": "OrcRace", "where": "Apprentice under an Orc Blacksmith" },

@@ -18,7 +18,7 @@ fs.copyFileSync(path.join(SERVER, 'smithing.json'), path.join(dir, 'smithing.jso
 fs.writeFileSync(path.join(dir, 'manuals.json'), JSON.stringify({ manuals: [] }));
 // Items: an iron sword (T1), a steel sword (T2), orcish (T3), dwarven (T4), glass (T5), an unclassified one
 const IRON = 0x12eb7, STEEL = 0x13989, ORC = 0x13991, DWARF = 0x139b4, GLASS = 0x139a5, ODD = 0x777777, INGOT = 0x5ace5, LEATHER = 0x800e4;
-fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass' } }));
+fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'imperial', '7a2:skyrim.esm': 'imperial', '7a3:skyrim.esm': 'imperial' } }));
 process.chdir(dir);
 
 const u32 = (x) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, x, true); return b; };
@@ -34,6 +34,10 @@ const BOOK_STEEL = 0xb0001, BOOK_GLASS = 0xb0002, BOOK_DRAGON = 0xb0003, ORC_RAC
 const bookData = () => { const b = new Uint8Array(16); new DataView(b.buffer).setUint32(8, 100, true); return b; };
 rec(BOOK_STEEL, 'BOOK', 'DBO_SchematicsSteel', [{ type: 'DATA', data: bookData() }]); rec(BOOK_GLASS, 'BOOK', 'DBO_SchematicsGlass', [{ type: 'DATA', data: bookData() }]);
 rec(BOOK_DRAGON, 'BOOK', 'DBO_SchematicsDragon', [{ type: 'DATA', data: bookData() }]);
+// Ancient Imperial is filed under loot-materials' "imperial" (Legion gear): split out by editor id or by name
+const ANC_HELM = 0x7a1, ANC_SHIELD = 0x7a2, LEGION_HELM = 0x7a3, R_ANC = 0xc1007, R_ANC2 = 0xc1008, R_LEGION = 0xc1009;
+rec(ANC_HELM, 'ARMO', 'DBO_AncientImperialHelmet'); rec(ANC_SHIELD, 'ARMO', 'DBO_ArmorOldEmpireShield'); rec(LEGION_HELM, 'ARMO', 'ArmorImperialHelmetFull');
+cobj(R_ANC, ANC_HELM, FORGE, [[INGOT, 1]]); cobj(R_ANC2, ANC_SHIELD, FORGE, [[INGOT, 1]]); cobj(R_LEGION, LEGION_HELM, FORGE, [[INGOT, 1]]);
 rec(ORC_RACE, 'RACE', 'OrcRace'); rec(NORD_RACE, 'RACE', 'NordRace');
 
 const A = 0xff000101, SUP = 0xff000102, ORCSMITH = 0xff000103, STAFF = 0xff000104;
@@ -56,7 +60,7 @@ const load = (smithing) => {
   const cfg = { smithing, manuals: { shop: { cells: ['cell'] } } };
   const common = { mp, log: () => {}, personal: (a, t) => told.push([a, t]), audit: (t) => audits.push(t), who: (a) => `#${(a >>> 0).toString(16)}`, display: (a) => `#${(a >>> 0).toString(16)}`, cfg,
     registerChatCommand: (n, fn) => cmds.set(n, fn), onlineActors: () => [A, SUP, ORCSMITH, STAFF], findByName: (q) => ({ a: A, sup: SUP }[q] || 0), isAdmin: (a) => a === STAFF,
-    sendPacket: () => true, itemName: (d) => ({ '13989:Skyrim.esm': 'Steel Sword', '12eb7:Skyrim.esm': 'Iron Sword', '13991:Skyrim.esm': 'Orcish Sword', '139b4:Skyrim.esm': 'Dwarven Sword' }[d] || ''), every: (n, ms, fn) => timers.set(n, fn), giveItem: (a, id, n) => { given.push([a, id, n]); return true; }, takeGold: () => true, depositToTreasury: () => 0, notify: () => {} };
+    sendPacket: () => true, itemName: (d) => ({ '13989:Skyrim.esm': 'Steel Sword', '12eb7:Skyrim.esm': 'Iron Sword', '13991:Skyrim.esm': 'Orcish Sword', '139b4:Skyrim.esm': 'Dwarven Sword', '7a2:Skyrim.esm': 'Ancient Imperial Shield', '7a3:Skyrim.esm': 'Imperial Helmet' }[d] || ''), every: (n, ms, fn) => timers.set(n, fn), giveItem: (a, id, n) => { given.push([a, id, n]); return true; }, takeGold: () => true, depositToTreasury: () => 0, notify: () => {} };
   delete require.cache[path.join(SERVER, 'manuals.js')]; delete require.cache[path.join(SERVER, 'smithing.js')];
   require(path.join(SERVER, 'manuals.js'))(common);
   require(path.join(SERVER, 'smithing.js'))(common);
@@ -151,6 +155,19 @@ ok(!(cmds.get('manual') && false) && globalThis.__dboTechniqueDrop('boss', 'nigh
 load(Object.assign({}, ON, { drops: { goblinCamp: { chance: 1, families: ['steel', 'DRAGON'] } } }));
 const d = globalThis.__dboTechniqueDrop('goblinCamp');
 ok(d && d.id === 'b0001:Skyrim.esm', 'a drop rule hands out a listed book, never the staff-only one', d);
+
+// Ancient Imperial (Nate, 9 Oct): its own T2 family with a book, split from the Legion's "imperial"
+load(ON); smith(A, 20); props.set(`${A}|private.dboManuals`, {}); props.set(`${SUP}|private.dboManuals`, {});
+ok(craft(A, ANC_HELM, R_ANC) === false && /Ancient Imperial/.test(lastTold(A)), 'an Ancient Imperial piece (by editor id) needs its technique', lastTold(A));
+ok(craft(A, ANC_SHIELD, R_ANC2) === false, '...also when only the name says Ancient Imperial');
+ok(craft(A, LEGION_HELM, R_LEGION) !== false, 'plain Imperial (Legion faction gear) is not gated here');
+props.set(`${A}|private.dboManuals`, { ancient_imperial: { at: 1, how: 'book' } });
+ok(craft(A, ANC_HELM, R_ANC) !== false && globalThis.__dboTemperCap(A, ANC_HELM) === 10 && globalThis.__dboTemperCap(A, LEGION_HELM) === 16, 'with the technique: crafted; tempered as T2 (no level at smith tier 2), the Legion piece unruled');
+const ai = globalThis.__dboSmithView(A).families.find((f) => f.id === 'ancient_imperial');
+ok(ai && ai.tier === 2 && ai.recipes.includes('Ancient Imperial Shield') && !ai.recipes.includes('Imperial Helmet'), 'the view lists Ancient Imperial at T2 with its own recipes', ai);
+rec(0xb0004, 'BOOK', 'DBO_SchematicsAncientImperial', [{ type: 'DATA', data: bookData() }]);
+load(Object.assign({}, ON, { books: Object.assign({}, ON.books, { ancient_imperial: 'b0004:Skyrim.esm' }), drops: { ruin: { chance: 1, families: ['ancient_imperial'] } } }));
+ok(globalThis.__dboManualsShop(A).some((x) => /^Schematics: Ancient Imperial \(T2\)/.test(x.label)) && globalThis.__dboTechniqueDrop('ruin').id === 'b0004:Skyrim.esm', 'its book "Schematics: Ancient Imperial" is sold and dropped like the other T2 books', globalThis.__dboManualsShop(A));
 
 // Staff
 cmds.get('smithing')(STAFF, 'teach sup dwarven');
