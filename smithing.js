@@ -48,17 +48,7 @@ module.exports = (api) => {
   const known = (a) => { const r = get(a, REC, null); return r && typeof r === 'object' ? r : {}; };
   const knows = (a, fam) => fam.tier <= 1 || !!known(a)[fam.id];
   const teach = (a, fam, how, from) => { set(a, REC, Object.assign({}, known(a), { [fam.id]: { at: Date.now(), how, from: from || how } })); audit(`SMITH ${who(a)} learned ${fam.name} (T${fam.tier}) by ${how}${from && from !== how ? ' from ' + from : ''}`); };
-  // Ancient Imperial is its own T2 family (Nate, 9 Oct), but loot-materials.json still files it under "imperial" (the
-  // Legion's gear, ungated): split it by editor id or name until loot_materials.py classifies it
-  const ANCIENT_IMPERIAL = /ancient\s*imperial/i;
-  const familyKeyOf = (itemId) => {
-    const key = ITEM_FAMILY[normDesc(descOf(itemId))];
-    if (key !== 'imperial' || !BY_FAMILY.has('ancient_imperial')) return key;
-    const r = lookup(itemId);
-    let name = ''; try { name = String(itemName(descOf(itemId)) || ''); } catch (e) { /* the editor id decides */ }
-    return ANCIENT_IMPERIAL.test(r ? String(r.record.editorId || '') : '') || ANCIENT_IMPERIAL.test(name) ? 'ancient_imperial' : key;
-  };
-  const familyOfItem = (itemId) => BY_FAMILY.get(familyKeyOf(itemId)) || null;
+  const familyOfItem = (itemId) => BY_FAMILY.get(ITEM_FAMILY[normDesc(descOf(itemId))]) || null;
   const raceEdid = (a) => { const app = get(a, 'appearance', null); const r = app && app.raceId ? lookup(Number(app.raceId) >>> 0) : null; return r ? String(r.record.editorId || '') : ''; };
   const dist = (a, b) => { const p = get(a, 'pos', null), q = get(b, 'pos', null); return Array.isArray(p) && Array.isArray(q) ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : Infinity; };
   const tell = (a, text) => { const now = Date.now(); if (now - (S.told.get(a >>> 0) || 0) < 3000) return; S.told.set(a >>> 0, now); personal(a, text); try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* chat is enough */ } };

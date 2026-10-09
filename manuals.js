@@ -54,7 +54,7 @@ module.exports = (api) => {
   });
   const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   // Smithing rework (smithing.js, config "smithing", Nate 9 Oct): a manual is the technique of a smithing.json family on the
-  // 7 craft tiers, "Schematics: <Family>", its book from smithing.books; no marker spell (the forge gate is server-side),
+  // 7 craft tiers, "Schematics: <Family>", its book smithing.json's bookId (config smithing.books overrides it); no marker spell (the forge gate is server-side),
   // read by the Scholar tier rule, no Orcish book (apprentice only), Dragon given only by staff
   const SMC = cfg.smithing || {};
   const SMITH = SMC.enabled === true;
@@ -83,7 +83,7 @@ module.exports = (api) => {
   let smithFamilies = [];
   if (SMITH) { try { smithFamilies = JSON.parse(fs.readFileSync(path.resolve('smithing.json'), 'utf8')).families || []; } catch (e) { log('manuals: smithing.json unreadable', e.message); } }
   const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice').map((f) => {
-    const bookId = idOf((SMC.books || {})[f.id]), bookRec = lookup(bookId);
+    const bookId = idOf((SMC.books || {})[f.id] || f.bookId), bookRec = lookup(bookId);
     return { key: f.id, name: f.name, title: `Schematics: ${f.name}`, tier: Math.max(2, Math.min(7, Number(f.tier) || 2)), bookId, markerId: 0,
       book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', ready: !!(bookId && bookRec) };
   }) : (Array.isArray(table.manuals) ? table.manuals : []).map((m) => {

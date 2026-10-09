@@ -18,7 +18,7 @@ fs.copyFileSync(path.join(SERVER, 'smithing.json'), path.join(dir, 'smithing.jso
 fs.writeFileSync(path.join(dir, 'manuals.json'), JSON.stringify({ manuals: [] }));
 // Items: an iron sword (T1), a steel sword (T2), orcish (T3), dwarven (T4), glass (T5), an unclassified one
 const IRON = 0x12eb7, STEEL = 0x13989, ORC = 0x13991, DWARF = 0x139b4, GLASS = 0x139a5, ODD = 0x777777, INGOT = 0x5ace5, LEATHER = 0x800e4;
-fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'imperial', '7a2:skyrim.esm': 'imperial', '7a3:skyrim.esm': 'imperial' } }));
+fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial' } }));
 process.chdir(dir);
 
 const u32 = (x) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, x, true); return b; };
@@ -34,7 +34,7 @@ const BOOK_STEEL = 0xb0001, BOOK_GLASS = 0xb0002, BOOK_DRAGON = 0xb0003, ORC_RAC
 const bookData = () => { const b = new Uint8Array(16); new DataView(b.buffer).setUint32(8, 100, true); return b; };
 rec(BOOK_STEEL, 'BOOK', 'DBO_SchematicsSteel', [{ type: 'DATA', data: bookData() }]); rec(BOOK_GLASS, 'BOOK', 'DBO_SchematicsGlass', [{ type: 'DATA', data: bookData() }]);
 rec(BOOK_DRAGON, 'BOOK', 'DBO_SchematicsDragon', [{ type: 'DATA', data: bookData() }]);
-// Ancient Imperial is filed under loot-materials' "imperial" (Legion gear): split out by editor id or by name
+// Ancient Imperial: its own loot-materials family (loot_materials.py EDID_FIRST), the Legion's pieces stay "imperial"
 const ANC_HELM = 0x7a1, ANC_SHIELD = 0x7a2, LEGION_HELM = 0x7a3, R_ANC = 0xc1007, R_ANC2 = 0xc1008, R_LEGION = 0xc1009;
 rec(ANC_HELM, 'ARMO', 'DBO_AncientImperialHelmet'); rec(ANC_SHIELD, 'ARMO', 'DBO_ArmorOldEmpireShield'); rec(LEGION_HELM, 'ARMO', 'ArmorImperialHelmetFull');
 cobj(R_ANC, ANC_HELM, FORGE, [[INGOT, 1]]); cobj(R_ANC2, ANC_SHIELD, FORGE, [[INGOT, 1]]); cobj(R_LEGION, LEGION_HELM, FORGE, [[INGOT, 1]]);
@@ -158,8 +158,8 @@ ok(d && d.id === 'b0001:Skyrim.esm', 'a drop rule hands out a listed book, never
 
 // Ancient Imperial (Nate, 9 Oct): its own T2 family with a book, split from the Legion's "imperial"
 load(ON); smith(A, 20); props.set(`${A}|private.dboManuals`, {}); props.set(`${SUP}|private.dboManuals`, {});
-ok(craft(A, ANC_HELM, R_ANC) === false && /Ancient Imperial/.test(lastTold(A)), 'an Ancient Imperial piece (by editor id) needs its technique', lastTold(A));
-ok(craft(A, ANC_SHIELD, R_ANC2) === false, '...also when only the name says Ancient Imperial');
+ok(craft(A, ANC_HELM, R_ANC) === false && /Ancient Imperial/.test(lastTold(A)), 'an Ancient Imperial piece needs its technique', lastTold(A));
+ok(craft(A, ANC_SHIELD, R_ANC2) === false, '...each piece of the family');
 ok(craft(A, LEGION_HELM, R_LEGION) !== false, 'plain Imperial (Legion faction gear) is not gated here');
 props.set(`${A}|private.dboManuals`, { ancient_imperial: { at: 1, how: 'book' } });
 ok(craft(A, ANC_HELM, R_ANC) !== false && globalThis.__dboTemperCap(A, ANC_HELM) === 10 && globalThis.__dboTemperCap(A, LEGION_HELM) === 16, 'with the technique: crafted; tempered as T2 (no level at smith tier 2), the Legion piece unruled');
@@ -168,6 +168,20 @@ ok(ai && ai.tier === 2 && ai.recipes.includes('Ancient Imperial Shield') && !ai.
 rec(0xb0004, 'BOOK', 'DBO_SchematicsAncientImperial', [{ type: 'DATA', data: bookData() }]);
 load(Object.assign({}, ON, { books: Object.assign({}, ON.books, { ancient_imperial: 'b0004:Skyrim.esm' }), drops: { ruin: { chance: 1, families: ['ancient_imperial'] } } }));
 ok(globalThis.__dboManualsShop(A).some((x) => /^Schematics: Ancient Imperial \(T2\)/.test(x.label)) && globalThis.__dboTechniqueDrop('ruin').id === 'b0004:Skyrim.esm', 'its book "Schematics: Ancient Imperial" is sold and dropped like the other T2 books', globalThis.__dboManualsShop(A));
+
+// The PC's books (9 Oct): smithing.json carries each family's bookId; config smithing.books overrides it
+const REAL = JSON.parse(fs.readFileSync(path.join(SERVER, 'smithing.json'), 'utf8')).families;
+const noBook = REAL.filter((f) => f.tier > 1 && !f.bookId).map((f) => f.id);
+ok(noBook.join() === 'ancient_imperial,orcish' && REAL.filter((f) => f.bookId).every((f) => /^[0-9a-f]+:DragonBreak Online Edits\.esp$/.test(f.bookId)), 'every family above T1 has a DLE book except Orcish (apprentice) and Ancient Imperial (book to come)', noBook);
+const steelBook = mp.getIdFromDesc(REAL.find((f) => f.id === 'steel').bookId);
+rec(steelBook, 'BOOK', 'DBO_Schematics_steel', [{ type: 'DATA', data: bookData() }]);
+load({ enabled: true, drops: {} });
+ok(globalThis.__dboManualsShop(A).some((x) => x.bookId === steelBook), "without config books the shop sells smithing.json's own book");
+load(ON);
+ok(globalThis.__dboManualsShop(A).some((x) => x.bookId === BOOK_STEEL) && !globalThis.__dboManualsShop(A).some((x) => x.bookId === steelBook), 'config smithing.books overrides it');
+const LM = JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')).counts;
+const noItems = REAL.filter((f) => !LM[f.id]).map((f) => f.id);
+ok(noItems.join() === 'bronze' && LM.madness && LM.amber && LM.glacial_crystal && LM.ancient_imperial, 'every smithing family has loot-materials items (Bronze is a metal with alternates of iron recipes)', noItems);
 
 // Staff
 cmds.get('smithing')(STAFF, 'teach sup dwarven');
@@ -179,7 +193,7 @@ ok(/Staff only/.test(lastTold(A)), 'players cannot use /smithing');
 const src = fs.readFileSync(path.join(SERVER, 'regions.js'), 'utf8');
 ok(/verdict !== false && typeof globalThis\.__dboSmithCrafted === 'function'/.test(src), 'regions.js counts the apprenticeship only after the final verdict');
 const dsrc = fs.readFileSync(path.join(SERVER, 'dungeons.js'), 'utf8'), wsrc = fs.readFileSync(path.join(SERVER, 'wildlife.js'), 'utf8');
-ok(/'ayleidRuin'/.test(dsrc) && /'dwemerRuin'/.test(dsrc) && /'falmerRuin'/.test(dsrc) && /__dboTechniqueDrop\(techniqueRuin\(d\), diff\.id\)/.test(dsrc) && /__dboTechniqueDrop\('goblinCamp'\)/.test(wsrc), 'ruin chests (Ayleid, Dwemer, Falmer) and goblin camps ask for a technique drop');
+ok(/'ayleidRuin'/.test(dsrc) && /'dwemerRuin'/.test(dsrc) && /'falmerRuin'/.test(dsrc) && /isCyrodiilFort\(d\) \? 'fort'/.test(dsrc) && /__dboTechniqueDrop\(techniqueRuin\(d\), diff\.id\)/.test(dsrc) && /__dboTechniqueDrop\('goblinCamp'\)/.test(wsrc), 'ruin chests (Ayleid, Dwemer, Falmer, Cyrodiil forts) and goblin camps ask for a technique drop');
 ok(/__dboSmithCraft\(actorId, itemId, recipeId\) === false\) return false;\n    \/\/ Faction gear first/.test(src), 'regions.js asks the smithing gate before faction gear');
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);
