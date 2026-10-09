@@ -1424,6 +1424,11 @@ module.exports = (api) => {
   // When the claim on the dungeon around this actor began, else 0: a coin purse inside fills again for each claim
   // (gamemode.js __dboCoinPurse), as its chests do, instead of resting from the last party's visit (G64E, 4 Oct)
   globalThis.__dboLeaseStartedAt = (a) => { const d = dungeonAround(a); const l = d ? ST.leases.get(d.id) : null; return l ? Number(l.startedAt) || 0 : 0; };
+  // The dungeons resting for this player, as /dungeon's "Resting for you" (the journal's Status, journal.js)
+  globalThis.__dboDungeonRestsFor = (a) => {
+    const cd = cooldownsOf(a);
+    return Object.keys(cd).filter((k) => Number(cd[k]) > Date.now()).map((k) => ({ name: (byId.get(k) || { name: k }).name, minutes: minutesLeft(cd[k]) }));
+  };
   globalThis.__dboDungeonLeave = (a) => {
     ST.pending.delete(a);
     if (!C.enabled) return false;
