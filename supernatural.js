@@ -2050,7 +2050,7 @@ module.exports = (api) => {
   // The penalties follow the clock while a stage change waits for the client: a relog inside the window holds no lower stage
   const penaltyStage = (a, s) => {
     const st = Math.max(1, Number(s.stage) || 1);
-    if (s.kind !== 'vampire' || s.unfed || !spellsSettling(a)) return st;
+    if (s.kind !== 'vampire' || !spellsSettling(a)) return st;
     const day = gameDays();
     return Math.max(st, Math.min(4, 1 + Math.floor(Math.max(0, day - (s.lastFed || day)) * bloodRate(a, '__dboBloodThirstRate'))));
   };
