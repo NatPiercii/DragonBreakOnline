@@ -1,5 +1,19 @@
 [
   {
+    "title": "Minotaurs hit harder",
+    "date": "2026-10-09",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Sancre Tor",
+        "items": [
+          "Minotaurs' blows land half again as hard as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Harder locks have more pins",
     "date": "2026-10-09",
     "version": "Server update",
