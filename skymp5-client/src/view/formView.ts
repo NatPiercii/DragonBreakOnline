@@ -811,6 +811,8 @@ export class FormView {
           //if (this.spawnMoment > 0 && Date.now() - this.spawnMoment > 5000) {
           if (applyEquipment(ac, model.equipment)) {
             this.eqState.lastNumChanges = model.equipment.numChanges;
+            this.weaponCheck = this.isPlayerCharacter() ? undefined : FormView.wornWeapon(model.equipment.inv.entries);
+            this.weaponCheckAt = Date.now() + FormView.weaponCheckDelayMs;
           }
           this.eqState.lastEqMoment = Date.now();
           //}
@@ -818,6 +820,10 @@ export class FormView {
           //if (res) this.eqState.lastNumChanges = model.equipment.numChanges;
         }
       }
+    }
+
+    if (this.weaponCheck && Date.now() >= this.weaponCheckAt && refr.is3DLoaded()) {
+      this.ensureWeapon(refr);
     }
 
     if (FormView.isDisplayingNicknames && this.refrId && model.appearance?.name) {
@@ -938,6 +944,34 @@ export class FormView {
       actor.addItem(form, 1, true);
       actor.equipItem(form, false, true);
     }
+  }
+
+  // The weapon the server equipped (MpActor::EquipBestWeapon); armor and spells are left to applyEquipment
+  private static wornWeapon(entries: { baseId: number; worn?: boolean; wornLeft?: boolean }[]): number | undefined {
+    const hit = entries.find((e) => (e.worn || e.wornLeft) && Game.getFormEx(e.baseId)?.getType() === FormType.Weapon);
+    return hit ? hit.baseId : undefined;
+  }
+
+  // setInventory's equip leaves a creature's copy unarmed (minotaurs punch, 9 Oct) while humanoid AI re-equips in combat; Papyrus EquipItem holds
+  private ensureWeapon(refr: ObjectReference): void {
+    const baseId = this.weaponCheck as number;
+    this.weaponCheck = undefined;
+    const ac = Actor.from(refr);
+    if (!ac || ac.isDead() || ac.getEquippedWeapon(false) || ac.getEquippedWeapon(true)) {
+      return;
+    }
+    const form = Game.getFormEx(baseId);
+    if (!form) {
+      return;
+    }
+    if (ac.getItemCount(form) < 1) {
+      ac.addItem(form, 1, true);
+    }
+    ac.equipItem(form, false, true);
+    sendCustomPacket(SpApiInteractor.getControllerInstance(), {
+      customPacketType: "dbo", event: "npcDrift",
+      args: [{ kind: "weaponEquip", remoteId: (this.remoteRefrId ?? 0).toString(16), baseId: baseId.toString(16), held: !!ac.getEquippedWeapon(false) }],
+    });
   }
 
   // ff_factions (server dungeons.js): the placement's own Lvl* template factions, which the spawned concrete base lacks
@@ -1300,6 +1334,9 @@ export class FormView {
   }
 
   private refrId = 0;
+  private weaponCheck: number | undefined;
+  private weaponCheckAt = 0;
+  private static readonly weaponCheckDelayMs = 1500;
   private ready = false;
   // undefined until the first update, so the first sight of an actor is not reported as a change
   private hostedLast: boolean | undefined = undefined;
