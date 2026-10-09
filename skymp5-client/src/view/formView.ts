@@ -354,6 +354,8 @@ export class FormView {
         this.realMagicka = model.appearance ? undefined : this.readBaseMagicka(actor);
         actor.setActorValue("magicka", COPY_MAGICKA);
         this.magickaSet = COPY_MAGICKA;
+        // Foolhardy: a server-driven copy never flees; the flee package crashed hosts mid-fight (MovementControllerNPC, 8-9 Oct)
+        actor.setActorValue("Confidence", 4);
         this.localImmortal = true;
       }
       if (actor) this.syncHostedMagicka(actor);
