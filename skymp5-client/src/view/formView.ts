@@ -303,6 +303,8 @@ export class FormView {
         actor.startDeferredKill();
         actor.setActorValue("health", 1000000);
         actor.setActorValue("magicka", 1000000);
+        // Foolhardy: a server-driven copy never flees; the flee package crashed hosts mid-fight (MovementControllerNPC, 8-9 Oct)
+        actor.setActorValue("Confidence", 4);
         this.localImmortal = true;
       }
       if (actor && !refId) {
