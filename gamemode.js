@@ -6449,13 +6449,6 @@ try {
     officialName, accountActors, ranksOf, APPOINT_RULES });
 } catch (e) { log('court.js failed to load:', e.stack || e.message); globalThis.__dboCourtOffer = null; globalThis.__dboCourtOfficeSync = null; if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.court; }
 
-// ---- the journal's Blacksmith tab (server\smithtab.js; the section is smithing.js's __dboSmithView) -------------------
-try {
-  const SMITHTAB_JS = path.resolve('smithtab.js');
-  delete require.cache[SMITHTAB_JS];
-  require(SMITHTAB_JS)({ log });
-} catch (e) { log('smithtab.js failed to load:', e.stack || e.message); if (globalThis.__dboJournalSections) delete globalThis.__dboJournalSections.smith; }
-
 // ---- werewolf beast form and Vampire Lord (server\beastform.js) ----------------------------------
 try {
   const BEASTFORM_JS = path.resolve('beastform.js');
