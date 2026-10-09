@@ -56,12 +56,13 @@ const load = (smithing) => {
   const cfg = { smithing, manuals: { shop: { cells: ['cell'] } } };
   const common = { mp, log: () => {}, personal: (a, t) => told.push([a, t]), audit: (t) => audits.push(t), who: (a) => `#${(a >>> 0).toString(16)}`, display: (a) => `#${(a >>> 0).toString(16)}`, cfg,
     registerChatCommand: (n, fn) => cmds.set(n, fn), onlineActors: () => [A, SUP, ORCSMITH, STAFF], findByName: (q) => ({ a: A, sup: SUP }[q] || 0), isAdmin: (a) => a === STAFF,
-    sendPacket: () => true, every: (n, ms, fn) => timers.set(n, fn), giveItem: (a, id, n) => { given.push([a, id, n]); return true; }, takeGold: () => true, depositToTreasury: () => 0, notify: () => {} };
+    sendPacket: () => true, itemName: (d) => ({ '13989:Skyrim.esm': 'Steel Sword', '12eb7:Skyrim.esm': 'Iron Sword', '13991:Skyrim.esm': 'Orcish Sword', '139b4:Skyrim.esm': 'Dwarven Sword' }[d] || ''), every: (n, ms, fn) => timers.set(n, fn), giveItem: (a, id, n) => { given.push([a, id, n]); return true; }, takeGold: () => true, depositToTreasury: () => 0, notify: () => {} };
   delete require.cache[path.join(SERVER, 'manuals.js')]; delete require.cache[path.join(SERVER, 'smithing.js')];
   require(path.join(SERVER, 'manuals.js'))(common);
   require(path.join(SERVER, 'smithing.js'))(common);
 };
-const craft = (a, item, recipe) => { globalThis.__dboSmithState.told.clear(); return globalThis.__dboSmithCraft(a, item, recipe); };
+// As regions.js: the gate, then (when the rest of the chain lets the craft on) the apprenticeship count
+const craft = (a, item, recipe, laterRefused) => { globalThis.__dboSmithState.told.clear(); const v = globalThis.__dboSmithCraft(a, item, recipe); if (v !== false && !laterRefused && globalThis.__dboSmithCrafted) globalThis.__dboSmithCrafted(a); return v; };
 const lastTold = (a) => (told.filter(([x]) => x === a).pop() || [])[1] || '';
 
 // ---- off: nothing changes ----
@@ -92,11 +93,14 @@ ok(craft(STAFF, STEEL, R_STEEL) === true, 'staff bypass the rules');
 cmds.get('smithing')(STAFF, 'test'); smith(STAFF, 0);
 ok(craft(STAFF, STEEL, R_STEEL) === false, '...unless /smithing test');
 
-// Apprenticeship
-smith(SUP, 50); props.set(`${SUP}|private.dboManuals`, { steel: { at: 1, how: 'book' } });
+// Apprenticeship: a teacher needs 75 Blacksmith points (Nate, 9 Oct), the technique and its tier
+smith(SUP, 74); props.set(`${SUP}|private.dboManuals`, { steel: { at: 1, how: 'book' } });
 put(SUP, 'pos', [9000, 0, 0]);
 ok(craft(A, STEEL, R_STEEL) === false, 'a supervisor out of range does not count');
 put(SUP, 'pos', [300, 0, 0]);
+ok(craft(A, STEEL, R_STEEL) === false, 'a teacher at 74 points cannot supervise');
+smith(SUP, 75);
+ok(craft(A, STEEL, R_STEEL, true) === true && !props.get(`${A}|private.dboSmithApprentice`), '...at 75 they can; a craft the rest of the chain refuses does not count');
 for (let i = 0; i < 9; i++) craft(A, STEEL, R_STEEL);
 ok(props.get(`${A}|private.dboSmithApprentice`).count === 9 && /9 of 10/.test(lastTold(A)) && /9 of 10/.test(lastTold(SUP)), 'under a supervisor within range: allowed, counted, both told', props.get(`${A}|private.dboSmithApprentice`));
 ok(craft(A, STEEL, R_STEEL) === true && props.get(`${A}|private.dboManuals`).steel.how === 'apprentice' && !props.get(`${A}|private.dboSmithApprentice`), 'the tenth supervised craft teaches Steel for good');
@@ -105,8 +109,10 @@ ok(craft(A, STEEL, R_STEEL) === true, '...and it needs no supervisor after');
 smith(A, 35);
 props.set(`${SUP}|private.dboManuals`, { steel: { at: 1 }, orcish: { at: 1 } }); put(SUP, 'pos', [300, 0, 0]);
 ok(craft(A, ORC, R_ORC) === false, 'Orcish under a non-Orc supervisor who knows it: refused (Orc Blacksmiths only)');
-smith(ORCSMITH, 50); props.set(`${ORCSMITH}|private.dboManuals`, { orcish: { at: 1 } });
-ok(craft(A, ORC, R_ORC) === true && props.get(`${A}|private.dboSmithApprentice`).family === 'orcish', '...under an Orc who knows it: counted');
+smith(ORCSMITH, 74); props.set(`${ORCSMITH}|private.dboManuals`, { orcish: { at: 1 } });
+ok(craft(A, ORC, R_ORC) === false, '...an Orc who knows it at 74 points: refused');
+smith(ORCSMITH, 80);
+ok(craft(A, ORC, R_ORC) === true && props.get(`${A}|private.dboSmithApprentice`).family === 'orcish', '...an Orc at 80: counted');
 
 // Upgrade caps
 smith(A, 35);   // tier 3
@@ -126,6 +132,9 @@ ok(v && v.tier === 2 && v.tierName === 'Standard' && v.points === 20 && v.nextAt
 ok(fam('steel').known && fam('steel').how === 'apprentice' && fam('steel').canMake === 1 && fam('iron').known && fam('iron').how === null && fam('iron').canMake === 1, 'known families say how, and count recipes makeable now', [fam('steel'), fam('iron')]);
 ok(!fam('glass').known && /Schematics: Glass/.test(fam('glass').learnHint) && /Orc Blacksmith/.test(fam('orcish').learnHint) && fam('glass').canMake === 0, 'unknown families carry the hint', [fam('glass').learnHint, fam('orcish').learnHint]);
 ok(v.families.every((f, i, arr) => i === 0 || arr[i - 1].tier <= f.tier), 'families sorted by tier');
+ok(Array.isArray(v.tierNames) && v.tierNames.length === 7 && v.tierNames[6] === 'Mythic', 'view: the 7 tier names (Skills menu)');
+ok(fam('steel').recipes.join('|') === 'Steel Sword' && fam('dwarven').recipes.length === 1 && Array.isArray(fam('glass').recipes), 'view: every family lists what its recipes make, known or not', [fam('steel').recipes, fam('dwarven').recipes]);
+ok(/Blacksmith 75 to teach/.test(fam('glass').learnHint) && /Orc Blacksmith.*75/.test(fam('orcish').learnHint), 'hints say a teacher needs Blacksmith 75', fam('orcish').learnHint);
 
 // Technique books (manuals.js, smithing mode)
 props.set(`${A}|private.dboManuals`, {});
@@ -151,6 +160,9 @@ ok(!props.get(`${SUP}|private.dboManuals`).dwarven && audits.some((t) => /forget
 told.length = 0; cmds.get('smithing')(A, 'list');
 ok(/Staff only/.test(lastTold(A)), 'players cannot use /smithing');
 const src = fs.readFileSync(path.join(SERVER, 'regions.js'), 'utf8');
+ok(/verdict !== false && typeof globalThis\.__dboSmithCrafted === 'function'/.test(src), 'regions.js counts the apprenticeship only after the final verdict');
+const dsrc = fs.readFileSync(path.join(SERVER, 'dungeons.js'), 'utf8'), wsrc = fs.readFileSync(path.join(SERVER, 'wildlife.js'), 'utf8');
+ok(/'ayleidRuin'/.test(dsrc) && /'dwemerRuin'/.test(dsrc) && /'falmerRuin'/.test(dsrc) && /__dboTechniqueDrop\(techniqueRuin\(d\), diff\.id\)/.test(dsrc) && /__dboTechniqueDrop\('goblinCamp'\)/.test(wsrc), 'ruin chests (Ayleid, Dwemer, Falmer) and goblin camps ask for a technique drop');
 ok(/__dboSmithCraft\(actorId, itemId, recipeId\) === false\) return false;\n    \/\/ Faction gear first/.test(src), 'regions.js asks the smithing gate before faction gear');
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);
