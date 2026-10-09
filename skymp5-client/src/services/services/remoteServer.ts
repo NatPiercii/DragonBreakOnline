@@ -71,6 +71,7 @@ import {
 import { TimeService } from './timeService';
 import { logTrace, logError } from '../../logging';
 
+import { sayShout } from "../../sync/shoutVoice";
 import { isReanimateSpell } from "../../sync/reanimateSpells";
 import { SpellCastMessage } from '../messages/spellCastMessage';
 import { UpdateAnimVariablesMessage } from '../messages/updateAnimVariablesMessage';
@@ -1338,6 +1339,10 @@ export class RemoteServer extends ClientListener {
           cloneSpellGuard.guardClone(ac.getFormID(), spellId);
         } else {
           cloneSpellGuard.guardHostileReplay(ac.getFormID(), spellId, this.cloneCastTimeoutMs);
+        }
+        // The cast gives the shout's effect, not its voice; a beast form's copy is left alone (guardedRace)
+        if (!msg.data.keepAlive && !guardedRace) {
+          try { sayShout(ac, spellId); } catch (e) { logError(this, `shout voice failed: ${e}`); }
         }
       }
     });
