@@ -15,8 +15,9 @@ const UNITS_PER_METER = 70;
 
 const buildMountJs = (name: string, isAdmin: boolean, settingsJson: string, chatHidden: boolean) => `(function(){
   try {
-    if (window.__alduinakChatReady) return;
     if (!window.skyrimPlatform || !window.skyrimPlatform.widgets) return;
+    // A reconnect or character switch wipes every widget on the same page, so mount again unless the chat is still there
+    if (window.__alduinakChatReady && (window.skyrimPlatform.widgets.get()||[]).some(function(w){ return w && w.type==='chat'; })) return;
     window.__alduinakChatReady = true;
     window.__alduinakAdmin = ${isAdmin ? 'true' : 'false'};
     window.__dboChatHidden = ${chatHidden ? 'true' : 'false'};
