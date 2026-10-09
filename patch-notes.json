@@ -1,14 +1,15 @@
 [
   {
-    "title": "Minotaurs hit harder",
+    "title": "The dead walk at Sancre Tor",
     "date": "2026-10-09",
     "version": "Server update",
-    "tag": "Balance",
+    "tag": "World",
     "sections": [
       {
-        "heading": "Sancre Tor",
+        "heading": "Sancre Tor and Minotaur's Rest",
         "items": [
-          "Minotaurs' blows land half again as hard as before."
+          "The minotaurs are gone: they stood and stared instead of fighting.",
+          "The old Imperial fort town's dead have risen in their place: skeletons and zombies, in greater numbers than the minotaurs were, with stronger zombies where the Minotaur Lords stood. They hit hard and take punishment."
         ]
       }
     ]

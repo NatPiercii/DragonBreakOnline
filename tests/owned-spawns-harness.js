@@ -54,6 +54,19 @@ try {
   ok(new Set(owned.map((z) => z.Name)).size === 45, 'every owned zone has its own name');
   const CHEST = idOf('154079:DragonBreak Online Edits.esp');
   ok(globalThis.__dboCampChest(CHEST, 0xff000275) === false && /goblins' chest/.test(said[0] || ''), 'the Dusk Thorn chest rolls the hourly camp loot as the goblins\' chest', said);
+  // Nate 9 Oct: ownedSpawns.replace puts Cyrodiil undead in the minotaurs' spots (Sancre Tor, Minotaur's Rest)
+  const minoSrc = O.spawns.filter((x) => x.kind === 'minotaur');
+  delete require.cache[require.resolve(path.join(ROOT, 'wildlife.js'))];
+  require(path.join(ROOT, 'wildlife.js'))({ mp: { get: (id, k) => props.get(`${id}|${k}`), set: (id, k, v) => props.set(`${id}|${k}`, v), getIdFromDesc: idOf },
+    log: () => {}, personal: (a, t) => said.push(t), system: () => {}, registerChatCommand: () => {}, giveItem: () => true, profileOf: () => 1,
+    display: String, who: String, audit: () => {}, isAdmin: () => false, cfg: { wildlife: cfg.wildlife || {}, ownedSpawns: cfg.ownedSpawns }, onlineActors: () => [], sendPacket: () => {} });
+  const z2 = JSON.parse(fs.readFileSync(path.join(dir, 'NPC-Spawns.json'), 'utf8')).zones.filter((z) => /^wild:[^:]+:p[0-9a-f]+-/.test(z.Name));
+  const rep = cfg.ownedSpawns.replace.minotaur;
+  const undead = z2.filter((z) => z.Name.startsWith('wild:undead:'));
+  ok(z2.length === 45 && !z2.some((z) => z.Name.startsWith('wild:minotaur:')) && undead.length === minoSrc.length && minoSrc.length > 0,
+    'every minotaur spot becomes an undead zone, the rest unchanged', { all: z2.length, undead: undead.length, mino: minoSrc.length });
+  ok(undead.every((z) => { const sp = minoSrc.find((x) => z.Name.endsWith(`:p${x.src.split(':')[0]}-dragonbreakonlineedits`)); return sp && rep.bases[sp.base].some(([, d]) => d === z.NPC[0].id) && z.Hostile === true && z.NPC[0].count === rep.count; }),
+    'each undead zone spawns one of its spot\'s replacements (a Lord spot a level-25 zombie) and attacks on sight, as many as replace.count');
 } finally {
   process.chdir(cwd);
   fs.rmSync(dir, { recursive: true, force: true });

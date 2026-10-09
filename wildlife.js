@@ -36,6 +36,19 @@ module.exports = (api) => {
   // own base at its own spot and heading; groups with a chest of ours are camps like the giants'.
   const OWNED = readJson('owned-spawns.json', { spawns: [], camps: [] });
   // Named after the placing reference, not a running number, so a regenerated list never renames another zone
+  // Another creature in a plugin's spot (Nate, 9 Oct: Sancre Tor's minotaurs only stared, their war axe never stayed in
+  // hand, so skeletons stand there instead). gamemode-config.json ownedSpawns.replace: { "<kind>": { "kind": "<new kind>",
+  // "bases": { "<placed base desc>": [[weight, "<desc>"], ...] }, "count": <1-4 per spot> } }. The new kind names the zones, so hostileKinds and
+  // factions are the new kind's; a base the map does not list keeps the plugin's own options.
+  const REPLACE = ((cfg.ownedSpawns || {}).replace) || {};
+  const replacedSpawn = (sp) => {
+    const r = REPLACE[sp.kind];
+    if (!r || typeof r !== 'object') return sp;
+    const bases = r.bases || {};
+    const opts = Array.isArray(bases[sp.base]) && bases[sp.base].length ? bases[sp.base] : null;
+    const count = Math.max(1, Math.min(4, Math.floor(Number(r.count) || 1)));   // how many stand in each spot
+    return Object.assign({}, sp, { kind: String(r.kind || sp.kind), options: opts || sp.options, count });
+  };
   const ownedZoneName = (sp) => { const [loc, plugin] = String(sp.src).split(':'); return `${PREFIX}${sp.kind}:p${loc}-${String(plugin || '').toLowerCase().replace(/\.es[mpl]$/, '').replace(/[^a-z0-9]/g, '')}`; };
   const LOOT = (readJson('loot.json', { pools: {} }).pools) || {};
   // Nate, 2026-09-29: artifacts are never loot (artifacts.json, as dungeons.js reads it); nor dragon bone and scales
@@ -88,12 +101,13 @@ module.exports = (api) => {
       if (!id) { if (left) n++; continue; }
       out.push({ Name: `${PREFIX}${pl.kind}:${n++}`, ID: pl.world, POS: pl.pos, Size: C.radius, Anchor: pl.ref, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
     }
-    for (const sp of OWNED.spawns || []) {
+    for (const raw of OWNED.spawns || []) {
       if (out.length >= C.maxZones) break;
-      if (!sp || !sp.src || !sp.kind || !sp.ref || !sp.world || !Array.isArray(sp.pos)) continue;
+      if (!raw || !raw.src || !raw.kind || !raw.ref || !raw.world || !Array.isArray(raw.pos)) continue;
+      const sp = replacedSpawn(raw);
       const { id } = safePick(sp.options, pickFor(sp));
       if (!id) continue;
-      out.push(Object.assign({ Name: ownedZoneName(sp), ID: sp.world, POS: sp.pos, Size: C.radius, Anchor: sp.ref, Heading: Number(sp.heading) || 0, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds }, HOSTILE_KINDS.has(sp.kind) ? { Hostile: true } : {}));
+      out.push(Object.assign({ Name: ownedZoneName(sp), ID: sp.world, POS: sp.pos, Size: C.radius, Anchor: sp.ref, Heading: Number(sp.heading) || 0, NPC: [{ id, count: sp.count || 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds }, HOSTILE_KINDS.has(sp.kind) ? { Hostile: true } : {}));
     }
     return out;
   };
