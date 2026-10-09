@@ -392,15 +392,9 @@
    1.1
   ],
   "oreStrikes": 6,
-  "firewoodByTier": [
-   3,
-   4,
-   5,
-   6,
-   8
-  ],
+  "firewoodByTier": [6, 8, 10, 12, 16],
   "veinRestMinutes": 30,
-  "blockRestMinutes": 10,
+  "blockRestMinutes": 5,
   "failRestMinutes": 2,
   "_clientJudged": "Jake, 2026-09-30: the widget judges the round on the player's machine and the server accepts its verdict, keeping only checks latency cannot fail (nonce, one report, the worker within nearMeters of the node when the report lands, plus 10 m for every second of that report's own lag up to 120 m more, or within it when their close arrived; no faster than the round's exact minimum, rests and yields). roundTimeoutMs cleans up a round nobody reports. replayCheck: 'log' lets a claimed win its own strike times do not bear out stand with a LABOUR-MISMATCH audit line, 'refuse' refuses it. ROLLBACK: commit clientJudged false to this file on origin/server and ship it (a release, or dev-server.sh deploy-gameplay --hotfix); today's server judging (lagGraceMs refuses late reports) comes back for every client. Not as a live-only edit: every release and hotfix copies this file over the live one and keeps only admins, so a live edit lasts only until the next deploy.",
   "clientJudged": true,
