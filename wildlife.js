@@ -143,13 +143,17 @@ module.exports = (api) => {
       && !(aboveCap && aboveCap(it.id, name === 'materials' ? 'metal' : name === 'arrows' ? 'ammo' : '')) && (name !== 'weapons' || (lootable(it.id) && inProvince(it, province))));
   };
   const provinceOf = (a) => { try { const R = globalThis.__dboRegions; const p = R && typeof R.provinceAt === 'function' ? R.provinceAt(a) : null; return p && typeof p.province === 'string' && p.province !== 'none' ? p.province : ''; } catch (e) { return ''; } };
+  const CAMP_ING_MAX = Number(C.campIngredientMaxValue) > 0 ? Number(C.campIngredientMaxValue) : 10;
+  const CAMP_ING_EXCLUDE = new Set((Array.isArray(C.campIngredientExclude) ? C.campIngredientExclude : ['DBJarrinRoot', 'Nirnroot', 'NirnrootRed', 'BSEdjenirnrootBlue01', 'HumanHeart', 'HumanFlesh', 'BriarHeart', 'DaedraHeart', 'VoidSalts', 'BSKAshSalts', 'HagravenClaw', 'HagravenFeathers', 'vampireDust', 'Ectoplasm', 'glowDust', 'WispWrappings', 'BSKWispStalk', 'DLC2GhoulAsh', 'DLC2AshHopperJelly', 'BSKMortFlesh']).map(String));
   const campLoot = (province = '') => {
     const out = [];
     const add = (item, count) => { if (!item) return; const id = idOf(item.id); if (id) out.push({ id, count, name: item.name }); };
     // Halved on 1 Oct with the dungeons' gold (was 15-45), and cut again on 4 Oct (gold-cut-1004, config wildlife.campGold)
     const coin = rnd(CAMP_GOLD[0], CAMP_GOLD[1]);
     if (coin > 0) out.push({ id: GOLD_BASE, count: coin, name: 'Gold' });
-    if (Math.random() < 0.6) add(pickFrom(pool('ingredients')), rnd(1, 3));
+    // Common ingredients only (Nate, 9 Oct: 'the loot chests give too rare alchemy ingredients'; Sancre Tor gave 3 Jarrin Root):
+    // worth campIngredientMaxValue or less and not on campIngredientExclude (rare finds stay with dungeons and the world)
+    if (Math.random() < 0.6) add(pickFrom(pool('ingredients').filter((it) => { const v = Number(it.value) || 0; return v >= 1 && v <= CAMP_ING_MAX && !CAMP_ING_EXCLUDE.has(String(it.name)); })), rnd(1, 3));
     if (Math.random() < 0.5) add(pickFrom(pool('materials')), rnd(1, 2));
     if (Math.random() < 0.25) add(pickFrom(pool('gems').filter((g) => !/flawless/i.test(g.name))), 1);
     if (Math.random() < 0.15) add(pickFrom(pool('soulgems').filter((g) => /petty|lesser/i.test(g.name))), 1);

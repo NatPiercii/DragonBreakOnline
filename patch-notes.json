@@ -1,5 +1,19 @@
 [
   {
+    "title": "Camp chests: common ingredients",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "Camp chests (Sancre Tor Ruins, Minotaur's Rest, the giant camps) now hold common ingredients only. Rare finds like Jarrin Root and Nirnroot stay out in the world and in dungeons."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Minotaurs fight back",
     "date": "SHIP_DATE",
     "version": "Server update",
