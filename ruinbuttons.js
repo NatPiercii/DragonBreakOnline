@@ -35,6 +35,28 @@ module.exports = (api) => {
       if (button.cell) groupCell.set(group, idOf(button.cell));
     }
   }
+  // One-way puzzle triggers (disable-triggers.json, tools/spawns/disable_triggers.py; Nate, 9 Oct: the Echo Cave barrier
+  // never came back). A vanilla defaultDisableSelfOnActivate disables itself when its chain fires it and goes to state
+  // Disabled for good, so a trigger only re-enabled would never drop its barrier again: the chain press disables it here
+  // instead, and the lease's end (or a load with no lease on the dungeon) enables it again
+  let TRIG = { triggers: [] };
+  try { TRIG = JSON.parse(fs.readFileSync(path.resolve('disable-triggers.json'), 'utf8')); } catch (e) { log('ruinbuttons: disable-triggers.json unreadable:', e.message); }
+  const byChain = new Map();   // chain refId -> [trigger]
+  for (const t of TRIG.triggers || []) for (const c of t.chains || []) { const id = idOf(c); if (id) byChain.set(id, (byChain.get(id) || []).concat(t)); }
+  const isDisabled = (id) => { try { return mp.get(id, 'isDisabled') === true; } catch (e) { return null; } };
+  const setDisabled = (id, v) => { try { mp.set(id, 'isDisabled', v); return true; } catch (e) { log(`ruinbuttons: isDisabled ${v} on ${id.toString(16)} failed: ${e.message}`); return false; } };
+  const resetTriggers = (dungeonId, why) => {
+    let n = 0;
+    for (const t of TRIG.triggers || []) {
+      if (t.dungeon !== dungeonId) continue;
+      const id = idOf(t.ref);
+      if (id && isDisabled(id) === true && setDisabled(id, false)) n++;
+    }
+    if (n) log(`ruinbuttons: ${dungeonId} ${why}, ${n} one-way trigger(s) enabled again`);
+    return n;
+  };
+  globalThis.__dboRuinTriggersReset = resetTriggers;
+
   // Open groups (survive hot reloads): group -> { ruinId, targets }
   const S = globalThis.__dboRuinButtons || (globalThis.__dboRuinButtons = { open: new Map() });
   if (!S.told) S.told = new Map();      // group -> actors already told it is open (this lease)
@@ -82,6 +104,15 @@ module.exports = (api) => {
   // true: ours, and the engine's own activation (its toggling chain) is blocked
   globalThis.__dboRuinButton = (targetId, casterId) => {
     if (!C.enabled) return false;
+    const chained = byChain.get(targetId >>> 0);
+    if (chained) {
+      // The chain still plays and fires as before; the trigger it fires is already off, so its barrier drops either way
+      for (const t of chained) {
+        const id = idOf(t.ref);
+        if (id && isDisabled(id) === false && setDisabled(id, true)) audit(`RUINBUTTON ${who(casterId)} pulled ${(targetId >>> 0).toString(16)} in ${t.dungeon}: ${t.ref} off`);
+      }
+      return false;
+    }
     const hit = byButton.get(targetId >>> 0);
     if (!hit) return false;
     const { ruin, button, group } = hit;
@@ -106,8 +137,16 @@ module.exports = (api) => {
     return true;
   };
 
+  // A trigger left off before this existed (Echo Cave's, since before 8 Oct) or by a lease that ended while this was not
+  // loaded: at load, every dungeon nobody holds a lease on gets its triggers back
+  if (C.enabled) {
+    const leases = globalThis.__dboDungeons && globalThis.__dboDungeons.leases;
+    for (const id of new Set((TRIG.triggers || []).map((t) => t.dungeon))) if (!(leases && leases.has(id))) resetTriggers(id, 'no lease at load');
+  }
+
   // dungeons.js endLease: close what this ruin's party opened, ready for the next one
   globalThis.__dboRuinLeaseEnded = (ruinId) => {
+    resetTriggers(ruinId, 'lease over');
     for (const [group, o] of [...S.open]) {
       if (o.ruinId !== ruinId) continue;
       let closed = 0;
