@@ -82,7 +82,7 @@ export class ConjurationSystem implements System {
     const summons = effects.filter((e) => e.archetype === MgefArchetype.SummonCreature && e.assocId);
     const pick = pickSummon(summons, () => this.casterRace(casterId));
     if (pick) {
-      this.companions.spawn(casterId, pick.effect.assocId, { kind: "summon", durationSec: this.duration(pick.timed), source: spellId });
+      this.companions.spawn(casterId, pick.effect.assocId, { kind: "summon", durationSec: this.duration(pick.timed, casterId, "summon"), source: spellId });
       return;
     }
     const reanimate = effects.find((e) => e.archetype === MgefArchetype.Reanimate);
@@ -117,8 +117,15 @@ export class ConjurationSystem implements System {
     }
   }
 
-  private duration(effect: SpellEffect): number {
-    return effect.durationSec >= PERMANENT_SEC ? 0 : effect.durationSec;
+  // The gameplay may lengthen a player's summon by the caster's Conjuration rank (server gamemode.js summonBuff)
+  private duration(effect: SpellEffect, casterId = 0, kind = ""): number {
+    if (effect.durationSec >= PERMANENT_SEC) return 0;
+    let mult = 1;
+    try {
+      const f = (globalThis as any).__dboSummonDurationMult;
+      if (casterId && typeof f === "function") mult = Number(f(casterId, kind));
+    } catch { mult = 1; }
+    return Number.isFinite(mult) && mult >= 1 && mult <= 10 ? effect.durationSec * mult : effect.durationSec;
   }
 
   private clearPending(casterId: number): void {
@@ -172,7 +179,7 @@ export class ConjurationSystem implements System {
     }
     const pos = [loc.pos[0], loc.pos[1], loc.pos[2] + REANIMATE_LIFT];
     const id = this.companions.spawn(casterId, baseIdOf(mp, corpseId),
-      { kind: "reanimated", pos, rot: loc.rot, durationSec: this.duration(effect), source: spellId, ashPile: turnsToAsh(mp, spellId) });
+      { kind: "reanimated", pos, rot: loc.rot, durationSec: this.duration(effect, casterId, "reanimated"), source: spellId, ashPile: turnsToAsh(mp, spellId) });
     if (id === null) return;
     try { mp.set(id, "inventory", inventory); } catch (e) { this.log(`ConjurationSystem: inventory copy to ${hex(id)} failed: ${e}`); }
     try { mp.destroyActor(corpseId); } catch { }
