@@ -80,8 +80,9 @@ module.exports = (api) => {
     // seam in Bruma, three veins in the province
     veinRestByOre: { meteoriciron: 60 },
     // Sea Salt Deposits (Saltdeposits.esp, copied into DragonBreak.esp) and the geodes of Whistling Mine: the Miner tier (0 based)
-    // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems
-    extraOreTier: { salt: 0, geode: 1, amethyst: 1, topaz: 1, ruby: 2, sapphire: 2, emerald: 3, diamond: 4 },
+    // that opens them, the chance of a rarer salt with the salt, and the cells whose geodes give soul gems. Tin at 0 with copper,
+    // for Bronze (no tin vein stands in the world yet: BSAssets' BSKMineOreTin veins are only in its test cell)
+    extraOreTier: { salt: 0, tin: 0, geode: 1, amethyst: 1, topaz: 1, ruby: 2, sapphire: 2, emerald: 3, diamond: 4 },
     // Every other geode gives the gem it is named for (the CYR ones name it in their MineOreScript Ore property)
     gemOre: { amethyst: '63b46:Skyrim.esm', topaz: '602427:BSAssets.esm', ruby: '63b42:Skyrim.esm', sapphire: '63b44:Skyrim.esm', emerald: '63b43:Skyrim.esm', diamond: '63b47:Skyrim.esm' },
     saltBonusChance: 0.1,
@@ -197,9 +198,13 @@ module.exports = (api) => {
     return m;
   })();
 
-  // "MineOreQuicksilver02_LTundraRocks" and "CYRMineOreCopper01_Rocks01" both give "quicksilver" / "copper"
+  // "MineOreQuicksilver02_LTundraRocks" and "CYRMineOreCopper01_Rocks01" both give "quicksilver" / "copper"; Beyond
+  // Skyrim's own BSKMineOreTin01 / BSKMineOreAdamantine01 are veins too, and Dragonborn's stalhrim deposit carries no
+  // number (DLC2MineOreStalhrim, DLC2MineOreStalhrim_DisappearOnDepletion): the name ends at a digit, "_" or the end
+  // (smithing obtainability audit, 9 Oct). Whether a miner may work the ore is still oresUpTo's.
+  const VEIN = /^(?:CYR|DLC2|BSK)?MineOre([A-Za-z]+?)(?:\d|_|$)/;
   const oreOf = (edid) => {
-    const m = /^(?:CYR)?MineOre([A-Za-z]+?)\d/.exec(edid) || /^DLC2MineOre([A-Za-z]+?)\d/.exec(edid);
+    const m = VEIN.exec(edid);
     if (!m) return '';
     // The vanilla Geode Veins (Whistling Mine, Blackreach) are MineOreBlackreach*: soul gems, not ore
     const ore = m[1].toLowerCase();
@@ -423,7 +428,7 @@ module.exports = (api) => {
     if (!rec || !rec.record) return false;
     const type = String(rec.record.type || '');
     const edid = String(rec.record.editorId || '');
-    if (type === 'ACTI' && (/^(CYR)?MineOre|^DLC2MineOre/.test(edid) || nodeOf(targetId, edid))) return mine(targetId, casterId, rec);
+    if (type === 'ACTI' && (VEIN.test(edid) || nodeOf(targetId, edid))) return mine(targetId, casterId, rec);
     if (type === 'FURN' && /^(DLC2)?WoodChoppingBlock/i.test(edid)) { endGathering(targetId); return chop(targetId, casterId); }
     // A seam's pickaxe marker pays out through the vanilla mining script: no round, no skill, no rest (Nate on Falcius,
     // 2026-09-28: refused at a gold seam, then mined it from its PickaxeMiningFloorMarker). The round on the seam
