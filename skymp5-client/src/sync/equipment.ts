@@ -116,8 +116,10 @@ export const syncSpellEquipment = (
   }
 };
 
-// A held torch is unequipped the engine's way before the wipe, so its light goes out (stacked lights near torch bearers, 8 Oct)
+// A remote actor's held torch is unequipped the engine's way before the wipe, so its light goes out (stacked lights near torch bearers, 8 Oct)
+// Never the player: applyEquipment runs on them at login, and pulling their torch mid-load crashed every login (9 Oct)
 const putOutHeldLight = (ac: Actor): void => {
+  if (ac.getFormID() === 0x14) return;
   const held = ac.getEquippedObject(0);
   if (!held || held.getType() !== FormType.Light) return;
   try { ac.unequipItem(held, false, true); } catch { return; }
