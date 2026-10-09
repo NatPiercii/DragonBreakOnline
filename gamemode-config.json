@@ -831,6 +831,8 @@
   "clientJudged": true,
   "_pick": "Find where the pins give (Nate, 4-5 Oct: no timing mini-games). A UI that says dbo:uiCaps pickRound and lockpickLocal (front 0.3.77+) gets a lock with no push and hang: every try shows spotsByLevel positions along the pick's travel (Novice to Master lock), one where the tumbler gives with the clearest cue; cueByTier and decoyByTier set how clear (a non-Lockpicker first, then Novice to Master Lockpicking). A right pick sets the loose tumbler; a wrong one is a miss and snaps the pick on the try whose snap was rolled, from the snap odds as today. seconds bounds the whole lock, maxTries the tries. Picks, snaps, onSuccess and mastery credit are unchanged. Every other UI keeps today's lock. ROLLBACK: pick.enabled false. Hot reload.",
   "pick": { "enabled": true, "seconds": 180, "maxTries": 60, "spotsByLevel": [3, 3, 4, 4, 5], "cueByTier": [0.6, 0.65, 0.72, 0.8, 0.9, 1], "decoyByTier": [0.45, 0.42, 0.36, 0.3, 0.22, 0.14], "minPickMs": 150 },
+  "_tumblersByLevel": "Tumblers per lock, Novice to Master (lockpick.js; Nate, 9 Oct: \"higher the lock, more pins you have to do\"). Default one per level.",
+  "tumblersByLevel": [2, 3, 4, 6, 8],
   "replayCheck": "log",
   "roundTimeoutMinutes": 10
  },

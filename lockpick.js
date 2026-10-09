@@ -1,7 +1,7 @@
 // DragonBreak Online: Oblivion-style lockpicking, loaded by gamemode.js. jail.js (cell doors) and dungeons.js (locked
 // chests) call globalThis.__dboLockpick instead of rolling a chance.
 //
-// A lock has one tumbler per lock level (Novice 1 .. Master 5). The player pushes a tumbler: it rises, hangs at the top
+// A lock has tumblersByLevel tumblers by its level (default one per level, Novice 1 .. Master 5). The player pushes a tumbler: it rises, hangs at the top
 // for a moment and falls back. Setting it while it hangs locks it in place; setting it too early or too late may snap the
 // pick. A higher Lockpicking tier makes tumblers hang longer and picks snap less; a harder lock hangs shorter. The
 // server draws every tumbler's hang time and judges each try from the times the widget reports, the labour.js model:
@@ -57,7 +57,11 @@ module.exports = (api) => {
     // A try the widget says landed that the hang times do not bear out: 'log' lets it stand with a LOCKPICK-MISMATCH
     // audit line, 'refuse' refuses the report (picks for its snaps are still taken)
     replayCheck: 'log',
+    // Tumblers per lock level, Novice to Master (Nate, 9 Oct: "higher the lock, more pins you have to do")
+    tumblersByLevel: [1, 2, 3, 4, 5],
   }, cfg.lockpick || {});
+  // Whole numbers 1-12 only; anything else is the old one per level
+  const tumblersOf = (level) => { const n = MG.byTier(C.tumblersByLevel, level, level + 1); return Number.isInteger(n) && n >= 1 && n <= 12 ? n : level + 1; };
   // "Find where the pins give" (Nate, 4-5 Oct: no timing mini-games): a client lock for a UI that also names MG.PICK_CAP has
   // no push and hang. Every try shows positions along the pick's travel (spotsByLevel, by the lock), one where the
   // tumbler gives with the clearest cue (cueByTier and decoyByTier: the first for a non-Lockpicker, then Novice to
@@ -158,7 +162,7 @@ module.exports = (api) => {
     const level = Math.max(0, Math.min(4, Number(opts.level) || 0));
     const tier = tierOf(a);
     const H = C.hold;
-    const holds = Array.from({ length: level + 1 }, () => {
+    const holds = Array.from({ length: tumblersOf(level) }, () => {
       const mean = H.base + H.perTier * (tier + 1) + H.perLevel * level;
       return Math.round(Math.max(H.min, mean * (1 + (Math.random() * 2 - 1) * H.jitter)));
     });
@@ -417,7 +421,7 @@ module.exports = (api) => {
     for (let k = 0; k < r.snapped; k++) if (takePick(a)) taken++;
     const own = Number.isFinite(startMs) && Number.isFinite(endMs) ? endMs - startMs : NaN;
     const sinceSent = nowMs() - (Number(L.sentAt) || nowMs());
-    const minMs = L.pick ? MG.pickMinMs(L.level + 1, L.minPickMs) : (L.level + 1) * Math.max(0, C.riseMs - C.graceMs);
+    const minMs = L.pick ? MG.pickMinMs(L.holds.length, L.minPickMs) : L.holds.length * Math.max(0, C.riseMs - C.graceMs);
     const sus = [];
     if (r.mismatch) sus.push('mismatch');
     if (closed) sus.push('after-close');

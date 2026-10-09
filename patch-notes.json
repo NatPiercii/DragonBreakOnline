@@ -1,5 +1,19 @@
 [
   {
+    "title": "Harder locks have more pins",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Lockpicking",
+        "items": [
+          "The higher the lock, the more pins you have to set: Novice 2, Apprentice 3, Adept 4, Expert 6, Master 8."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Werewolf howls",
     "date": "SHIP_DATE",
     "version": "Server update",
