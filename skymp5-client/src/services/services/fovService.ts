@@ -10,6 +10,13 @@ const FOV_MIN = 50, FOV_MAX = 140;
 const AFTER_MENU_S = 0.5;
 // A second pass once the spawned world has settled, in case anything set the camera again after the load
 const AFTER_LOAD_S = 2;
+// Checks after a load: a camera found off the player's value is set again and the server log says what it held
+const GUARD_S = [5, 15, 30];
+
+const note = (text: string): void => {
+  const n = (globalThis as { __dboDiagNote?: (kind: string, text: string) => void }).__dboDiagNote;
+  try { if (typeof n === "function") n("fov", text); } catch { /* diagnostics only */ }
+};
 
 const sane = (v: number): boolean => Number.isFinite(v) && v >= FOV_MIN && v <= FOV_MAX;
 
@@ -24,6 +31,7 @@ export class FovService extends ClientListener {
     this.controller.on("loadGame", () => this.controller.once("update", () => {
       this.apply("the game loaded");
       this.later(AFTER_LOAD_S, "the world settled");
+      for (const s of GUARD_S) this.sp.Utility.wait(s).then(() => this.controller.once("update", () => this.guard(s)));
     }));
     this.controller.on("menuClose", (e) => {
       if (e.name !== "RaceSex Menu") return;
@@ -43,6 +51,7 @@ export class FovService extends ClientListener {
       if (sane(world)) this.world = world;
       if (sane(first)) this.first = first;
       logTrace(this, "Field of view configured as", `world ${this.world ?? "unset"}`, `first person ${this.first ?? "unset"}`);
+      note(`configured world ${this.world ?? "unset"} first ${this.first ?? "unset"} (ini read ${world} / ${first})`);
     } catch (e) {
       logError(this, "could not read the configured field of view", e);
     }
@@ -61,10 +70,29 @@ export class FovService extends ClientListener {
     const was = this.cameraFov();
     if (this.setCameraFov()) {
       logTrace(this, "Field of view applied", why, `camera was ${was}`, `now world ${this.world ?? "unchanged"}`, `first person ${this.first ?? "unchanged"}`);
+      note(`applied (${why}): camera was ${was}, now ${this.cameraFov()}`);
       return;
     }
+    note(`camera natives failed (${why}), ini only`);
     logTrace(this, "Field of view restored in the ini only", why);
     this.rebuildCamera();
+  }
+
+  // The camera set back to the player's value when anything moved it after the load
+  private guard(seconds: number): void {
+    if (this.world === null && this.first === null) return;
+    if (this.creatorOpen()) return;
+    const off = (v: unknown, want: number | null): boolean => want !== null && Number.isFinite(Number(v)) && Math.abs(Number(v) - want) > 0.5;
+    let world: unknown, first: unknown;
+    try {
+      world = this.sp.callNative("Camera", "GetWorldFieldOfView", undefined);
+      first = this.sp.callNative("Camera", "GetFirstPersonFieldOfView", undefined);
+    } catch (e) {
+      return;
+    }
+    if (!off(world, this.world) && !off(first, this.first)) return;
+    note(`moved after the load (+${seconds} s): camera world ${world} first person ${first}, set back`);
+    this.apply(`guard +${seconds} s`);
   }
 
   private creatorOpen(): boolean {
