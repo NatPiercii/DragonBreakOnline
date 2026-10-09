@@ -36,33 +36,59 @@ module.exports = (api) => {
   };
   const housing = () => globalThis.__dboHousing || null;
 
-  // Load doors from doors.json, with their places cached: they never move
+  // Load doors and their places from doors-pos.json (tools/door-positions.py), with no engine call: loading all 4049
+  // refs through mp.get froze the main thread 3.5 min on the first tenancy action of every process (5-9 Oct).
+  // claude-jake's design: the precomputed file first, and a door it lacks resolved a few at a time on timers.
+  const SLICE = 2, SLICE_MS = 250;
   const doorList = () => {
     if (S.doors) return S.doors;
-    let ids = [];
-    try { ids = Object.keys(JSON.parse(fs.readFileSync(path.resolve('doors.json'), 'utf8')).doors || {}); } catch (e) { log('tenancy: doors.json unreadable', e.message); }
+    let file = {}, listed = [];
+    try { file = JSON.parse(fs.readFileSync(path.resolve('doors-pos.json'), 'utf8')); } catch (e) { log('tenancy: doors-pos.json unreadable', e.message); }
+    try { listed = Object.keys(JSON.parse(fs.readFileSync(path.resolve('doors.json'), 'utf8')).doors || {}); } catch (e) { log('tenancy: doors.json unreadable', e.message); }
+    const placed = file.doors || {};
     S.doors = [];
-    for (const desc of ids) {
-      try {
-        const id = mp.getIdFromDesc(desc) >>> 0;
-        const pos = mp.get(id, 'pos');
-        const where = String(mp.get(id, 'worldOrCellDesc') || '').toLowerCase();
-        if (Array.isArray(pos) && where) S.doors.push({ id, pos, where });
-      } catch (e) { /* not in this load order */ }
+    for (const [desc, p] of Object.entries(placed)) {
+      if (Array.isArray(p) && p.length >= 4 && p.slice(0, 3).every(Number.isFinite) && typeof p[3] === 'string') S.doors.push({ desc, pos: p.slice(0, 3), where: p[3].toLowerCase(), id: 0 });
     }
-    log(`tenancy: ${S.doors.length} load doors placed`);
+    const off = new Set(Array.isArray(file.off) ? file.off : []);
+    const pending = listed.filter((d) => !placed[d] && !off.has(d));
+    log(`tenancy: ${S.doors.length} load doors placed${pending.length ? `, ${pending.length} more to resolve in the background` : ''}`);
+    if (pending.length) resolveLater(pending, S.doors);
     return S.doors;
+  };
+  // The old synchronous lookup, SLICE doors per timer; a reload that rebuilds the list ends the old run
+  const resolveLater = (pending, list) => {
+    let added = 0;
+    const step = () => {
+      if (S.doors !== list) return;
+      for (const desc of pending.splice(0, SLICE)) {
+        try {
+          const id = mp.getIdFromDesc(desc) >>> 0;
+          const pos = mp.get(id, 'pos');
+          const where = String(mp.get(id, 'worldOrCellDesc') || '').toLowerCase();
+          if (Array.isArray(pos) && where) { list.push({ desc, pos, where, id }); added++; }
+        } catch (e) { /* not in this load order */ }
+      }
+      if (pending.length) setTimeout(step, SLICE_MS);
+      else log(`tenancy: ${added} more load door(s) placed in the background`);
+    };
+    setTimeout(step, SLICE_MS);
+  };
+  // Only the door found is resolved to an id
+  const idOf = (d) => {
+    if (!d.id) { try { d.id = mp.getIdFromDesc(d.desc) >>> 0; } catch (e) { d.id = 0; } }
+    return d.id;
   };
   const doorAt = (a) => {
     let me, here;
     try { me = mp.get(a, 'pos'); here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase(); } catch (e) { return 0; }
-    let best = 0, dist = C.reach;
+    let best = null, dist = C.reach;
     for (const d of doorList()) {
       if (d.where !== here) continue;
       const k = Math.hypot(d.pos[0] - me[0], d.pos[1] - me[1], d.pos[2] - me[2]);
-      if (k < dist) { dist = k; best = d.id; }
+      if (k < dist) { dist = k; best = d; }
     }
-    return best;
+    return best ? idOf(best) : 0;
   };
 
   const me = (a) => ({ profile: Number(profileOf(a)), tag: tagOf(a), name: display(a) });
