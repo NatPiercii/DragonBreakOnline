@@ -5,6 +5,9 @@
 // learnedEnchantments.enabled (off until the client that reads it ships).
 //   node tests/enchant-learned-harness.js   (from server/)
 'use strict';
+// The base enchantments that ride along (ench-bases.json) are checked in enchant-learned-ids-harness; these checks read the effects
+const BASE_IDS = new Set(Object.keys(require('../ench-bases.json').bases).map((h) => parseInt(h, 16)));
+const effectsOnly = (pk) => (pk && Array.isArray(pk.effects) ? { ...pk, effects: pk.effects.filter((x) => !BASE_IDS.has(x >>> 0)), sent: pk.effects.length } : pk);
 const path = require('path');
 const fs = require('fs');
 const SERVER = path.resolve(__dirname, '..');
@@ -37,7 +40,7 @@ const mp = {
 const load = (cfg) => {
   delete require.cache[path.join(SERVER, 'alchemy.js')];
   require(path.join(SERVER, 'alchemy.js'))({ mp, log: (...x) => logs.push(x.join(' ')), personal: () => {}, audit: () => {}, display: () => 'the player', who: () => 'the player',
-    openWidget: () => {}, closeWidget: () => {}, every: () => {}, itemName: () => '', cfg, sendPacket: (a, pk) => packets.push([a, pk]) });
+    openWidget: () => {}, closeWidget: () => {}, every: () => {}, itemName: () => '', cfg, sendPacket: (a, pk) => packets.push([a, effectsOnly(pk)]) });
 };
 const place = (a, entries) => {
   put(a, 'inventory', { entries: entries.map((e) => Object.assign({}, e)) });
@@ -75,9 +78,9 @@ const S = globalThis.__dboDisenchantSession;
 place(P, [{ baseId: DAGGER, count: 1 }]);
 disenchant(P, [DAGGER]);
 packets.length = 0;
-ok(globalThis.__dboEnchLearnedResend(P) === 3 && packets.length === 1 && packets[0][1].customPacketType === 'dboEnchLearned', 'resend: sends the learned effects and says how many', packets);
+ok(globalThis.__dboEnchLearnedResend(P) === packets[0]?.[1].sent && packets.length === 1 && packets[0][1].effects.length === 3 && packets[0][1].customPacketType === 'dboEnchLearned', 'resend: sends the learned effects and says how many', packets);
 ok(!!(S && S.get(P >>> 0) && S.get(P >>> 0).ench.size), "...and leaves this session's disenchants in place", S && S.get(P >>> 0));
-ok(logs.some((l) => /asked for their learned enchantments: 3 effect\(s\) sent/.test(l)), '...and logs the ask', logs.filter((l) => /asked for/.test(l)));
+ok(logs.some((l) => new RegExp(`asked for their learned enchantments: ${packets[0][1].sent} effect\\(s\\) sent`).test(l)), '...and logs the ask', logs.filter((l) => /asked for/.test(l)));
 ok(globalThis.__dboEnchLearnedResend(Q) === 0, '...0 for a character with nothing recorded');
 globalThis.__dboEnchLearnedLogin(P);
 ok(!S.get(P >>> 0), 'the login itself still starts a new session');

@@ -1,0 +1,342 @@
+{
+ "_comment": "Base enchantments and their effects as server form ids (tools/ench-base-table.py over the server load order); the game marks these known when an item is disenchanted",
+ "bases": {
+  "10ead1": {
+   "editorId": "EnchRobesAlterationBase",
+   "effects": [
+    "10962e",
+    "109630"
+   ]
+  },
+  "10ead2": {
+   "editorId": "EnchRobesConjurationBase",
+   "effects": [
+    "10962f",
+    "109630"
+   ]
+  },
+  "10ead3": {
+   "editorId": "EnchRobesDestructionBase",
+   "effects": [
+    "109631",
+    "109630"
+   ]
+  },
+  "10ead4": {
+   "editorId": "EnchRobesIllusionBase",
+   "effects": [
+    "109633",
+    "109630"
+   ]
+  },
+  "10ead5": {
+   "editorId": "EnchRobesRestorationBase",
+   "effects": [
+    "109634",
+    "109630"
+   ]
+  },
+  "10fb6f": {
+   "editorId": "EnchArmorArticulationBase",
+   "effects": [
+    "f6906"
+   ]
+  },
+  "10fb70": {
+   "editorId": "EnchArmorFortifyAlchemyBase",
+   "effects": [
+    "8b65c"
+   ]
+  },
+  "10fb71": {
+   "editorId": "EnchArmorFortifyAlterationBase",
+   "effects": [
+    "7a0f2"
+   ]
+  },
+  "10fb72": {
+   "editorId": "EnchArmorFortifyBlockBase",
+   "effects": [
+    "7a0f3"
+   ]
+  },
+  "10fb73": {
+   "editorId": "EnchArmorFortifyCarryBase",
+   "effects": [
+    "7a0f4"
+   ]
+  },
+  "10fb74": {
+   "editorId": "EnchArmorFortifyConjurationBase",
+   "effects": [
+    "7a0f5"
+   ]
+  },
+  "10fb75": {
+   "editorId": "EnchArmorFortifyDestructionBase",
+   "effects": [
+    "7a0f6"
+   ]
+  },
+  "10fb76": {
+   "editorId": "EnchArmorFortifyHealRateBase",
+   "effects": [
+    "7a0f8"
+   ]
+  },
+  "10fb77": {
+   "editorId": "EnchArmorFortifyHealthBase",
+   "effects": [
+    "493aa"
+   ]
+  },
+  "10fb78": {
+   "editorId": "EnchArmorFortifyHeavyArmorBase",
+   "effects": [
+    "7a0f9"
+   ]
+  },
+  "10fb79": {
+   "editorId": "EnchArmorFortifyIllusionBase",
+   "effects": [
+    "7a0fa"
+   ]
+  },
+  "10fb7a": {
+   "editorId": "EnchArmorFortifyLightArmorBase",
+   "effects": [
+    "7a0fb"
+   ]
+  },
+  "10fb7b": {
+   "editorId": "EnchArmorFortifyLockpickingBase",
+   "effects": [
+    "7a0fc"
+   ]
+  },
+  "10fb7c": {
+   "editorId": "EnchArmorFortifyMagickaBase",
+   "effects": [
+    "49504"
+   ]
+  },
+  "10fb7d": {
+   "editorId": "EnchArmorFortifyMagickaRateBase",
+   "effects": [
+    "7a0fd"
+   ]
+  },
+  "10fb7e": {
+   "editorId": "EnchArmorFortifyMarksmanBase",
+   "effects": [
+    "7a0fe"
+   ]
+  },
+  "10fb7f": {
+   "editorId": "EnchArmorFortifyOneHandedBase",
+   "effects": [
+    "7a0ff"
+   ]
+  },
+  "10fb80": {
+   "editorId": "EnchArmorFortifyPickpocketBase",
+   "effects": [
+    "7a100"
+   ]
+  },
+  "10fb81": {
+   "editorId": "EnchArmorFortifyRestorationBase",
+   "effects": [
+    "7a101"
+   ]
+  },
+  "10fb82": {
+   "editorId": "EnchArmorFortifySmithingBase",
+   "effects": [
+    "7a102"
+   ]
+  },
+  "10fb83": {
+   "editorId": "EnchArmorFortifySneakBase",
+   "effects": [
+    "7a103"
+   ]
+  },
+  "10fb84": {
+   "editorId": "EnchArmorFortifySpeechcraftBase",
+   "effects": [
+    "7a104"
+   ]
+  },
+  "10fb85": {
+   "editorId": "EnchArmorFortifyStaminaBase",
+   "effects": [
+    "49507"
+   ]
+  },
+  "10fb86": {
+   "editorId": "EnchArmorFortifyStaminaRateBase",
+   "effects": [
+    "7a105"
+   ]
+  },
+  "10fb87": {
+   "editorId": "EnchArmorFortifyTwoHandedBase",
+   "effects": [
+    "7a106"
+   ]
+  },
+  "10fb88": {
+   "editorId": "EnchArmorFortifyUnarmedBase",
+   "effects": [
+    "424e2"
+   ]
+  },
+  "10fb89": {
+   "editorId": "EnchArmorMuffleBase",
+   "effects": [
+    "92a57"
+   ]
+  },
+  "10fb8a": {
+   "editorId": "EnchArmorResistDiseaseBase",
+   "effects": [
+    "100e60"
+   ]
+  },
+  "10fb8b": {
+   "editorId": "EnchArmorResistFireBase",
+   "effects": [
+    "48c8b"
+   ]
+  },
+  "10fb8c": {
+   "editorId": "EnchArmorResistFrostBase",
+   "effects": [
+    "48f45"
+   ]
+  },
+  "10fb8d": {
+   "editorId": "EnchArmorResistMagicBase",
+   "effects": [
+    "b7a35"
+   ]
+  },
+  "10fb8e": {
+   "editorId": "EnchArmorResistPoisonBase",
+   "effects": [
+    "ff15e"
+   ]
+  },
+  "10fb8f": {
+   "editorId": "EnchArmorResistShockBase",
+   "effects": [
+    "49295"
+   ]
+  },
+  "10fb90": {
+   "editorId": "EnchArmorWaterbreathingBase",
+   "effects": [
+    "92a48"
+   ]
+  },
+  "10fb91": {
+   "editorId": "EnchWeaponAbsorbHealthBase",
+   "effects": [
+    "aa155"
+   ]
+  },
+  "10fb92": {
+   "editorId": "EnchWeaponAbsorbStaminaBase",
+   "effects": [
+    "aa157"
+   ]
+  },
+  "10fb93": {
+   "editorId": "EnchWeaponBanishBase",
+   "effects": [
+    "acbb5"
+   ]
+  },
+  "10fb94": {
+   "editorId": "EnchWeaponFearBase",
+   "effects": [
+    "5b451"
+   ]
+  },
+  "10fb95": {
+   "editorId": "EnchWeaponFireDamageBase",
+   "effects": [
+    "4605a"
+   ]
+  },
+  "10fb96": {
+   "editorId": "EnchWeaponFrostDamageBase",
+   "effects": [
+    "4605b",
+    "b72a0"
+   ]
+  },
+  "10fb97": {
+   "editorId": "EnchWeaponMagickaDamageBase",
+   "effects": [
+    "5b44f"
+   ]
+  },
+  "10fb98": {
+   "editorId": "EnchWeaponParalysisBase",
+   "effects": [
+    "acbb6"
+   ]
+  },
+  "10fb99": {
+   "editorId": "EnchWeaponShockDamageBase",
+   "effects": [
+    "4605c"
+   ]
+  },
+  "10fb9a": {
+   "editorId": "EnchWeaponSoulTrapBase",
+   "effects": [
+    "5b452"
+   ]
+  },
+  "10fb9b": {
+   "editorId": "EnchWeaponStaminaDamageBase",
+   "effects": [
+    "5b450"
+   ]
+  },
+  "10fb9c": {
+   "editorId": "EnchWeaponTurnUndeadBase",
+   "effects": [
+    "5b46b"
+   ]
+  },
+  "10fb9d": {
+   "editorId": "EnchWeaponAbsorbMagickaBase",
+   "effects": [
+    "aa156"
+   ]
+  },
+  "7602516": {
+   "editorId": "BSKEnchArmorWaterWalkingBase",
+   "effects": [
+    "7602514"
+   ]
+  },
+  "9020af0": {
+   "editorId": "EnchWeaponWindDamageBase",
+   "effects": [
+    "9020aee",
+    "9020af1"
+   ]
+  },
+  "a01807e": {
+   "editorId": "manny_GF_Ench_UmbraBase",
+   "effects": [
+    "a01807d"
+   ]
+  }
+ }
+}

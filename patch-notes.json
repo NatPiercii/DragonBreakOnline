@@ -1,5 +1,20 @@
 [
   {
+    "title": "Learned enchantments come back",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Enchanting",
+        "items": [
+          "Enchantments you learned by disenchanting now show at the arcane enchanter again after you log back in. The game remembers an enchantment by its base record, and the server only gave back its effects.",
+          "If yours are still missing, type /syncenchant once while you are in the world."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Client update 0.3.83",
     "date": "SHIP_DATE",
     "version": "Client 0.3.83",

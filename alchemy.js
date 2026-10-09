@@ -486,11 +486,19 @@ module.exports = (api) => {
     audit(`ENCH-LEARNED-REPAIR ${who(a)} dropped ${dropped.length} id(s) that are no magic effect, nothing added [${dropped.map(([x, r]) => `${x.toString(16)} ${r.record.type} ${r.record.editorId || '?'}`).join(', ')}]`);
     return out;
   };
-  // The learned effects to the client again; how many were sent (0: none recorded or sending off, -1: it failed)
+  // The game marks the base enchantment known, not its effects (Form.SetPlayerKnows on the Enchantment, CK wiki
+  // PlayerKnows: the player knows the base version); ench-bases.json lists each base with its effects (tools/ench-base-table.py)
+  const BASES = readJson('ench-bases.json', { bases: {} });
+  const BASE_LIST = Object.entries((BASES && BASES.bases) || {}).map(([id, b]) => [parseInt(id, 16) >>> 0, (b.effects || []).map((x) => parseInt(x, 16) >>> 0)]).filter(([id, fx]) => id && fx.length);
+  // Bases whose every effect the character holds
+  const basesOf = (effects) => { const held = new Set(effects); return BASE_LIST.filter(([, fx]) => fx.every((x) => held.has(x))).map(([id]) => id); };
+  // The learned effects and their base enchantments to the client again; how many were sent (0: none recorded or sending off, -1: it failed)
   const sendLearned = (a) => {
-    const effects = cleanLearned(a);
+    const learned = cleanLearned(a);
     if (!LEARN.enabled || typeof api.sendPacket !== 'function') return 0;
-    if (!effects.length) return 0;
+    if (!learned.length) return 0;
+    // The client marks every id it gets known (Form.setPlayerKnows), so the bases ride in the same list
+    const effects = learned.concat(basesOf(learned).filter((id) => !learned.includes(id)));
     try { api.sendPacket(a, { customPacketType: 'dboEnchLearned', effects }); } catch (e) { log(`disenchant: learned enchantments send failed for ${display(a)}: ${e.message}`); return -1; }
     return effects.length;
   };

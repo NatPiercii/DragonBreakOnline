@@ -83,20 +83,21 @@ const KAMROON = [0x5b46b, 0x5b452, 0x10fb98, 0x5b46c, 0x10fb94, 0x5b453];
 put(K, 'private.dboEnchLearned', KAMROON.slice());
 clear();
 globalThis.__dboEnchLearnedLogin(K);
-ok(same(sent(), [0x5b46b, 0x5b452]), 'Kamroon, login: only Turn Undead and Soul Trap go out, the four enchantment ids are dropped', hex(sent()));
+ok(same(sent(), [0x5b46b, 0x5b452, 0x10fb9a, 0x10fb9c]), 'Kamroon, login: Turn Undead and Soul Trap go out with their base enchantments, the four stored enchantment ids are dropped', hex(sent()));
+ok(!sent().includes(0x10fb98) && !sent().includes(0x10fb94), '...no base for Paralysis or Fear, which he never learned', hex(sent()));
 ok(![0xacbb6, 0x5b451, 0x5b44f].some((x) => sent().includes(x) || learned(K).includes(x)), '...Paralysis, Fear and Magicka Damage, never learned, are not added', hex(learned(K)));
 ok(same(learned(K), [0x5b46b, 0x5b452]), '...and the cleaned list is written back on the character', hex(learned(K)));
 ok(audits.length === 1 && /^ENCH-LEARNED-REPAIR the player dropped 4 id\(s\) that are no magic effect, nothing added \[10fb98 ENCH EnchWeaponParalysisBase, 5b46c ENCH EnchWeaponTurnUndead01, 10fb94 ENCH EnchWeaponFearBase, 5b453 ENCH EnchWeaponMagickaDamage01\]$/.test(audits[0]),
   '...audited once, naming each id dropped', audits);
 clear();
 globalThis.__dboEnchLearnedLogin(K);
-ok(!audits.length && same(sent(), [0x5b46b, 0x5b452]), 'the next login finds nothing to drop and sends the same list', { audits, sent: hex(sent()) });
+ok(!audits.length && same(sent(), [0x5b46b, 0x5b452, 0x10fb9a, 0x10fb9c]), 'the next login finds nothing to drop and sends the same list', { audits, sent: hex(sent()) });
 
 // Barush, /syncenchant
 put(B, 'private.dboEnchLearned', [0x5b452, 0x10fb94, 0x5b453]);
 clear();
 const n = globalThis.__dboEnchLearnedResend(B);
-ok(n === 1 && same(sent(), [0x5b452]) && same(learned(B), [0x5b452]), 'Barush, /syncenchant: Soul Trap only, Fear and Magicka Damage are not added', { n, sent: hex(sent()), learned: hex(learned(B)) });
+ok(n === 2 && same(sent(), [0x5b452, 0x10fb9a]) && same(learned(B), [0x5b452]), 'Barush, /syncenchant: Soul Trap and its base only, Fear and Magicka Damage are not added', { n, sent: hex(sent()), learned: hex(learned(B)) });
 ok(audits.length === 1 && /dropped 2 id\(s\).*\[10fb94 ENCH EnchWeaponFearBase, 5b453 ENCH EnchWeaponMagickaDamage01\]$/.test(audits[0]), '...audited', audits);
 
 // Old Grimbo, the resend after a disenchant: his 6 Oct 03:24 list, then an Ayleid dagger of arcing disenchanted
@@ -110,21 +111,21 @@ mp.onCraftUnmatched(G, ENCHANTER, DAGGER, { entries: [{ baseId: DAGGER, count: 1
 ok(!packets.length && timers.length === 1, 'Old Grimbo disenchants a dagger: the resend is scheduled', timers.map((t) => t[1]));
 timers.splice(0).forEach(([f]) => f());
 const GRIMBO_CLEAN = [0x5b452, 0x5b451, 0x7a0fa, 0x7a0f2, 0x4605a, 0x7a0f9, SHOCK_FX];
-ok(same(sent(), GRIMBO_CLEAN) && same(learned(G), GRIMBO_CLEAN), '...which sends his effects and the new Shock Damage, the ten enchantment ids dropped', { sent: hex(sent()), learned: hex(learned(G)) });
+ok(same(sent(), GRIMBO_CLEAN.concat([0x10fb71, 0x10fb78, 0x10fb79, 0x10fb94, 0x10fb95, 0x10fb99, 0x10fb9a])) && same(learned(G), GRIMBO_CLEAN), '...which sends his effects, the new Shock Damage and each one\'s base; only effects are stored', { sent: hex(sent()), learned: hex(learned(G)) });
 ok(!learned(G).includes(0x5b44f) && audits.filter((t) => /^ENCH-LEARNED-REPAIR /.test(t)).length === 1 && /dropped 10 id\(s\)/.test(audits.join('\n')), '...Magicka Damage is not added from 5b453, and the drop is audited once', { learned: hex(learned(G)), audits });
 
 // Ragneld, login: Fortify Archery (10fb7e) never learned
 put(R, 'private.dboEnchLearned', [0x49bb7, 0x10fb95, 0x4605a, 0x10e312, 0x10fb7d, 0x7a0fd, 0x10fb7e, 0x7a112, 0xad466, 0x10fb79, 0x7a0fa, 0x7a10f, 0x7a109, 0x10fb73, 0x7a0f4]);
 clear();
 globalThis.__dboEnchLearnedLogin(R);
-ok(same(sent(), [0x4605a, 0x7a0fd, 0x7a0fa, 0x7a0f4]) && !learned(R).includes(0x7a0fe), 'Ragneld, login: Fire, Magicka Rate, Illusion and Carry Weight go out; Fortify Archery is not added', hex(sent()));
+ok(same(sent(), [0x4605a, 0x7a0fd, 0x7a0fa, 0x7a0f4, 0x10fb73, 0x10fb79, 0x10fb7d, 0x10fb95]) && !learned(R).includes(0x7a0fe) && !sent().includes(0x10fb7e), 'Ragneld, login: Fire, Magicka Rate, Illusion and Carry Weight go out with their bases; Fortify Archery is not added', hex(sent()));
 ok(audits.length === 1 && /dropped 11 id\(s\).*10fb7e ENCH EnchArmorFortifyMarksmanBase/.test(audits[0]), '...audited, 10fb7e among the eleven', audits);
 
 // A reference id goes too; an id no plugin holds stays (the client skips what it lacks)
 put(M, 'private.dboEnchLearned', [0x7a0fa, NOWHERE, REF, 0x5b46b]);
 clear();
 globalThis.__dboEnchLearnedResend(M);
-ok(same(sent(), [0x7a0fa, NOWHERE, 0x5b46b]) && same(learned(M), sent()), 'a reference id is dropped, an id no plugin holds is kept', hex(sent()));
+ok(same(sent(), [0x7a0fa, NOWHERE, 0x5b46b, 0x10fb79, 0x10fb9c]) && same(learned(M), [0x7a0fa, NOWHERE, 0x5b46b]), 'a reference id is dropped, an id no plugin holds is kept', hex(sent()));
 ok(audits.length === 1 && /dropped 1 id\(s\).*\[48c63 REFR \?\]$/.test(audits[0]), '...and the audit names it', audits);
 
 // Magic effects only: sent as they are, never rewritten
@@ -132,7 +133,17 @@ put(C, 'private.dboEnchLearned', [0x5b46b, 0x5b452]);
 const before = mp.get(C, 'private.dboEnchLearned');
 clear();
 globalThis.__dboEnchLearnedLogin(C);
-ok(mp.get(C, 'private.dboEnchLearned') === before && !audits.length && same(sent(), [0x5b46b, 0x5b452]), 'a list of magic effects only is sent as it is and never rewritten', { audits, sent: hex(sent()) });
+ok(mp.get(C, 'private.dboEnchLearned') === before && !audits.length && same(sent(), [0x5b46b, 0x5b452, 0x10fb9a, 0x10fb9c]), 'a list of magic effects only goes out with its bases and is never rewritten', { audits, sent: hex(sent()) });
+
+// Frost Damage's base names two effects: it goes out only when both are held
+put(C, 'private.dboEnchLearned', [0x4605b]);
+clear();
+globalThis.__dboEnchLearnedResend(C);
+ok(same(sent(), [0x4605b]), 'one of Frost Damage\'s two effects: no base', hex(sent()));
+put(C, 'private.dboEnchLearned', [0x4605b, 0xb72a0]);
+clear();
+globalThis.__dboEnchLearnedResend(C);
+ok(same(sent(), [0x4605b, 0xb72a0, 0x10fb96]), '...both: EnchWeaponFrostDamageBase goes out', hex(sent()));
 
 // Sending off: the login still cleans the stored list, nothing goes out
 load({});
