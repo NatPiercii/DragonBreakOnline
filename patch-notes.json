@@ -1,5 +1,27 @@
 [
   {
+    "title": "Client update 0.3.88",
+    "date": "SHIP_DATE",
+    "version": "Client 0.3.88",
+    "tag": "New",
+    "sections": [
+      {
+        "heading": "Journal (F3)",
+        "items": [
+          "Your Profile tab has a Status section: level and points to spend, hunger, rest buffs, Death's Chill, jail time, rerolls, skill boost, vampire and Hunt rank, and the dungeons resting for you. No more /status, /chill or /hunger.",
+          "Help buttons under it: spend level points, call a GM, report a problem, or get unstuck, without typing a command."
+        ]
+      },
+      {
+        "heading": "Fixes",
+        "items": [
+          "Your field of view from the launcher is checked again after every load and set back if the game changed it.",
+          "Creatures keep their weapons in hand."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Stronger summons",
     "date": "SHIP_DATE",
     "version": "Server update",
