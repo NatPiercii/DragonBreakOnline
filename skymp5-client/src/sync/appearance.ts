@@ -182,23 +182,32 @@ export const applyAppearance = (appearance: Appearance): ActorBase => {
 // BGSHeadPart type of eyes (0 misc, 1 face, 2 eyes, 3 hair)
 const HEADPART_EYES = 2;
 
-// The live head keeps its eyes when only the base's head part list changes, so a vampire's tells came and went at relog only
-const swapPlayerEyes = (appearance: Appearance): void => {
-  const player = Game.getPlayer() as Actor;
+// The eyes in a look (BGSHeadPart type 2, not an extra part), or null
+const eyesOf = (appearance: Appearance): HeadPart | null => {
   for (const id of appearance.headpartIds) {
     const part = HeadPart.from(Game.getFormEx(id));
-    if (!part || part.isExtraPart() || part.getType() !== HEADPART_EYES) continue;
-    try { player.changeHeadPart(part); } catch { /* not on this platform build */ }
-    return;
+    if (part && !part.isExtraPart() && part.getType() === HEADPART_EYES) return part;
   }
+  return null;
 };
 
-export const applyAppearanceToPlayer = (appearance: Appearance): void => {
+// The eyes the player's head was last built or swapped with
+let lastEyesId = 0;
+
+// The live head keeps its eyes when only the base's head part list changes, so a vampire's tells came and went at relog only.
+// Swapped only on a look change in session (liveEyes) and only when the eyes differ: rebuilding the head during a load is
+// the same risk as the torch put-out that crashed logins (9 Oct)
+export const applyAppearanceToPlayer = (appearance: Appearance, liveEyes = false): void => {
   applyAppearanceCommon(
     appearance,
     ActorBase.from((Game.getPlayer() as Actor).getBaseObject()) as ActorBase,
   );
-  swapPlayerEyes(appearance);
+  const eyes = eyesOf(appearance);
+  const eyesId = eyes ? eyes.getFormID() : 0;
+  if (liveEyes && eyes && lastEyesId && eyesId !== lastEyesId) {
+    try { (Game.getPlayer() as Actor).changeHeadPart(eyes); } catch { /* not on this platform build */ }
+  }
+  if (eyesId) lastEyesId = eyesId;
   applyTints(null, appearance);
   regeneratePlayerHead(appearance);
   queuePlayerNiNodeUpdate();

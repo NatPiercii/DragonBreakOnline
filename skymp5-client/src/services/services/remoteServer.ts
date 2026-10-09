@@ -976,7 +976,7 @@ export class RemoteServer extends ClientListener {
         return;
       }
       this.controller.once("update", () => {
-        applyAppearanceToPlayer(newAppearance);
+        applyAppearanceToPlayer(newAppearance, true);
         logTrace(this, "Applied appearance to the player");
       });
     }
