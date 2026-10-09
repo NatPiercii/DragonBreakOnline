@@ -19,7 +19,7 @@ const path = require('path');
 module.exports = (api) => {
   const { mp, log, personal, audit, who, cfg, registerChatCommand, onlineActors, findByName, isAdmin, sendPacket, itemName } = api;
   const raw = cfg.smithing || {};
-  const C = Object.assign({ enabled: false, tierPoints: [0, 15, 30, 45, 60, 76, 91], apprenticeCrafts: 10, apprenticeRange: 500, supervisorMinPoints: 75,
+  const C = Object.assign({ enabled: false, tierPoints: [0, 15, 30, 45, 60, 76, 91], apprenticeCrafts: 10, apprenticeRange: 500, supervisorMinPoints: 75, withheldBooks: ['chitin'],
     scholarForBook: { 2: 1, 3: 1, 4: 1, 5: 2, 6: 3, 7: 3 }, books: {}, familyTier: {}, drops: {} }, raw);
   const readJson = (f, dflt) => { try { return JSON.parse(fs.readFileSync(path.resolve(f), 'utf8')); } catch (e) { return dflt; } };
   const TABLE = readJson('smithing.json', { tierNames: [], families: [] });
@@ -78,7 +78,7 @@ module.exports = (api) => {
   // A teacher needs supervisorMinPoints Blacksmith points (Nate, 9 Oct: 75), the technique and its craft tier
   const teacher = () => `a teacher needs Blacksmith ${Number(C.supervisorMinPoints)} to teach`;
   const hintOf = (fam) => (fam.book === 'apprentice' ? `${fam.where || 'Apprentice under a Blacksmith who knows it'} (${teacher()})`
-    : fam.book === 'staff' ? fam.where || 'taught only in roleplay' : `Book: Schematics: ${fam.name}${fam.where ? ', ' + fam.where : ''}, or apprentice under a Blacksmith who knows it (${teacher()})`);
+    : fam.book === 'staff' ? fam.where || 'taught only in roleplay' : `Book: Schematics: ${fam.name}${(C.withheldBooks || []).includes(fam.id) ? ', not to be had in Cyrodiil yet' : fam.where ? ', ' + fam.where : ''}, or apprentice under a Blacksmith who knows it (${teacher()})`);
   // regions.js craft hook: false refuses the craft (materials kept); anything else lets it on
   globalThis.__dboSmithCraft = (actorId, itemId, recipeId) => {
     if (!C.enabled) return true;

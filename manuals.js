@@ -58,6 +58,9 @@ module.exports = (api) => {
   // read by the Scholar tier rule, no Orcish book (apprentice only), Dragon given only by staff
   const SMC = cfg.smithing || {};
   const SMITH = SMC.enabled === true;
+  // Families whose book is neither sold nor dropped for now (config smithing.withheldBooks; [] brings them all back): Chitin
+  // until Solstheim opens, as no chitin plate can be had inside the Bruma lock (smithing obtainability audit, 9 Oct)
+  const WITHHELD = new Set((Array.isArray(SMC.withheldBooks) ? SMC.withheldBooks : ['chitin']).map(String));
   const scholarNeed = (tier) => Number((SMC.scholarForBook || { 2: 1, 3: 1, 4: 1, 5: 2, 6: 3, 7: 3 })[tier]) || 0;
   const scholarTier = (a) => (typeof globalThis.__dboSmithScholarTier === 'function' ? Number(globalThis.__dboSmithScholarTier(a)) || 0 : rankIn(a, C.scholarSkill) + 1);
   const REC = 'private.dboManuals', BOOKS_READ = 'private.dboSkillBooks', COPIES = 'private.scholarCopies', OWED = 'private.dboManualsOwed';
@@ -85,7 +88,7 @@ module.exports = (api) => {
   const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice').map((f) => {
     const bookId = idOf((SMC.books || {})[f.id] || f.bookId), bookRec = lookup(bookId);
     return { key: f.id, name: f.name, title: `Schematics: ${f.name}`, tier: Math.max(2, Math.min(7, Number(f.tier) || 2)), bookId, markerId: 0,
-      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', ready: !!(bookId && bookRec) };
+      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', withheld: WITHHELD.has(f.id), ready: !!(bookId && bookRec) };
   }) : (Array.isArray(table.manuals) ? table.manuals : []).map((m) => {
     const key = String(m.material || m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const bookId = idOf(m.book), markerId = idOf(m.marker);
@@ -281,7 +284,7 @@ module.exports = (api) => {
     if (rule && difficulty && rule[difficulty] && typeof rule[difficulty] === 'object') rule = rule[difficulty];
     if (!rule || !(Math.random() < (Number(rule.chance) || 0))) return null;
     const allowed = new Set((rule.families || []).map(String));
-    const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly);
+    const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly && !m.withheld);
     if (!pool.length) return null;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     return { id: pick.book, name: pick.title };
@@ -296,13 +299,13 @@ module.exports = (api) => {
   globalThis.__dboManualsShop = (a) => {
     if (!C.enabled || !C.shop.enabled || !inShop(a)) return [];
     const gold = goldOf(a);
-    return READY.filter((m) => m.tier <= shopMax() && !m.staffOnly).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
+    return READY.filter((m) => m.tier <= shopMax() && !m.staffOnly && !m.withheld).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
       .map((m) => ({ bookId: m.bookId, label: `${m.title} (T${m.tier}), ${priceOf(m)} gold${gold < priceOf(m) ? ': more than you carry' : ''}` }));
   };
   // { ok, text }
   globalThis.__dboManualsBuy = (a, bookId) => {
     const m = BY_BOOK.get(bookId >>> 0);
-    if (!C.enabled || !C.shop.enabled || !m || m.tier > shopMax() || m.staffOnly) return { ok: false, text: 'The Synod does not sell that manual.' };
+    if (!C.enabled || !C.shop.enabled || !m || m.tier > shopMax() || m.staffOnly || m.withheld) return { ok: false, text: 'The Synod does not sell that manual.' };
     if (!inShop(a)) return { ok: false, text: 'The Synod sells its manuals in the Synod Conclave.' };
     const price = priceOf(m);
     if (!takeGold(a, price)) return { ok: false, text: `${m.title} costs ${price} gold, and you do not have it.` };

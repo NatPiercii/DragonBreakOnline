@@ -33,7 +33,7 @@
   { "id": "EBONY", "name": "Ebony", "tier": 6, "where": "found in Master boss chests", "bookId": "192e5b:DragonBreak Online Edits.esp" },
   { "id": "stalhrim", "name": "Stalhrim", "tier": 6, "where": "found in Master boss chests", "bookId": "192e5c:DragonBreak Online Edits.esp" },
   { "id": "DAEDRIC", "name": "Daedric", "tier": 7, "where": "found in Master boss chests", "bookId": "192e5e:DragonBreak Online Edits.esp" },
-  { "id": "madness", "name": "Madness", "tier": 7, "where": "found in Master boss chests", "bookId": "192e5d:DragonBreak Online Edits.esp" },
+  { "id": "madness", "name": "Madness", "tier": 7, "book": "staff", "where": "taught only in roleplay", "bookId": "192e5d:DragonBreak Online Edits.esp" },
   { "id": "DRAGON", "name": "Dragonbone and Dragonscale", "tier": 7, "book": "staff", "where": "taught only in roleplay", "bookId": "192e5f:DragonBreak Online Edits.esp" }
  ]
 }

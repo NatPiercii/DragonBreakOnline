@@ -179,6 +179,16 @@ load({ enabled: true, drops: {} });
 ok(globalThis.__dboManualsShop(A).some((x) => x.bookId === steelBook), "without config books the shop sells smithing.json's own book");
 load(ON);
 ok(globalThis.__dboManualsShop(A).some((x) => x.bookId === BOOK_STEEL) && !globalThis.__dboManualsShop(A).some((x) => x.bookId === steelBook), 'config smithing.books overrides it');
+// Chitin's book is withheld until Solstheim opens (no chitin plate inside the Bruma lock); Madness is staff only (Nate, 9 Oct)
+const chitinBook = mp.getIdFromDesc(REAL.find((f) => f.id === 'chitin').bookId), madnessBook = mp.getIdFromDesc(REAL.find((f) => f.id === 'madness').bookId);
+rec(chitinBook, 'BOOK', 'DBO_Schematics_chitin', [{ type: 'DATA', data: bookData() }]); rec(madnessBook, 'BOOK', 'DBO_Schematics_madness', [{ type: 'DATA', data: bookData() }]);
+load({ enabled: true, drops: { ruin: { chance: 1, families: ['chitin'] }, boss: { chance: 1, families: ['madness'] } } });
+ok(!globalThis.__dboManualsShop(A).some((x) => x.bookId === chitinBook) && globalThis.__dboManualsBuy(A, chitinBook).ok === false && globalThis.__dboTechniqueDrop('ruin') === null, 'the Chitin book is neither sold nor dropped by default');
+ok(/not to be had in Cyrodiil yet/.test(globalThis.__dboSmithView(SUP) && globalThis.__dboSmithView(SUP).families.find((f) => f.id === 'chitin').learnHint), "...and its hint says it cannot be had yet");
+load({ enabled: true, withheldBooks: [], drops: { ruin: { chance: 1, families: ['chitin'] } } });
+ok(globalThis.__dboManualsShop(A).some((x) => x.bookId === chitinBook) && globalThis.__dboTechniqueDrop('ruin') !== null, 'config smithing.withheldBooks [] brings it back (when Solstheim opens)');
+load({ enabled: true, drops: { boss: { chance: 1, families: ['madness'] } } });
+ok(REAL.find((f) => f.id === 'madness').book === 'staff' && globalThis.__dboTechniqueDrop('boss') === null && !globalThis.__dboManualsShop(A).some((x) => x.bookId === madnessBook), 'Madness is staff only: never sold or dropped, as Dragon');
 const LM = JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')).counts;
 const noItems = REAL.filter((f) => !LM[f.id]).map((f) => f.id);
 ok(noItems.join() === 'bronze' && LM.madness && LM.amber && LM.glacial_crystal && LM.ancient_imperial, 'every smithing family has loot-materials items (Bronze is a metal with alternates of iron recipes)', noItems);
