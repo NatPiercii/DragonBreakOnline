@@ -232,6 +232,18 @@ $border-dim: dbo-accent(0.2);
     .journal__hint { margin-right: auto; }
   }
 
+  // The Profile tab's Help: level points, Call a GM, Report a problem, Unstuck (journal.js journalAction)
+  &__action {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+
+    .journal__textarea { font-size: 0.95em; }
+    .journal__editor-actions { margin-top: 4px; }
+  }
+  &__action-head { margin: 0; font-size: 1em; font-weight: normal; }
+
   &__profile-side {
     display: flex;
     flex-direction: column;

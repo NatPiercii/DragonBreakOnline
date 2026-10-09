@@ -38,6 +38,8 @@ export interface JournalProfile {
   skills: JournalSkill[];
   // Every /status line and the dungeons resting for you (journal.js statusView); absent from an older server
   status?: { label: string; value: string; hint?: string }[];
+  // Level points waiting to be spent (charlevel.js); the +1 buttons show while there are any
+  levelPoints?: number;
   title: string;
   titleEpithet?: string;
   titleId: string;
@@ -184,6 +186,66 @@ export const StatusBox = ({ rows }: { rows?: JournalProfile['status'] }) => (
   </section>
 );
 
+// The Profile tab's buttons (journal.js journalAction): each runs the chat command's own handler, and its reply is the footer
+const ActionText = ({ label, hint, placeholder, send, busy, min }: {
+  label: string; hint: string; placeholder: string; send: (text: string) => void; busy: boolean; min: number;
+}) => {
+  const [text, setText] = useState('');
+  const [sent, setSent] = useState(false);
+  useEffect(() => { if (!busy && sent) { setText(''); setSent(false); } }, [busy]);
+  return (
+    <div className="journal__action">
+      <h3 className="journal__action-head">{label}</h3>
+      <p className="journal__hint">{hint}</p>
+      <textarea className="journal__textarea" rows={2} maxLength={500} value={text} placeholder={placeholder}
+        onChange={(e) => setText(e.target.value.slice(0, 500))}
+        onKeyDown={(e) => e.stopPropagation()} />
+      <div className="journal__editor-actions">
+        <button type="button" className="journal__button journal__button--primary" disabled={busy || text.trim().length < min}
+          onClick={() => { setSent(true); send(text); }}>Send</button>
+      </div>
+    </div>
+  );
+};
+
+export const ActionsBox = ({ points, busy, act }: { points: number; busy: boolean; act: (key: string, ...args: unknown[]) => void }) => {
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <section className="journal__actions">
+      <h2 className="journal__heading">Help</h2>
+      {points > 0 ? (
+        <div className="journal__action">
+          <h3 className="journal__action-head">{points} level point{points === 1 ? '' : 's'} to spend</h3>
+          <div className="journal__editor-actions">
+            {(['health', 'magicka', 'stamina'] as const).map((v) => (
+              <button key={v} type="button" className="journal__button" disabled={busy}
+                onClick={() => act('journalAction', 'level:' + v)}>+1 {v.charAt(0).toUpperCase() + v.slice(1)}</button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <ActionText label="Call a GM" hint="A GM is told at once, as with /gm." placeholder="I am stuck in the inn's wall" min={3} busy={busy}
+        send={(t) => act('journalAction', 'gm', t)} />
+      <ActionText label="Report a problem" hint="Where you stand and what is around you are sent with it, as with /bug." placeholder="the wolf near me is floating" min={5} busy={busy}
+        send={(t) => act('journalAction', 'report', t)} />
+      <div className="journal__action">
+        <h3 className="journal__action-head">Unstuck</h3>
+        <p className="journal__hint">Takes you to your area&apos;s respawn point, as /unstuck does: not in a fight with a player, not in jail, and not again for a while.</p>
+        <div className="journal__editor-actions">
+          {confirm ? (
+            <>
+              <span className="journal__hint">Move to the respawn point?</span>
+              <button type="button" className="journal__button" disabled={busy} onClick={() => setConfirm(false)}>Stay</button>
+              <button type="button" className="journal__button journal__button--primary" disabled={busy}
+                onClick={() => { setConfirm(false); act('journalAction', 'unstuck'); }}>Move me</button>
+            </>
+          ) : <button type="button" className="journal__button" disabled={busy} onClick={() => setConfirm(true)}>Unstuck</button>}
+        </div>
+      </div>
+    </section>
+  );
+};
+
 export const ProfileTab = ({ data, editing, setEditing, busy, act, openSkill }: {
   data: JournalData; editing: boolean; setEditing: (on: boolean) => void; busy: boolean; act: (key: string, ...args: unknown[]) => void;
   openSkill?: (id: string) => void;
@@ -254,6 +316,7 @@ export const ProfileTab = ({ data, editing, setEditing, busy, act, openSkill }: 
         </section>
         <SkillMeters skills={p.skills || []} onOpen={openSkill} />
         {p.status ? <StatusBox rows={p.status} /> : null}
+        {p.status ? <ActionsBox points={p.levelPoints || 0} busy={busy} act={act} /> : null}
       </aside>
     </div>
   );
