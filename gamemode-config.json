@@ -550,7 +550,7 @@
   ]
  },
  "ownedSpawns": {
-  "_comment": "Creatures the owned plugins place (owned-spawns.json, wildlife.js). factions: per wildlife kind, the factions each spawned creature is given (ff_factions, applied by the client) so camp-mates are allies instead of fighting each other (Dusk Thorn Camp, 30 Sep; the boars of Bruma, GroundedPasta 30 Sep 04:03: four fought each other five seconds after they spawned, before any player hit). Descs: CreatureFaction 13:Skyrim.esm, CYRGoblinFaction 877f5:BSHeartland.esm, CYRBoarFaction 6da79:BSHeartland.esm (each allied to itself, with no other relation; BSKEncBoar01 has CreatureFaction only, like the goblin templates).",
+  "_comment": "Creatures the owned plugins place (owned-spawns.json, wildlife.js). factions: per wildlife kind, the factions each spawned creature is given (ff_factions, applied by the client) so camp-mates are allies instead of fighting each other (Dusk Thorn Camp, 30 Sep; the boars of Bruma, GroundedPasta 30 Sep 04:03: four fought each other five seconds after they spawned, before any player hit). Descs: CreatureFaction 13:Skyrim.esm, CYRGoblinFaction 877f5:BSHeartland.esm, CYRBoarFaction 6da79:BSHeartland.esm (each allied to itself, with no other relation; BSKEncBoar01 has CreatureFaction only, like the goblin templates). minotaur: the bases' own SprigganPredatorFaction 3e093:Skyrim.esm and CYRMinotaurFaction 8bb70:BSHeartland.esm (allied to itself), for Sancre Tor Ruins and Minotaur's Rest (9 Oct).",
   "factions": {
    "goblin": [
     "13:Skyrim.esm",
@@ -559,6 +559,10 @@
    "boar": [
     "13:Skyrim.esm",
     "6da79:BSHeartland.esm"
+   ],
+   "minotaur": [
+    "3e093:Skyrim.esm",
+    "8bb70:BSHeartland.esm"
    ]
   }
  },
