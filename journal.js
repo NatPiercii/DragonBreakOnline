@@ -181,6 +181,7 @@ module.exports = (api) => {
       title: chosen.label, titleEpithet: chosen.epithet, titleId: chosen.id,
       titles: titles.length > 1 ? titles.map((t) => ({ id: t.id, label: t.label })) : [],
       status: own === false ? [] : statusView(a),
+      levelPoints: own === false ? 0 : levelPoints(a),
     };
   };
   const km = (units) => Number(units) / 70 / 1000;
@@ -227,6 +228,7 @@ module.exports = (api) => {
   // Profile tab's Status (Nate, 9 Oct: "streamline a lot of commands ... a status section on Character"): every /status line
   // and the dungeons resting for you (/dungeon), in place of /status, /level, /chill, /hunger, /rest, /sentence, /tokens,
   // /boost, /blood and /hunt
+  const levelPoints = (a) => { try { return typeof globalThis.__dboCharLevelPending === 'function' ? Number(globalThis.__dboCharLevelPending(a)) || 0 : 0; } catch (e) { return 0; } };
   const statusView = (a) => {
     const rows = statusRows(a, null);
     let rests = [];
@@ -623,6 +625,36 @@ module.exports = (api) => {
       try { r = typeof globalThis.__dboBugReport === 'function' ? globalThis.__dboBugReport(a, text) : null; } catch (e) { log('journal: a report failed', e.message); r = null; }
       if (!r) r = { ok: false, text: 'Reports cannot be sent just now; type /bug in chat instead.' };
       st.tab = 'settings';
+      answer(a, st, String(r.text || ''), r.ok ? 'ok' : 'refused');
+    });
+  });
+  // The Profile tab's buttons (Nate, 9 Oct: "build all four"): [nonce, action, text?]. Each runs the chat command's own
+  // handler (gamemode.js __dboRunCommand) or /bug's report, so refusals, cooldowns and replies are the command's; the reply
+  // lands in the footer, and the tab is drawn again so Status shows the change (a point spent, the cooldown)
+  const ACTIONS = {
+    report: (a, text) => { const r = typeof globalThis.__dboBugReport === 'function' ? globalThis.__dboBugReport(a, text) : null; return r ? { text: r.text, ok: r.ok } : null; },
+    gm: (a, text) => (text.trim().length < 3 ? { text: 'Say what you need, then send it.', ok: false } : run(a, 'gm', `call ${text.trim()}`)),
+    unstuck: (a) => run(a, 'unstuck', ''),
+    'level:health': (a) => run(a, 'level', 'health 1'),
+    'level:magicka': (a) => run(a, 'level', 'magicka 1'),
+    'level:stamina': (a) => run(a, 'level', 'stamina 1'),
+  };
+  const run = (a, name, args) => {
+    const lines = typeof globalThis.__dboRunCommand === 'function' ? globalThis.__dboRunCommand(a, name, args) : null;
+    return lines ? { text: lines.join(' ') || 'Done.', ok: true } : null;
+  };
+  onUi('journalAction', (a, args) => {
+    const st0 = fresh(a, args);
+    if (!st0 || !st0.hub) return;
+    const action = String((args || [])[1] || '');
+    const text = clean((args || [])[2], 500);
+    limited(a, () => {
+      const st = J.open.get(a >>> 0); if (!st) return;
+      const fn = Object.prototype.hasOwnProperty.call(ACTIONS, action) ? ACTIONS[action] : null;
+      let r = null;
+      try { r = fn ? fn(a, text) : null; } catch (e) { log(`journal: action ${action} failed`, e.message); r = null; }
+      if (!r) r = { text: fn ? 'That cannot be done from here just now; use the chat command.' : 'Unknown action.', ok: false };
+      st.tab = 'profile';
       answer(a, st, String(r.text || ''), r.ok ? 'ok' : 'refused');
     });
   });
