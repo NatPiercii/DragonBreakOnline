@@ -811,8 +811,8 @@ export class FormView {
           //if (this.spawnMoment > 0 && Date.now() - this.spawnMoment > 5000) {
           if (applyEquipment(ac, model.equipment)) {
             this.eqState.lastNumChanges = model.equipment.numChanges;
-            this.weaponCheck = this.isPlayerCharacter() ? undefined : FormView.wornWeapon(model.equipment.inv.entries);
-            this.weaponCheckAt = Date.now() + FormView.weaponCheckDelayMs;
+            this.weaponWanted = this.isPlayerCharacter() ? undefined : FormView.wornWeapon(model.equipment.inv.entries);
+            this.weaponCheckAt = Date.now() + FormView.weaponCheckMs;
           }
           this.eqState.lastEqMoment = Date.now();
           //}
@@ -822,8 +822,9 @@ export class FormView {
       }
     }
 
-    if (this.weaponCheck && Date.now() >= this.weaponCheckAt && refr.is3DLoaded()) {
-      this.ensureWeapon(refr);
+    if (this.weaponWanted && Date.now() >= this.weaponCheckAt) {
+      this.weaponCheckAt = Date.now() + FormView.weaponCheckMs;
+      if (refr.is3DLoaded()) this.ensureWeapon(refr);
     }
 
     if (FormView.isDisplayingNicknames && this.refrId && model.appearance?.name) {
@@ -952,12 +953,15 @@ export class FormView {
     return hit ? hit.baseId : undefined;
   }
 
-  // setInventory's equip leaves a creature's copy unarmed (minotaurs punch, 9 Oct) while humanoid AI re-equips in combat; Papyrus EquipItem holds
+  // Every few seconds on any copy (host or watcher, across host changes and 3D reloads): the server's weapon stays in hand (Nate, 9 Oct)
   private ensureWeapon(refr: ObjectReference): void {
-    const baseId = this.weaponCheck as number;
-    this.weaponCheck = undefined;
+    const baseId = this.weaponWanted as number;
     const ac = Actor.from(refr);
-    if (!ac || ac.isDead() || ac.getEquippedWeapon(false) || ac.getEquippedWeapon(true)) {
+    if (!ac || ac.isDead()) {
+      return;
+    }
+    const held = (left: boolean) => ac.getEquippedWeapon(left)?.getFormID() === baseId;
+    if (held(false) || held(true)) {
       return;
     }
     const form = Game.getFormEx(baseId);
@@ -967,7 +971,11 @@ export class FormView {
     if (ac.getItemCount(form) < 1) {
       ac.addItem(form, 1, true);
     }
-    ac.equipItem(form, false, true);
+    ac.equipItem(form, true, true);
+    if (Date.now() - this.weaponReportAt < FormView.weaponReportMs) {
+      return;
+    }
+    this.weaponReportAt = Date.now();
     sendCustomPacket(SpApiInteractor.getControllerInstance(), {
       customPacketType: "dbo", event: "npcDrift",
       args: [{ kind: "weaponEquip", remoteId: (this.remoteRefrId ?? 0).toString(16), baseId: baseId.toString(16), held: !!ac.getEquippedWeapon(false) }],
@@ -1334,9 +1342,11 @@ export class FormView {
   }
 
   private refrId = 0;
-  private weaponCheck: number | undefined;
+  private weaponWanted: number | undefined;
   private weaponCheckAt = 0;
-  private static readonly weaponCheckDelayMs = 1500;
+  private weaponReportAt = 0;
+  private static readonly weaponCheckMs = 2500;
+  private static readonly weaponReportMs = 60000;
   private ready = false;
   // undefined until the first update, so the first sight of an actor is not reported as a change
   private hostedLast: boolean | undefined = undefined;
