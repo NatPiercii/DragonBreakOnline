@@ -1,0 +1,34 @@
+// The F3 journal's Blacksmith tab (index.tsx): the craft tier on the left, gear families by tier on the right
+@import '../../dbo-theme.scss';
+
+.smith {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+
+  &__side, &__main { min-height: 0; overflow-y: auto; padding: 0 16px; }
+  &__side { border-right: 1px solid dbo-accent(0.2); padding-left: 0; }
+
+  &__heading { margin: 0 0 8px; color: $dbo-text-dim; font-size: 13px; font-weight: 400; letter-spacing: 0.18em; text-transform: uppercase; }
+  &__heading--gap { margin-top: 18px; }
+  &__tier { color: $dbo-silver; font-family: $dbo-title-font; font-size: 34px; letter-spacing: 0.08em; }
+  &__tier-name { font-size: 18px; letter-spacing: 0.14em; text-transform: uppercase; color: $dbo-gold; }
+  &__bar { height: 6px; margin: 8px 0 6px; background: rgba(0, 0, 0, 0.45); border: 1px solid $dbo-stone-dark; }
+  &__bar-fill { height: 100%; background: linear-gradient(90deg, $dbo-aqua-deep, $dbo-aqua); }
+  &__muted { color: $dbo-text-dim; font-size: 14px; }
+  &__rule { color: $dbo-text; font-family: $dbo-book-font; font-size: 15px; }
+  &__note { margin-top: 18px; color: $dbo-text-dim; font-size: 13px; }
+  &__empty { color: $dbo-text-dim; font-family: $dbo-book-font; font-style: italic; margin: 6px 0; }
+
+  &__group { margin-bottom: 16px; }
+  &__group--locked { opacity: 0.55; }
+
+  &__family { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 4px 0; border-bottom: 1px solid dbo-accent(0.12); }
+  &__family-name { font-size: 16px; color: $dbo-text; }
+  &__family-note { font-size: 14px; color: $dbo-text-dim; text-align: right; }
+  &__family--known &__family-name { color: $dbo-aqua; }
+  &__family--unknown &__family-name { color: $dbo-text-dim; }
+  &__family--locked &__family-name, &__family--locked &__family-note { color: $dbo-text-dim; opacity: 0.8; }
+}
