@@ -36,6 +36,8 @@ export interface JournalProfile {
   backstoryMax: number;
   originMax: number;
   skills: JournalSkill[];
+  // Every /status line and the dungeons resting for you (journal.js statusView); absent from an older server
+  status?: { label: string; value: string; hint?: string }[];
   title: string;
   titleEpithet?: string;
   titleId: string;
@@ -163,6 +165,25 @@ export const StoryView = ({ profile }: { profile: JournalProfile }) => (
   </div>
 );
 
+// The character's Status, in place of /status, /level, /chill, /hunger, /rest, /sentence and the like
+export const StatusBox = ({ rows }: { rows?: JournalProfile['status'] }) => (
+  <section className="journal__status">
+    <h2 className="journal__heading">Status</h2>
+    {rows && rows.length ? (
+      <table className="journal__table">
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label}>
+              <th scope="row">{r.label}</th>
+              <td>{r.value}{r.hint ? <span className="journal__stat-hint">{r.hint}</span> : null}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : <p className="journal__empty">Nothing is weighing on you.</p>}
+  </section>
+);
+
 export const ProfileTab = ({ data, editing, setEditing, busy, act, openSkill }: {
   data: JournalData; editing: boolean; setEditing: (on: boolean) => void; busy: boolean; act: (key: string, ...args: unknown[]) => void;
   openSkill?: (id: string) => void;
@@ -232,6 +253,7 @@ export const ProfileTab = ({ data, editing, setEditing, busy, act, openSkill }: 
           {p.titleEpithet ? <span className="journal__title-epithet">{p.titleEpithet}</span> : null}
         </section>
         <SkillMeters skills={p.skills || []} onOpen={openSkill} />
+        {p.status ? <StatusBox rows={p.status} /> : null}
       </aside>
     </div>
   );
