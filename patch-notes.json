@@ -1,5 +1,20 @@
 [
   {
+    "title": "Death's Chill in the journal",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Journal",
+        "items": [
+          "The journal's Stats tab (F3) now opens on Current Effects: the time left on Death's Chill, then your hunger, Well Rested and Well Fed, and any jail sentence.",
+          "Undead characters resist Death's Chill as a disease, so it never showed among their active effects even though it still weakens them. It is listed here now."
+        ]
+      }
+    ]
+  },
+  {
     "title": "More wood",
     "date": "SHIP_DATE",
     "version": "Server update",
