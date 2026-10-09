@@ -78,6 +78,9 @@ const reportPin = (remoteId: number | undefined, ac: Actor, model: FormModel, pi
   } catch { /* reporting is best effort */ }
 };
 
+// Skyrim.esm ActorTypeNPC: people (bandits, guards, players' copies) stay Foolhardy
+const ACTOR_TYPE_NPC = 0x13794;
+
 export class FormView {
   constructor(private remoteRefrId?: number) { }
 
@@ -354,8 +357,10 @@ export class FormView {
         this.realMagicka = model.appearance ? undefined : this.readBaseMagicka(actor);
         actor.setActorValue("magicka", COPY_MAGICKA);
         this.magickaSet = COPY_MAGICKA;
-        // Foolhardy: a server-driven copy never flees; the flee package crashed hosts mid-fight (MovementControllerNPC, 8-9 Oct)
-        actor.setActorValue("Confidence", 4);
+        // Foolhardy: a server-driven copy never flees; the flee package crashed hosts mid-fight (MovementControllerNPC, 8-9 Oct).
+        // Not a passive animal (Nate, 9 Oct: rabbits, deer and foxes fought back instead of running): no appearance (not a
+        // player's copy), not flagged hostile by the server, Aggression 0 from its own record. Those keep their own confidence.
+        if (!FormView.isPassiveAnimal(actor, model)) actor.setActorValue("Confidence", 4);
         this.localImmortal = true;
       }
       if (actor) this.syncHostedMagicka(actor);
@@ -1127,6 +1132,12 @@ export class FormView {
       this.adminView = view;
       this.lastAdminHideApply = now;
     }
+  }
+
+  private static isPassiveAnimal(actor: Actor, model: FormModel): boolean {
+    const m = model as Record<string, unknown>;
+    if (model.appearance || m["ff_hostile"] === true || m["ff_companionOf"]) return false;
+    try { return actor.getActorValue("Aggression") === 0 && !actor.hasKeyword(Keyword.from(Game.getFormEx(ACTOR_TYPE_NPC))!); } catch { return false; }
   }
 
   private static isInvisAdmin(model: FormModel): boolean {
