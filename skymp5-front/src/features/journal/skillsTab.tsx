@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import { registerJournalTab, JournalTabProps, canDrawTab } from './tabs';
 import { SkillList, SkillThread, TierCards, DEFAULT_TIERS, BAND_FLOORS, heldIn, PointState, SkillDef, Category, Chosen } from '../masteryMenu/parts';
+import { SmithTiers, SmithView } from '../smith';
 import './skillsTab.scss';
 
 // The F3 journal's Skills tab (F3 design 3.2, H6): the K menu inside the journal. The section is fork masterySystem's
@@ -19,6 +20,8 @@ export interface SkillsSection {
   chosen?: Chosen[];
   focus?: string;
   epigraph?: string;
+  // Blacksmithing's craft tiers and recipes (gameplay smithing.js), for a Blacksmith while smithing is on
+  smith?: SmithView | null;
 }
 
 const EPIGRAPH = 'Time broke over Nirn, and every life you might have lived is true at once. Only one of them can be mastered.';
@@ -42,6 +45,12 @@ export const SkillsTab = ({ section, busy, act, openTab }: JournalTabProps<Skill
   const mine = chosen.filter((c) => c.id === current.id)[0] || null;
   const tier = points ? (h ? h.tier : -1) : (mine ? mine.rank : -1);
   const tierHours = s.tierHours || [];
+  // Blacksmithing shows its craft tiers and recipes (features/smith) in place of the skill's tier cards
+  let tierPanel = (
+    <TierCards skill={current} tierNames={tierNames} withLore current={tier} reached={(i) => tier >= i}
+      costOf={(i) => (points ? (i === 0 ? 'the first spoke' : 'level ' + BAND_FLOORS[i]) : (!tierHours[i] ? 'from the start' : tierHours[i] + ' hours'))} />
+  );
+  if (current.id === 'blacksmith' && s.smith) tierPanel = <SmithTiers smith={s.smith} />;
   return (
     <div className="journal-skills">
       <aside className="journal-skills__side">
@@ -75,8 +84,7 @@ export const SkillsTab = ({ section, busy, act, openTab }: JournalTabProps<Skill
           )}
         </div>
       </section>
-      <TierCards skill={current} tierNames={tierNames} withLore current={tier} reached={(i) => tier >= i}
-        costOf={(i) => (points ? (i === 0 ? 'the first spoke' : 'level ' + BAND_FLOORS[i]) : (!tierHours[i] ? 'from the start' : tierHours[i] + ' hours'))} />
+      {tierPanel}
     </div>
   );
 };

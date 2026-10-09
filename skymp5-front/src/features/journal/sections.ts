@@ -7,4 +7,3 @@ import './tabs/SettingsKeys';
 import './tabs/SettingsVoice';
 import './skillsTab';
 import '../court';
-import '../smith';
