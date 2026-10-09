@@ -40,7 +40,19 @@ export class ContainersService extends ClientListener {
                     for (let i = 0; i < diff.entries.length; ++i) {
                         printConsole(`[${i}] ${JSON.stringify(diff.entries[i])}`);
                     }
-                    const msgs = diff.entries
+                    // A plain item moves as the engine's event says (baseObj, numItems): the snapshot misses any server write that
+                    // landed while the menu was open, and a put it nets to 0 never reached the server (Purr, 8-9 Oct: salt came back)
+                    const movedId = e.baseObj ? e.baseObj.getFormID() : 0;
+                    const playerGave = e.oldContainer.getFormID() === 0x14;
+                    const eventEntries = movedId && e.numItems > 0 && !diff.entries.some((x) => x.baseId === movedId && hasExtras(x))
+                        ? [{ baseId: movedId, count: playerGave ? e.numItems : -e.numItems }]
+                        : [];
+                    const snapshotCount = diff.entries.filter((x) => x.baseId === movedId && !hasExtras(x)).reduce((n, x) => n + x.count, 0);
+                    if (eventEntries.length && snapshotCount !== eventEntries[0].count) {
+                        const note = (globalThis as { __dboDiagNote?: (kind: string, text: string) => void }).__dboDiagNote;
+                        try { if (typeof note === "function") note("containerMove", `${(movedId >>> 0).toString(16)} moved ${eventEntries[0].count}, snapshot said ${snapshotCount}`); } catch { /* diagnostics only */ }
+                    }
+                    const msgs = diff.entries.filter((entry) => hasExtras(entry)).concat(eventEntries)
                         .filter((entry) =>
                             // TODO: review this condition, seems to be incorrect
                             entry.count > 0
