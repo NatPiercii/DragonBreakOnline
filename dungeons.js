@@ -1612,6 +1612,43 @@ module.exports = (api) => {
     }
     return null;
   };
+  // Open Lock spells (BSAssets BSKOpenSpell2/4/5, gamemode.js castHook): their effect is a Script archetype with no
+  // script, so a cast did nothing (Ancano #3PZ6, 9 Oct 05:09). In the caster's own claim, the locked chest nearest where
+  // they face within SPELL_UNLOCK_REACH gives way as a picked lock would when the spell is of its level or above. Dungeon
+  // chests only; jail cells and house locks are untouched. Returns true when a lock opened.
+  const SPELL_UNLOCK_REACH = 840; // 12 m
+  globalThis.__dboSpellUnlock = (casterId, spellLevel) => {
+    const a = Number(casterId) >>> 0, pid = profileOf(a);
+    if (pid < 0) return false;
+    let here = '', me = null, facing = 0;
+    try { here = String(mp.get(a, 'worldOrCellDesc') || '').toLowerCase(); me = mp.get(a, 'pos'); facing = Number((mp.get(a, 'angle') || [])[2]) || 0; } catch (e) { return false; }
+    if (!Array.isArray(me)) return false;
+    const fx = Math.sin(facing * Math.PI / 180), fy = Math.cos(facing * Math.PI / 180);
+    let best = null;
+    for (const lease of ST.leases.values()) {
+      if (!lease.members || !lease.members.has(pid) || !(lease.locked instanceof Map)) continue;
+      for (const [id, level] of lease.locked) {
+        if (lease.unlocked.has(id)) continue;
+        let pos = null, where = '';
+        try { pos = mp.get(id, 'pos'); where = String(mp.get(id, 'worldOrCellDesc') || '').toLowerCase(); } catch (e) { continue; }
+        if (!Array.isArray(pos) || where !== here) continue;
+        const dx = pos[0] - me[0], dy = pos[1] - me[1], dist = Math.hypot(dx, dy, pos[2] - me[2]);
+        if (dist > SPELL_UNLOCK_REACH) continue;
+        // Most in front first (cosine of the angle off the caster's facing), then the nearer
+        const ahead = dist > 0 ? (dx * fx + dy * fy) / Math.hypot(dx, dy || 1e-9) : 1;
+        if (!best || ahead > best.ahead + 1e-6 || (Math.abs(ahead - best.ahead) <= 1e-6 && dist < best.dist)) best = { lease, id, level, dist, ahead };
+      }
+    }
+    if (!best) { system(a, 'The spell finds no locked chest of your claim within reach.'); return false; }
+    const level = Number(spellLevel);
+    if (!(level >= best.level)) { system(a, `The ${LOCK_LEVELS[best.level]} lock holds: this spell opens ${LOCK_LEVELS[level] || 'weaker'} locks and below.`); return false; }
+    const { lease, id } = best;
+    lease.unlocked.add(id);
+    for (const p of lease.members) { const m = actorByProfile(p); if (m) { glow(m, [id], false, 'locked'); if (holdsLoot(lease, id) && glowOn(lease.id, 'loot')) glow(m, [id], true, 'loot'); } }
+    system(a, `The ${LOCK_LEVELS[best.level]} lock gives way to the spell. Open the chest.`);
+    log(`dungeon ${lease.id}: ${display(a)} opened the ${LOCK_LEVELS[best.level]} lock of ${id.toString(16)} with a spell (level ${level})`);
+    return true;
+  };
   // A refused door leaves the client half into its load (an automatic door starts it before the server answers, and the
   // gate panel keeps the activation refused); putting them back at the entrance finishes it. For Cancel and a refused claim
   const putBack = (a, p, why) => {

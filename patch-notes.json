@@ -1,5 +1,20 @@
 [
   {
+    "title": "Open Lock spells work on dungeon chests",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Open Apprentice Lock, Open Expert Lock and Open Master Lock now open a locked chest in your dungeon claim: face the chest within about 12 metres and cast. Each opens locks of its own level and below.",
+          "They work on dungeon chests only, not on jail cells or house doors."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Bounty fix",
     "date": "SHIP_DATE",
     "version": "Server update",

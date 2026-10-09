@@ -3621,7 +3621,7 @@ try {
   const DUNGEONS_JS = path.resolve('dungeons.js'); // gamemode.js is evaluated outside the bundle's module tree, so resolve by cwd
   delete require.cache[DUNGEONS_JS];
   require(DUNGEONS_JS)({ mp, log, personal, system, registerChatCommand, onUi, openWidget, closeWidget, sendPacket, findByName, display, who, audit, profileOf, nameOf, onlineActors, isAdmin, giveItem, cfg, every });
-} catch (e) { log('dungeons.js failed to load:', e.stack || e.message); globalThis.__dboDungeonActivate = null; globalThis.__dboAggroHit = null; }
+} catch (e) { log('dungeons.js failed to load:', e.stack || e.message); globalThis.__dboDungeonActivate = null; globalThis.__dboAggroHit = null; globalThis.__dboSpellUnlock = null; }
 
 // ---- coin purses: Harvesting nodes that pay gold ------------------------------------------------
 // Vanilla coin purses are flora whose produce is a leveled gold list; the engine cannot hand that
@@ -4732,6 +4732,15 @@ for (const [desc, why] of Object.entries(cfg.castBlocks || {})) {
 }
 globalThis.__dboCastBlocked = (spellId) => CAST_BLOCKS.has(Number(spellId) >>> 0);
 const shoutRefusedAt = globalThis.__dboShoutRefusedAt instanceof Map ? globalThis.__dboShoutRefusedAt : (globalThis.__dboShoutRefusedAt = new Map());
+// BSAssets' Open Lock spells (BSKOpenSpell2 Apprentice, 4 Expert, 5 Master; BSKOpenEffect 6028ca has the Script archetype
+// and no script) and the highest dungeon lock each opens (dungeons.js LOCK_LEVELS)
+const OPEN_LOCK_SPELLS = [['6028cd:BSAssets.esm', 1], ['6028cf:BSAssets.esm', 3], ['6028d0:BSAssets.esm', 4]];
+let openLockIds = null;
+const openLockLevelOf = (spellId) => {
+  if (!openLockIds) { openLockIds = new Map(); for (const [desc, level] of OPEN_LOCK_SPELLS) { try { const id = mp.getIdFromDesc(desc) >>> 0; if (id) openLockIds.set(id, level); } catch (e) { /* not in this load order */ } } }
+  const l = openLockIds.get(spellId >>> 0);
+  return l === undefined ? -1 : l;
+};
 const castHook = (casterId, spellId, ...rest) => {
   try { if (racial) racial.onCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('racial cast failed', e.message); }
   try { if (globalThis.__dboBeastCast) globalThis.__dboBeastCast(casterId, spellId); } catch (e) { log('beast cast failed', e.message); }
@@ -4761,6 +4770,11 @@ const castHook = (casterId, spellId, ...rest) => {
   if (prev) { try { verdict = prev(casterId, spellId, ...rest); } catch (e) { log('cast chain failed', e.message); } }
   // A cast the chain let through counts toward its school of magic (schools.js)
   if (verdict !== false && loginGrace.has(Number(casterId) >>> 0)) endLoginGrace(Number(casterId) >>> 0);
+  // Open Lock spells: their effect has no script, so the dungeon's own locks answer them (dungeons.js __dboSpellUnlock)
+  if (verdict !== false) {
+    const lockLevel = openLockLevelOf(Number(spellId) >>> 0);
+    if (lockLevel >= 0 && typeof globalThis.__dboSpellUnlock === 'function') { try { globalThis.__dboSpellUnlock(Number(casterId) >>> 0, lockLevel); } catch (e) { log('spell unlock failed', e.message); } }
+  }
   // A beast's casts train no school (Nate, 5 Oct: beast form trains no skill)
   let beastCaster = false; try { const b = mp.get(Number(casterId) >>> 0, 'private.beast'); beastCaster = !!(b && b.form); } catch (e) { /* not an actor */ }
   if (verdict !== false && !beastCaster && globalThis.__dboSchoolsCast) { try { globalThis.__dboSchoolsCast(Number(casterId) >>> 0, Number(spellId) >>> 0); } catch (e) { log('schools cast failed', e.message); } }
