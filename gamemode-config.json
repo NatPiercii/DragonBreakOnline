@@ -692,7 +692,7 @@
   ]
  },
  "playtest": {
-  "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp, and CYRBleakFrostMine01 177fb6, the Bleak-Frost Mine of DLE v13). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
+  "_comment": "Region lock for the Bruma playtest (server/playtest.js). Hub gates lead to the arrival spot; blockedDoors refuse; anyone outside allowedWorlds / interiors from allowedPlugins / allowedCells is returned (allowedCells: Bruma interiors made in our own plugins, e.g. CYRBrumaBank in DragonBreak Online Edits.esp, and CYRBleakFrostMine01 177fb6, the Bleak-Frost Mine of DLE v13; 17826b ThalmorEmbassyAlenwell and 1780c8 ThalmorEmbassyAlenwellBarracks, Nate 9 Oct). blockedDoors refuse admins too; admins are not returned. Set enabled false to open all of Skyrim.",
   "enabled": true,
   "name": "Bruma",
   "border": {"_comment": "Nate, 8 Oct: the outline is enforced server-side; a player outside it in this world is put back where they last stood inside (admins exempt). points = CYRBrumaReleaseBorderRegion after border A+B (DLE 7d7b3b5b), in cells (x, y), 1 cell = 4096 units.", "world": "a764b:BSHeartland.esm", "points": [[44.64, 71.61], [44.6, 49.6], [46.4, 48.6], [46.4, 40.2], [38.6, 40.2], [23.68, 40.95], [23.68, 38.82], [20.32, 36.74], [17.64, 36.74], [16.86, 37.26], [16.41, 36.93], [15.85, 36.89], [14.8, 36.89], [13.2, 34.8], [5.6, 34.8], [2.6, 42.0], [-1.6, 45.0], [-1.6, 56.4], [4.9, 57.2], [4.92, 72.04]]},
@@ -718,7 +718,7 @@
   ],
   "allowedCells": [
    "130040:DragonBreak Online Edits.esp",
-   "177fb6:DragonBreak Online Edits.esp", "17e0bc:DragonBreak Online Edits.esp"
+   "177fb6:DragonBreak Online Edits.esp", "17e0bc:DragonBreak Online Edits.esp", "17826b:DragonBreak Online Edits.esp", "1780c8:DragonBreak Online Edits.esp"
   ],
   "blockedDoors": [
    "877c2:BSHeartland.esm",

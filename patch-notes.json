@@ -1,5 +1,19 @@
 [
   {
+    "title": "Thalmor Embassy open",
+    "date": "2026-10-09",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Bruma",
+        "items": [
+          "The Thalmor Embassy's halls and barracks are part of the Bruma region now: entering no longer sends you back outside."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Goblin loot cut back",
     "date": "2026-10-09",
     "version": "Server update",
