@@ -272,6 +272,10 @@ module.exports = (api) => {
     try { mp.set(casterId, 'private.campLoot', loots); } catch (e) { log('campLoot save failed', e.message); }
     campGlow(casterId);
     const got = campLoot(provinceOf(casterId)).filter((it) => giveItem(casterId, it.id, it.count));
+    // A technique book in a goblin camp's chest (manuals.js __dboTechniqueDrop, config smithing.drops; empty: none)
+    if (hit.camp.owners === 'goblins' && typeof globalThis.__dboTechniqueDrop === 'function') {
+      try { const b = globalThis.__dboTechniqueDrop('goblinCamp'); const id = b ? mp.getIdFromDesc(b.id) >>> 0 : 0; if (id && giveItem(casterId, id, 1)) got.push({ id, count: 1, name: b.name }); } catch (e) { log('technique drop failed', e.message); }
+    }
     // Imperial Luck (racial.js) on the camp's coin; the chest's own cooldown keeps it to once a visit
     for (const it of got) if (it.id === GOLD_BASE) { try { if (typeof globalThis.__dboRaceGold === 'function') globalThis.__dboRaceGold(casterId, it.count, 'a camp chest'); } catch (e) { log('racial gold failed', e.message); } }
     personal(casterId, `You rummage through the ${hit.camp.owners || 'giants'}' chest: ${got.map((it) => `${it.count} ${it.name.replace(/([a-z])([A-Z])/g, '$1 $2')}`).join(', ')}.`);
