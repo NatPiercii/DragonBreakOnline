@@ -126,6 +126,8 @@ interface Station {
   // The highest health step this player may temper to (10 = none), and their enchantment margin (0 = none)
   temperCap: number;
   enchantMargin: number;
+  // Who stands at it, for the gameplay's per-item temper cap (smithing.js __dboTemperCap)
+  actorId?: number;
 }
 
 // A server copy the report says left the player, and how much of it is still unspent
@@ -441,7 +443,7 @@ export class CraftedExtrasSystem implements System {
     const toStep = healthStep(g.health);
     if (toStep !== fromStep) {
       // Held to the smith's rank; a claim above it is tempered only as far as they may, and not at all without the skill
-      const target = Math.min(toStep, station.temperCap, MAX_HEALTH_STEP);
+      const target = Math.min(toStep, station.temperCap, MAX_HEALTH_STEP, this.itemTemperCap(station.actorId, s.baseId));
       if (toStep < fromStep || target <= fromStep || !this.reserveTemper(ctx, s.baseId, station, pool, reserve)) return null;
       out.health = target / 10;
       notes.push(`tempered to ${out.health}`);
@@ -598,6 +600,7 @@ export class CraftedExtrasSystem implements System {
         enchanting: bench === BENCH_ENCHANTING || bench === BENCH_ENCHANTING_EXPERIMENT,
         temperBenches: bench === BENCH_SMITHING_WEAPON || bench === BENCH_SMITHING_ARMOR ? espmFieldFormIds(res, "KWDA") : [],
         temperCap: smith < 0 ? 10 : this.rankGates ? TEMPER_CAP_BY_RANK[Math.min(smith, TEMPER_CAP_BY_RANK.length - 1)] : MAX_HEALTH_STEP,
+        actorId,
         enchantMargin: enchanter < 0 ? 0 : this.rankGates ? ENCHANT_MARGIN_BY_RANK[Math.min(enchanter, ENCHANT_MARGIN_BY_RANK.length - 1)] : ENCHANT_MARGIN,
       };
     } catch {
@@ -746,6 +749,13 @@ export class CraftedExtrasSystem implements System {
     if (this.uncappedLogged.has(key) || this.uncappedLogged.size >= 256) return;
     this.uncappedLogged.add(key);
     this.log(`[crafted] refused an enchantment with ${weapon ? "weapon" : "armor"} effect ${hex(effectId)}, ${ruled ? "an Alchemy or Enchanting effect, which is never put on an item" : "which has no cap"}`);
+  }
+
+  // The gameplay's cap for this item (smithing.js: an item improves at most two tier steps, T5+ not at all); none, or anything but a number, leaves the rank cap alone
+  private itemTemperCap(actorId: number | undefined, baseId: number): number {
+    const hook = (globalThis as any).__dboTemperCap;
+    if (typeof hook !== "function" || !actorId) return MAX_HEALTH_STEP;
+    try { const cap = Number(hook(actorId >>> 0, baseId >>> 0)); return Number.isFinite(cap) ? cap : MAX_HEALTH_STEP; } catch { return MAX_HEALTH_STEP; }
   }
 
   // Why the last plan was refused, for the notice: the most telling reason of a report wins
