@@ -22,7 +22,7 @@ globalThis.performance = { now: () => virtual };
 
 // The server's full-plugin indices for the three plugins involved (fork/deploy/skyrim-data/loadorder.txt with the light
 // plugins skipped; 0x3c12ae11 in server.log is a DragonBreak Online Edits.esp ref)
-const PLUG = { 'skyrim.esm': 0x00, 'bsassets.esm': 0x07, 'dragonbreak online edits.esp': 0x3c };
+const PLUG = { 'skyrim.esm': 0x00, 'bsassets.esm': 0x07, 'bsheartland.esm': 0x08, 'dragonbreak online edits.esp': 0x3c };
 const idOfDesc = (d) => {
   const m = /^([0-9a-f]+):(.+)$/i.exec(String(d));
   if (!m || PLUG[m[2].toLowerCase()] === undefined) throw new Error(`${m ? m[2] : d} not found in loaded files`);
@@ -118,7 +118,7 @@ const bandOf = (ore) => MINER.oreByTier.findIndex((t) => (t || []).some((o) => S
 const yieldOf = (ore, rank) => Math.max(1, Math.round(({ iron: 5, corundum: 3, gold: 1, meteoriciron: 2 })[ore] * MINER.yieldMultiplierByTier[rank]));
 
 // ---- 1. the data ----
-check('the boot line counts three veins by reference and the meteoric rest', /3 veins by reference/.test(boot) && /meteoriciron 60/.test(boot), boot);
+check('the boot line counts the meteoric veins by reference (7 with the quicksilver ones) and the meteoric rest', /7 veins by reference/.test(boot) && /meteoriciron 60/.test(boot), boot);
 check('skills.json: meteoric iron is a Miner tier 3 (Adept) ore, beside gold', bandOf('meteoriciron') === 2 && bandOf('gold') === 2, MINER.oreByTier);
 check('...and the tier text says so', /meteoric iron/i.test(MINER.tiers[2]), MINER.tiers[2]);
 check('the mine has 21 veins: 12 iron, 6 corundum, 3 gold', Object.keys(VEINS).length === 21

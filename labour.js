@@ -75,6 +75,13 @@ module.exports = (api) => {
       '178031:DragonBreak Online Edits.esp': 'meteoriciron',   // MineOreIron04, the lowest gallery, 7,398 units walked
       '17808d:DragonBreak Online Edits.esp': 'meteoriciron',   // MineOreIron04, the far end of the lowest gallery, 7,391
       '178026:DragonBreak Online Edits.esp': 'meteoriciron',   // MineOreIron04, beside the first, 7,295
+      // No quicksilver vein stands inside the Bruma lock (76 elsewhere), and 218 recipes above steel need its ingot (smithing
+      // obtainability audit, 9 Oct; Nate: "fix everything"): four iron veins of Mountainwatch's Frostiron Mine
+      // (CYRFrostironmine01, door inside the border), spread through it (1,699 units apart at the closest), give Quicksilver
+      'e59f8:BSHeartland.esm': 'quicksilver',                     // MineOreIron02, the near end
+      '177fa4:DragonBreak Online Edits.esp': 'quicksilver',       // MineOreIron04, the middle gallery
+      'e59fd:BSHeartland.esm': 'quicksilver',                     // MineOreIron04, the far north end
+      '177fa8:DragonBreak Online Edits.esp': 'quicksilver',       // MineOreIron04, the far south end
     },
     // How long a won seam rests for everyone, by ore, where it differs from veinRestMinutes: meteoric iron is the rarest
     // seam in Bruma, three veins in the province
