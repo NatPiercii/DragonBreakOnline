@@ -1,5 +1,20 @@
 [
   {
+    "title": "Goblin loot cut back",
+    "date": "2026-10-09",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Goblins",
+        "items": [
+          "Goblin shamans no longer drop their staves.",
+          "A fallen goblin keeps most of its weapons and gear: each piece comes with the body only about one time in four. Goblin wax is unchanged."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The dead walk at Sancre Tor",
     "date": "2026-10-09",
     "version": "Server update",

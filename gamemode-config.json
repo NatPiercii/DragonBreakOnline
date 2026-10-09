@@ -636,6 +636,7 @@
    "giant",
    "goblin"
   ],
+  "keepChance": { "goblin": 0.25 }, "keepNeverEditorIds": ["Staff"], "_keepChance": "Nate 9 Oct: goblin loot nerfed: a goblin body gives each piece of its gear one time in four, and never a staff (the camp mage dropped one on every kill). Animal parts (goblin wax) are unchanged.",
   "_addFood": "Meat for animals whose death item has none (Nate, 30 Sep). creature is a pattern on the dead body's own editor id (a wolf spot also spawns bears and boars); first match wins; each item is added once per death unless the body already holds it. names is for reading only.",
   "addFood": [
    {

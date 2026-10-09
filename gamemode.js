@@ -4169,6 +4169,10 @@ const ANIMAL_BODY = Object.assign({
   allowEditorIds: ['^\\w*Food', 'Pelt', 'Hide', 'Leather', 'Fur', 'Tusk', 'Horn', 'Antler', 'Chitin', 'Tooth', 'Teeth', 'Claw', 'Fang', 'Bone', 'Scale', 'Fin$', 'Feather', 'Venom', 'Meat'],
   denyEditorIds: ['Gem', 'Gold', 'Jewel', 'Coin', 'Ingot', 'Ore', 'Human', 'Scarab', 'Unfitted'],
   keepAllKinds: [],
+  // For a keepAllKinds body, the chance each piece of its gear (not its animal parts) comes with it, per kind (default 1),
+  // and gear whose editor id matches keepNeverEditorIds never does (Nate, 9 Oct: goblin camp loot, especially the staves)
+  keepChance: {},
+  keepNeverEditorIds: [],
   // Meat for the animals whose death item has none (Nate, 30 Sep: "add food to all animals"). Matched on the body's own
   // editor id, not the wildlife kind: a wolf spot also spawns bears, mountain lions and boars. First match wins; each item
   // is added once per death, and only when the body does not already hold it.
@@ -4184,6 +4188,7 @@ const ANIMAL_BODY = Object.assign({
 }, cfg.animalBody || {});
 const animalRx = (list) => { const out = []; for (const x of Array.isArray(list) ? list : []) { try { out.push(new RegExp(String(x))); } catch (e) { log(`animalBody: bad pattern ${x}`); } } return out; };
 const ANIMAL_ALLOW = animalRx(ANIMAL_BODY.allowEditorIds), ANIMAL_DENY = animalRx(ANIMAL_BODY.denyEditorIds);
+const ANIMAL_KEEP_NEVER = animalRx(ANIMAL_BODY.keepNeverEditorIds);
 const ANIMAL_FOOD = (Array.isArray(ANIMAL_BODY.addFood) ? ANIMAL_BODY.addFood : []).map((rule) => {
   let rx = null; try { rx = new RegExp(String(rule && rule.creature)); } catch (e) { log(`animalBody.addFood: bad pattern ${rule && rule.creature}`); return null; }
   const ids = (Array.isArray(rule.items) ? rule.items : []).map((d) => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { log(`animalBody.addFood: ${d} is not in the load order`); return 0; } }).filter(Boolean);
@@ -4224,7 +4229,9 @@ globalThis.__dboAnimalBody = (targetId, casterId) => {
     if (rule) { entries = entries.slice(); for (const id of rule.ids) if (!entries.some((e) => (Number(e.baseId) >>> 0) === id && Number(e.count) > 0)) entries.push({ baseId: id, count: 1 }); }
     try { mp.set(targetId, 'private.dboBodyFed', true); } catch (e) { /* the flag only stops a second helping */ }
   }
-  const keepAll = (ANIMAL_BODY.keepAllKinds || []).includes(tag.split(':')[1]);
+  const kind = tag.split(':')[1];
+  const keepAll = (ANIMAL_BODY.keepAllKinds || []).includes(kind);
+  const keepChance = (ANIMAL_BODY.keepChance || {})[kind] === undefined ? 1 : Math.max(0, Math.min(1, Number((ANIMAL_BODY.keepChance || {})[kind]) || 0));
   const got = [], dropped = [];
   const said = (baseId, count) => { const r = recordOf(baseId); return `${count}x ${(r && r.record.editorId) || baseId.toString(16)}`; };
   let give = [];
@@ -4233,6 +4240,10 @@ globalThis.__dboAnimalBody = (targetId, casterId) => {
     if (!baseId || count <= 0) continue;
     const r = recordOf(baseId);
     if (!keepAll && !isAnimalPart(r)) { dropped.push(said(baseId, count)); continue; }
+    if (keepAll && !isAnimalPart(r)) {
+      const edid = String((r && r.record.editorId) || '');
+      if (ANIMAL_KEEP_NEVER.some((rx) => rx.test(edid)) || Math.random() >= keepChance) { dropped.push(said(baseId, count)); continue; }
+    }
     give.push(Object.assign({}, e, { baseId, count }));
   }
   // The loot cap (Nate, 4 Oct; a goblin's body handed over an Orichalcum ingot and a Dwarven bow): no metal above steel

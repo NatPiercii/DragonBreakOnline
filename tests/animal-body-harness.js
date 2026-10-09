@@ -127,12 +127,14 @@ put(GIANT, 'wild:giant:1', [{ baseId: 0x3ad52, count: 1 }, { baseId: 0x13989, co
 given.length = 0;
 ok(Array.isArray(conf.keepAllKinds) && conf.keepAllKinds.includes('giant') && build({ animalBody: conf }, CAPG)(GIANT, P) === false && given.length === 3, 'with the shipped config a giant keeps its whole body (tusk, helmet, gems)', given);
 // The loot cap on a keep-everything body (Nate, 4 Oct; live: goblin bodies handed over an Orichalcum ingot and a Dwarven
-// bow). Metals above steel never come from a body; gear above the cap becomes its steel target; arrows follow the cap
+// bow). Metals above steel never come from a body; gear above the cap becomes its steel target; arrows follow the cap.
+// These checks are about the cap, so the goblin keeps every piece here (keepChance 1); the nerf is checked after
 {
+  const confCap = Object.assign({}, conf, { keepChance: {} });
   const GOB = 0xff000604;
   put(GOB, 'wild:goblin:4', [{ baseId: 0x5ad99, count: 1 }, { baseId: 0x13995, count: 1 }, { baseId: 0x139bd, count: 6 }, { baseId: 0x3ad52, count: 1 }, { baseId: 0x5ace5, count: 2 }]);
   given.length = 0; said.length = 0; logged.length = 0;
-  ok(conf.keepAllKinds.includes('goblin') && build({ animalBody: conf }, CAPG)(GOB, P) === false, 'a goblin (keepAllKinds in the shipped config) is searched with E');
+  ok(conf.keepAllKinds.includes('goblin') && build({ animalBody: confCap }, CAPG)(GOB, P) === false, 'a goblin (keepAllKinds in the shipped config) is searched with E');
   const ids = given.map(([id]) => id);
   ok(!ids.includes(0x5ad99) && !ids.includes(0x13995) && !ids.includes(0x139bd), 'neither the Orichalcum ingot, the Dwarven bow nor the Elven arrows are handed over as they are', given);
   ok(given.some(([id, n]) => id === 0x13985 && n === 1) && given.some(([id, n]) => id === 0x1397d && n === 6), '...the bow becomes its steel target (a hunting bow), the arrows iron arrows', given);
@@ -140,12 +142,27 @@ ok(Array.isArray(conf.keepAllKinds) && conf.keepAllKinds.includes('giant') && bu
   ok(/not animal parts, left with the body: [^\n]*1x IngotOrichalcum/.test(logged.join('\n')) && logged.some((l) => /DwarvenBow from wild:goblin:4 handed over as HuntingBow \(loot cap\)/.test(l)), 'the kept-back ingot and the swapped bow are logged', logged);
   put(GOB, 'wild:goblin:4', [{ baseId: 0x139bd, count: 6 }, { baseId: 0x13995, count: 1 }]);
   given.length = 0;
-  build({ animalBody: conf }, CAPGNONE)(GOB, P);
+  build({ animalBody: confCap }, CAPGNONE)(GOB, P);
   ok(given.some(([id, n]) => id === 0x139bd && n === 6) && given.some(([id]) => id === 0x13995), 'at cap "none" the Elven arrows and the Dwarven bow come as they are (gear and arrows follow the cap)', given);
   put(GOB, 'wild:goblin:4', [{ baseId: 0x5ad99, count: 1 }, { baseId: 0x5ad9f, count: 2 }]);
   given.length = 0;
-  build({ animalBody: conf }, CAPGNONE)(GOB, P);
+  build({ animalBody: confCap }, CAPGNONE)(GOB, P);
   ok(given.length === 0, '...but never a metal above steel, at any cap', given);
+}
+// Nate, 9 Oct: goblin loot nerfed. A goblin body never gives a staff, and each other piece of gear one time in four
+{
+  const GOB = 0xff000605;
+  RECS[0x2648] = ['WEAP', 'BSKGoblinStaffSparks'];
+  const gob = () => { put(GOB, 'wild:goblin:5', [{ baseId: 0x2648, count: 1 }, { baseId: 0x5ace5, count: 1 }]); given.length = 0; build({ animalBody: conf }, CAPGNONE)(GOB, P); return given.map(([id]) => id); };
+  ok(conf.keepChance && conf.keepChance.goblin === 0.25 && conf.keepNeverEditorIds.includes('Staff'), 'the shipped config: goblin gear 1 in 4, never a staff');
+  const R = Math.random;
+  Math.random = () => 0;      // the luckiest roll
+  const lucky = gob();
+  Math.random = () => 0.99;   // the unluckiest
+  const unlucky = gob();
+  Math.random = R;
+  ok(!lucky.includes(0x2648) && lucky.includes(0x5ace5), 'even on the luckiest roll the staff stays with the body; the other gear comes', lucky);
+  ok(!unlucky.includes(0x2648) && !unlucky.includes(0x5ace5), 'on an unlucky roll the body keeps its gear', unlucky);
 }
 // Food on every animal (Nate, 30 Sep: "add food to all animals"). Every wild creature whose death item holds no meat, by
 // its own editor id (the census of wildlife.json's spawnable creatures, 30 Sep), gets its food with the other parts;
