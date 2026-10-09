@@ -712,13 +712,13 @@
    "description": "Only a Cook may use cooking pots and ovens. Tiers decide the quality of food you can prepare.",
    "vanillaSkills": [],
    "gates": {
-    "hint": "a cooking pot or spit",
+    "hint": "a cooking pot, spit or oven",
     "stations": [
      "isCookingSpit",
      "isSmallCookingPot",
      "CraftingCookingPot",
      "CraftingCookingFireSpit",
-     "BYOHOven"
+     "BYOHCraftingOven"
     ]
    },
    "counts": {
