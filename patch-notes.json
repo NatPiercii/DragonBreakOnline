@@ -1,7 +1,7 @@
 [
   {
     "title": "Harder locks have more pins",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Balance",
     "sections": [
@@ -15,7 +15,7 @@
   },
   {
     "title": "Werewolf howls",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -29,7 +29,7 @@
   },
   {
     "title": "Open Lock spells work on dungeon chests",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -44,7 +44,7 @@
   },
   {
     "title": "Bounty fix",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -58,7 +58,7 @@
   },
   {
     "title": "Client update 0.3.89",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Client 0.3.89",
     "tag": "New",
     "sections": [
@@ -82,7 +82,7 @@
   },
   {
     "title": "Stronger summons",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Balance",
     "sections": [
@@ -98,7 +98,7 @@
   },
   {
     "title": "Death's Chill in the journal",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -113,7 +113,7 @@
   },
   {
     "title": "Echo Cave barrier",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -127,7 +127,7 @@
   },
   {
     "title": "Moranda is part of Bruma",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -141,7 +141,7 @@
   },
   {
     "title": "More wood",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -155,7 +155,7 @@
   },
   {
     "title": "Camp chests: common ingredients",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -169,7 +169,7 @@
   },
   {
     "title": "Minotaurs fight back",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -183,7 +183,7 @@
   },
   {
     "title": "Moranda and the Sancre Tor Ruins",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -226,7 +226,7 @@
   },
   {
     "title": "Learned enchantments come back",
-    "date": "SHIP_DATE",
+    "date": "2026-10-09",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -241,7 +241,7 @@
   },
   {
     "title": "Brewing drinks",
-    "date": "SHIP_DATE",
+    "date": "2026-10-08",
     "version": "Server update",
     "tag": "New",
     "sections": [
@@ -258,7 +258,7 @@
   },
   {
     "title": "Client update 0.3.83",
-    "date": "SHIP_DATE",
+    "date": "2026-10-08",
     "version": "Client 0.3.83",
     "tag": "Fix",
     "sections": [
@@ -282,7 +282,7 @@
   },
   {
     "title": "Wheel of Skills: plainer words",
-    "date": "SHIP_DATE",
+    "date": "2026-10-08",
     "version": "Server update",
     "tag": "Change",
     "sections": [
@@ -311,7 +311,7 @@
   },
   {
     "title": "Placed chopping blocks play the mini-game",
-    "date": "SHIP_DATE",
+    "date": "2026-10-08",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -325,7 +325,7 @@
   },
   {
     "title": "The Bruma border holds",
-    "date": "SHIP_DATE",
+    "date": "2026-10-08",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
@@ -339,7 +339,7 @@
   },
   {
     "title": "Real trees around Bruma, Fort Coldcorn and the border",
-    "date": "SHIP_DATE",
+    "date": "2026-10-07",
     "version": "Server update",
     "tag": "World",
     "sections": [
@@ -356,7 +356,7 @@
   },
   {
     "title": "Learned enchantments stay learned",
-    "date": "SHIP_DATE",
+    "date": "2026-10-07",
     "version": "Server update",
     "tag": "Fix",
     "sections": [
