@@ -986,9 +986,10 @@
   },
   "d3ea0:Skyrim.esm": {
    "name": "Penitus Oculatus Armor",
-   "set": "Imperial Legion",
+   "set": "Penitus Oculatus",
    "factions": [
-    "imperial-legion"
+    "imperial-legion",
+    "penitus-oculatus"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -997,9 +998,10 @@
   },
   "d3ea7:Skyrim.esm": {
    "name": "Penitus Oculatus Boots",
-   "set": "Imperial Legion",
+   "set": "Penitus Oculatus",
    "factions": [
-    "imperial-legion"
+    "imperial-legion",
+    "penitus-oculatus"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1008,9 +1010,10 @@
   },
   "d3eab:Skyrim.esm": {
    "name": "Penitus Oculatus Bracers",
-   "set": "Imperial Legion",
+   "set": "Penitus Oculatus",
    "factions": [
-    "imperial-legion"
+    "imperial-legion",
+    "penitus-oculatus"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -1019,9 +1022,10 @@
   },
   "d3eaa:Skyrim.esm": {
    "name": "Penitus Oculatus Helmet",
-   "set": "Imperial Legion",
+   "set": "Penitus Oculatus",
    "factions": [
-    "imperial-legion"
+    "imperial-legion",
+    "penitus-oculatus"
    ],
    "role": "blacksmith",
    "recipes": [
@@ -2945,9 +2949,10 @@
   },
   "187e:DIS_Heavy_Legion.esp": {
    "name": "Penitus Oculatus Cloak",
-   "set": "Imperial Legion",
+   "set": "Penitus Oculatus",
    "factions": [
-    "imperial-legion"
+    "imperial-legion",
+    "penitus-oculatus"
    ],
    "role": "tailor",
    "recipes": [
@@ -2956,9 +2961,10 @@
   },
   "1871:DIS_Heavy_Legion.esp": {
    "name": "Penitus Oculatus Shield",
-   "set": "Imperial Legion",
+   "set": "Penitus Oculatus",
    "factions": [
-    "imperial-legion"
+    "imperial-legion",
+    "penitus-oculatus"
    ],
    "role": "blacksmith",
    "recipes": [

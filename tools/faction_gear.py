@@ -26,7 +26,9 @@ VAMPIRES = ['clan-volkihar', 'cyrodiil-vampyrum-order', 'crimson-scars', 'bloodm
 # (set name, factions, name regex, extra test on (name, recipe edid, plugin))
 SETS = [
     # Not 'Steel Imperial': those gauntlets are plain steel (ArmorSteelGauntletsB), not Legion work (faction parity, 6 Oct)
-    ('Imperial Legion', ['imperial-legion'], r"^(Imperial (?!City Stew)|Heroic Imperial|General Tullius|Penitus Oculatus)", None),
+    ('Imperial Legion', ['imperial-legion'], r"^(Imperial (?!City Stew)|Heroic Imperial|General Tullius)", None),
+    # Nate 9 Oct: the Penitus Oculatus is its own faction; the Legion keeps the set (his 28 Sep tie) and the Oculatus wears it
+    ('Penitus Oculatus', ['imperial-legion', 'penitus-oculatus'], r"^Penitus Oculatus", None),
     ('Stormcloaks', ['stormcloaks'], r"^(Stormcloak|Heroic Stormcloak|Ulfric's)", None),
     ('Dawnguard', ['dawnguard'], r"^Dawng(ua|au)rd", None),
     ('Blades', ['blades'], r"^(Blades |Akaviri Samurai|Dragonguard)", None),

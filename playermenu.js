@@ -49,7 +49,7 @@ module.exports = (api) => {
   const UNLAWFUL_RANKS = new Set(['courtmage', 'shaman', 'wisewoman']);
   // Faction ranks that arrest too (Nate, 6 Oct; guilds.js __dboGuildsOf, the rank's own title and role): an allegiance's
   // leaders, officers and sergeants, and a hold's guards by title. A plain member or a Citizen is not lawful.
-  const LAWFUL_FACTIONS = new Set(C.lawfulFactions || ['imperial-legion', 'stormcloaks', 'thalmor', 'blades',
+  const LAWFUL_FACTIONS = new Set(C.lawfulFactions || ['imperial-legion', 'imperial-civil-commission', 'penitus-oculatus', 'stormcloaks', 'thalmor', 'blades',
     'house-hlaalu', 'house-redoran', 'house-telvanni', 'house-indoril', 'house-dres', 'house-sadras']);
   const LAWFUL_ROLES = new Set(C.lawfulRoles || ['leader', 'officer', 'sergeant']);
   const GUARD_FACTIONS = new Set(C.guardFactions || ['hold-whiterun', 'hold-riften', 'hold-solitude', 'hold-windhelm', 'hold-markarth',
