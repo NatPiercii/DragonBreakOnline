@@ -37,9 +37,9 @@ const TIER_OF = {
   steel: 2, imperial: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, mithril: 2, silver: 2, vampire: 2,
   ancient_nord_honed: 2, falmer_honed: 2, ancient_imperial: 2, ayleid: 2,
   steelplate: 3, scaled: 3, elven_gilded: 3, nordic: 3,
-  glass: 4,
+  glass: 4, amber: 4, glacial_crystal: 4,
 };
-const NEVER = new Set(['DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
+const NEVER = new Set(['DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
 const UNIFORM = new Set(['stormcloak', 'guard', 'penitus', 'thievesguild', 'dawnguard', 'blades']);
 const TRINKET = new Set(['clothing', 'staff']);
 // Kept out of loot, never swapped: the metals players mine and their ingots (Skyrim.esm's five, from the Recipe<Ingot>

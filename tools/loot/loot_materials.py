@@ -22,10 +22,10 @@ ESPLIB = os.environ.get('DBO_ESPLIB', os.path.expanduser('~nate/dragonbreak/ck-m
 # keyword editor id -> family (first match wins, except that a banned family anywhere in the list wins)
 KWFAM = [
     (r'Dragonbone|Dragonplate|Dragonscale|DragonPlate|DragonScale', 'DRAGON'),
-    (r'Daedric|Madness|_ArmorMaterialGolden$|_WeapMaterialGolden$|_ArmorMaterialDark$|_WeapMaterialDark$', 'DAEDRIC'),
+    (r'Madness', 'madness'), (r'Daedric|_ArmorMaterialGolden$|_WeapMaterialGolden$|_ArmorMaterialDark$|_WeapMaterialDark$', 'DAEDRIC'),
     (r'Ebony', 'EBONY'),
     (r'Stalhrim', 'stalhrim'), (r'Aetherium', 'aetherium'),
-    (r'Glass|Amber', 'glass'), (r'ElvenGilded', 'elven_gilded'), (r'Elven', 'elven'), (r'Dwarven', 'dwarven'), (r'Orcish', 'orcish'),
+    (r'Amber', 'amber'), (r'Glass', 'glass'), (r'ElvenGilded', 'elven_gilded'), (r'Elven', 'elven'), (r'Dwarven', 'dwarven'), (r'Orcish', 'orcish'),
     (r'Nordic', 'nordic'), (r'Golden', 'golden'),
     (r'DraugrHoned', 'ancient_nord_honed'), (r'Draugr', 'ancient_nord'), (r'FalmerHoned|FalmerHardened', 'falmer_honed'), (r'Falmer', 'falmer'),
     (r'Bonemold', 'bonemold'), (r'Chitin|MoragTong', 'chitin'),
@@ -42,7 +42,8 @@ KWFAM = [
 # editor id fallback (order matters)
 EDFAM = [
     (r'Dragon(bone|plate|scale|Bone|Plate|Scale|hide|Hide)|Dragonsteel|DLC1Keeper|DragonPriestDagger', 'DRAGON'),
-    (r'Daedric', 'DAEDRIC'), (r'Ebony', 'EBONY'), (r'Stalhrim', 'stalhrim'), (r'Glass|Amber', 'glass'),
+    (r'Madness', 'madness'), (r'Daedric', 'DAEDRIC'), (r'Ebony', 'EBONY'), (r'Stalhrim', 'stalhrim'), (r'GlacialCrystal', 'glacial_crystal'),
+    (r'Amber', 'amber'), (r'Glass', 'glass'),
     (r'ElvenGilded', 'elven_gilded'), (r'Elven|Thalmor', 'elven'), (r'Dwarven|Dwemer', 'dwarven'), (r'Orcish|Orichalcum', 'orcish'),
     (r'Ayleid', 'ayleid'), (r'AncientImperial', 'ancient_imperial'), (r'Goblin', 'goblin'),
     (r'Nordic', 'nordic'), (r'Draugr|AncientNord', 'ancient_nord'), (r'Falmer', 'falmer'), (r'Forsworn', 'forsworn'),
@@ -51,7 +52,11 @@ EDFAM = [
     (r'Fur|Hide', 'hide'), (r'Leather', 'leather'),
     (r'Cloth|Robe|Hood|Boots|Shoes|Gloves|Hat|Circlet|Ring|Amulet|Necklace|Jewel|Clothes', 'clothing'),
 ]
-BANNED = ('DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish')
+BANNED = ('DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish')
+# Sets whose editor id names them although their keywords borrow another material's (BS Heartland's Ancient Imperial
+# weapons carry WeapMaterialSteel, Immersive Armors' Glacial Crystal IAKMaterialGlass/Ebony): the smithing families
+# (smithing.json; Nate, 9 Oct) go by the set
+EDID_FIRST = [(r'AncientImperial', 'ancient_imperial'), (r'GlacialCrystal', 'glacial_crystal')]
 BANNED_NAME = re.compile(r'Ebony|Daedric|Dragon(?:plate|scale|bone|hide)|DLC1Keeper|Dragonsteel|DragonPriestDagger|Orcish|Orichalcum|Stalhrim', re.I)
 
 
@@ -120,6 +125,9 @@ def classifier(scan_data):
         if BANNED_NAME.search(r.get('edid') or ''):
             f = fam_edid(r.get('edid'))
             return f if f in BANNED else 'EBONY'
+        for pat, f in EDID_FIRST:
+            if re.search(pat, r.get('edid') or ''):
+                return f
         names = [K.get(canon(x)) or '' for x in r.get('kw', [])]
         fams = [f for f in (fam_kw(n) for n in names if 'Material' in n) if f]
         if fams:
