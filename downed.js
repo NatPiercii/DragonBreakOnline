@@ -320,6 +320,7 @@ module.exports = (api) => {
     personal(a, left ? `The chill of the grave is on you for ${Math.ceil(left / 60000)} more minute(s) of play. A Priest of tier ${C.chillCureTier} or higher can lift it with a healing spell.` : 'You are free of the chill of the grave.');
   }, { help: "how long Death's Chill lasts" });
   globalThis.__dboDeathChillLeft = (a) => chillLeft(Number(a) >>> 0);
+  globalThis.__dboChillCureTier = () => C.chillCureTier;
 
   // ---- the panel and the timers others see ---------------------------------------------------------------
   // Nate, 2026-09-27 (players missed the banner and did not know why they were not sent to the temple): a panel in the
