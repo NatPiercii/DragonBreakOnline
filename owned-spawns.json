@@ -850,13 +850,13 @@
    "world": "a764b:BSHeartland.esm",
    "interior": false,
    "pos": [
-    -2942.28,
-    193929.22,
-    6977.78
+    -2965.33,
+    193941.33,
+    6979.67
    ],
    "heading": 22.9,
    "ref": "e253b:BSHeartland.esm",
-   "anchorDist": 3552,
+   "anchorDist": 3543,
    "group": "1833e2:DragonBreak Online Edits.esp",
    "options": [
     [
@@ -946,13 +946,13 @@
    "world": "a764b:BSHeartland.esm",
    "interior": false,
    "pos": [
-    -2075.05,
-    199916.95,
-    6156.56
+    -2133.33,
+    199893.33,
+    6157.0
    ],
    "heading": 97.4,
    "ref": "e2544:BSHeartland.esm",
-   "anchorDist": 1284,
+   "anchorDist": 1236,
    "group": "1833e2:DragonBreak Online Edits.esp",
    "options": [
     [
@@ -1018,13 +1018,13 @@
    "world": "a764b:BSHeartland.esm",
    "interior": false,
    "pos": [
-    373.92,
-    191677.8,
-    6068.18
+    405.33,
+    192554.67,
+    5894.33
    ],
    "heading": 130.8,
    "ref": "e254a:BSHeartland.esm",
-   "anchorDist": 6348,
+   "anchorDist": 5575,
    "group": "1833e2:DragonBreak Online Edits.esp",
    "options": [
     [
@@ -1042,13 +1042,13 @@
    "world": "a764b:BSHeartland.esm",
    "interior": false,
    "pos": [
-    448.14,
-    191475.52,
-    6066.68
+    661.33,
+    192533.33,
+    5878.33
    ],
    "heading": 73.5,
    "ref": "e254a:BSHeartland.esm",
-   "anchorDist": 6563,
+   "anchorDist": 5721,
    "group": "1833e2:DragonBreak Online Edits.esp",
    "options": [
     [
@@ -1066,13 +1066,13 @@
    "world": "a764b:BSHeartland.esm",
    "interior": false,
    "pos": [
-    1955.67,
-    193856.7,
-    5701.86
+    1962.67,
+    193834.67,
+    5703.67
    ],
    "heading": 143.2,
    "ref": "e254a:BSHeartland.esm",
-   "anchorDist": 5547,
+   "anchorDist": 5566,
    "group": "1833e2:DragonBreak Online Edits.esp",
    "options": [
     [
@@ -1258,16 +1258,6 @@
      ]
     },
     {
-     "ref": "1833a9:DragonBreak Online Edits.esp",
-     "loadId": "3c1833a9",
-     "edid": "CYRTreasRuinsChestBossSnow",
-     "pos": [
-      -4813.71,
-      193437.09,
-      7352.73
-     ]
-    },
-    {
      "ref": "1833aa:DragonBreak Online Edits.esp",
      "loadId": "3c1833aa",
      "edid": "CYRTreasRuinsChestBossSnow",
@@ -1278,13 +1268,13 @@
      ]
     },
     {
-     "ref": "1833ce:DragonBreak Online Edits.esp",
-     "loadId": "3c1833ce",
-     "edid": "CYRTreasExplorerLootChestSnow",
+     "ref": "1833a9:DragonBreak Online Edits.esp",
+     "loadId": "3c1833a9",
+     "edid": "CYRTreasRuinsChestBossSnow",
      "pos": [
-      -2278.99,
-      200419.8,
-      6181.03
+      -4813.71,
+      193437.09,
+      7352.73
      ]
     },
     {
@@ -1295,6 +1285,16 @@
       -175.31,
       197173.08,
       5795.73
+     ]
+    },
+    {
+     "ref": "1833ce:DragonBreak Online Edits.esp",
+     "loadId": "3c1833ce",
+     "edid": "CYRTreasExplorerLootChestSnow",
+     "pos": [
+      -2278.99,
+      200419.8,
+      6181.03
      ]
     }
    ]
@@ -1319,56 +1319,57 @@
    "478ba:DragonBreak.esp",
    "476ac:DragonBreak.esp",
    "47624:DragonBreak.esp",
-   "17e118:DragonBreak Online Edits.esp",
-   "17e11d:DragonBreak Online Edits.esp",
-   "17e117:DragonBreak Online Edits.esp",
    "17e137:DragonBreak Online Edits.esp",
-   "17e11f:DragonBreak Online Edits.esp",
-   "17e11a:DragonBreak Online Edits.esp",
-   "17e11e:DragonBreak Online Edits.esp",
-   "17e11b:DragonBreak Online Edits.esp",
-   "17e0d8:DragonBreak Online Edits.esp",
-   "17e119:DragonBreak Online Edits.esp",
-   "17e16c:DragonBreak Online Edits.esp",
-   "1780a9:DragonBreak Online Edits.esp",
-   "178075:DragonBreak Online Edits.esp",
-   "1780c3:DragonBreak Online Edits.esp",
-   "178083:DragonBreak Online Edits.esp",
+   "17e117:DragonBreak Online Edits.esp",
    "177fd8:DragonBreak Online Edits.esp",
-   "178009:DragonBreak Online Edits.esp",
+   "1780a9:DragonBreak Online Edits.esp",
+   "178083:DragonBreak Online Edits.esp",
+   "178075:DragonBreak Online Edits.esp",
    "177ff6:DragonBreak Online Edits.esp",
+   "178009:DragonBreak Online Edits.esp",
+   "1780c3:DragonBreak Online Edits.esp",
    "1781a0:DragonBreak Online Edits.esp",
    "1780e3:DragonBreak Online Edits.esp"
   ],
   "dungeon": [
-   "11b6d6:DragonBreak Online Edits.esp",
-   "11b6c7:DragonBreak Online Edits.esp",
+   "18dbf0:DragonBreak Online Edits.esp",
+   "17e11a:DragonBreak Online Edits.esp",
+   "18dbee:DragonBreak Online Edits.esp",
+   "17e16c:DragonBreak Online Edits.esp",
+   "18dbed:DragonBreak Online Edits.esp",
+   "17e11b:DragonBreak Online Edits.esp",
+   "17e11d:DragonBreak Online Edits.esp",
+   "18dbef:DragonBreak Online Edits.esp",
+   "18dbec:DragonBreak Online Edits.esp",
+   "18dbf1:DragonBreak Online Edits.esp",
    "11b6c9:DragonBreak Online Edits.esp",
-   "11b6f9:DragonBreak Online Edits.esp",
-   "11b6cd:DragonBreak Online Edits.esp",
-   "11b6d8:DragonBreak Online Edits.esp",
+   "11b6d2:DragonBreak Online Edits.esp",
+   "11b6ca:DragonBreak Online Edits.esp",
    "11b6f8:DragonBreak Online Edits.esp",
-   "11b6cb:DragonBreak Online Edits.esp",
-   "11b6d7:DragonBreak Online Edits.esp",
+   "11b6f9:DragonBreak Online Edits.esp",
+   "11b6fa:DragonBreak Online Edits.esp",
+   "11b6c8:DragonBreak Online Edits.esp",
+   "11b6d8:DragonBreak Online Edits.esp",
+   "11b6c5:DragonBreak Online Edits.esp",
+   "11b6e8:DragonBreak Online Edits.esp",
    "11b6e6:DragonBreak Online Edits.esp",
+   "11b6ce:DragonBreak Online Edits.esp",
+   "11b6c3:DragonBreak Online Edits.esp",
+   "11b6e9:DragonBreak Online Edits.esp",
+   "11b6d7:DragonBreak Online Edits.esp",
+   "11b6e5:DragonBreak Online Edits.esp",
+   "11b6c4:DragonBreak Online Edits.esp",
+   "11b6cc:DragonBreak Online Edits.esp",
+   "11b6cd:DragonBreak Online Edits.esp",
+   "11b6d6:DragonBreak Online Edits.esp",
+   "11b6d1:DragonBreak Online Edits.esp",
    "11b6fb:DragonBreak Online Edits.esp",
    "11b6cf:DragonBreak Online Edits.esp",
-   "11b6cc:DragonBreak Online Edits.esp",
-   "11b6c3:DragonBreak Online Edits.esp",
-   "11b6ce:DragonBreak Online Edits.esp",
-   "11b6c4:DragonBreak Online Edits.esp",
-   "11b6e9:DragonBreak Online Edits.esp",
-   "11b6ca:DragonBreak Online Edits.esp",
+   "11b6c7:DragonBreak Online Edits.esp",
    "11b6d0:DragonBreak Online Edits.esp",
-   "11b6e5:DragonBreak Online Edits.esp",
-   "11b6d2:DragonBreak Online Edits.esp",
-   "11b6e7:DragonBreak Online Edits.esp",
-   "11b6d1:DragonBreak Online Edits.esp",
    "11b6c6:DragonBreak Online Edits.esp",
-   "11b6e8:DragonBreak Online Edits.esp",
-   "11b6c8:DragonBreak Online Edits.esp",
-   "11b6fa:DragonBreak Online Edits.esp",
-   "11b6c5:DragonBreak Online Edits.esp"
+   "11b6cb:DragonBreak Online Edits.esp",
+   "11b6e7:DragonBreak Online Edits.esp"
   ]
  },
  "sources": {
@@ -1380,7 +1381,7 @@
   "LostArk_Kamen.esp": "5c2d810cd551f187",
   "[Kirax] Lost Ark Reborn Paladin Legendary.esp": "8c34899fd51edf30",
   "DragonBreak.esp": "56a80196402248a0",
-  "DragonBreak Online Edits.esp": "123936288090f27e",
-  "DragonBreak Nexus Patches.esp": "29d7d13ba64911d0"
+  "DragonBreak Online Edits.esp": "b6953ad106f54d46",
+  "DragonBreak Nexus Patches.esp": "f43859acdb1410c4"
  }
 }

@@ -23,7 +23,7 @@ ok(O.spawns.every((s) => s.world === 'a764b:BSHeartland.esm' && !s.interior && N
 const camp = (O.camps || []).find((c) => c.owners === 'goblins');
 ok(O.camps.length === 3 && camp.name === 'Dusk Thorn Camp' && camp.owners === 'goblins' && camp.chests[0].ref === '154079:DragonBreak Online Edits.esp', 'three camps; the goblins\' is Dusk Thorn Camp, named from its map marker, with chest 154079', O.camps.map((c) => c.name));
 ok(O.groups.find((g) => g.name === 'Dusk Thorn Camp').spawns === 8, 'the eight goblins group under the camp\'s marker');
-ok(O.skipped && O.skipped.dungeon.length === 28 && O.skipped.person.length >= 1, 'the generator left the 28 Vilverin undead to dungeons.js and listed placed people instead of spawning them', { dungeon: O.skipped.dungeon.length, person: O.skipped.person.length });
+ok(O.skipped && O.skipped.dungeon.length === 38 && O.skipped.person.length >= 1, 'the generator left the 38 dungeon actors (Vilverin\'s 28 and Moranda\'s, now a dungeon) to dungeons.js and listed placed people instead of spawning them', { dungeon: O.skipped.dungeon.length, person: O.skipped.person.length });
 
 const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'gamemode-config.json'), 'utf8'));
 ok((cfg.animalBody.keepAllKinds || []).includes('goblin'), 'a goblin body hands over its gear (animalBody.keepAllKinds has goblin)');
