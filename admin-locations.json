@@ -318,7 +318,7 @@
 "rot": [
 0,
 0,
--51.56622
+308.43475056
 ]
 },
 {
@@ -594,6 +594,22 @@
 ]
 },
 {
+"name": "Moranda",
+"region": "Cyrodiil",
+"world": "a764b:BSHeartland.esm",
+"worldName": "Heartland",
+"pos": [
+25332.15,
+177618.3,
+1251.38
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
 "name": "Mountain Watch",
 "region": "Cyrodiil",
 "world": "a764b:BSHeartland.esm",
@@ -714,6 +730,22 @@
 144158.38,
 187941.91,
 -7949.19
+],
+"rot": [
+0,
+0,
+0.0
+]
+},
+{
+"name": "Sancre Tor Ruins",
+"region": "Cyrodiil",
+"world": "a764b:BSHeartland.esm",
+"worldName": "Heartland",
+"pos": [
+-94.62,
+195814.97,
+5909.81
 ],
 "rot": [
 0,
