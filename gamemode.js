@@ -163,7 +163,7 @@ const noteTold = (actorId, text) => {
   if (toldCounts.size > 5000) for (const k of toldCounts.keys()) { if (toldCounts.size <= 4000) break; toldCounts.delete(k); }
   if (n === 1 || n === 5 || n % 10 === 0) log(`told ${display(actorId)} (x${n}): ${t.slice(0, 200)}`);
 };
-const personal = (actorId, text) => { try { noteTold(actorId, text); } catch (e) { /* the log line is optional */ } deliver(actorId, `[[PM]]System|${text}`); };
+const personal = (actorId, text) => { try { noteTold(actorId, text); } catch (e) { /* the log line is optional */ } const cap = globalThis.__dboTellCapture; if (cap && cap.a === (actorId >>> 0)) cap.lines.push(String(text)); deliver(actorId, `[[PM]]System|${text}`); };
 
 // Survives gamemode hot reloads so players who connected before a reload stay known.
 if (!(globalThis.__dboConnected instanceof Set)) globalThis.__dboConnected = new Set();
@@ -555,6 +555,18 @@ const commands = new Map();
 // `hidden` keeps a command working and explained by /help <name>, but out of the lists. Used for the old names
 // kept as aliases after two commands were merged, so nobody's muscle memory breaks while the list stays short.
 const registerChatCommand = (name, fn, opts) => commands.set(name.toLowerCase(), { fn, admin: !!(opts && opts.admin), hidden: !!(opts && opts.hidden), help: (opts && opts.help) || '' });
+// The journal's Profile buttons run the chat command itself (journal.js journalAction): the same handler, refusals and
+// cooldowns, the same admin rule. What it tells the player still goes to chat, and comes back here for the journal footer.
+globalThis.__dboRunCommand = (a, name, args) => {
+  const c = commands.get(String(name || '').toLowerCase());
+  if (!c || (c.admin && !isAdmin(a))) return null;
+  const cap = { a: a >>> 0, lines: [] };
+  const prev = globalThis.__dboTellCapture;
+  globalThis.__dboTellCapture = cap;
+  try { c.fn(a, String(args || '')); } catch (e) { log(`command /${name} from the journal failed`, e.message); cap.lines.push('That did not work. Try the chat command instead.'); }
+  finally { globalThis.__dboTellCapture = prev; }
+  return cap.lines;
+};
 // An old name that still reaches its command. The alias never appears in a list; /help <old> explains the new one.
 const aliasChatCommand = (oldName, newName, note) => {
   const target = () => commands.get(newName);
