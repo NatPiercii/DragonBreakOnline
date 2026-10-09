@@ -304,6 +304,38 @@ module.exports = (api) => {
   // two 1.0, four 1.6, six 1.8; live config 0.55 + 0.15 n since 4 Oct: solo 0.7, two 0.85, four 1.15, six 1.45)
   const partyCountMult = (n) => Math.max(Number(C.countMin) || 0.6, Math.min(Number(C.countMax) || 1.8, (Number(C.countBase) || 0.4) + (Number(C.countPerPlayer) || 0.3) * n));
   const dist3 = (a, b) => Math.hypot((a[0] || 0) - (b[0] || 0), (a[1] || 0) - (b[1] || 0), (a[2] || 0) - (b[2] || 0));
+  // ---- big dungeons wake as the party comes near ---------------------------------------------------------------
+  // A claim spawned every enemy at once, and in a solo claim the one player's game runs them all: Serpent's Trail had a
+  // solo host running 15 enemies a minute in, and lagged (Nate, 8 Oct: "be mindful of load, while making it feel fluid").
+  // In a dungeon with at least minEnemies (ambushers aside), enemies form groups (same cell, within groupRadius of each
+  // other: a camp, a crypt, a pack) and a group spawns whole when anyone comes within reach of one of its members, at
+  // Bethesda's spots and out of sight. The groups at the landing spot and the boss's are placed before the party arrives,
+  // as before; nothing despawns, so what was met stays met. Smaller dungeons spawn whole. Config dungeons.spawnReach.
+  const REACH = Object.assign({ enabled: true, reach: 4500, groupRadius: 1000, minEnemies: 12 }, C.spawnReach || {});
+  const normCell = (c) => String(c || '').toLowerCase().replace(/^0+(?=[0-9a-f])/, '');
+  const applyReach = (d, out) => {
+    const reach = Number(REACH.reach);
+    if (!REACH.enabled || !(reach > 0)) return;
+    const zs = out.filter((z) => !z.Ambush);
+    if (zs.length < Math.max(1, Number(REACH.minEnemies) || 0)) return;
+    const parent = zs.map((_, i) => i);
+    const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+    const gr = Math.max(0, Number(REACH.groupRadius) || 0);
+    for (let i = 0; i < zs.length; i++) for (let j = i + 1; j < zs.length; j++) {
+      if (normCell(zs[i].ID) === normCell(zs[j].ID) && dist3(zs[i].POS, zs[j].POS) <= gr) parent[find(i)] = find(j);
+    }
+    const landings = (d.entrances || []).filter((e) => e && Array.isArray(e.insidePos)).map((e) => ({ cell: normCell(e.insideCell), pos: e.insidePos }));
+    const nearLanding = (z) => landings.some((l) => l.cell === normCell(z.ID) && dist3(l.pos, z.POS) <= reach);
+    const awake = new Set();
+    zs.forEach((z, i) => { if (out.bosses.includes(z.Name) || nearLanding(z)) awake.add(find(i)); });
+    zs.forEach((z, i) => {
+      z.Reach = true;
+      z.Group = `${d.id}:${find(i)}`;
+      z.Size = reach;
+      z.Prespawn = awake.has(find(i));
+    });
+    log(`dungeon ${d.id}: ${zs.length} enemies in ${new Set(zs.map((_, i) => find(i))).size} group(s) wake within ${reach} units, ${zs.filter((z) => z.Prespawn).length} placed at once`);
+  };
   const zonesFor = (d, diff, scale = { lvl: 1, n: 1 }) => {
     const out = [];
     out.bosses = [];   // zone names of the claim's bosses (not written to NPC-Spawns.json: a property of the array)
@@ -379,6 +411,7 @@ module.exports = (api) => {
       }
     }
     if (ambushed) log(`dungeon ${d.id}: ${ambushed} of ${out.length} enemies wait in ambush within ${AMBUSH_REACH} units`);
+    applyReach(d, out);
     return out;
   };
   const writeSpawnZones = () => {

@@ -1,5 +1,19 @@
 [
   {
+    "title": "Smoother big dungeons",
+    "date": "2026-10-08",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Dungeons",
+        "items": [
+          "Big dungeons no longer wake all at once. The enemies at the entrance and the boss's room are there when you arrive as before; the rest appear in their own rooms, a group at a time, before you get near them. A solo run (or a small party) no longer has to run the whole dungeon's enemies at once, which should make places like Serpent's Trail much smoother. Small dungeons are unchanged."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Learned enchantments come back",
     "date": "SHIP_DATE",
     "version": "Server update",
