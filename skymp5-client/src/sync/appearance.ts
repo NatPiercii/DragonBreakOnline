@@ -179,11 +179,26 @@ export const applyAppearance = (appearance: Appearance): ActorBase => {
   return npc;
 };
 
+// BGSHeadPart type of eyes (0 misc, 1 face, 2 eyes, 3 hair)
+const HEADPART_EYES = 2;
+
+// The live head keeps its eyes when only the base's head part list changes, so a vampire's tells came and went at relog only
+const swapPlayerEyes = (appearance: Appearance): void => {
+  const player = Game.getPlayer() as Actor;
+  for (const id of appearance.headpartIds) {
+    const part = HeadPart.from(Game.getFormEx(id));
+    if (!part || part.isExtraPart() || part.getType() !== HEADPART_EYES) continue;
+    try { player.changeHeadPart(part); } catch { /* not on this platform build */ }
+    return;
+  }
+};
+
 export const applyAppearanceToPlayer = (appearance: Appearance): void => {
   applyAppearanceCommon(
     appearance,
     ActorBase.from((Game.getPlayer() as Actor).getBaseObject()) as ActorBase,
   );
+  swapPlayerEyes(appearance);
   applyTints(null, appearance);
   regeneratePlayerHead(appearance);
   queuePlayerNiNodeUpdate();
