@@ -119,7 +119,8 @@ module.exports = (api) => {
     const needles = [display(a).replace(/ #.*/, ''), hex(a)].concat(view.npcs.slice(0, 12).map((n) => n.id));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const file = path.join(C.dir, 'bugs', `${stamp}-${tagOf(a)}.json`);
-    const ok = write(file, { at: new Date().toISOString(), by: display(a), text: text.slice(0, 500), view, log: recentLog(needles), voice: voiceNear(a, view) });
+    // profileId: the backend matches the snapshot to the reporter's launcher, which then sends their logs to the same thread
+    const ok = write(file, { at: new Date().toISOString(), by: display(a), profileId: profileOf(a), text: text.slice(0, 500), view, log: recentLog(needles), voice: voiceNear(a, view) });
     // The whole text as saved (500): dbo-monitor copies this line into the #bug-tracker thread, which allows 1500
     log(`BUGREPORT ${display(a)} ${path.basename(file)}: ${text.slice(0, 500)}`);
     return { ok, text: ok ? 'Thanks, the staff team has your report. To add a screenshot, use Report a Problem on the website and mention the time of your /bug.' : 'The report could not be saved; please tell staff.' };
