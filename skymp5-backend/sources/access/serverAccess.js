@@ -19,6 +19,7 @@ function defaults() {
     lockedDiscordIds: uniq(config.serverLockedAllowList),
     whitelistRoleId: config.whitelistRoleId || '',
     bannedRoleId: config.bannedRoleId || '',
+    requireGuildMember: true,   // data/server-access.json requireGuildMember false turns it off
   }
 }
 
@@ -51,6 +52,7 @@ function normalize(data) {
     lockedDiscordIds: uniq(data.lockedDiscordIds),
     whitelistRoleId: String(data.whitelistRoleId || '').trim(),
     bannedRoleId: String(data.bannedRoleId || '').trim(),
+    requireGuildMember: data.requireGuildMember !== false,
   }
 }
 
@@ -86,6 +88,11 @@ async function getDiscordAccess(discordId) {
 
   if (settings.bannedRoleId && roles.includes(settings.bannedRoleId)) {
     return { allowed: false, error: 'banned', roles, settings }
+  }
+
+  // Nate, 9 Oct 2026: only members of the DragonBreak Online Discord may play. Unknown (Discord unreachable) lets them in.
+  if (settings.requireGuildMember && await discordBot.isGuildMember(discordId) === false) {
+    return { allowed: false, error: 'notWhitelisted', reason: 'notInDiscord', roles, settings }
   }
 
   if (settings.serverLocked) {

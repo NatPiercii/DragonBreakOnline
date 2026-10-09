@@ -94,7 +94,7 @@ function ensureRoleLookupConfigured() {
 
 // Short-lived cache so launcher polling doesn't turn into a request spam
 const ROLE_CACHE_TTL_MS = 60 * 1000
-const roleCache = new Map() // discordId -> { roles, expiresAt }
+const roleCache = new Map() // discordId -> { roles, member, expiresAt }; member false = not in the guild
 
 async function getMemberRoles(discordId) {
   if (!discordId) return []
@@ -108,11 +108,11 @@ async function getMemberRoles(discordId) {
       const guild = await client.guilds.fetch(config.discordGuildId)
       const member = await guild.members.fetch({ user: discordId, force: true })
       const roles = [...member.roles.cache.keys()]
-      roleCache.set(discordId, { roles, expiresAt: Date.now() + ROLE_CACHE_TTL_MS })
+      roleCache.set(discordId, { roles, member: true, expiresAt: Date.now() + ROLE_CACHE_TTL_MS })
       return roles
     } catch (err) {
       if (err && err.code === 10007) {
-        roleCache.set(discordId, { roles: [], expiresAt: Date.now() + ROLE_CACHE_TTL_MS })
+        roleCache.set(discordId, { roles: [], member: false, expiresAt: Date.now() + ROLE_CACHE_TTL_MS })
         return []  // genuinely not in server
       }
       console.warn('[discord-bot] guild fetch failed, falling back to HTTP:', err.message)
@@ -121,12 +121,21 @@ async function getMemberRoles(discordId) {
 
   try {
     const roles = await fetchMemberRoles(discordId)
-    roleCache.set(discordId, { roles, expiresAt: Date.now() + ROLE_CACHE_TTL_MS })
-    return roles
+    roleCache.set(discordId, { roles: roles || [], member: roles !== null, expiresAt: Date.now() + ROLE_CACHE_TTL_MS })
+    return roles || []
   } catch (err) {
     console.error('[discord-bot] HTTP fallback also failed:', err.message)
     return []  // not cached: allows quick recovery once Discord is reachable
   }
+}
+
+// true in the guild, false not in it, null unknown (no guild configured, or Discord did not answer: the caller lets
+// the player in rather than lock everyone out during a Discord outage)
+async function isGuildMember(discordId) {
+  if (!discordId || !config.discordBotToken || !config.discordGuildId) return null
+  await getMemberRoles(discordId)
+  const cached = roleCache.get(discordId)
+  return cached && cached.expiresAt > Date.now() && typeof cached.member === 'boolean' ? cached.member : null
 }
 
 function isReady() {
@@ -154,7 +163,7 @@ function fetchMemberRoles(discordId) {
       let data = ''
       res.on('data', c => { data += c })
       res.on('end', () => {
-        if (res.statusCode === 404) return resolve([])
+        if (res.statusCode === 404) return resolve(null)   // not in the guild
         if (res.statusCode < 200 || res.statusCode >= 300) {
           return reject(new Error(`discord member lookup failed (${res.statusCode})`))
         }
@@ -246,6 +255,7 @@ module.exports = {
   start,
   audit: require('./audit'),
   getMemberRoles,
+  isGuildMember,
   isReady,
   memberHasRole,
   getMembersWithRole,
