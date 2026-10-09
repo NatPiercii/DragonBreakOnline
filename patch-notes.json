@@ -1,6 +1,6 @@
 [
   {
-    "title": "Elite minotaurs",
+    "title": "Minotaurs fight back",
     "date": "SHIP_DATE",
     "version": "Server update",
     "tag": "Change",
@@ -8,7 +8,7 @@
       {
         "heading": "Creatures",
         "items": [
-          "The minotaurs of Sancre Tor and Minotaur's Rest are elite: they hit 75% harder and shrug off half of every blow. Bring friends."
+          "The minotaurs of Sancre Tor and Minotaur's Rest attack on sight, and are a little tougher than an ordinary minotaur: they hit 25% harder and take a fifth less from every blow."
         ]
       }
     ]

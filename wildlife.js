@@ -93,7 +93,7 @@ module.exports = (api) => {
       if (!sp || !sp.src || !sp.kind || !sp.ref || !sp.world || !Array.isArray(sp.pos)) continue;
       const { id } = safePick(sp.options, pickFor(sp));
       if (!id) continue;
-      out.push({ Name: ownedZoneName(sp), ID: sp.world, POS: sp.pos, Size: C.radius, Anchor: sp.ref, Heading: Number(sp.heading) || 0, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds });
+      out.push(Object.assign({ Name: ownedZoneName(sp), ID: sp.world, POS: sp.pos, Size: C.radius, Anchor: sp.ref, Heading: Number(sp.heading) || 0, NPC: [{ id, count: 1 }], Despawn: C.despawnSeconds, Respawn: C.respawnSeconds }, HOSTILE_KINDS.has(sp.kind) ? { Hostile: true } : {}));
     }
     return out;
   };
@@ -187,6 +187,9 @@ module.exports = (api) => {
   // gets these factions in ff_factions, which the client applies (formView.applyFactions, as for dungeon placements):
   // camp-mates become allies and stop targeting each other, and stay hostile to players. Checked every 2 s against the
   // spawner's sidecar of live ids; gamemode-config.json "ownedSpawns": { "factions": { "<kind>": ["<desc>", ...] } }.
+  // Kinds whose bases' own AI would leave them peaceful but which must attack on sight (Nate, 9 Oct: the minotaurs of Sancre
+  // Tor 'aren't fighting back'); gamemode-config.json ownedSpawns.hostileKinds, written into each zone as Hostile: true
+  const HOSTILE_KINDS = new Set((((cfg.ownedSpawns || {}).hostileKinds) || []).map(String));
   const OWNED_FACTIONS = Object.assign({
     goblin: ['13:Skyrim.esm', '877f5:BSHeartland.esm'],   // CreatureFaction, CYRGoblinFaction (allied to itself)
   }, ((cfg.ownedSpawns || {}).factions) || {});
