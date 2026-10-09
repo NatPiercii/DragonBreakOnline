@@ -93,7 +93,7 @@ ok(JSON.stringify(learned(Q)) === JSON.stringify([STAMINA, FIRE]), 'max 2 keeps 
 const cfg = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
 ok(cfg.learnedEnchantments && cfg.learnedEnchantments.enabled === true, 'gamemode-config.json carries learnedEnchantments, on (client 0.3.76 reads dboEnchLearned; Nate, 4 Oct)', cfg.learnedEnchantments);
 const gm = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
-ok(/globalThis\.__dboEnchLearnedLogin\(a\)/.test(gm) && /require\(ALCHEMY_JS\)\(\{[^}]*cfg, sendPacket \}\)/.test(gm), 'gamemode.js calls it at login and hands alchemy.js cfg and sendPacket');
+ok(/globalThis\.__dboEnchLearnedLogin\(a\)/.test(gm) && /require\(ALCHEMY_JS\)\(\{[^}]*cfg, sendPacket[^}]*\}\)/.test(gm), 'gamemode.js calls it at login and hands alchemy.js cfg and sendPacket');
 const sync = gm.slice(gm.indexOf("registerChatCommand('syncenchant'"), gm.indexOf("registerChatCommand('load'"));
 ok(/__dboEnchLearnedResend\(a\)/.test(sync) && !/__dboEnchLearnedLogin/.test(sync) && !/sent=/.test(sync), '/syncenchant uses the resend, never the login, and answers in words');
 // A disenchant sends the whole list again once its inventory write has landed (SMJ, 7 Oct: the game forgot the restored
