@@ -43,6 +43,9 @@ CREATURE = re.compile(r'^(?:CYR|BSK|BS|DLC1|DLC2)?(?:Enc|Lvl)?(Boar|Goblin|Horse
                       r'Lurker|Werebear|Ogre|Minotaur|MountainLion)', re.I)
 DISABLED, STARTS_DEAD, DELETED = 0x800, 0x200, 0x20
 MARKER_REACH = 3000
+# Markers whose place is bigger than MARKER_REACH: every spawn and chest within the reach is one area around the marker
+# (Sancre Tor Ruins, Nate 8 Oct: "this will be the new world dungeon", 21 minotaurs and 8 chests over 6 cells, 5,450 out)
+AREA_REACH = {('dragonbreak online edits.esp', 0x1833E2): 6000}
 ANCHOR_REACH = 2500
 CELL = 4096
 MAP_MARKER = ('skyrim.esm', 0x000010)
@@ -366,15 +369,17 @@ def build(lo, leased=frozenset()):
             continue
         sp['ref'] = lo.desc(best[0])
         sp['anchorDist'] = round(math.dist(best[1], pos))
-        m = min(markers.get(where, []), key=lambda m: math.dist(m[1][:2], pos[:2]), default=None)
-        if m and math.dist(m[1][:2], pos[:2]) <= MARKER_REACH:
+        near = [m for m in markers.get(where, []) if math.dist(m[1][:2], pos[:2]) <= AREA_REACH.get(m[0], MARKER_REACH)]
+        m = min(near, key=lambda m: math.dist(m[1][:2], pos[:2]), default=None)
+        if m:
             gid = lo.desc(m[0])
             gname = m[2] or (lo.edid(sp['cell']) if sp['cell'] else '') or gid
         else:
             gid = lo.desc(sp['cell']) if sp['cell'] else lo.desc(where)
             gname = (lo.edid(sp['cell']) if sp['cell'] else '') or gid
         sp['group'] = gid
-        g = groups.setdefault(gid, {'id': gid, 'name': gname, 'where': lo.desc(where), 'spawns': 0, 'kinds': collections.Counter(), 'pos': []})
+        g = groups.setdefault(gid, {'id': gid, 'name': gname, 'where': lo.desc(where), 'spawns': 0, 'kinds': collections.Counter(), 'pos': [],
+                                    'area': (m[1], AREA_REACH[m[0]]) if m and m[0] in AREA_REACH else None})
         g['spawns'] += 1
         g['kinds'][sp['kind']] += 1
         g['pos'].append(pos)
@@ -385,7 +390,8 @@ def build(lo, leased=frozenset()):
         cx = sum(p[0] for p in g['pos']) / len(g['pos'])
         cy = sum(p[1] for p in g['pos']) / len(g['pos'])
         where = next(sp['where'] for sp in spawns if sp['group'] == gid)
-        mine = [c for c in chests.get(where, []) if math.dist(c[1][:2], (cx, cy)) <= MARKER_REACH]
+        centre, reach = (g['area'][0][:2], g['area'][1]) if g['area'] else ((cx, cy), MARKER_REACH)
+        mine = [c for c in chests.get(where, []) if math.dist(c[1][:2], centre) <= reach]
         if mine:
             owner = g['kinds'].most_common(1)[0][0]
             camps.append({'id': 'owned:' + gid, 'name': g['name'], 'owners': owner + 's', 'group': gid,

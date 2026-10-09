@@ -504,9 +504,594 @@
      "d6d81:BSHeartland.esm"
     ]
    ]
+  },
+  {
+   "src": "17857f:DragonBreak Online Edits.esp",
+   "loadId": "3c17857f",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    124277.05,
+    174106.59,
+    -6836.4
+   ],
+   "heading": 80.2,
+   "ref": "8aeef:BSHeartland.esm",
+   "anchorDist": 4662,
+   "group": "17857a:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "178580:DragonBreak Online Edits.esp",
+   "loadId": "3c178580",
+   "kind": "minotaur",
+   "base": "d6fe5:BSHeartland.esm",
+   "edid": "CYREncMinotaur02Lord",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    124198.92,
+    172698.27,
+    -7021.45
+   ],
+   "heading": 28.6,
+   "ref": "ea6ef:BSHeartland.esm",
+   "anchorDist": 3577,
+   "group": "17857a:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     44,
+     "d6fe5:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "178581:DragonBreak Online Edits.esp",
+   "loadId": "3c178581",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    124825.28,
+    173249.66,
+    -7136.22
+   ],
+   "heading": 80.2,
+   "ref": "ea6ef:BSHeartland.esm",
+   "anchorDist": 4363,
+   "group": "17857a:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "183380:DragonBreak Online Edits.esp",
+   "loadId": "3c183380",
+   "kind": "minotaur",
+   "base": "d6fe5:BSHeartland.esm",
+   "edid": "CYREncMinotaur02Lord",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -247.05,
+    195799.08,
+    5860.0
+   ],
+   "heading": 51.6,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 2608,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     44,
+     "d6fe5:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "183381:DragonBreak Online Edits.esp",
+   "loadId": "3c183381",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    191.43,
+    195824.23,
+    5807.98
+   ],
+   "heading": 0.0,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 2948,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "183382:DragonBreak Online Edits.esp",
+   "loadId": "3c183382",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    637.44,
+    196216.72,
+    5799.7
+   ],
+   "heading": 160.4,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 3157,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "183385:DragonBreak Online Edits.esp",
+   "loadId": "3c183385",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    2574.09,
+    195569.3,
+    5736.92
+   ],
+   "heading": 57.3,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 5196,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "183386:DragonBreak Online Edits.esp",
+   "loadId": "3c183386",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    2057.03,
+    193164.2,
+    5680.36
+   ],
+   "heading": 28.6,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 6090,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b1:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b1",
+   "kind": "minotaur",
+   "base": "d6fe5:BSHeartland.esm",
+   "edid": "CYREncMinotaur02Lord",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -4862.98,
+    193645.41,
+    7356.49
+   ],
+   "heading": 0.0,
+   "ref": "e253c:BSHeartland.esm",
+   "anchorDist": 4383,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     44,
+     "d6fe5:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b2:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b2",
+   "kind": "minotaur",
+   "base": "d6fe5:BSHeartland.esm",
+   "edid": "CYREncMinotaur02Lord",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -4687.74,
+    193799.72,
+    7347.05
+   ],
+   "heading": 308.4,
+   "ref": "e253c:BSHeartland.esm",
+   "anchorDist": 4183,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     44,
+     "d6fe5:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b3:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b3",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -5006.71,
+    195169.34,
+    7328.0
+   ],
+   "heading": 0.0,
+   "ref": "e253c:BSHeartland.esm",
+   "anchorDist": 3217,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b4:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b4",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -5185.95,
+    195003.23,
+    7336.42
+   ],
+   "heading": 0.0,
+   "ref": "e253c:BSHeartland.esm",
+   "anchorDist": 3438,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b5:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b5",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -3294.62,
+    196160.69,
+    6708.04
+   ],
+   "heading": 57.3,
+   "ref": "e253b:BSHeartland.esm",
+   "anchorDist": 1507,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b6:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b6",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -3057.99,
+    196099.58,
+    6720.45
+   ],
+   "heading": 57.3,
+   "ref": "e253b:BSHeartland.esm",
+   "anchorDist": 1497,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b7:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b7",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -2942.28,
+    193929.22,
+    6977.78
+   ],
+   "heading": 22.9,
+   "ref": "e253b:BSHeartland.esm",
+   "anchorDist": 3552,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833b8:DragonBreak Online Edits.esp",
+   "loadId": "3c1833b8",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -2650.97,
+    193848.31,
+    6935.85
+   ],
+   "heading": 342.8,
+   "ref": "e253b:BSHeartland.esm",
+   "anchorDist": 3614,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833bf:DragonBreak Online Edits.esp",
+   "loadId": "3c1833bf",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -3221.1,
+    198020.41,
+    5880.08
+   ],
+   "heading": 143.2,
+   "ref": "e253e:BSHeartland.esm",
+   "anchorDist": 352,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833c0:DragonBreak Online Edits.esp",
+   "loadId": "3c1833c0",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -3151.1,
+    198298.53,
+    5867.67
+   ],
+   "heading": 143.2,
+   "ref": "e2540:BSHeartland.esm",
+   "anchorDist": 385,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833c1:DragonBreak Online Edits.esp",
+   "loadId": "3c1833c1",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -2075.05,
+    199916.95,
+    6156.56
+   ],
+   "heading": 97.4,
+   "ref": "e2544:BSHeartland.esm",
+   "anchorDist": 1284,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833c2:DragonBreak Online Edits.esp",
+   "loadId": "3c1833c2",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    -1921.04,
+    200106.69,
+    6144.15
+   ],
+   "heading": 171.9,
+   "ref": "e2544:BSHeartland.esm",
+   "anchorDist": 1519,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833d1:DragonBreak Online Edits.esp",
+   "loadId": "3c1833d1",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    597.66,
+    195764.22,
+    5810.03
+   ],
+   "heading": 0.0,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 3324,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833d2:DragonBreak Online Edits.esp",
+   "loadId": "3c1833d2",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    373.92,
+    191677.8,
+    6068.18
+   ],
+   "heading": 130.8,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 6348,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833d6:DragonBreak Online Edits.esp",
+   "loadId": "3c1833d6",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    448.14,
+    191475.52,
+    6066.68
+   ],
+   "heading": 73.5,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 6563,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
+  },
+  {
+   "src": "1833de:DragonBreak Online Edits.esp",
+   "loadId": "3c1833de",
+   "kind": "minotaur",
+   "base": "8b600:BSHeartland.esm",
+   "edid": "CYREncMinotaur",
+   "world": "a764b:BSHeartland.esm",
+   "interior": false,
+   "pos": [
+    1955.67,
+    193856.7,
+    5701.86
+   ],
+   "heading": 143.2,
+   "ref": "e254a:BSHeartland.esm",
+   "anchorDist": 5547,
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "options": [
+    [
+     24,
+     "8b600:BSHeartland.esm"
+    ]
+   ]
   }
  ],
  "groups": [
+  {
+   "id": "1833e2:DragonBreak Online Edits.esp",
+   "name": "Sancre Tor Ruins",
+   "world": "a764b:BSHeartland.esm",
+   "spawns": 21,
+   "kinds": {
+    "minotaur": 21
+   }
+  },
   {
    "id": "a00bf:BSHeartland.esm",
    "name": "a00bf:BSHeartland.esm",
@@ -578,6 +1163,15 @@
    "kinds": {
     "boar": 4
    }
+  },
+  {
+   "id": "17857a:DragonBreak Online Edits.esp",
+   "name": "Minotaur's Rest",
+   "world": "a764b:BSHeartland.esm",
+   "spawns": 3,
+   "kinds": {
+    "minotaur": 3
+   }
   }
  ],
  "camps": [
@@ -595,6 +1189,112 @@
       70161.82,
       179894.61,
       -4048.07
+     ]
+    }
+   ]
+  },
+  {
+   "id": "owned:17857a:DragonBreak Online Edits.esp",
+   "name": "Minotaur's Rest",
+   "owners": "minotaurs",
+   "group": "17857a:DragonBreak Online Edits.esp",
+   "chests": [
+    {
+     "ref": "178582:DragonBreak Online Edits.esp",
+     "loadId": "3c178582",
+     "edid": "CYRTreasBanditChestBoss",
+     "pos": [
+      124165.49,
+      173997.78,
+      -6829.73
+     ]
+    }
+   ]
+  },
+  {
+   "id": "owned:1833e2:DragonBreak Online Edits.esp",
+   "name": "Sancre Tor Ruins",
+   "owners": "minotaurs",
+   "group": "1833e2:DragonBreak Online Edits.esp",
+   "chests": [
+    {
+     "ref": "1833cf:DragonBreak Online Edits.esp",
+     "loadId": "3c1833cf",
+     "edid": "CYRTreasExplorerLootChestSnow",
+     "pos": [
+      728.71,
+      196533.38,
+      5792.2
+     ]
+    },
+    {
+     "ref": "1833df:DragonBreak Online Edits.esp",
+     "loadId": "3c1833df",
+     "edid": "CYRTreasExplorerLootChestSnow",
+     "pos": [
+      2009.47,
+      192887.16,
+      5688.42
+     ]
+    },
+    {
+     "ref": "1833da:DragonBreak Online Edits.esp",
+     "loadId": "3c1833da",
+     "edid": "CYRTreasRuinsChestBossSnow",
+     "pos": [
+      352.81,
+      191810.41,
+      6066.15
+     ]
+    },
+    {
+     "ref": "1833cd:DragonBreak Online Edits.esp",
+     "loadId": "3c1833cd",
+     "edid": "CYRTreasExplorerLootChestSnow",
+     "pos": [
+      -2994.33,
+      193630.52,
+      6986.33
+     ]
+    },
+    {
+     "ref": "1833a9:DragonBreak Online Edits.esp",
+     "loadId": "3c1833a9",
+     "edid": "CYRTreasRuinsChestBossSnow",
+     "pos": [
+      -4813.71,
+      193437.09,
+      7352.73
+     ]
+    },
+    {
+     "ref": "1833aa:DragonBreak Online Edits.esp",
+     "loadId": "3c1833aa",
+     "edid": "CYRTreasRuinsChestBossSnow",
+     "pos": [
+      -5014.08,
+      193483.77,
+      7354.58
+     ]
+    },
+    {
+     "ref": "1833ce:DragonBreak Online Edits.esp",
+     "loadId": "3c1833ce",
+     "edid": "CYRTreasExplorerLootChestSnow",
+     "pos": [
+      -2278.99,
+      200419.8,
+      6181.03
+     ]
+    },
+    {
+     "ref": "1833d0:DragonBreak Online Edits.esp",
+     "loadId": "3c1833d0",
+     "edid": "CYRTreasExplorerLootChestSnow",
+     "pos": [
+      -175.31,
+      197173.08,
+      5795.73
      ]
     }
    ]
@@ -618,37 +1318,57 @@
    "474eb:DragonBreak.esp",
    "478ba:DragonBreak.esp",
    "476ac:DragonBreak.esp",
-   "47624:DragonBreak.esp"
+   "47624:DragonBreak.esp",
+   "17e118:DragonBreak Online Edits.esp",
+   "17e11d:DragonBreak Online Edits.esp",
+   "17e117:DragonBreak Online Edits.esp",
+   "17e137:DragonBreak Online Edits.esp",
+   "17e11f:DragonBreak Online Edits.esp",
+   "17e11a:DragonBreak Online Edits.esp",
+   "17e11e:DragonBreak Online Edits.esp",
+   "17e11b:DragonBreak Online Edits.esp",
+   "17e0d8:DragonBreak Online Edits.esp",
+   "17e119:DragonBreak Online Edits.esp",
+   "17e16c:DragonBreak Online Edits.esp",
+   "1780a9:DragonBreak Online Edits.esp",
+   "178075:DragonBreak Online Edits.esp",
+   "1780c3:DragonBreak Online Edits.esp",
+   "178083:DragonBreak Online Edits.esp",
+   "177fd8:DragonBreak Online Edits.esp",
+   "178009:DragonBreak Online Edits.esp",
+   "177ff6:DragonBreak Online Edits.esp",
+   "1781a0:DragonBreak Online Edits.esp",
+   "1780e3:DragonBreak Online Edits.esp"
   ],
   "dungeon": [
-   "11b6fa:DragonBreak Online Edits.esp",
-   "11b6d8:DragonBreak Online Edits.esp",
-   "11b6e7:DragonBreak Online Edits.esp",
-   "11b6d7:DragonBreak Online Edits.esp",
-   "11b6ca:DragonBreak Online Edits.esp",
-   "11b6c6:DragonBreak Online Edits.esp",
-   "11b6d0:DragonBreak Online Edits.esp",
-   "11b6d2:DragonBreak Online Edits.esp",
-   "11b6c5:DragonBreak Online Edits.esp",
-   "11b6c3:DragonBreak Online Edits.esp",
-   "11b6d1:DragonBreak Online Edits.esp",
-   "11b6c9:DragonBreak Online Edits.esp",
-   "11b6c7:DragonBreak Online Edits.esp",
-   "11b6f9:DragonBreak Online Edits.esp",
-   "11b6fb:DragonBreak Online Edits.esp",
-   "11b6e6:DragonBreak Online Edits.esp",
    "11b6d6:DragonBreak Online Edits.esp",
-   "11b6cb:DragonBreak Online Edits.esp",
-   "11b6cc:DragonBreak Online Edits.esp",
-   "11b6cf:DragonBreak Online Edits.esp",
+   "11b6c7:DragonBreak Online Edits.esp",
+   "11b6c9:DragonBreak Online Edits.esp",
+   "11b6f9:DragonBreak Online Edits.esp",
    "11b6cd:DragonBreak Online Edits.esp",
-   "11b6e8:DragonBreak Online Edits.esp",
-   "11b6ce:DragonBreak Online Edits.esp",
-   "11b6e5:DragonBreak Online Edits.esp",
+   "11b6d8:DragonBreak Online Edits.esp",
    "11b6f8:DragonBreak Online Edits.esp",
-   "11b6c8:DragonBreak Online Edits.esp",
+   "11b6cb:DragonBreak Online Edits.esp",
+   "11b6d7:DragonBreak Online Edits.esp",
+   "11b6e6:DragonBreak Online Edits.esp",
+   "11b6fb:DragonBreak Online Edits.esp",
+   "11b6cf:DragonBreak Online Edits.esp",
+   "11b6cc:DragonBreak Online Edits.esp",
+   "11b6c3:DragonBreak Online Edits.esp",
+   "11b6ce:DragonBreak Online Edits.esp",
+   "11b6c4:DragonBreak Online Edits.esp",
    "11b6e9:DragonBreak Online Edits.esp",
-   "11b6c4:DragonBreak Online Edits.esp"
+   "11b6ca:DragonBreak Online Edits.esp",
+   "11b6d0:DragonBreak Online Edits.esp",
+   "11b6e5:DragonBreak Online Edits.esp",
+   "11b6d2:DragonBreak Online Edits.esp",
+   "11b6e7:DragonBreak Online Edits.esp",
+   "11b6d1:DragonBreak Online Edits.esp",
+   "11b6c6:DragonBreak Online Edits.esp",
+   "11b6e8:DragonBreak Online Edits.esp",
+   "11b6c8:DragonBreak Online Edits.esp",
+   "11b6fa:DragonBreak Online Edits.esp",
+   "11b6c5:DragonBreak Online Edits.esp"
   ]
  },
  "sources": {
@@ -656,11 +1376,11 @@
   "DragonBreak Dungeons.esp": "6ded966b2a3bc860",
   "DragonBreak Harvest.esp": "30a60c203036ac99",
   "DragonBreak Whiterun.esp": "514c1adb20e6f3a8",
-  "DragonBreak Hub.esp": "c05979791deb4ff4",
+  "DragonBreak Hub.esp": "8d7be954005a579d",
   "LostArk_Kamen.esp": "5c2d810cd551f187",
   "[Kirax] Lost Ark Reborn Paladin Legendary.esp": "8c34899fd51edf30",
   "DragonBreak.esp": "56a80196402248a0",
-  "DragonBreak Online Edits.esp": "3ceff7d47337c45f",
-  "DragonBreak Nexus Patches.esp": "22d264b0ee06d5a0"
+  "DragonBreak Online Edits.esp": "123936288090f27e",
+  "DragonBreak Nexus Patches.esp": "29d7d13ba64911d0"
  }
 }
