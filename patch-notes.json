@@ -1,5 +1,19 @@
 [
   {
+    "title": "Elite minotaurs",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Creatures",
+        "items": [
+          "The minotaurs of Sancre Tor and Minotaur's Rest are elite: they hit 75% harder and shrug off half of every blow. Bring friends."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Moranda and the Sancre Tor Ruins",
     "date": "SHIP_DATE",
     "version": "Server update",
