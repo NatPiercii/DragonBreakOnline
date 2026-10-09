@@ -128,6 +128,7 @@ module.exports = (api) => {
   }, { help: 'your character level and progress; /level <health|magicka|stamina> [n] spends points' });
 
   globalThis.__dboCharLevel = (a) => stateOf(a).level;
+  globalThis.__dboCharLevelPending = (a) => Number(stateOf(a).pending) || 0;
   // Never focused at login: a focused panel held the keyboard and the player could not move until it was closed
   globalThis.__dboCharLevelLogin = (a) => {
     if (check(a)) return;
