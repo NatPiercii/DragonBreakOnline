@@ -81,7 +81,9 @@ module.exports = (api) => {
   // count for a wolf contract (#bugs, 1 Oct 2026). The kind is the first creature word in the editor id
   // (EncFrostbiteSpiderGiant is a spider, EncMudcrabGiant a mudcrab, dunPOITrappedWolf a wolf); BSKEncRat, CYREncOgre01
   // and EncIceWraith name no kind at all.
-  const CREATURE_WORD = /(Werewolf|Werebear|FrostbiteSpider|SabreCat|Slaughterfish|Skeever|Mudcrab|Crab|Horker|Mammoth|Giant|Troll|Riekling|Netch|Lurker|Wolf|Bear|Chicken|Cow|Hare|Dog|Deer|Elk|Goat|Fox)/i;
+  // Case-sensitive: every spawn edid is CamelCase, and /Crab/i matched CYREncRabbit ('EncRabbit'), so rabbits counted for
+  // mudcrab contracts and fox spots were read as mudcrab fauna (sunk_turtle, 9 Oct)
+  const CREATURE_WORD = /(Werewolf|Werebear|FrostbiteSpider|SabreCat|Slaughterfish|Skeever|Mudcrab|Crab|Horker|Mammoth|Giant|Troll|Riekling|Netch|Lurker|Wolf|Bear|Chicken|Cow|Hare|Dog|Deer|Elk|Goat|Fox)/;
   const kindOfEdid = (edid) => { const m = CREATURE_WORD.exec(String(edid || '')); if (!m) return ''; const k = m[1].toLowerCase(); return k === 'crab' ? 'mudcrab' : k; };
   // undefined when the record cannot be read: the caller then goes by the spawn tag, as before
   const kindOfBase = (desc) => {
