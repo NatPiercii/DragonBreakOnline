@@ -185,12 +185,35 @@ module.exports = (api) => {
   const km = (units) => Number(units) / 70 / 1000;
   // own: the player's own journal; staff reading another's never see that player's reroll tokens (patrons.js)
   const rerollGroup = (a) => { try { return typeof globalThis.__dboRerollStatsGroup === 'function' ? globalThis.__dboRerollStatsGroup(a) : null; } catch (e) { log('journal: reroll tokens failed', e.message); return null; } };
+  // What /status reports (gamemode.js statusParts), first on the Stats tab: Death's Chill above all, which an undead never
+  // sees among active effects because it resists the disease it counts as (#suggestions 'Chill of the grave', 9 Oct)
+  const EFFECTS = [['chill', ["Death's Chill"]], ['hunger', ['Hunger']], ['rest', ['Well Rested', 'Well Fed']], ['sentence', ['Sentence']]];
+  const effectsGroup = (a) => {
+    const parts = globalThis.__dboStatusParts;
+    if (!(parts instanceof Map)) return null;
+    const rows = [];
+    for (const [key, names] of EFFECTS) {
+      const part = parts.get(key);
+      if (!part || typeof part.fn !== 'function') continue;
+      let line = null;
+      try { line = part.fn(a); } catch (e) { log(`journal: status ${key} failed`, e.message); continue; }
+      if (typeof line !== 'string' || !line.trim()) continue;
+      for (const piece of line.trim().split(', ')) {
+        const name = names.find((n) => piece.startsWith(n));
+        const row = name ? { label: name, value: piece.slice(name.length).trim() } : { label: piece, value: '' };
+        if (key === 'chill') row.hint = 'Shown here because the undead do not see it among their active effects';
+        rows.push(row);
+      }
+    }
+    return rows.length ? { name: 'Current Effects', rows } : null;
+  };
   const statsView = (a, own) => {
     const st = statsData(a);
     const tokens = own === false ? null : rerollGroup(a);
-    if (!st) return { groups: tokens ? [tokens] : [] };
+    const effects = own === false ? null : effectsGroup(a);
+    if (!st) return { groups: [effects, tokens].filter(Boolean) };
     const n = (v) => String(Math.max(0, Math.floor(Number(v) || 0)));
-    return { groups: [
+    return { groups: (effects ? [effects] : []).concat([
       { name: 'Character History', rows: [
         { label: 'Joined the server', value: st.joined ? dateText(st.joined) : 'Not known', hint: 'Your first sign-in with the launcher' },
         { label: 'Character created', value: st.created ? dateText(st.created) : 'Before counting began' },
@@ -222,7 +245,7 @@ module.exports = (api) => {
         { label: 'Dungeons cleared', value: n(st.dungeonsCleared) },
         { label: 'Spells learned', value: n(st.spellsLearned) },
       ] },
-    ].concat(tokens ? [tokens] : []) };
+    ]).concat(tokens ? [tokens] : []) };
   };
   // keep: a redraw keeps the faction panel's nonce, so a faction click in flight is not refused by the clock tick
   // readOnly: another's faction panel, read by staff: guilds.js makes no nonce for them
