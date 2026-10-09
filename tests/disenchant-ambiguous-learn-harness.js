@@ -9,6 +9,9 @@
 // ambiguous report resends the unchanged list through the same timer, since the client's disenchant went through.
 //   node tests/disenchant-ambiguous-learn-harness.js   (from server/)
 'use strict';
+// The base enchantments that ride along (ench-bases.json) are checked in enchant-learned-ids-harness; these checks read the effects
+const BASE_IDS = new Set(Object.keys(require('../ench-bases.json').bases).map((h) => parseInt(h, 16)));
+const effectsOnly = (pk) => (pk && Array.isArray(pk.effects) ? { ...pk, effects: pk.effects.filter((x) => !BASE_IDS.has(x >>> 0)), sent: pk.effects.length } : pk);
 const path = require('path');
 const SERVER = path.resolve(__dirname, '..');
 process.chdir(SERVER);
@@ -52,7 +55,7 @@ const load = () => {
   delete require.cache[path.join(SERVER, 'alchemy.js')];
   require(path.join(SERVER, 'alchemy.js'))({ mp, log: (...x) => logs.push(x.join(' ')), personal: (a, t) => said.push(t), audit: (t) => audits.push(t),
     display: () => 'the player', who: () => 'the player', openWidget: () => {}, closeWidget: () => {}, every: () => {}, itemName: () => '',
-    cfg: { learnedEnchantments: { enabled: true } }, sendPacket: (a, pk) => packets.push([a, pk]) });
+    cfg: { learnedEnchantments: { enabled: true } }, sendPacket: (a, pk) => packets.push([a, effectsOnly(pk)]) });
 };
 load();
 const inv = () => (mp.get(P, 'inventory') || { entries: [] }).entries;
