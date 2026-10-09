@@ -8,29 +8,31 @@ const FIRST_FOV = "fDefault1stPersonFOV:Display";
 const FOV_MIN = 50, FOV_MAX = 140;
 // The character creator's close-up settles a moment after the menu closes; re-apply after it has
 const AFTER_MENU_S = 0.5;
+// A second pass once the spawned world has settled, in case anything set the camera again after the load
+const AFTER_LOAD_S = 2;
 
 const sane = (v: number): boolean => Number.isFinite(v) && v >= FOV_MIN && v <= FOV_MAX;
 
-/**
- * Keeps the player's field of view, which the launcher writes into SkyrimPrefs.ini as
- * fDefaultWorldFOV and fDefault1stPersonFOV. Two things used to lose it: RaceMenu sets its own
- * close-up field of view for the face and does not put it back, so a character made or edited at
- * login left the player zoomed (#bugs 1553201600716087427); and nothing re-applied the launcher's
- * value once the game had started.
- *
- * The configured pair is read once at startup, before any menu has touched it, and re-applied
- * whenever the creator closes. Writing the setting is not the same as the camera picking it up:
- * Skyrim reads it when the camera is rebuilt, so the camera is nudged between persons the way the
- * height property does it, and only when the player is already in first person.
- */
+// The launcher writes the pair into the profile Skyrim.ini [Display], but the ini only seeds the camera at game start.
+// Every spawn loads a save built from SkyrimPlatform's template.ess, whose camera holds 65/65, and RaceMenu leaves a close-up.
+// So the pair is read once at startup and written into the camera itself (SKSE Camera natives, as the console's fov does).
 export class FovService extends ClientListener {
   constructor(private sp: Sp, private controller: CombinedController) {
     super();
     this.controller.once("update", () => this.readConfigured());
+    // Native calls from an event handler can refuse to run in that context, so the load hands over to the next frame
+    this.controller.on("loadGame", () => this.controller.once("update", () => {
+      this.apply("the game loaded");
+      this.later(AFTER_LOAD_S, "the world settled");
+    }));
     this.controller.on("menuClose", (e) => {
       if (e.name !== "RaceSex Menu") return;
-      this.sp.Utility.wait(AFTER_MENU_S).then(() => this.apply("the creator closed"));
+      this.later(AFTER_MENU_S, "the creator closed");
     });
+  }
+
+  private later(seconds: number, why: string): void {
+    this.sp.Utility.wait(seconds).then(() => this.controller.once("update", () => this.apply(why)));
   }
 
   // The launcher's value, or whatever the ini holds, captured before a menu can move it
@@ -48,19 +50,51 @@ export class FovService extends ClientListener {
 
   private apply(why: string): void {
     if (this.world === null && this.first === null) return;
+    // The creator's own close-up is left alone; its menuClose applies the pair
+    if (this.creatorOpen()) return;
     try {
       if (this.world !== null) this.sp.Utility.setINIFloat(WORLD_FOV, this.world);
       if (this.first !== null) this.sp.Utility.setINIFloat(FIRST_FOV, this.first);
-      logTrace(this, "Field of view restored", why, `world ${this.world ?? "unset"}`, `first person ${this.first ?? "unset"}`);
     } catch (e) {
-      logError(this, "could not restore the field of view", e);
+      logError(this, "could not restore the field of view setting", e);
+    }
+    const was = this.cameraFov();
+    if (this.setCameraFov()) {
+      logTrace(this, "Field of view applied", why, `camera was ${was}`, `now world ${this.world ?? "unchanged"}`, `first person ${this.first ?? "unchanged"}`);
       return;
     }
+    logTrace(this, "Field of view restored in the ini only", why);
     this.rebuildCamera();
   }
 
-  // Camera state 0 is first person (sweetCameraEnforcementService). Only bounce a player who is
-  // already there, so nobody is yanked out of third person to pick up a setting.
+  private creatorOpen(): boolean {
+    try { return this.sp.Ui.isMenuOpen("RaceSex Menu"); } catch (e) { return false; }
+  }
+
+  private cameraFov(): string {
+    try {
+      const world = this.sp.callNative("Camera", "GetWorldFieldOfView", undefined);
+      const first = this.sp.callNative("Camera", "GetFirstPersonFieldOfView", undefined);
+      return `world ${world} first person ${first}`;
+    } catch (e) {
+      return "unknown";
+    }
+  }
+
+  // Writes PlayerCamera worldFOV / firstPersonFOV; false when SKSE's Camera script is not there
+  private setCameraFov(): boolean {
+    try {
+      if (this.world !== null) this.sp.callNative("Camera", "SetWorldFieldOfView", undefined, this.world);
+      if (this.first !== null) this.sp.callNative("Camera", "SetFirstPersonFieldOfView", undefined, this.first);
+      return true;
+    } catch (e) {
+      if (!this.cameraNativesFailed) logError(this, "could not set the camera field of view", e);
+      this.cameraNativesFailed = true;
+      return false;
+    }
+  }
+
+  // Fallback without the Camera natives. Camera state 0 is first person; only a player already there is bounced.
   private rebuildCamera(): void {
     try {
       if (this.sp.Game.getCameraState() !== 0) return;
@@ -75,4 +109,5 @@ export class FovService extends ClientListener {
 
   private world: number | null = null;
   private first: number | null = null;
+  private cameraNativesFailed = false;
 }
