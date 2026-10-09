@@ -6,10 +6,10 @@ const autoReport = require('../sources/autoReport')
 // CLIENT_VERSION = client files release (baked into data/files-version.json by merge-files.js)
 // SERVER_VERSION = game server release label (informational)
 // DOWNLOAD_URL = installer for LATEST_VERSION (https; from 2.1.44 the R2 copy at files.dragonbreakonline.com/launcher/<version>/)
-const LATEST_VERSION = '2.1.44'
+const LATEST_VERSION = '2.1.45'
 const CLIENT_VERSION = '0.3.89'
 const SERVER_VERSION = '0.3.1'
-const DOWNLOAD_URL   = 'https://files.dragonbreakonline.com/launcher/2.1.44/DragonBreakLauncher.exe'
+const DOWNLOAD_URL   = 'https://files.dragonbreakonline.com/launcher/2.1.45/DragonBreakLauncher.exe'
 
 router.get('/', (_req, res) => {
   res.json({
