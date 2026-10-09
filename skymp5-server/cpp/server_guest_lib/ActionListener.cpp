@@ -394,6 +394,11 @@ bool CanCastSpell(const MpActor& actor, uint32_t spellId)
   if (IsHeldScroll(actor, spellId)) {
     return true;
   }
+  // A shout word the server itself taught (a werewolf's howls, learned for the form by beastform.js) may be cast
+  if (actor.GetProfileId() != -1 && actor.IsSpellLearned(spellId) &&
+      IsShoutWordSpell(actor.GetParent(), spellId)) {
+    return true;
+  }
   // No shout word is accepted here for a player: the server cannot see which shout they hold, and an accepted cast is
   // relayed to neighbours before the gamemode is asked (and keepAlive casts never ask it), so a modified client could
   // make its victims replay any word's paralysis, fear or damage over time (review A4-1, 2026-09-28). A shout's hits
