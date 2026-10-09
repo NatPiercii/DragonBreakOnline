@@ -457922,15 +457922,37 @@
 ],
 "chests": [
 {
-"ref": "17e163:DragonBreak Online Edits.esp",
-"edid": "BSKAyleidChest01EMPTY",
+"ref": "17e13a:DragonBreak Online Edits.esp",
+"edid": "CYRBarrelEmpty",
 "cell": "17e0bc:DragonBreak Online Edits.esp",
 "pos": [
--1709.23,
-2408.99,
-330.93
+-789.24,
+-356.69,
+16.0
+],
+"big": false
+},
+{
+"ref": "17e120:DragonBreak Online Edits.esp",
+"edid": "CYRTreasAyleidChestSquare",
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-1492.78,
+1149.4,
+13.26
 ],
 "big": true
+},
+{
+"ref": "17e15f:DragonBreak Online Edits.esp",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-1637.63,
+2626.34,
+330.93
+],
+"big": false
 },
 {
 "ref": "17e160:DragonBreak Online Edits.esp",
@@ -457944,12 +457966,56 @@
 "big": false
 },
 {
-"ref": "17e16e:DragonBreak Online Edits.esp",
-"edid": "BSKAyleidChest03EMPTY",
+"ref": "17e15e:DragonBreak Online Edits.esp",
+"edid": "CYRAyleidCoffinContainer",
 "cell": "17e0bc:DragonBreak Online Edits.esp",
 "pos": [
--1693.65,
-3171.5,
+-1633.9,
+3024.03,
+330.93
+],
+"big": false
+},
+{
+"ref": "17e15d:DragonBreak Online Edits.esp",
+"edid": "CYRAyleidCoffinContainer",
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-1620.81,
+3311.79,
+330.93
+],
+"big": false
+},
+{
+"ref": "17e0d4:DragonBreak Online Edits.esp",
+"edid": "CYRTreasAyleidChestBoss",
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-26.34,
+1760.97,
+315.95
+],
+"big": true
+},
+{
+"ref": "17e13c:DragonBreak Online Edits.esp",
+"edid": "CYRBarrelEmpty",
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-839.45,
+-389.19,
+16.0
+],
+"big": false
+},
+{
+"ref": "17e163:DragonBreak Online Edits.esp",
+"edid": "BSKAyleidChest01EMPTY",
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-1709.23,
+2408.99,
 330.93
 ],
 "big": true
@@ -457966,26 +458032,26 @@
 "big": true
 },
 {
-"ref": "17e15e:DragonBreak Online Edits.esp",
-"edid": "CYRAyleidCoffinContainer",
+"ref": "17e170:DragonBreak Online Edits.esp",
+"edid": "CYRTreasAyleidChestBoss",
 "cell": "17e0bc:DragonBreak Online Edits.esp",
 "pos": [
--1633.9,
-3024.03,
+-1013.11,
+2515.23,
 330.93
 ],
-"big": false
+"big": true
 },
 {
-"ref": "17e13a:DragonBreak Online Edits.esp",
-"edid": "CYRBarrelEmpty",
+"ref": "17e16e:DragonBreak Online Edits.esp",
+"edid": "BSKAyleidChest03EMPTY",
 "cell": "17e0bc:DragonBreak Online Edits.esp",
 "pos": [
--789.24,
--356.69,
-16.0
+-1693.65,
+3171.5,
+330.93
 ],
-"big": false
+"big": true
 },
 {
 "ref": "17e16d:DragonBreak Online Edits.esp",
@@ -457999,61 +458065,6 @@
 "big": true
 },
 {
-"ref": "17e13c:DragonBreak Online Edits.esp",
-"edid": "CYRBarrelEmpty",
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--839.45,
--389.19,
-16.0
-],
-"big": false
-},
-{
-"ref": "17e170:DragonBreak Online Edits.esp",
-"edid": "CYRTreasAyleidChestBoss",
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--1013.11,
-2515.23,
-330.93
-],
-"big": true
-},
-{
-"ref": "17e120:DragonBreak Online Edits.esp",
-"edid": "CYRTreasAyleidChestSquare",
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--1492.78,
-1149.4,
-13.26
-],
-"big": true
-},
-{
-"ref": "17e0d4:DragonBreak Online Edits.esp",
-"edid": "CYRTreasAyleidChestBoss",
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--26.34,
-1760.97,
-315.95
-],
-"big": true
-},
-{
-"ref": "17e15f:DragonBreak Online Edits.esp",
-"edid": "CYRAyleidCoffinContainer",
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--1637.63,
-2626.34,
-330.93
-],
-"big": false
-},
-{
 "ref": "17e13b:DragonBreak Online Edits.esp",
 "edid": "CYRBarrelEmpty",
 "cell": "17e0bc:DragonBreak Online Edits.esp",
@@ -458063,76 +458074,9 @@
 16.0
 ],
 "big": false
-},
-{
-"ref": "17e15d:DragonBreak Online Edits.esp",
-"edid": "CYRAyleidCoffinContainer",
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--1620.81,
-3311.79,
-330.93
-],
-"big": false
 }
 ],
 "zones": [
-{
-"cell": "17e0bc:DragonBreak Online Edits.esp",
-"pos": [
--1248.4,
--191.5,
-44.4
-],
-"size": 1862,
-"npcs": [
-{
-"edid": "CYREncSkeleton01Melee1H",
-"pos": [
--1367.5,
--637.4,
-24.1
-],
-"ref": "17e118:DragonBreak Online Edits.esp",
-"options": [
-[
-1,
-"5bc2e:BSHeartland.esm"
-]
-]
-},
-{
-"edid": "CYREncSkeleton01Melee1H",
-"pos": [
--1056.0,
--160.0,
-32.0
-],
-"ref": "17e0d8:DragonBreak Online Edits.esp",
-"options": [
-[
-1,
-"5bc2e:BSHeartland.esm"
-]
-]
-},
-{
-"edid": "CYREncSkeleton01Melee1H",
-"pos": [
--1321.8,
-223.0,
-77.0
-],
-"ref": "17e119:DragonBreak Online Edits.esp",
-"options": [
-[
-1,
-"5bc2e:BSHeartland.esm"
-]
-]
-}
-]
-},
 {
 "cell": "17e0bc:DragonBreak Online Edits.esp",
 "pos": [
@@ -458142,21 +458086,6 @@
 ],
 "size": 1566,
 "npcs": [
-{
-"edid": "CYRdunAyleidSkeleton06Magic",
-"pos": [
--1085.0,
-1547.4,
-16.0
-],
-"ref": "17e11d:DragonBreak Online Edits.esp",
-"options": [
-[
-48,
-"b558b:BSHeartland.esm"
-]
-]
-},
 {
 "edid": "CYRdunAyleidSkeleton04BossMelee",
 "pos": [
@@ -458171,45 +458100,131 @@
 "8ad2c:BSHeartland.esm"
 ]
 ]
+},
+{
+"edid": "CYRdunAyleidSkeleton06Magic",
+"pos": [
+-1085.0,
+1547.4,
+16.0
+],
+"ref": "17e11d:DragonBreak Online Edits.esp",
+"options": [
+[
+48,
+"b558b:BSHeartland.esm"
+]
+]
 }
 ]
 },
 {
 "cell": "17e0bc:DragonBreak Online Edits.esp",
 "pos": [
--160.6,
--1179.5,
-46.5
+-158.2,
+-1111.0,
+36.3
 ],
-"size": 1607,
+"size": 1666,
 "npcs": [
 {
-"edid": "CYREncSkeleton01Melee1H",
+"edid": "CYRdunAyleidSkeleton01Melee1H",
 "pos": [
--198.8,
--1380.3,
+-150.3,
+-1373.7,
 76.9
 ],
-"ref": "17e11f:DragonBreak Online Edits.esp",
+"ref": "18dbf0:DragonBreak Online Edits.esp",
 "options": [
 [
-1,
-"5bc2e:BSHeartland.esm"
+3,
+"5f057:BSHeartland.esm"
 ]
 ]
 },
 {
-"edid": "CYREncSkeleton01Melee1H",
+"edid": "CYRdunAyleidSkeleton01Missile",
 "pos": [
--122.4,
--978.6,
+-255.5,
+-1037.5,
 16.0
 ],
-"ref": "17e11e:DragonBreak Online Edits.esp",
+"ref": "18dbf1:DragonBreak Online Edits.esp",
 "options": [
 [
-1,
-"5bc2e:BSHeartland.esm"
+3,
+"871e8:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRdunAyleidSkeleton01Melee1H",
+"pos": [
+-68.9,
+-921.8,
+16.0
+],
+"ref": "18dbef:DragonBreak Online Edits.esp",
+"options": [
+[
+3,
+"5f057:BSHeartland.esm"
+]
+]
+}
+]
+},
+{
+"cell": "17e0bc:DragonBreak Online Edits.esp",
+"pos": [
+-1236.8,
+-383.8,
+16.0
+],
+"size": 1737,
+"npcs": [
+{
+"edid": "CYRdunAyleidSkeleton01Melee1H",
+"pos": [
+-1112.7,
+-696.7,
+16.0
+],
+"ref": "18dbed:DragonBreak Online Edits.esp",
+"options": [
+[
+3,
+"5f057:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRdunAyleidSkeleton01Missile",
+"pos": [
+-1409.1,
+-225.2,
+16.0
+],
+"ref": "18dbee:DragonBreak Online Edits.esp",
+"options": [
+[
+3,
+"871e8:BSHeartland.esm"
+]
+]
+},
+{
+"edid": "CYRdunAyleidSkeleton01Melee1H",
+"pos": [
+-1188.7,
+-229.5,
+16.0
+],
+"ref": "18dbec:DragonBreak Online Edits.esp",
+"options": [
+[
+3,
+"5f057:BSHeartland.esm"
 ]
 ]
 }

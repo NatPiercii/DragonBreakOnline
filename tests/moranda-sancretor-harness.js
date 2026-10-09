@@ -44,12 +44,13 @@ const ent = mor.entrances[0];
 ok(ent.outsideDesc === `17e115:${DLE}` && ent.insideDesc === `17e116:${DLE}` && ent.insideCell === `17e0bc:${DLE}`, 'its entrance is Nat\'s door pair into CYRAyleidRuinMoranda');
 const npcs = mor.zones.flatMap((z) => z.npcs);
 const refs = new Set(npcs.map((n) => n.ref.split(':')[0]));
-ok(npcs.length === 9 && ['17e0d8', '17e118', '17e119', '17e11a', '17e11b', '17e11d', '17e11e', '17e11f', '17e16c'].every((r) => refs.has(r)), 'its 9 living placements are enemies (the two bandits are Starts Dead bodies)', [...refs]);
+ok(npcs.length === 10 && ['17e11a', '17e11b', '17e11d', '17e16c', '18dbec', '18dbed', '18dbee', '18dbef', '18dbf0', '18dbf1'].every((r) => refs.has(r)), 'its 10 living placements are enemies: Nat\'s Ayleid undead and the lich (DLE 0d765a53; the two bandits are Starts Dead bodies)', [...refs]);
+ok(!['17e0d8', '17e118', '17e119', '17e11e', '17e11f'].some((r) => refs.has(r)), '...and none of the five generic skeletons Nat removed');
 const lich = npcs.find((n) => n.edid === 'BSKEncAyleidLich');
 ok(lich && lich.boss === true && lich.ref === `17e16c:${DLE}` && Array.isArray(lich.storyOptions), 'the Ayleid lich is its boss, with a Novice line of its own');
 ok(mor.chests.filter((c) => /ChestBoss/.test(c.edid)).some((c) => Math.hypot(c.pos[0] - lich.pos[0], c.pos[1] - lich.pos[1]) < 700), 'a boss chest stands beside the lich');
 const replaced = read('tooling/ck-mcp/actors_server_replaced.json').refs;
-ok(['17E0D8', '17E117', '17E118', '17E119', '17E11A', '17E11B', '17E11D', '17E11E', '17E11F', '17E137', '17E16C'].every((r) => replaced.includes(`${DLE}:${r}`)), 'the generator keeps Moranda\'s 11 disabled actors as placements');
+ok(['17E117', '17E11A', '17E11B', '17E11D', '17E137', '17E16C', '18DBEC', '18DBED', '18DBEE', '18DBEF', '18DBF0', '18DBF1'].every((r) => replaced.includes(`${DLE}:${r}`)) && !['17E0D8', '17E118', '17E119', '17E11E', '17E11F'].some((r) => replaced.includes(`${DLE}:${r}`)), 'the generator keeps Moranda\'s 12 disabled actors as placements, not the 5 removed');
 ok(read('tooling/ck-mcp/dungeons_extra.json').cells.includes('CYRAyleidRuinMoranda'), '...and lists its cell (it has no location of its own)');
 
 const dir = fs.mkdtempSync(path.join(fs.existsSync('/dev/shm') ? '/dev/shm' : os.tmpdir(), 'claude-nate-moranda-h-'));
