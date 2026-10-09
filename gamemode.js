@@ -123,7 +123,7 @@ if (!globalThis.__dboSigtermHooked) {
 // Jake and Nate, 2026-09-27: GM observes and reports (teleport, invisible/god, kick, /fixloc, /rename, announcements,
 // read-only tools); anything that creates or changes the world or the economy is Lead GM and above.
 const idList = (v) => Array.isArray(v) ? v.map(String) : [];
-const TIERS = ['senior', 'developer', 'leadgm', 'gm'];
+const TIERS = ['senior', 'developer', 'leadgm', 'gm', 'trialgm'];
 const tierRoles = {}; for (const t of TIERS) tierRoles[t] = idList((serverSettings.adminRoles || {})[t]);
 const legacyAdminRoles = idList(serverSettings.adminRoleIds);
 const ADMIN_PROFILES = new Set([...(serverSettings.adminProfileIds || []), ...(cfg.admins || [])].map(Number).filter(Number.isFinite));
@@ -206,13 +206,15 @@ const tierFrom = (profile, roles) => {
   return has(legacyAdminRoles) ? 'senior' : null;
 };
 const tierOf = (actorId) => tierFrom(profileOf(actorId), rolesOf(actorId));
-const isAdmin = (actorId) => tierOf(actorId) !== null;
+// A Trial GM (Nate, 9 Oct: a new entry GM with a few tools) is no staff anywhere else: only the commands in TRIAL_GM_COMMANDS
+const isAdmin = (actorId) => { const t = tierOf(actorId); return t !== null && t !== 'trialgm'; };
+const TRIAL_GM_COMMANDS = new Set(['tp', 'fixloc', 'kick']);
 // Lead GM and above: spawning, grants, curses, world state, the console
-const isLeadStaff = (actorId) => { const t = tierOf(actorId); return t !== null && t !== 'gm'; };
+const isLeadStaff = (actorId) => { const t = tierOf(actorId); return t !== null && t !== 'gm' && t !== 'trialgm'; };
 // Staff rights are read from the roles written at login, so a Discord demotion only took effect at the next login. The
 // role sync (discordroles.js) reads a staff member's roles every syncMinutes; a lower tier or none logs them out, and the
 // next login derives every right afresh (2026-09-30)
-const TIER_RANK = { senior: 4, developer: 3, leadgm: 2, gm: 1 };
+const TIER_RANK = { senior: 4, developer: 3, leadgm: 2, gm: 1, trialgm: 0.5 };
 const staffRolesSeen = (a, roles) => {
   const before = tierOf(a);
   if (!before) return;
@@ -222,7 +224,7 @@ const staffRolesSeen = (a, roles) => {
   personal(a, 'Your staff roles have changed. Log in again.');
   setTimeout(() => { try { const u = userOf(a); if (u >= 0) mp.kick(u); } catch (e) { log('staff role change: kick failed', e.message); } }, 1500);
 };
-const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM', gm: 'GM' };
+const TIER_LABEL = { senior: 'Senior', developer: 'Developer', leadgm: 'Lead GM', gm: 'GM', trialgm: 'Trial GM' };
 // Staff commands a GM may not use (command name, or 'name sub' for one subcommand)
 // appoint and dismiss are here because an official's powers are real money: a rank lets its holder post work paid
 // out of the hold treasury, so a GM who could appoint himself could pay himself (claude-jake's review, A1-1).
@@ -1099,14 +1101,15 @@ const handleChat = (userId, text) => {
   if (cmd === 'admin') { if (!isAdmin(a)) return personal(a, 'Admins only.'); if (body) broadcast(`[[A]]#{${C.SYS}}${name}: ${body}`, true); return; }
   const c = commands.get(cmd);
   if (!c) return personal(a, `Unknown command /${cmd.slice(0, 32)}. Type /help.`);
-  if (c.admin && !isAdmin(a)) return personal(a, 'Admins only.');
+  const trial = c.admin && tierOf(a) === 'trialgm' && TRIAL_GM_COMMANDS.has(cmd);
+  if (c.admin && !isAdmin(a) && !trial) return personal(a, 'Admins only.');
   const sub = `${cmd} ${(body.split(/\s+/)[0] || '').toLowerCase()}`;
   const staffCmd = c.admin || LEAD_ONLY.has(sub);
   if ((LEAD_ONLY.has(cmd) || LEAD_ONLY.has(sub)) && isAdmin(a) && !isLeadStaff(a)) {
     staffLog(display(a), tierOf(a), `/${cmd} (refused)`, `${staffWho(a)} (GM): /${cmd} ${body.slice(0, 300)} REFUSED (Lead GM and above)`);
     return personal(a, 'That is for a Lead GM and above.');
   }
-  if (staffCmd && isAdmin(a)) staffLog(display(a), tierOf(a), `/${cmd}`, `${staffWho(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /${cmd} ${body.slice(0, 300)}`);
+  if (staffCmd && (isAdmin(a) || trial)) staffLog(display(a), tierOf(a), `/${cmd}`, `${staffWho(a)} (${TIER_LABEL[tierOf(a)] || 'staff'}): /${cmd} ${body.slice(0, 300)}`);
   try { c.fn(a, body, userId); } catch (e) { log('command', cmd, 'failed', e); personal(a, 'That command failed.'); }
 };
 
