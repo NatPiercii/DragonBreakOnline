@@ -128,6 +128,7 @@ declare -A NEEDS=(
   [housing-rooms-front]=front:skymp5-front/src/features/housing/index.tsx
   [admin-panel-front]=front:skymp5-front/src/features/adminPanel/index.tsx
   [journal-tabs-b-front]=front:skymp5-front/src/features/journal/index.tsx
+  [journal-status-front]=front:skymp5-front/src/features/journal/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
