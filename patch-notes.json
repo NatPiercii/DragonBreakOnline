@@ -74,7 +74,8 @@
         "items": [
           "Your field of view from the launcher is checked again after every load and set back if the game changed it.",
           "Creatures keep their weapons in hand.",
-          "Summons follow you properly indoors instead of standing still."
+          "Summons follow you properly indoors instead of standing still.",
+          "Other players hear your shouts: the Thu'um plays with the shout, one, two or three words."
         ]
       }
     ]
