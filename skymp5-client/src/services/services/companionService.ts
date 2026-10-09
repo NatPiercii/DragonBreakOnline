@@ -308,7 +308,8 @@ export class CompanionService extends ClientListener {
     const distance = actor.getDistance(player);
     // Measured from its own place in the formation, not from the owner: a back row rests farther than stuckDistance away
     const gap = formationGap(here, state.slot, [player.getPositionX(), player.getPositionY(), player.getPositionZ()], player.getAngleZ());
-    if (!before || gap <= CompanionService.stuckDistance) {
+    const limit = actor.getWorldSpace() ? CompanionService.stuckDistance : CompanionService.interiorStuckDistance;
+    if (!before || gap <= limit) {
       state.stuckSince = 0;
       return;
     }
@@ -811,6 +812,9 @@ export class CompanionService extends ClientListener {
   // Moving less than this far while this far from the owner, for this long, counts as stuck
   private static readonly stuckUnits = 8;
   private static readonly stuckDistance = 800;
+  // Indoors a formation spot behind the owner often lies in a wall or the next room, and the summon stands still at
+  // 300-800 (companion reports, 4-9 Oct: 431 such interior reports, streaks up to 55 s), so it counts as stuck sooner
+  private static readonly interiorStuckDistance = 300;
   private static readonly stuckMs = 6000;
   // Closing less than this per check while beyond stuckDistance counts as not following
   private static readonly closingUnits = 16;
