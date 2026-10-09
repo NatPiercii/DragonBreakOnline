@@ -71,6 +71,7 @@ import {
 import { TimeService } from './timeService';
 import { logTrace, logError } from '../../logging';
 
+import { isReanimateSpell } from "../../sync/reanimateSpells";
 import { SpellCastMessage } from '../messages/spellCastMessage';
 import { UpdateAnimVariablesMessage } from '../messages/updateAnimVariablesMessage';
 import { MsgType } from '../../messages';
@@ -1311,6 +1312,13 @@ export class RemoteServer extends ClientListener {
         return;
       }
       this.cloneCastStoppedAt.delete(key);
+
+      // A replayed Reanimate projectile flies in every watcher's game too and crashed them with the caster (7 Oct, RaiseZombie on a
+      // bird flock: MagicCaster::PostCreationCallback executing a dangling address); the server raises the body from the caster's hit
+      if (spellId && isReanimateSpell(spellId)) {
+        logTrace(this, `Not replaying reanimate spell ${(spellId >>> 0).toString(16)} on ${(ac.getFormID() >>> 0).toString(16)}`);
+        return;
+      }
 
       // Casters refresh channeled casts every ~3s; a clone whose refresh and
       // stop both got lost is interrupted by sweepCloneCasts
