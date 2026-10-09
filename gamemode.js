@@ -3371,6 +3371,35 @@ const CYRODIIL_PLUGINS = new Set(['bsheartland.esm', 'bsassets.esm']);
 // Kept across hot reloads, as skinning's and prayer's rounds are: a reload mid-read ignored the reader's answer (2026-09-29)
 const readSessions = globalThis.__dboReadSessions instanceof Map ? globalThis.__dboReadSessions : (globalThis.__dboReadSessions = new Map()); // actorId -> { nonce, refId, baseId, title, original, shuffled, startedAt, tier }
 const readDeny = new Map();
+// Nate, 9 Oct: a Scholar whose skill can earn nothing right now is not let into a reading round ("people are wasting
+// their time"). The same four limits skillPoints.applyGain applies, read from private.mastery: a skill marked to fall,
+// the hourly bucket, the skill's and the character's daily caps (UTC day), and the structural cap (one Seat above
+// seatAbove, expertCount above expertAbove). null = room to earn; otherwise the line to tell the reader.
+const scholarNoRoom = (a, now = Date.now()) => {
+  const r = (() => { try { const v = mp.get(a, 'private.mastery'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } })();
+  if (!r || !Array.isArray(r.order) || !r.order.includes('scholar')) return null;
+  const s = r.skills && r.skills.scholar; if (!s) return null;
+  const ps = (SKILLS_DEF && SKILLS_DEF.pointSystem) || {}; if (ps.enabled === false) return null;
+  const lvl = Number(s.level != null ? s.level : s.points) || 0;
+  if (s.lock === 'lower') return 'Scholar is marked to fall on your Wheel (K), so reading cannot raise it. Set it to rise or hold first.';
+  const perHour = Number(ps.bucketPerHour) || 20, burst = Number(ps.bucketBurst) || 13;
+  const b = s.bucket && Number.isFinite(Number(s.bucket.tokens)) ? s.bucket : null;
+  const tokens = b ? Math.min(burst, Number(b.tokens) + ((now - Number(b.at)) / 3600000) * perHour) : burst;
+  if (tokens < 0.25) return `You have studied all you can take in for now. Rest your eyes: you can read again in about ${Math.max(1, Math.ceil(((1 - tokens) / perHour) * 60))} minutes.`;
+  const today = new Date(now).toISOString().slice(0, 10);
+  const caps = ps.dailyCaps || {};
+  const capToday = lvl >= 90 ? Number(caps.master) || 40 : lvl >= 75 ? Number(caps.expert) || 120 : Number(caps.low) || 240;
+  if ((s.day === today ? Number(s.spentToday) || 0 : 0) >= capToday) return 'You have learned all you can from books today. Your Scholar rises again after midnight (UTC).';
+  if ((r.day === today ? Number(r.spentToday) || 0 : 0) >= (Number(ps.characterDaily) || 720)) return 'You have trained as much as one day allows. Come back to your books after midnight (UTC).';
+  const levels = Object.entries(r.skills || {}).filter(([k]) => k !== 'scholar').map(([, v]) => Number(v && (v.level != null ? v.level : v.points)) || 0);
+  const capPer = Number(ps.capPerSkill) || 100, seatAbove = Number(ps.seatAbove) || 90, expertAbove = Number(ps.expertAbove) || 75;
+  let cap = capPer;
+  if (lvl <= seatAbove && levels.filter((v) => v > seatAbove).length >= (Number(ps.seatCount) || 1)) cap = Math.min(cap, seatAbove);
+  if (lvl <= expertAbove && levels.filter((v) => v > expertAbove).length >= (Number(ps.expertCount) || 3)) cap = Math.min(cap, expertAbove);
+  if (lvl >= cap) return lvl >= capPer ? 'Your Scholar is at its peak; books have nothing more to teach you.' : `Your Scholar can rise no further than ${cap} while your other skills hold the higher places on the Wheel.`;
+  return null;
+};
+globalThis.__dboScholarNoRoom = scholarNoRoom;
 const masteryOf = (a) => { try { const r = mp.get(a, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } };
 const scholarTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.order) || !r.order.includes('scholar')) return -1; const p = r.skills && r.skills.scholar; return p ? Math.max(0, Number(p.rank) || 0) : 0; };
 const readsOf = (a) => { try { const r = mp.get(a, 'private.scholarReads'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
@@ -3428,6 +3457,8 @@ globalThis.__dboReadBook = (targetId, casterId) => {
   const key = targetId.toString(16); const reads = readsOf(casterId);
   const until = Number(reads[key]) || 0;
   if (until > Date.now()) return deny(`You read this not long ago. Come back in ${Math.ceil((until - Date.now()) / 60000)} minutes.`);
+  // A smithing schematic is read to learn its technique (manuals.js), not for Scholar points, so the cap never stops it
+  if (!(globalThis.__dboManualsIsManual && globalThis.__dboManualsIsManual(baseId))) { const noRoom = scholarNoRoom(casterId); if (noRoom) return deny(noRoom); }
   const cyrodiil = CYRODIIL_PLUGINS.has(String(mp.get(targetId, 'baseDesc')).split(':')[1].toLowerCase());
   const line = readLine(tier, cyrodiil); const original = line.split(' ');
   let shuffled = shuffleIdx(original.length);

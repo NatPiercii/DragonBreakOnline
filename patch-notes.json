@@ -1,5 +1,20 @@
 [
   {
+    "title": "No more wasted reading",
+    "date": "2026-10-09",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Scholar",
+        "items": [
+          "When your Scholar cannot rise right now, a book tells you so before the reading starts, and says when you can read again: after a short rest, after midnight (UTC), or once your Wheel has room.",
+          "Smithing schematics can still be read at any time."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Thalmor Embassy open",
     "date": "2026-10-09",
     "version": "Server update",
