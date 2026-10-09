@@ -38,7 +38,7 @@ https.request = (opts, onResponse) => {
   }
   return req
 }
-const { postReport, tagIds } = require('../sources/discord/errorReport')
+const { postReport, postBugLogs, tagIds } = require('../sources/discord/errorReport')
 
 const report = tags => postReport({ title: 'Tester', summary: 'hi', files: [{ name: 'launcher.log', text: 'x' }], tags })
 test.beforeEach(() => { answers = []; sent = []; fs.rmSync(tagsFile, { force: true }) })
@@ -149,3 +149,36 @@ test('a tagged post refused with 404 or 401 is not retried', async () => {
     assert.deepStrictEqual(sent.map(s => s.method), ['POST'], String(code))
   }
 })
+
+test('a /bug\'s logs go into the thread whose first post names its snapshot', async () => {
+  require.cache[config].exports.discordGuildId = id(1)
+  answers = [
+    [200, { threads: [{ id: id(8), parent_id: id(555) }, { id: id(9), parent_id: id(555) }, { id: id(10), parent_id: id(999) }] }],
+    [200, { content: '**Bug report** from Purr #7DJT\n\nSnapshot: `2026-10-08T21-12-20-7DJT.json` (dbo_inspect.py reads it)' }],
+    [200, { id: 'M1' }],
+  ]
+  const thread = await postBugLogs({ snapshotFile: '2026-10-08T21-12-20-7DJT.json', title: 'Purr: logs for /bug', summary: 'logs',
+    files: [{ name: 'launcher.log', text: 'x' }] })
+  assert.strictEqual(thread, id(9))
+  assert.strictEqual(sent[0].path, `/api/v10/guilds/${id(1)}/threads/active`)
+  assert.strictEqual(sent[1].path, `/api/v10/channels/${id(9)}/messages/${id(9)}`, 'the newest thread of the forum is read first; another forum\'s is skipped')
+  assert.strictEqual(sent[2].method, 'POST')
+  assert.strictEqual(sent[2].path, `/api/v10/channels/${id(9)}/messages`)
+  assert.deepStrictEqual(sent[2].payload.attachments, [{ id: 0, filename: 'launcher.log' }])
+  assert.deepStrictEqual(sent[2].payload.allowed_mentions, { parse: [] })
+})
+
+test('a /bug whose thread is not found gets a report thread of its own', async () => {
+  require.cache[config].exports.discordGuildId = id(1)
+  answers = [
+    [200, { threads: [{ id: id(9), parent_id: id(555) }] }],
+    [200, { content: 'someone else\'s report' }],
+    [200, { id: 'T7' }],
+  ]
+  const thread = await postBugLogs({ snapshotFile: '2026-10-08T21-12-20-7DJT.json', title: 'Purr: logs for /bug', summary: 'logs',
+    files: [{ name: 'launcher.log', text: 'x' }] })
+  assert.strictEqual(thread, 'T7')
+  assert.strictEqual(sent[2].path, `/api/v10/channels/${id(555)}/threads`)
+  assert.strictEqual(sent[2].payload.name, 'Purr: logs for /bug')
+})
+

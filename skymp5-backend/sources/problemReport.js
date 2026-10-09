@@ -7,7 +7,8 @@ const express = require('express')
 const config  = require('../config')
 const { scrub, dropUiLines, keepEnds } = require('./scrubLog')
 const { filterCrashLog, filterNames } = require('./crashLogFilter')
-const { postReport } = require('./discord/errorReport')
+const { postReport, postBugLogs } = require('./discord/errorReport')
+const bugLogs = require('./bugLogs')
 const audit = require('./discord/audit')
 
 const LOG_FIELDS = [['launcherLog', 'launcher.log'], ['clientLog', 'client.log'], ['gameLog', 'skyrim-platform.log'],
@@ -125,7 +126,14 @@ async function submit(reporter, body) {
   }
 
   const name = cleanName(reporter.name)
-  const lines = [`**${escapeMarkdown(name)}** reported a problem ${SOURCES[source]}.`]
+  // The logs of an in-game /bug, sent by the reporter's launcher: only a signed-in player, only their own pending /bug
+  const bugId = body.bugId === undefined ? null : String(body.bugId)
+  if (bugId !== null && !(reporter.verified && bugLogs.isPending(bugId, reporter.profileId))) {
+    return { status: 404, json: { error: 'No such /bug report waiting for logs.' } }
+  }
+  const lines = [bugId
+    ? `Logs for **${escapeMarkdown(name)}**'s in-game /bug, sent by their launcher.`
+    : `**${escapeMarkdown(name)}** reported a problem ${SOURCES[source]}.`]
   const ids = []
   // A mention shows the account itself; allowed_mentions is empty in the poster, so nobody is pinged
   if (reporter.discordId && /^\d{5,25}$/.test(String(reporter.discordId))) ids.push(`Discord <@${reporter.discordId}>`)
@@ -144,7 +152,10 @@ async function submit(reporter, body) {
   const entry = { state: 'pending', at: Date.now() }
   entry.promise = (async () => {
     try {
-      const thread = await postReport({ title: name, summary: lines.join('\n'), files, tags: SOURCE_TAGS[source] })
+      const thread = bugId
+        ? await postBugLogs({ snapshotFile: `${bugId}.json`, title: `${name}: logs for /bug`, summary: lines.join('\n'), files, tags: SOURCE_TAGS.game })
+        : await postReport({ title: name, summary: lines.join('\n'), files, tags: SOURCE_TAGS[source] })
+      if (bugId) bugLogs.markSent(bugId, thread)
       entry.state = 'done'
       entry.at = Date.now()
       audit.log(`REPORT problem ${SOURCES[source]} from ${name}`

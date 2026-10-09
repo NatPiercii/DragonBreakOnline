@@ -14,6 +14,7 @@ const fs     = require('fs')
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 const config = require('../config')
 const problemReport = require('../sources/problemReport')
+const bugLogs = require('../sources/bugLogs')
 const sessionEnds = require('../sources/sessionEnds')
 const autoReport = require('../sources/autoReport')
 const { visitorIp } = require('../sources/visitorIp')
@@ -155,6 +156,12 @@ const sessionEndLimiter = rateLimit({
   keyGenerator: req => `p:${req.reporter.profileId}`,
   message: { error: 'Too many notes from this launcher.' },
 })
+// GET /api/files/bug-pending - the signed-in player's in-game /bug reports still waiting for their launcher's logs
+router.get('/bug-pending', identifyReporter, (req, res) => {
+  if (!req.reporter.verified) return res.status(401).json({ error: 'sign in first' })
+  res.json({ pending: bugLogs.pendingFor(req.reporter.profileId) })
+})
+
 router.post('/session-end', identifyReporter, (req, res, next) => (req.reporter.verified ? next() : res.status(401).json({ error: 'sign in first' })),
   sessionEndLimiter, async (req, res) => {
     const result = await sessionEnds.submit(req.reporter, req.body)

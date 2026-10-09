@@ -143,4 +143,39 @@ async function postReport({ title, summary, files = [], tags = [] }) {
   return thread && thread.id
 }
 
-module.exports = { postReport, tagIds }
+// How many of the forum's newest active threads are searched for a /bug's own thread
+const BUG_THREAD_SCAN = 40
+
+// The thread dbo-monitor opened for an in-game /bug, found by the 'Snapshot: `<file>`' line of its first post, or null
+async function findBugThread(snapshotFile, deadline) {
+  const channelId = config.discordErrorForumChannelId
+  if (!channelId || !config.discordGuildId || !config.discordBotToken) return null
+  const active = await request('GET', `/guilds/${config.discordGuildId}/threads/active`, { deadline })
+  const threads = ((active && active.threads) || []).filter(t => t && t.parent_id === channelId)
+    .sort((a, b) => (BigInt(b.id) > BigInt(a.id) ? 1 : -1)).slice(0, BUG_THREAD_SCAN)
+  const needle = `Snapshot: \`${snapshotFile}\``
+  for (const t of threads) {
+    let first = null
+    try { first = await request('GET', `/channels/${t.id}/messages/${t.id}`, { deadline }) } catch { continue }
+    if (first && String(first.content || '').includes(needle)) return t.id
+  }
+  return null
+}
+
+// The logs of an in-game /bug: a message in its own thread, or a new report thread when that thread is not found.
+// Returns the thread id.
+async function postBugLogs({ snapshotFile, title, summary, files = [], tags = [] }) {
+  const deadline = Date.now() + REPORT_DEADLINE_MS
+  let thread = null
+  try { thread = await findBugThread(snapshotFile, deadline) } catch { thread = null }
+  if (!thread) return postReport({ title, summary, files, tags })
+  const payload = {
+    content: String(summary || '').slice(0, 1900),
+    allowed_mentions: { parse: [] },
+    attachments: files.map((f, i) => ({ id: i, filename: f.name })),
+  }
+  await request('POST', `/channels/${thread}/messages`, { multipart: buildMultipart(payload, files), deadline })
+  return thread
+}
+
+module.exports = { postReport, postBugLogs, tagIds }
