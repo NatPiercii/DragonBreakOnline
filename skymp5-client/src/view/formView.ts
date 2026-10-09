@@ -1,4 +1,4 @@
-import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextColor, setTextPos, setTextSize, setTextString, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
+import { Actor, ActorBase, createText, destroyText, EffectShader, Faction, Form, FormType, Game, Keyword, NetImmerse, ObjectReference, once, printConsole, setTextColor, setTextPos, setTextSize, setTextString, Spell, storage, TESModPlatform, Utility, worldPointToScreenPoint } from "skyrimPlatform";
 import { isSpeaking } from "../services/services/voiceSpeaking";
 import { isBeastRaceId } from "../sync/beastRaceIds";
 import { beastBodyAppearance, beastBodyOf } from "../sync/beastBody";
@@ -24,7 +24,7 @@ import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
 import { dropCopyNiNodeWork, queueCopyNiNodeUpdate } from "./niNodeQueue";
 import { lastTryHost, tryHost } from "./hostAttempts";
-import { GHOST_ALPHA, GHOST_SHADER_ID } from "../lib/ghostLook";
+import { GHOST_ALPHA, GHOST_SHADER_ID, INVIS_ABILITY_IDS } from "../lib/ghostLook";
 import { AdminView, keepNoCopy, nextHiddenAt } from "./adminCopyPolicy";
 import { ModelApplyUtils } from "./modelApplyUtils";
 import { localIdToRemoteId } from "./worldViewMisc";
@@ -1122,8 +1122,24 @@ export class FormView {
     }
     if (view !== this.adminView || now - this.lastAdminHideApply >= FormView.adminHideReapplyMs) {
       actor.setAlpha(view === "hidden" ? 0 : view === "ghost" ? GHOST_ALPHA : 1, false);
+      // An Invisible admin's ghost copy on an admin watcher: the NPCs that watcher hosts must not see or hear it either
+      FormView.applyInvisAbilities(actor, FormView.isInvisAdmin(model));
       this.adminView = view;
       this.lastAdminHideApply = now;
+    }
+  }
+
+  private static isInvisAdmin(model: FormModel): boolean {
+    const modes = (model as Record<string, unknown>)["ff_adminModes"];
+    return !!modes && typeof modes === "object" && !!(modes as Record<string, unknown>)["invis"];
+  }
+
+  private static applyInvisAbilities(actor: Actor, on: boolean): void {
+    for (const id of INVIS_ABILITY_IDS) {
+      const spell = Spell.from(Game.getFormEx(id));
+      if (!spell) continue;
+      if (on && !actor.hasSpell(spell)) actor.addSpell(spell, false);
+      else if (!on && actor.hasSpell(spell)) actor.removeSpell(spell);
     }
   }
 

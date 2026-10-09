@@ -3,7 +3,7 @@ import { parseCustomPacket } from "./customPacketUtil";
 import { showSystemNotification } from "./systemNotification";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { GHOST_ALPHA, GHOST_SHADER_ID } from "../../lib/ghostLook";
+import { GHOST_ALPHA, GHOST_SHADER_ID, INVIS_ABILITY_IDS } from "../../lib/ghostLook";
 
 const INVIS_REAPPLY_MS = 2000;
 const LOCAL_MODES = ["god", "noclip", "ghost", "invis"];
@@ -95,6 +95,7 @@ export class AdminModeService extends ClientListener {
       case "invis":
         this.invisible = on;
         this.applyAlpha(true);
+        this.applyInvisAbilities(on);
         break;
       case "freecam":
         showSystemNotification(this.sp, on
@@ -118,10 +119,30 @@ export class AdminModeService extends ClientListener {
     this.sp.Game.getPlayer()?.setAlpha(this.invisible ? 0 : this.ghostly ? GHOST_ALPHA : 1, fade);
   }
 
-  // Respawn and 3D reloads reset the player's alpha
+  private applyInvisAbilities(on: boolean): void {
+    const player = this.sp.Game.getPlayer();
+    if (!player) return;
+    for (const id of INVIS_ABILITY_IDS) {
+      const spell = this.sp.Spell.from(this.sp.Game.getFormEx(id));
+      if (!spell) continue;
+      if (on && !player.hasSpell(spell)) player.addSpell(spell, false);
+      else if (!on && player.hasSpell(spell)) player.removeSpell(spell);
+    }
+  }
+
+  // Respawn and 3D reloads reset the player's alpha (and a death can drop the abilities)
   private onUpdate(): void {
     if ((!this.invisible && !this.ghostly) || Date.now() - this.lastInvisApply < INVIS_REAPPLY_MS) return;
     this.applyAlpha(false);
+    if (!this.invisible) return;
+    this.applyInvisAbilities(true);
+    // Activating or attacking ends an Invisibility effect in vanilla; the ability stays learned, so it is taken off and given back
+    const player = this.sp.Game.getPlayer();
+    const karliah = this.sp.Spell.from(this.sp.Game.getFormEx(INVIS_ABILITY_IDS[0]));
+    if (player && karliah && player.getActorValue("Invisibility") <= 0) {
+      player.removeSpell(karliah);
+      player.addSpell(karliah, false);
+    }
   }
 
   private collisionsDisabled = false;
