@@ -59,7 +59,8 @@ const claim = (glowCfg) => {
   } finally { process.chdir(here); fs.rmSync(dir, { recursive: true, force: true }); }
 };
 
-check('the shipped config leaves the glow as it was (no dungeons.glow)', cfg.dungeons.glow === undefined);
+// 9 Oct A/B: the shipped config turns the outline off in Bruma Caverns and Fort Cutpurse only (delete dungeons.glow to undo)
+check('the shipped config switches off only Bruma Caverns and Fort Cutpurse', cfg.dungeons.glow === undefined || (cfg.dungeons.glow.loot !== false && cfg.dungeons.glow.locked !== false && JSON.stringify(cfg.dungeons.glow.offIn) === JSON.stringify(['CYRBrumaCavernsLocation', 'CYRFortCutpurseLocation'])));
 const base = claim(undefined);
 check(`by default containers glow as before (${base.loot} loot, ${base.locked} locked)`, base.loot > 20);
 const same = claim({ loot: true, locked: true, offIn: [] });

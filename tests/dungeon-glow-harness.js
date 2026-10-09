@@ -35,7 +35,8 @@ require(path.join(ROOT, 'dungeons.js'))({
   onUi: (n, fn) => { const l = ui.get(n) || []; l.push(fn); ui.set(n, l); }, openWidget: () => true, closeWidget: () => true,
   sendPacket: (a, pkt) => { packets.push(pkt); return true; }, findByName: () => 0, display: String, who: String,
   profileOf: (a) => (a === A ? 1 : -1), nameOf: () => 'P', onlineActors: () => [A], isAdmin: () => false,
-  giveItem: () => true, cfg: { dungeons: cfg.dungeons || {} }, every: (name, ms, fn) => timers.set(name, fn),
+  // the glow mechanism itself, without the shipped dungeons.glow A/B switch (that has its own harness)
+  giveItem: () => true, cfg: { dungeons: Object.assign({}, cfg.dungeons || {}, { glow: undefined }) }, every: (name, ms, fn) => timers.set(name, fn),
 });
 
 let failures = 0;
