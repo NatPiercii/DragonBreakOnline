@@ -18,14 +18,21 @@ const realNow = Date.now;
 Date.now = () => now;
 
 const DOOR = 0x5000, FAR_DOOR = 0x5001;
-fs.writeFileSync('doors.json', JSON.stringify({ doors: { '5000:Skyrim.esm': 'A house', '5001:Skyrim.esm': 'Somewhere else' } }));
+fs.writeFileSync('doors.json', JSON.stringify({ doors: { '5000:Skyrim.esm': 'A house', '5001:Skyrim.esm': 'Somewhere else', '5002:Skyrim.esm': 'Newer than the file', '5003:Skyrim.esm': 'Disabled' } }));
+// The places tenancy.js reads instead of loading each door (tools/door-positions.py); no door is ever asked of the engine
+fs.writeFileSync('doors-pos.json', JSON.stringify({ doors: { '5000:Skyrim.esm': [0, 0, 0, 'Bruma'], '5001:Skyrim.esm': [9000, 0, 0, 'bruma'], 'bad:Skyrim.esm': [1, 2] }, off: ['5003:Skyrim.esm'] }));
+const engineCalls = { doorGet: {}, ids: [] };
+// The background fallback runs on timers; they are held here and run on demand
+const timers = [];
+const realSetTimeout = globalThis.setTimeout;
+globalThis.setTimeout = (fn, ms) => { timers.push([fn, ms]); return 0; };
 const STEWARD = 1, RENTER = 2, OTHER = 3;
 const chars = {
   [STEWARD]: { profile: 10, tag: 'STEW', name: 'Steward', gold: 0, pos: [0, 0, 0] },
   [RENTER]: { profile: 20, tag: 'RENT', name: 'Renter', gold: 1000, pos: [100, 0, 0] },
   [OTHER]: { profile: 30, tag: 'OTHR', name: 'Other', gold: 1000, pos: [50, 0, 0] },
 };
-const refs = { [DOOR]: { pos: [0, 0, 0], where: 'bruma' }, [FAR_DOOR]: { pos: [9000, 0, 0], where: 'bruma' } };
+const refs = { [DOOR]: { pos: [0, 0, 0], where: 'bruma' }, [FAR_DOOR]: { pos: [9000, 0, 0], where: 'bruma' }, 0x5002: { pos: [0, 0, 0], where: 'Elsewhere' }, 0x5003: { pos: [0, 0, 0], where: 'bruma' } };
 const houses = { [DOOR]: { owner: 0, ownerName: '' } };
 const treasury = {};
 const said = [];
@@ -42,8 +49,9 @@ const commands = {};
 let tick = null;
 require(MODULE)({
   mp: {
-    getIdFromDesc: (d) => parseInt(d, 16),
+    getIdFromDesc: (d) => { engineCalls.ids.push(d); return parseInt(d, 16); },
     get: (id, k) => {
+      if (refs[id]) engineCalls.doorGet[id.toString(16)] = (engineCalls.doorGet[id.toString(16)] || 0) + 1;
       if (chars[id]) return k === 'pos' ? chars[id].pos : k === 'worldOrCellDesc' ? 'bruma' : undefined;
       if (refs[id]) return k === 'pos' ? refs[id].pos : k === 'worldOrCellDesc' ? refs[id].where : undefined;
       return undefined;
@@ -119,6 +127,35 @@ houses[DOOR].owner = 0; houses[DOOR].ownerName = '';
 check('once the tenancy ends housing may hand the house on again', globalThis.__dboTenancyRented(DOOR) === false);
 check('the steward can take it off the market', /Taken off the market/.test(run(STEWARD, 'unlist')));
 
+// The 3.5-minute freeze (5-9 Oct): the doors come from doors-pos.json, never from the engine
+const T = globalThis.__dboTenancy;
+check('no door in the file is loaded through the engine, nor one listed off', !engineCalls.doorGet['5000'] && !engineCalls.doorGet['5001'] && !engineCalls.doorGet['5003'], JSON.stringify(engineCalls.doorGet));
+check('a malformed entry is skipped and the world is compared in lower case', T.doors.filter((d) => d.desc !== '5002:Skyrim.esm').length === 2 && T.doors[0].where === 'bruma');
+check('a door missing from the file waits for a timer instead of loading at once', timers.length === 1 && timers[0][1] === 250 && !T.doors.some((d) => d.desc === '5002:Skyrim.esm'), timers.length);
+while (timers.length) timers.shift()[0]();
+check('...then resolves in the background, with its world in lower case', T.doors.some((d) => d.desc === '5002:Skyrim.esm' && d.where === 'elsewhere' && d.id === 0x5002) && engineCalls.doorGet['5002'] === 2, JSON.stringify(engineCalls.doorGet));
+check('only the door found and the background one are resolved to ids', JSON.stringify(engineCalls.ids.sort()) === JSON.stringify(['5000:Skyrim.esm', '5002:Skyrim.esm']), JSON.stringify(engineCalls.ids));
+// A missing file places no door and refuses politely, with no engine call
+delete globalThis.__dboTenancy;
+fs.rmSync('doors-pos.json');
+require(MODULE)({ mp: { getIdFromDesc: () => { throw new Error('engine called'); }, get: (id, k) => (chars[id] ? (k === 'pos' ? chars[id].pos : 'bruma') : (() => { throw new Error('engine called'); })()) },
+  log: () => {}, personal: (a, t) => said.push([a, t]), audit: () => {}, who: (a) => chars[a].name, display: (a) => chars[a].name,
+  tagOf: (a) => chars[a].tag, profileOf: (a) => chars[a].profile, onlineActors: () => online, every: () => {},
+  registerChatCommand: (n, fn) => { commands[n] = fn; }, cfg: {}, takeGold: () => false, giveGold: () => false, depositToTreasury: () => 0, zoneById: (id) => ({ id }) });
+check('without doors-pos.json no door is found and nothing is loaded', /Stand at the door/.test(run(OTHER, '')));
+
+// The shipped file: every enabled doors.json door, in the form the server reports a world or cell
+const shipped = JSON.parse(fs.readFileSync(path.join(home, 'doors-pos.json'), 'utf8')).doors;
+const listed = Object.keys(JSON.parse(fs.readFileSync(path.join(home, 'doors.json'), 'utf8')).doors);
+const keys = Object.keys(shipped);
+check('doors-pos.json places the 3911 doors the live server placed (4049 less 138 initially disabled)', keys.length === 3911, keys.length);
+check('...each one a doors.json door', keys.every((k) => listed.includes(k)));
+const offList = JSON.parse(fs.readFileSync(path.join(home, 'doors-pos.json'), 'utf8')).off || [];
+check('...and the 138 disabled ones listed off, so the background fallback loads nothing on the live server', offList.length === 138 && listed.every((k) => shipped[k] || offList.includes(k)), offList.length);
+check('...each a position and a lower-case <hex>:<plugin> world or cell', keys.every((k) => { const p = shipped[k]; return p.length === 4 && p.slice(0, 3).every(Number.isFinite) && /^[0-9a-f]+:[^A-Z]+\.es[mpl]$/.test(p[3]); }));
+check('...Beasts Maw\'s door stands in BS Heartland, the world players there report', shipped['8aeef:BSHeartland.esm'] && shipped['8aeef:BSHeartland.esm'][3] === 'a764b:bsheartland.esm');
+
+globalThis.setTimeout = realSetTimeout;
 process.chdir(home);
 fs.rmSync(dir, { recursive: true, force: true });
 Date.now = realNow;
