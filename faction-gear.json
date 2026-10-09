@@ -2190,17 +2190,6 @@
     "ab72:Hothtrooper44_ArmorCompilation.esp"
    ]
   },
-  "2df7:Cloaks&Capes.esp": {
-   "name": "Stormcloak Cloak",
-   "set": "Stormcloaks",
-   "factions": [
-    "stormcloaks"
-   ],
-   "role": "tailor",
-   "recipes": [
-    "2e0f:Cloaks&Capes.esp"
-   ]
-  },
   "a6d7b:Skyrim.esm": {
    "name": "Stormcloak Cuirass",
    "set": "Stormcloaks",
