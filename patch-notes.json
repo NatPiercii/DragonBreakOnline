@@ -1,5 +1,19 @@
 [
   {
+    "title": "Moranda is part of Bruma",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "The world",
+        "items": [
+          "Going into Moranda no longer sends you back as if you had left the Bruma region."
+        ]
+      }
+    ]
+  },
+  {
     "title": "More wood",
     "date": "SHIP_DATE",
     "version": "Server update",
