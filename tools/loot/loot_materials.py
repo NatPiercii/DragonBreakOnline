@@ -52,6 +52,15 @@ EDFAM = [
     (r'Fur|Hide', 'hide'), (r'Leather', 'leather'),
     (r'Cloth|Robe|Hood|Boots|Shoes|Gloves|Hat|Circlet|Ring|Amulet|Necklace|Jewel|Clothes', 'clothing'),
 ]
+# The families a borrowed keyword gets wrong, and the editor-id test an item of them must pass to stay
+LOOKS = {'ancient_nord': r'Draugr|AncientNord|Nordic|Ancient ?Nord', 'ancient_nord_honed': r'Draugr|AncientNord|Ancient ?Nord',
+         'dwarven': r'Dwarven|Dwemer|Dwarf'}
+# A recipe input's editor id -> its metal's family (first match)
+METAL = [(r'^IngotSteel$|^IngotCorundum$', 'steel'), (r'^IngotIron$', 'iron'), (r'^ingotSilver$|^IngotSilver$', 'silver'),
+         (r'^IngotEbony$', 'EBONY'), (r'^IngotIMoonstone$|^IngotQuicksilver$', 'elven'), (r'^IngotOrichalcum$', 'orcish'),
+         (r'^IngotMalachite$', 'glass'), (r'^IngotDwarven$', 'dwarven'), (r'^BSKIngotBronze$', 'ancient_nord'),
+         (r'^DLC2OreStalhrim$', 'stalhrim'), (r'^DragonBone$|^DragonScales$', 'DRAGON'), (r'^DaedraHeart$', 'DAEDRIC'),
+         (r'ChitinPlate$|^ChaurusChitin$', 'chitin'), (r'^BSKIngotMeteoricIron$', 'ayleid'), (r'^Leather01$', 'leather')]
 BANNED = ('DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish')
 # Sets whose editor id names them although their keywords borrow another material's (BS Heartland's Ancient Imperial
 # weapons carry WeapMaterialSteel, Immersive Armors' Glacial Crystal IAKMaterialGlass/Ebony): the smithing families
@@ -69,7 +78,7 @@ def scan():
     sys.path.insert(0, ESPLIB)
     from esplib import Plugin, subrecords
     order = [l.strip().lstrip('*') for l in open(ORDER, encoding='utf-8-sig') if l.strip() and not l.startswith('#')]
-    kywd, items = {}, {}
+    kywd, items, misc, recipes = {}, {}, {}, {}
     for name in order:
         path = os.path.join(DATA, name)
         if not os.path.exists(path):
@@ -81,13 +90,24 @@ def scan():
             src, loc = p.modindex_source(fid)
             return '%x:%s' % (loc, src) if src else None
         for (sig, fid, flags, off, size, ctx) in p.index:
-            if sig not in ('KYWD', 'WEAP', 'ARMO'):
+            if sig not in ('KYWD', 'WEAP', 'ARMO', 'MISC', 'COBJ'):
                 continue
             d = p.data_at(fh, off, size, flags)
             c = cn(fid)
             if not c:
                 continue
             edid, kw, tmpl = '', [], None
+            if sig == 'COBJ':
+                r = {'product': None, 'bench': None, 'inputs': []}
+                for s, v in subrecords(d):
+                    if s == b'CNAM' and len(v) >= 4:
+                        r['product'] = cn(struct.unpack('<I', v[:4])[0])
+                    elif s == b'BNAM' and len(v) >= 4:
+                        r['bench'] = cn(struct.unpack('<I', v[:4])[0])
+                    elif s == b'CNTO' and len(v) >= 8:
+                        r['inputs'].append([cn(struct.unpack_from('<I', v)[0]), struct.unpack_from('<i', v, 4)[0]])
+                recipes[c] = r
+                continue
             for s, v in subrecords(d):
                 if s == b'EDID':
                     edid = v.rstrip(b'\0').decode('cp1252', 'replace')
@@ -97,9 +117,11 @@ def scan():
                     tmpl = cn(struct.unpack('<I', v[:4])[0])
             if sig == 'KYWD':
                 kywd[c] = edid
+            elif sig == 'MISC':
+                misc[c] = edid
             else:
                 items[c] = {'sig': sig, 'edid': edid, 'kw': [k for k in kw if k], 'tmpl': tmpl}
-    return {'kywd': kywd, 'items': items}
+    return {'kywd': kywd, 'items': items, 'misc': misc, 'recipes': recipes}
 
 
 def classifier(scan_data):
@@ -144,7 +166,37 @@ def classifier(scan_data):
         if 'WeapTypeStaff' in names:
             return 'staff'
         return fam_edid(r.get('edid')) or 'unclassified'
-    return I, classify
+    # A Draugr or Dwarven material keyword on an item that is neither (Immersive Weapons' katanas and cutlasses, Immersive
+    # Armors' Boiled Chitin, artifacts) was set for the vanilla perks, not the look: such an item takes the metal its own
+    # editor id names (IWSilverKatana: silver), else the family of the main metal of its own creation recipe instead (the PC's 9 Oct follow-ups; Nate: "do it"), and stays as it is
+    # without one. The main metal is the ingot or metal input with the largest count (leather only without one).
+    M = {canon(k): v for k, v in (scan_data.get('misc') or {}).items()}
+    made = {}
+    for r in (scan_data.get('recipes') or {}).values():
+        bench = K.get(canon(r['bench'])) if r.get('bench') else ''
+        if r.get('product') and (not bench or re.match(r'CraftingSmithing(Forge|Skyforge)$|DLC1CraftingDawnguard$', bench)):
+            made.setdefault(canon(r['product']), r)
+
+    def main_metal(key):
+        r = made.get(key)
+        best = None
+        for i, n in (r or {}).get('inputs', []):
+            e = M.get(canon(i)) if i else None
+            f = e and next((f for pat, f in METAL if re.search(pat, e)), None)
+            # leather only when the recipe has no metal at all
+            rank = (f != 'leather', n) if f else None
+            if f and (best is None or rank > best[1]):
+                best = (f, rank)
+        return best[0] if best else None
+
+    def classify_fixed(key):
+        f = classify(key)
+        e = (I.get(key) or {}).get('edid') or ''
+        if f in LOOKS and not re.search(LOOKS[f], e):
+            by_name = fam_edid(e)
+            return (by_name if by_name and by_name not in LOOKS and by_name != 'clothing' else None) or main_metal(key) or f
+        return f
+    return I, classify_fixed
 
 
 def main():

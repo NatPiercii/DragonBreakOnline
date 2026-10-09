@@ -59,11 +59,11 @@ const LOOT_ONLY_METALS = {
 const ANY_PROVINCE = new Set(['steelplate', 'scaled', 'elven_gilded']);
 // Cyrodiil has no tier 3 weapon: the high Elven weapons stand in (Nate's (c))
 const T3_WEAPON_STANDIN = /^(?:CYR)?Elven(?:Greatsword|Battleaxe|Warhammer|Bow)$/;
-// The ceilings. 'steel' (the default): tier 1 and the steel of each province (steel, Imperial, silver; Cyrodiil's
+// The ceilings. 'steel' (the default): tier 1 and the steel of each province (steel, Imperial, Ancient Imperial, silver; Cyrodiil's
 // Colovian, Nibenese and Akaviri steel are steel). Honed Ancient Nord and Falmer hit like Elven, Mithril armours like it,
 // so they stay out. 'iron': tier 1 only. 'none': no ceiling, the tiers alone.
 const TIER1 = Object.keys(TIER_OF).filter((f) => TIER_OF[f] === 1);
-const CAPS = { iron: TIER1, steel: TIER1.concat(['steel', 'imperial', 'silver']) };
+const CAPS = { iron: TIER1, steel: TIER1.concat(['steel', 'imperial', 'ancient_imperial', 'silver']) };
 
 // Shares by tier, per difficulty (story Novice, normal Adept, hard Expert, nightmare Master)
 const ROWS = {

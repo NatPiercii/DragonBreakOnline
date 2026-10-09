@@ -268,7 +268,7 @@ ok(seen.filter((s) => s.path === 'humanoid body').length > 0 && seen.filter((s) 
   const all = (LOOT.weapons || []).concat(LOOT.armor || []);
   const picked = []; for (let i = 0; i < 2000; i++) { const it = S.pickTier(all, S.rowFor('nightmare', 'raidBoss'), { weapons: i % 2 === 0 }); if (it) picked.push(it); }
   const fams = [...new Set(picked.map((it) => S.classOf(it.id).family))].sort();
-  ok(picked.length === 2000 && fams.every((f) => ['iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'silver'].includes(f)) && fams.includes('steel'), `a Master raid boss roll (80% tier 4) falls to steel: ${fams.join(', ')}`, fams);
+  ok(picked.length === 2000 && fams.every((f) => ['iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'ancient_imperial', 'silver'].includes(f)) && fams.includes('steel'), `a Master raid boss roll (80% tier 4) falls to steel: ${fams.join(', ')}`, fams);
 
   // Every path of the real dungeons.js under the default ceiling
   const before = seen.length, anyBefore = anySeen.length;

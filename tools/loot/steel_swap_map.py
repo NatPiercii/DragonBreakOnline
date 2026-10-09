@@ -19,11 +19,11 @@ sys.path.insert(0, HERE)
 from loot_materials import DATA, ORDER, ESPLIB, canon  # noqa: E402
 
 # loottiers.js: the steel cap and the families never loot (kept in step by the harness)
-CAP = {'iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'silver'}
+CAP = {'iron', 'hide', 'leather', 'studded', 'wood', 'goblin', 'ancient_nord', 'falmer', 'forsworn', 'steel', 'imperial', 'ancient_imperial', 'silver'}
 TIERED_ABOVE = {'dwarven', 'elven', 'bonemold', 'chitin', 'mithril', 'vampire', 'ancient_nord_honed', 'falmer_honed',
-                'ancient_imperial', 'ayleid', 'steelplate', 'scaled', 'elven_gilded', 'nordic', 'glass'}
+                'ayleid', 'steelplate', 'scaled', 'elven_gilded', 'nordic', 'glass', 'amber', 'glacial_crystal'}
 # No crossbow kind: every crossbow is the Dawnguard's faction gear (Nate, 8 Oct), which the swap never takes
-NEVER = {'DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium'}
+NEVER = {'DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium'}
 # The replacement for each kind, by province: plain vanilla steel and leather, Cyrodiil's Colovian steel and CYR leather
 TABLE = {
     'skyrim': {
