@@ -1,6 +1,336 @@
 {
  "_comment": "Faction gear (server/factiongear.js; built by tools/faction_gear.py from regions.json, edit the SETS there and re-run, or edit an entry here by hand). An item listed here may be crafted only by a member of one of its factions whose rank role is its role (blacksmith for forge work, tailor for the loom and tanning rack) or leader. Nate, 2026-09-28: faction armor and weapons.",
  "items": {
+  "8e2:sentinel.esp": {
+   "name": "Wolf Armor",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "aa6:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8e1:sentinel.esp": {
+   "name": "Wolf Boots",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "aa5:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8e3:sentinel.esp": {
+   "name": "Wolf Gauntlets",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "aa7:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "8da:sentinel.esp": {
+   "name": "Wolf Shield",
+   "set": "Companions",
+   "factions": [
+    "companions"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a9e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "50c6:dawnguard.esm": {
+   "name": "Dawnguard Armor",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "948:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "50c5:dawnguard.esm": {
+   "name": "Dawnguard Boots",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "949:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "50c7:dawnguard.esm": {
+   "name": "Dawnguard Gauntlets",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "947:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "f0d:jk's fort dawnguard.esp": {
+   "name": "Dawnguard War Axe SPR",
+   "set": "Dawnguard",
+   "factions": [
+    "dawnguard"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "afe:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "12fc:dis_heavy_legion.esp": {
+   "name": "Penitus Oculatus Sword",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a22:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "300039:bsheartland.esm": {
+   "name": "Orcish Armor",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9ab:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "300038:bsheartland.esm": {
+   "name": "Orcish Boots",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9aa:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "30003a:bsheartland.esm": {
+   "name": "Orcish Gauntlets",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9ac:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "30003b:bsheartland.esm": {
+   "name": "Orcish Helmet",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9ad:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "878:sentinel.esp": {
+   "name": "Orcish Hide Armor",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a8c:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "877:sentinel.esp": {
+   "name": "Orcish Hide Boots",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a8b:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "87a:sentinel.esp": {
+   "name": "Orcish Hide Gauntlets",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a8e:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "87b:sentinel.esp": {
+   "name": "Orcish Hide Helmet",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a8f:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "30003c:bsheartland.esm": {
+   "name": "Orcish Shield",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "9ae:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "879:sentinel.esp": {
+   "name": "Orcish Studded Armor",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a8d:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "875:sentinel.esp": {
+   "name": "Orcish Warchief Armor",
+   "set": "Orcish",
+   "factions": [
+    "clan-gol-kharzum",
+    "clan-mor-khazgur",
+    "clan-dushnikh-yal",
+    "clan-largashbur",
+    "clan-narzulbur",
+    "clan-cracked-tusk"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a8a:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "b31:sentinel.esp": {
+   "name": "Stormcloak Battleaxe",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ad2:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "b30:sentinel.esp": {
+   "name": "Stormcloak Bearded Axe",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ad1:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "b2f:sentinel.esp": {
+   "name": "Stormcloak Greatsword",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ad0:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "b2e:sentinel.esp": {
+   "name": "Stormcloak Sword",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "acf:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "b40:sentinel.esp": {
+   "name": "Stormcloak War Axe",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "ad7:DragonBreak Nexus Patches.esp"
+   ]
+  },
   "4f22:Hothtrooper44_ArmorCompilation.esp": {
    "name": "Akaviri Samurai Armor",
    "set": "Blades",
