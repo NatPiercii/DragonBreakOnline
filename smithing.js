@@ -17,9 +17,9 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = (api) => {
-  const { mp, log, personal, audit, who, cfg, registerChatCommand, onlineActors, findByName, isAdmin, sendPacket } = api;
+  const { mp, log, personal, audit, who, cfg, registerChatCommand, onlineActors, findByName, isAdmin, sendPacket, itemName } = api;
   const raw = cfg.smithing || {};
-  const C = Object.assign({ enabled: false, tierPoints: [0, 15, 30, 45, 60, 76, 91], apprenticeCrafts: 10, apprenticeRange: 500,
+  const C = Object.assign({ enabled: false, tierPoints: [0, 15, 30, 45, 60, 76, 91], apprenticeCrafts: 10, apprenticeRange: 500, supervisorMinPoints: 75,
     scholarForBook: { 2: 1, 3: 1, 4: 1, 5: 2, 6: 3, 7: 3 }, books: {}, familyTier: {}, drops: {} }, raw);
   const readJson = (f, dflt) => { try { return JSON.parse(fs.readFileSync(path.resolve(f), 'utf8')); } catch (e) { return dflt; } };
   const TABLE = readJson('smithing.json', { tierNames: [], families: [] });
@@ -29,6 +29,7 @@ module.exports = (api) => {
   const ITEM_FAMILY = (readJson('loot-materials.json', { items: {} }).items) || {};
   const REC = 'private.dboManuals', APPRENTICE = 'private.dboSmithApprentice';
   const S = globalThis.__dboSmithState || (globalThis.__dboSmithState = { test: new Set(), told: new Map() });
+  if (!(S.pending instanceof Map)) S.pending = new Map();   // actor -> a supervised craft waiting for the chain's verdict
 
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
   const set = (id, prop, v) => { try { mp.set(id, prop, v); return true; } catch (e) { log(`smithing: set ${prop} failed`, e.message); return false; } };
@@ -67,15 +68,17 @@ module.exports = (api) => {
   // A Blacksmith nearby who may supervise this family
   const supervisorFor = (a, fam) => {
     for (const s of onlineActors()) {
-      if ((s >>> 0) === (a >>> 0) || craftTier(s) < fam.tier || !knows(s, fam) || dist(a, s) > Number(C.apprenticeRange)) continue;
+      if ((s >>> 0) === (a >>> 0) || craftTier(s) < fam.tier || pointsOf(s) < Number(C.supervisorMinPoints) || !knows(s, fam) || dist(a, s) > Number(C.apprenticeRange)) continue;
       if (get(s, 'worldOrCellDesc', '') !== get(a, 'worldOrCellDesc', '')) continue;
       if (fam.supervisorRace && raceEdid(s) !== fam.supervisorRace) continue;
       return s;
     }
     return 0;
   };
-  const hintOf = (fam) => (fam.book === 'apprentice' ? fam.where || 'Apprentice under a Blacksmith who knows it'
-    : fam.book === 'staff' ? fam.where || 'taught only in roleplay' : `Book: Schematics: ${fam.name}${fam.where ? ', ' + fam.where : ''}, or apprentice under a Blacksmith who knows it`);
+  // A teacher needs supervisorMinPoints Blacksmith points (Nate, 9 Oct: 75), the technique and its craft tier
+  const teacher = () => `a teacher needs Blacksmith ${Number(C.supervisorMinPoints)} to teach`;
+  const hintOf = (fam) => (fam.book === 'apprentice' ? `${fam.where || 'Apprentice under a Blacksmith who knows it'} (${teacher()})`
+    : fam.book === 'staff' ? fam.where || 'taught only in roleplay' : `Book: Schematics: ${fam.name}${fam.where ? ', ' + fam.where : ''}, or apprentice under a Blacksmith who knows it (${teacher()})`);
   // regions.js craft hook: false refuses the craft (materials kept); anything else lets it on
   globalThis.__dboSmithCraft = (actorId, itemId, recipeId) => {
     if (!C.enabled) return true;
@@ -87,13 +90,24 @@ module.exports = (api) => {
     if (tier < fam.tier) { tell(a, `${fam.name} is craft tier ${fam.tier} (${TIER_NAMES[fam.tier - 1] || ''}) work; you are at tier ${tier || 0}. Your materials come back when you close the menu.`); return false; }
     if (knows(a, fam)) return true;
     const sup = supervisorFor(a, fam);
+    S.pending.delete(a);
     if (!sup) { tell(a, `You don't know how to work ${fam.name} yet. ${hintOf(fam)}. Your materials come back when you close the menu.`); return false; }
+    // Counted once the whole craft chain lets it on (regions.js asks __dboSmithCrafted after the verdict)
+    S.pending.set(a, { family: fam.id, sup, at: Date.now() });
+    return true;
+  };
+  // regions.js, after every other check let the craft on: the supervised craft counts toward the apprenticeship
+  globalThis.__dboSmithCrafted = (actorId) => {
+    const a = actorId >>> 0;
+    const p = S.pending.get(a); S.pending.delete(a);
+    if (!p || Date.now() - p.at > 5000) return;
+    const fam = BY_FAMILY.get(p.family), sup = p.sup;
+    if (!fam || knows(a, fam)) return;
     const prev = get(a, APPRENTICE, null);
     const n = (prev && prev.family === fam.id ? Number(prev.count) || 0 : 0) + 1;
     const of = Math.max(1, Number(C.apprenticeCrafts) || 10);
     if (n >= of) { set(a, APPRENTICE, null); teach(a, fam, 'apprentice', who(sup)); personal(a, `You have learned to work ${fam.name} under ${who(sup)}'s eye.`); personal(sup, `${who(a)} has learned to work ${fam.name} from you.`); }
     else { set(a, APPRENTICE, { family: fam.id, count: n, from: who(sup) }); personal(a, `Apprenticed in ${fam.name}: ${n} of ${of}.`); personal(sup, `${who(a)}'s ${fam.name} apprenticeship: ${n} of ${of}.`); }
-    return true;
   };
 
   // ---- upgrade caps (craftedExtrasSystem.ts) ------------------------------------------------------------------------
@@ -125,9 +139,16 @@ module.exports = (api) => {
         let input = 0; try { input = res.toGlobalRecordId(v.getUint32(0, true)) >>> 0; } catch (e) { input = 0; }
         if (input) inputs.push([input, v.getInt32(4, true)]);
       }
-      recipesByFamily.set(fam.id, (recipesByFamily.get(fam.id) || []).concat([inputs]));
+      recipesByFamily.set(fam.id, (recipesByFamily.get(fam.id) || []).concat([{ item: fieldId(res, 'CNAM'), inputs }]));
     }
     return recipesByFamily;
+  };
+  // The display names of what a family's forge recipes make, sorted, read once (the Skills menu's Blacksmith page)
+  const nameCache = new Map();
+  const nameOfItem = (id) => { let n = ''; try { n = typeof itemName === 'function' ? String(itemName(descOf(id)) || '') : ''; } catch (e) { n = ''; } if (n) return n; const r = lookup(id); return r ? String(r.record.editorId || '').replace(/([a-z])([A-Z])/g, '$1 $2') : ''; };
+  const namesOf = (familyId) => {
+    if (!nameCache.has(familyId)) nameCache.set(familyId, [...new Set((recipes().get(familyId) || []).map((r) => nameOfItem(r.item)).filter(Boolean))].sort((x, y) => x.localeCompare(y)));
+    return nameCache.get(familyId);
   };
   const held = (a) => { const m = new Map(); for (const e of (get(a, 'inventory', { entries: [] }).entries || [])) if (e && !e.worn && !e.wornLeft) m.set(Number(e.baseId) >>> 0, (m.get(Number(e.baseId) >>> 0) || 0) + (Number(e.count) || 0)); return m; };
   globalThis.__dboSmithView = (actorId) => {
@@ -136,10 +157,12 @@ module.exports = (api) => {
     const tier = craftTier(a), points = pointsOf(a), rec = known(a), inv = held(a), app = get(a, APPRENTICE, null);
     const families = FAMILIES.map((f) => {
       const k = knows(a, f);
-      const canMake = k && tier >= f.tier ? (recipes().get(f.id) || []).filter((ins) => ins.every(([id, n]) => (inv.get(id) || 0) >= n)).length : 0;
-      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 ? null : (rec[f.id] && rec[f.id].how) || (rec[f.id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f) };
+      const list = recipes().get(f.id) || [];
+      const canMake = k && tier >= f.tier ? list.filter((r) => r.inputs.every(([id, n]) => (inv.get(id) || 0) >= n)).length : 0;
+      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 ? null : (rec[f.id] && rec[f.id].how) || (rec[f.id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f),
+        recipes: namesOf(f.id) };
     }).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name));
-    return { tier, tierName: TIER_NAMES[tier - 1] || '', points, nextAt: tier >= 7 ? null : Number(C.tierPoints[tier]),
+    return { tier, tierName: TIER_NAMES[tier - 1] || '', tierNames: TIER_NAMES.slice(0, 7), points, nextAt: tier >= 7 ? null : Number(C.tierPoints[tier]),
       families, apprentice: app && app.family ? { family: app.family, count: Number(app.count) || 0, of: Number(C.apprenticeCrafts) || 10 } : null,
       upgradeRule: 'An item improves up to two tier steps above its own, never past tier 5 or your craft tier; tier 5-7 items cannot be improved.' };
   };

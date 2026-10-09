@@ -395,6 +395,7 @@ module.exports = (api) => {
     const verdict = prev ? prev.call(this, actorId, itemId, count, recipeId, ...rest) : undefined;
     if (fuel && verdict !== false && fuel.need && !takeHeld(a, fuel.wood, fuel.need)) log(`regions: could not burn ${fuel.need} firewood for ${who(a)}`);
     if (fuel && verdict !== false && fuel.coalNeed && !takeHeld(a, fuel.coal, fuel.coalNeed)) log(`regions: could not burn ${fuel.coalNeed} charcoal for ${who(a)}`);
+    if (verdict !== false && typeof globalThis.__dboSmithCrafted === 'function') { try { globalThis.__dboSmithCrafted(a); } catch (e) { log('regions: smithing count failed', e.message); } }
     return verdict;
   };
   craftHook.__dboRegions = true;

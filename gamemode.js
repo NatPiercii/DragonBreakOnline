@@ -6534,7 +6534,7 @@ try {
 try {
   const SMITHING_JS = path.resolve('smithing.js');
   delete require.cache[SMITHING_JS];
-  require(SMITHING_JS)({ mp, log, personal, audit, who, cfg, registerChatCommand, onlineActors, findByName, isAdmin, sendPacket });
+  require(SMITHING_JS)({ mp, log, personal, audit, who, cfg, registerChatCommand, onlineActors, findByName, isAdmin, sendPacket, itemName: (d) => adminItemName(d) });
 } catch (e) { log('smithing.js failed to load:', e.stack || e.message); for (const k of ['__dboSmithCraft', '__dboTemperCap', '__dboSmithView', '__dboSmithBookNeeds', '__dboSmithScholarTier', '__dboSmithCraftTier']) globalThis[k] = null; }
 // ---- the schools of magic, Study Magic and the Class Lectern (server\schools.js, config "schools"): after spells.js, whose spellbook it reads ----
 try {
