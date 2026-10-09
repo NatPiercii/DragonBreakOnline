@@ -1607,11 +1607,12 @@ module.exports = (api) => {
   };
   // The client's PlayerWerewolfFeed perk replaces a werewolf's E on a body, so its feeding hold is the feed, at once as in vanilla.
   // The hold is the client's word: one feed per holdEverySeconds per werewolf (vanilla's feed takes over 4 s), so a
-  // modified client cannot eat every body in reach in one tick; and never a player's summon, raised corpse or companion
-  // (private.dboCompanion stays on its body), whose 3 s summon corpse E could never finish. Kept across hot reloads.
+  // modified client cannot eat every body in reach in one tick; and never a player's summon or raised corpse, or a GM's
+  // follower still with its GM (private.dboCompanion stays on its body). Kept across hot reloads.
   const holdAt = globalThis.__dboSuperWolfHoldAt instanceof Map ? globalThis.__dboSuperWolfHoldAt : (globalThis.__dboSuperWolfHoldAt = new Map());
   // holdEverySeconds 0 turns the pace off; anything that is not a number of seconds keeps the 3 s default
-  const holdEvery = Number(C.feed.holdEverySeconds);
+  const rawHold = C.feed.holdEverySeconds;
+  const holdEvery = typeof rawHold === 'number' ? rawHold : (typeof rawHold === 'string' && rawHold.trim() !== '' ? Number(rawHold) : NaN);
   const HOLD_EVERY_MS = (Number.isFinite(holdEvery) && holdEvery >= 0 ? holdEvery : 3) * 1000;
   const wolfFeedHold = (a, t) => {
     if (a === t || !isPlayer(a) || beastForm(a) !== 'werewolf' || feeds.has(a)) return false;

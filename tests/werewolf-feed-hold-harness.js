@@ -95,11 +95,14 @@ hold(WOLF, SUMMON);
 ok(fedMeals.length === m0 + 1, "a player's summon is never eaten");
 // A GM's raider released into the world keeps its companion tag but is an ordinary enemy: it is eaten; a warband
 // follower still with its GM is not
-const RAIDER = 0xff001c48, FOLLOWER = 0xff001c49;
-for (const id of [RAIDER, FOLLOWER]) { store.set(`${id}|worldOrCellDesc`, 'fort'); store.set(`${id}|pos`, [0, 0, 0]); store.set(`${id}|isDead`, true); store.set(`${id}|baseDesc`, 'b1:Skyrim.esm'); store.set(`${id}|private.dboCompanion`, 'companion'); }
+const RAIDER = 0xff001c4a, FOLLOWER = 0xff001c49, FORGED = 0xff001c4b;
+for (const id of [RAIDER, FOLLOWER, FORGED]) { store.set(`${id}|worldOrCellDesc`, 'fort'); store.set(`${id}|pos`, [0, 0, 0]); store.set(`${id}|isDead`, true); store.set(`${id}|baseDesc`, 'b1:Skyrim.esm'); store.set(`${id}|private.dboCompanion`, 'companion'); }
 const prevWarband = globalThis.__dboWarband;
-globalThis.__dboWarband = { owners: new Map([[RAIDER >>> 0, { released: true, hostile: true }], [FOLLOWER >>> 0, { released: false, hostile: false }]]) };
-for (const id of [RAIDER, FOLLOWER]) globalThis.__dboSuperDeath(id, WOLF);
+store.set(`${FORGED}|private.dboCompanion`, 'summon');
+globalThis.__dboWarband = { owners: new Map([[RAIDER >>> 0, { released: true, hostile: true }], [FOLLOWER >>> 0, { released: false, hostile: false }], [FORGED >>> 0, { released: true, hostile: true }]]) };
+for (const id of [RAIDER, FOLLOWER, FORGED]) globalThis.__dboSuperDeath(id, WOLF);
+hold(WOLF, FORGED);
+ok(fedMeals.length === m0 + 1, "a player's summon is never eaten, even with a released warband record on its id");
 hold(WOLF, FOLLOWER);
 ok(fedMeals.length === m0 + 1, "a GM's warband follower still with its GM is not eaten");
 hold(WOLF, RAIDER);
