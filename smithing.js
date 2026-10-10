@@ -46,7 +46,10 @@ module.exports = (api) => {
   const craftTier = (a) => { if (!blacksmith(a)) return 0; const pts = pointsOf(a); let t = 1; C.tierPoints.forEach((at, i) => { if (pts >= Number(at)) t = i + 1; }); return Math.max(1, Math.min(7, t)); };
   const scholarTier = (a) => { const r = get(a, 'private.mastery', null); if (!r || !Array.isArray(r.order) || !r.order.includes('scholar')) return 0; return Math.max(0, Number(((r.skills || {}).scholar || {}).rank) || 0) + 1; };
   const known = (a) => { const r = get(a, REC, null); return r && typeof r === 'object' ? r : {}; };
-  const knows = (a, fam) => fam.tier <= 1 || !!known(a)[fam.id];
+  // A family may need no technique (free: Brass, a common alloy) or share another's (technique: Adamantium is worked with
+  // the Steel Plate technique, on the same shapes; the PC's reskins, 9 Oct): the tier gate still applies
+  const techOf = (fam) => (fam && fam.technique && BY_FAMILY.get(fam.technique)) || fam;
+  const knows = (a, fam) => fam.tier <= 1 || !!fam.free || !!known(a)[techOf(fam).id];
   const teach = (a, fam, how, from) => { set(a, REC, Object.assign({}, known(a), { [fam.id]: { at: Date.now(), how, from: from || how } })); audit(`SMITH ${who(a)} learned ${fam.name} (T${fam.tier}) by ${how}${from && from !== how ? ' from ' + from : ''}`); };
   const familyOfItem = (itemId) => BY_FAMILY.get(ITEM_FAMILY[normDesc(descOf(itemId))]) || null;
   const raceEdid = (a) => { const app = get(a, 'appearance', null); const r = app && app.raceId ? lookup(Number(app.raceId) >>> 0) : null; return r ? String(r.record.editorId || '') : ''; };
@@ -77,7 +80,7 @@ module.exports = (api) => {
   };
   // A teacher needs supervisorMinPoints Blacksmith points (Nate, 9 Oct: 75), the technique and its craft tier
   const teacher = () => `a teacher needs Blacksmith ${Number(C.supervisorMinPoints)} to teach`;
-  const hintOf = (fam) => (fam.book === 'apprentice' ? `${fam.where || 'Apprentice under a Blacksmith who knows it'} (${teacher()})`
+  const hintOf = (fam) => (fam.free ? '' : techOf(fam) !== fam ? `Worked with the ${techOf(fam).name} technique. ${hintOf(techOf(fam))}` : fam.book === 'apprentice' ? `${fam.where || 'Apprentice under a Blacksmith who knows it'} (${teacher()})`
     : fam.book === 'staff' ? fam.where || 'taught only in roleplay' : `Book: Schematics: ${fam.name}${(C.withheldBooks || []).includes(fam.id) ? ', not to be had in Cyrodiil yet' : fam.where ? ', ' + fam.where : ''}, or apprentice under a Blacksmith who knows it (${teacher()})`);
   // regions.js craft hook: false refuses the craft (materials kept); anything else lets it on
   globalThis.__dboSmithCraft = (actorId, itemId, recipeId) => {
@@ -93,7 +96,7 @@ module.exports = (api) => {
     S.pending.delete(a);
     if (!sup) { tell(a, `You don't know how to work ${fam.name} yet. ${hintOf(fam)}. Your materials come back when you close the menu.`); return false; }
     // Counted once the whole craft chain lets it on (regions.js asks __dboSmithCrafted after the verdict)
-    S.pending.set(a, { family: fam.id, sup, at: Date.now() });
+    S.pending.set(a, { family: techOf(fam).id, sup, at: Date.now() });
     return true;
   };
   // regions.js, after every other check let the craft on: the supervised craft counts toward the apprenticeship
@@ -159,7 +162,7 @@ module.exports = (api) => {
       const k = knows(a, f);
       const list = recipes().get(f.id) || [];
       const canMake = k && tier >= f.tier ? list.filter((r) => r.inputs.every(([id, n]) => (inv.get(id) || 0) >= n)).length : 0;
-      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 ? null : (rec[f.id] && rec[f.id].how) || (rec[f.id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f),
+      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 || f.free ? null : (rec[techOf(f).id] && rec[techOf(f).id].how) || (rec[techOf(f).id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f),
         recipes: namesOf(f.id) };
     }).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name));
     return { tier, tierName: TIER_NAMES[tier - 1] || '', tierNames: TIER_NAMES.slice(0, 7), points, nextAt: tier >= 7 ? null : Number(C.tierPoints[tier]),
@@ -182,7 +185,7 @@ module.exports = (api) => {
     if (verb === 'teach' || verb === 'forget') {
       const fam = famArg(w[w.length - 1]); const t = w.length > 2 ? findByName(w.slice(1, -1).join(' ')) : 0;
       if (!fam || !t) return personal(a, `Usage: /smithing ${verb} <name|#TAG> <family>`);
-      if (verb === 'teach') { teach(t, fam, 'staff', who(a)); return personal(a, `${who(t)} now knows ${fam.name}.`); }
+      if (verb === 'teach') { teach(t, techOf(fam), 'staff', who(a)); return personal(a, `${who(t)} now knows ${fam.name}.`); }
       const r = Object.assign({}, known(t)); delete r[fam.id]; set(t, REC, r); audit(`SMITH ${who(a)} made ${who(t)} forget ${fam.name}`);
       return personal(a, `${who(t)} no longer knows ${fam.name}.`);
     }

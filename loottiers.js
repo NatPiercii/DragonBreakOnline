@@ -33,10 +33,10 @@
 'use strict';
 
 const TIER_OF = {
-  iron: 1, hide: 1, leather: 1, studded: 1, wood: 1, goblin: 1, ancient_nord: 1, falmer: 1, forsworn: 1,
-  steel: 2, imperial: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, mithril: 2, silver: 2, vampire: 2,
+  iron: 1, hide: 1, leather: 1, studded: 1, wood: 1, goblin: 1, ancient_nord: 1, falmer: 1, forsworn: 1, bronze: 1, copper: 1,
+  steel: 2, imperial: 2, brass: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, mithril: 2, silver: 2, vampire: 2,
   ancient_nord_honed: 2, falmer_honed: 2, ancient_imperial: 2, ayleid: 2,
-  steelplate: 3, scaled: 3, elven_gilded: 3, nordic: 3,
+  steelplate: 3, adamantium: 3, scaled: 3, elven_gilded: 3, nordic: 3,
   glass: 4, amber: 4, glacial_crystal: 4,
 };
 const NEVER = new Set(['DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
@@ -54,6 +54,8 @@ const LOOT_ONLY_METALS = {
   '5acdc:skyrim.esm': { edid: 'OreEbony', to: IRON_ORE }, '5ad9d:skyrim.esm': { edid: 'IngotEbony', to: STEEL },
   '601c92:bsassets.esm': { edid: 'BSKOreMeteoricIron', to: IRON_ORE }, '601c91:bsassets.esm': { edid: 'BSKIngotMeteoricIron', to: STEEL },
   'db8a2:skyrim.esm': { edid: 'IngotDwarven', to: STEEL },
+  // Adamantium, mined in the Gutted Mine since 9 Oct (labour.js oreByRef): off gear-swap.json's metals, never loot
+  '601c87:bsassets.esm': { edid: 'BSKOreAdamantium', to: IRON_ORE }, '602099:bsassets.esm': { edid: 'BSKIngotAdamantium', to: STEEL },
 };
 // Nate, 1 Oct ("you can allow it"): vanilla Steel plate, Scaled and Elven gilded drop in Cyrodiil too, filling its tier 3
 const ANY_PROVINCE = new Set(['steelplate', 'scaled', 'elven_gilded']);

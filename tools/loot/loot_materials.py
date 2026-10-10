@@ -65,7 +65,10 @@ BANNED = ('DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish')
 # Sets whose editor id names them although their keywords borrow another material's (BS Heartland's Ancient Imperial
 # weapons carry WeapMaterialSteel, Immersive Armors' Glacial Crystal IAKMaterialGlass/Ebony): the smithing families
 # (smithing.json; Nate, 9 Oct) go by the set
-EDID_FIRST = [(r'AncientImperial', 'ancient_imperial'), (r'GlacialCrystal', 'glacial_crystal')]
+EDID_FIRST = [(r'AncientImperial', 'ancient_imperial'), (r'GlacialCrystal', 'glacial_crystal'),
+              # the PC's metal reskins (Nexus Patches DBORS_*, 9 Oct) carry their shape's keywords (Ebony on Adamantium...)
+              (r'^DBORS_Bronze', 'bronze'), (r'^DBORS_Copper', 'copper'), (r'^DBORS_Brass', 'brass'),
+              (r'^DBORS_Adamantium', 'adamantium'), (r'^DBORS_Mithril', 'mithril')]
 # Sets named by editor id whose metal pieces borrow another material's keyword (the Ayleid gear Elven, the Goblin gear
 # Iron or Leather); their robes and staves stay clothing and staves
 SET_BY_NAME = [(r'Ayleid', 'ayleid'), (r'Goblin', 'goblin')]

@@ -85,7 +85,7 @@ module.exports = (api) => {
   const bookValue = (bookRec) => { const f = bookRec && (bookRec.record.fields || []).find((x) => x && x.type === 'DATA' && x.data); return f && f.data.byteLength >= 12 ? new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength).getUint32(8, true) : 0; };
   let smithFamilies = [];
   if (SMITH) { try { smithFamilies = JSON.parse(fs.readFileSync(path.resolve('smithing.json'), 'utf8')).families || []; } catch (e) { log('manuals: smithing.json unreadable', e.message); } }
-  const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice').map((f) => {
+  const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice' && !f.free && !f.technique).map((f) => {
     const bookId = idOf((SMC.books || {})[f.id] || f.bookId), bookRec = lookup(bookId);
     return { key: f.id, name: f.name, title: `Schematics: ${f.name}`, tier: Math.max(2, Math.min(7, Number(f.tier) || 2)), bookId, markerId: 0,
       book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', withheld: WITHHELD.has(f.id), ready: !!(bookId && bookRec) };

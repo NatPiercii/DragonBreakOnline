@@ -18,7 +18,7 @@ fs.copyFileSync(path.join(SERVER, 'smithing.json'), path.join(dir, 'smithing.jso
 fs.writeFileSync(path.join(dir, 'manuals.json'), JSON.stringify({ manuals: [] }));
 // Items: an iron sword (T1), a steel sword (T2), orcish (T3), dwarven (T4), glass (T5), an unclassified one
 const IRON = 0x12eb7, STEEL = 0x13989, ORC = 0x13991, DWARF = 0x139b4, GLASS = 0x139a5, ODD = 0x777777, INGOT = 0x5ace5, LEATHER = 0x800e4;
-fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial' } }));
+fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial', '7b1:skyrim.esm': 'brass', '7b2:skyrim.esm': 'adamantium' } }));
 process.chdir(dir);
 
 const u32 = (x) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, x, true); return b; };
@@ -38,6 +38,9 @@ rec(BOOK_DRAGON, 'BOOK', 'DBO_SchematicsDragon', [{ type: 'DATA', data: bookData
 const ANC_HELM = 0x7a1, ANC_SHIELD = 0x7a2, LEGION_HELM = 0x7a3, R_ANC = 0xc1007, R_ANC2 = 0xc1008, R_LEGION = 0xc1009;
 rec(ANC_HELM, 'ARMO', 'DBO_AncientImperialHelmet'); rec(ANC_SHIELD, 'ARMO', 'DBO_ArmorOldEmpireShield'); rec(LEGION_HELM, 'ARMO', 'ArmorImperialHelmetFull');
 cobj(R_ANC, ANC_HELM, FORGE, [[INGOT, 1]]); cobj(R_ANC2, ANC_SHIELD, FORGE, [[INGOT, 1]]); cobj(R_LEGION, LEGION_HELM, FORGE, [[INGOT, 1]]);
+const BRASS_SWORD = 0x7b1, ADAM_SWORD = 0x7b2, R_BRASS = 0xc100a, R_ADAM = 0xc100b;
+rec(BRASS_SWORD, 'WEAP', 'DBORS_BrassSword'); rec(ADAM_SWORD, 'WEAP', 'DBORS_AdamantiumSword');
+cobj(R_BRASS, BRASS_SWORD, FORGE, [[INGOT, 2]]); cobj(R_ADAM, ADAM_SWORD, FORGE, [[INGOT, 2]]);
 rec(ORC_RACE, 'RACE', 'OrcRace'); rec(NORD_RACE, 'RACE', 'NordRace');
 
 const A = 0xff000101, SUP = 0xff000102, ORCSMITH = 0xff000103, STAFF = 0xff000104;
@@ -171,7 +174,7 @@ ok(globalThis.__dboManualsShop(A).some((x) => /^Schematics: Ancient Imperial \(T
 
 // The PC's books (9 Oct): smithing.json carries each family's bookId; config smithing.books overrides it
 const REAL = JSON.parse(fs.readFileSync(path.join(SERVER, 'smithing.json'), 'utf8')).families;
-const noBook = REAL.filter((f) => f.tier > 1 && !f.bookId).map((f) => f.id);
+const noBook = REAL.filter((f) => f.tier > 1 && !f.bookId && !f.free && !f.technique).map((f) => f.id);
 ok(noBook.join() === 'orcish' && REAL.filter((f) => f.bookId).every((f) => /^[0-9a-f]+:DragonBreak Online Edits\.esp$/.test(f.bookId)), 'every family above T1 has a DLE book except Orcish (apprentice only)', noBook);
 const steelBook = mp.getIdFromDesc(REAL.find((f) => f.id === 'steel').bookId);
 rec(steelBook, 'BOOK', 'DBO_Schematics_steel', [{ type: 'DATA', data: bookData() }]);
@@ -191,7 +194,23 @@ load({ enabled: true, drops: { boss: { chance: 1, families: ['madness'] } } });
 ok(REAL.find((f) => f.id === 'madness').book === 'staff' && globalThis.__dboTechniqueDrop('boss') === null && !globalThis.__dboManualsShop(A).some((x) => x.bookId === madnessBook), 'Madness is staff only: never sold or dropped, as Dragon');
 const LM = JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')).counts;
 const noItems = REAL.filter((f) => !LM[f.id]).map((f) => f.id);
-ok(noItems.join() === 'bronze' && LM.madness && LM.amber && LM.glacial_crystal && LM.ancient_imperial, 'every smithing family has loot-materials items (Bronze is a metal with alternates of iron recipes)', noItems);
+ok(noItems.join() === '' && LM.madness && LM.amber && LM.glacial_crystal && LM.ancient_imperial, 'every smithing family has loot-materials items (the PC reskins gave Bronze, Copper, Brass and Adamantium their own)', noItems);
+
+// The PC's reskins (9 Oct): Brass needs no technique (a common alloy), Adamantium is worked with the Steel Plate technique
+load(ON); props.set(`${A}|private.dboManuals`, {}); props.set(`${SUP}|private.dboManuals`, {});
+smith(A, 20);
+ok(craft(A, BRASS_SWORD, R_BRASS) !== false, 'Brass (T2, free): a tier 2 smith forges it with no technique');
+smith(A, 10);
+ok(craft(A, BRASS_SWORD, R_BRASS) === false, '...but not below tier 2');
+smith(A, 80);
+ok(craft(A, ADAM_SWORD, R_ADAM) === false && /Steel Plate/.test(lastTold(A)), 'Adamantium (T5) without the Steel Plate technique: refused, told so', lastTold(A));
+props.set(`${A}|private.dboManuals`, { steelplate: { at: 1, how: 'book' } });
+ok(craft(A, ADAM_SWORD, R_ADAM) !== false, '...with the Steel Plate technique: forged');
+smith(A, 50);
+ok(craft(A, ADAM_SWORD, R_ADAM) === false, '...but only at tier 5');
+const rv = globalThis.__dboSmithView(SUP).families;
+ok(rv.find((f) => f.id === 'brass').learnHint === '' && /Worked with the Steel Plate technique/.test(rv.find((f) => f.id === 'adamantium').learnHint), 'the view: Brass needs nothing, Adamantium points at Steel Plate', rv.filter((f) => /brass|adamantium/.test(f.id)));
+ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label)), 'neither has a book of its own');
 
 // Staff
 cmds.get('smithing')(STAFF, 'teach sup dwarven');
