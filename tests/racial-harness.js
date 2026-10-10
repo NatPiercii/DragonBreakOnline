@@ -130,7 +130,8 @@ delete blessings[5];
 // ---- 3. regeneration is added on the server, through the rest of the chain ----
 for (const k of Object.keys(state)) delete state[k];
 race(10, 'redguard', { health: 1, magicka: 1, stamina: 0.5 });
-const R3 = make({ enabled: true, tickSeconds: 1, minStep: 0 });
+// payoutSeconds 0: a report is paid what it is owed at once, so these read one tick's amount (the step: racial-regen-stale)
+const R3 = make({ enabled: true, tickSeconds: 1, minStep: 0, payoutSeconds: 0 });
 let t = 1000000;
 // a player's first tick pays one tickSeconds
 R3.regenTick(t);
@@ -179,7 +180,7 @@ const gmstSeen = [];
 const gmstFloat = (id, d) => { gmstSeen.push(id); return id in GMST && GMST[id] > 0 ? GMST[id] : d; };
 globalThis.__dboCombatAt = new Map();
 globalThis.__dboRacialState.highbornUntil.clear(); // the Highborn minute of section 3
-const R4 = make({ enabled: true, tickSeconds: 1, minStep: 0 }, { gmstFloat });
+const R4 = make({ enabled: true, tickSeconds: 1, minStep: 0, payoutSeconds: 0 }, { gmstFloat });
 check('the combat multipliers come from the three GMSTs (health 0, magicka 0.33, stamina 0.35)',
   R4.COMBAT.health === 0 && near(R4.COMBAT.magicka, 0.33) && near(R4.COMBAT.stamina, 0.35) && [0x35056, 0x1031d4, 0x2dd34].every((id) => gmstSeen.includes(id)), R4.COMBAT);
 race(1, 'altmer', { health: 1, magicka: 0.2, stamina: 1 });
@@ -210,9 +211,10 @@ const R7 = make({ enabled: true });
 globalThis.__dboCombatAt.set(1, Date.now());
 check('no gmstFloat in the api: the fallbacks (0, 0.33, 0.35)', R7.COMBAT.health === 0 && near(R7.COMBAT.magicka, 0.33) && near(R7.COMBAT.stamina, 0.35));
 globalThis.__dboCombatAt.set(10, Date.now());
-state[10].pc = { health: 1, magicka: 1, stamina: 0.5 };
+// a client report the server has not seen yet (a bar is paid only on the tick its own value moved)
+state[10].pc = { health: 1, magicka: 1, stamina: 0.45 };
 t += 1000; R4.regenTick(t);
-check('the tick pays the slowed extra in combat', near(state[10].pc.stamina, 0.5 + 0.05 * 0.35 * 0.25), state[10].pc);
+check('the tick pays the slowed extra in combat', near(state[10].pc.stamina, 0.45 + 0.05 * 0.35 * 0.25), state[10].pc);
 delete globalThis.__dboCombatAt;
 
 // ---- 4. the wiring ----

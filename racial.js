@@ -10,7 +10,8 @@
 //     the health lost, write percentages back).
 //   - regeneration: a raised client rate is pulled back by the server's crop (CropRegeneration reads the server's own
 //     rates, which SetActorValue never reaches: PapyrusActor.cpp), so the extra is added on the server instead, as the
-//     blessings add theirs (prayer.js prayerBlessingRegen): every tickSeconds a bar is raised by the race's share, which
+//     blessings add theirs (prayer.js prayerBlessingRegen): the race's share accrues every tickSeconds and is paid on the
+//     tick a fresh client report of that bar arrives (regenTick); the share
 //     multiplies the rest of the chain: hunger (__dboNeedsRateMult), the vampire blood (__dboSuperRateMult), a
 //     blessing's own boost (__dboBlessingRegen) and Death's Chill (__dboChillRateMult, 0 at its cap).
 //   - gold: an Imperial's share of loot and contract pay, by goldBonus, which dungeons.js, wildlife.js and contracts.js
@@ -20,7 +21,7 @@
 // own regeneration (the fCombat*RegenRateMult GMSTs), so the gift's extra is slowed the same way and the factor stays the
 // factor: a player counts as fighting for combatSeconds after a landed blow given or taken (gamemode.js __dboCombatAt).
 // Config "racial": { enabled, reductionCap, alwaysRegenCap, conditionalRegenCap, combatSeconds, tickSeconds, minStep,
-// overhaul, <race>: {...} }
+// payoutSeconds, overhaul, <race>: {...} }
 //
 // The racial overhaul (Nate's "Racial Updates", 10 Oct; ~/claude-nate-release/specs/racial-overhaul.md), all behind
 // `overhaul` (false: every number is the 3 Oct one):
@@ -54,7 +55,8 @@ const GOLD = 0xf;
 // shares off the target's; wardPoints: spell damage absorbed in all while it lasts; healthRegen, staminaRegen,
 // magickaRegen: factors, at most conditionalRegenCap
 const DEFAULTS = {
-  enabled: false, overhaul: false, reductionCap: 0.75, alwaysRegenCap: 1.25, conditionalRegenCap: 1.5, combatSeconds: 10, tickSeconds: 1, minStep: 0.002,
+  enabled: false, overhaul: false, reductionCap: 0.75, alwaysRegenCap: 1.25, conditionalRegenCap: 1.5, combatSeconds: 10, tickSeconds: 0.25, minStep: 0.002,
+  payoutSeconds: 1,
   altmer: { magickaRegen: 1.25, elementalWeakness: 0, xp: { arcane: 1.15 },
     power: { name: 'Highborn', seconds: 60, buffs: { magickaRegen: 1.5 } } },
   // inCombat: Hist-Blooded keeps its full extra in a fight (the base game heals nothing in combat: off scales it to 0).
@@ -109,7 +111,15 @@ module.exports = (api) => {
   // ---- who ----------------------------------------------------------------------------------------------------------
   const isPlayer = (a) => { try { return profileOf(a >>> 0) >= 0; } catch (e) { return false; } };
   const inBeastForm = (a) => { try { const b = mp.get(a >>> 0, 'private.beast'); return !!(b && b.form); } catch (e) { return false; } };
-  const raceIdOf = (a) => { try { const app = mp.get(a >>> 0, 'appearance'); return app && app.raceId ? Number(app.raceId) >>> 0 : 0; } catch (e) { return 0; } };
+  // regenTick runs four times a second: inside it each player's race, appearance and power are read once (memo), not per bar
+  let memo = null;
+  const memoised = (map, a, read) => {
+    if (!memo) return read(a);
+    const k = a >>> 0;
+    if (memo[map].has(k)) return memo[map].get(k);
+    const v = read(a); memo[map].set(k, v); return v;
+  };
+  const raceIdOf = (a) => memoised('raceId', a, (x) => { try { const app = mp.get(x >>> 0, 'appearance'); return app && app.raceId ? Number(app.raceId) >>> 0 : 0; } catch (e) { return 0; } });
   // The creator's race key (spawn.ts private.rp.race: 'maormer', 'nibenese', ...), lower case, or ''
   // The DLE's MaormerRace and its vampire (config maormerRace), once both are RACE records in the load order: the Maormer by
   // the race itself, the creator's override (charCreatorData.ts __dboRaceOverrides) and nothing at all before
@@ -119,7 +129,8 @@ module.exports = (api) => {
   globalThis.__dboRaceOverrides = MAORMER_IDS.length ? { maormer: MAORMER_IDS[0] } : {};
   const rpRace = (a) => { try { const rp = mp.get(a >>> 0, 'private.rp'); return rp && rp.race ? String(rp.race).toLowerCase() : ''; } catch (e) { return ''; } };
   // The race whose gift this player has now, or '' (not a player, a beast form, an unknown race, switched off)
-  const raceOf = (a) => {
+  const raceOf = (a) => memoised('race', a, raceNow);
+  const raceNow = (a) => {
     if (!on() || !isPlayer(a) || inBeastForm(a)) return '';
     const id = raceIdOf(a);
     // On the DLE's MaormerRace: the Maormer with the overhaul, the Altmer's gift without it (as on the High Elf record)
@@ -158,7 +169,7 @@ module.exports = (api) => {
     const race = raceOf(a); const st = powerState(a); const p = powerOf(race);
     return p && st.race === race && Number(st.activeUntil) > now ? (p.buffs || {}) : null;
   };
-  const buff = (a, key) => { const b = activeBuffs(a); return b ? Math.max(0, num(b[key], 0)) : 0; };
+  const buff = (a, key) => { const b = memoised('buffs', a, activeBuffs); return b ? Math.max(0, num(b[key], 0)) : 0; };
   // The ward: a pool of spell damage (wardPoints, set when the power is called) it takes off hits until it is spent or the
   // power ends. dmg: the hit after the race's other shares. Returns the factor on the hit, spending what it absorbed (the
   // reductionCap floor may let a little more through than the pool counted)
@@ -319,8 +330,8 @@ module.exports = (api) => {
   const hook = (name, ...args) => { try { const f = globalThis[name]; if (typeof f !== 'function') return 1; const v = Number(f(...args)); return Number.isFinite(v) && v >= 0 ? v : 1; } catch (e) { return 1; } };
   const REGEN_MULT = (() => { try { const v = Number((mp.getServerSettings() || {}).regenerationMultiplier); return Number.isFinite(v) && v >= 0 ? v : 1; } catch (e) { return 1; } })();
   // The share of a bar a second the gift adds: the race's rate through the rest of the chain, times (factor - 1)
-  const extraPerSecond = (a, stat) => {
-    const f = regenFactor(a, stat);
+  // f: regenFactor(a, stat) when the caller has it already
+  const extraPerSecond = (a, stat, f = regenFactor(a, stat)) => {
     if (!(f > 1)) return 0;
     const av = STAT_AV[stat];
     // hunger and the vampire blood set the client's health and stamina rates (gamemode.js applyNeedsStage); magicka has neither
@@ -334,36 +345,55 @@ module.exports = (api) => {
     const combat = !keepsInCombat && fighting(a) ? Math.max(0, num(COMBAT[stat], 1)) : 1;
     return ((raceValue(a, stat) / 100) * REGEN_MULT * chain * combat + blessing) * chill * (f - 1);
   };
-  const TICK_MS = Math.max(250, Math.round(num(C.tickSeconds, 1) * 1000));
+  const TICK_MS = Math.max(250, Math.round(num(C.tickSeconds, 0.25) * 1000));
+  const STATS = ['health', 'magicka', 'stamina'];
   const regenTick = (now = Date.now()) => {
     const here = new Set();
     if (!on()) { S.owed.clear(); return; }
-    for (const a of onlineActors()) {
-      here.add(a);
-      if (!raceOf(a)) { S.owed.delete(a); continue; }
-      let owed = S.owed.get(a);
-      if (!owed) { owed = { at: now - TICK_MS, health: 0, magicka: 0, stamina: 0 }; S.owed.set(a, owed); }
-      // Just after a cast the server still holds the bars from before it: a write now would hand the spell's magicka back
-      if (castHeld(a, now)) { owed.at = now; owed.health = owed.magicka = owed.stamina = 0; continue; }
-      // Never more than three ticks at once: a stall or a reload does not pay out
-      const secs = Math.min(Math.max(0, now - owed.at), 3 * TICK_MS) / 1000;
-      owed.at = now;
-      let pc = null; try { pc = mp.get(a, 'percentages'); } catch (e) { pc = null; }
-      let downed = false; try { downed = typeof globalThis.__dboIsDowned === 'function' && !!globalThis.__dboIsDowned(a); } catch (e) { downed = false; }
-      if (!pc || !(Number(pc.health) > 0) || downed || !(secs > 0)) { owed.health = owed.magicka = owed.stamina = 0; continue; }
-      const next = { health: Number(pc.health), magicka: Number(pc.magicka), stamina: Number(pc.stamina) };
-      let changed = false;
-      for (const stat of ['health', 'magicka', 'stamina']) {
-        const add = extraPerSecond(a, stat) * secs;
-        if (!(next[stat] < 1) || !(add > 0)) { owed[stat] = 0; continue; }
-        owed[stat] += add;
-        if (owed[stat] < num(C.minStep, 0.002)) continue;
-        next[stat] = Math.min(1, next[stat] + owed[stat]);
-        owed[stat] = 0;
-        changed = true;
+    memo = { race: new Map(), raceId: new Map(), buffs: new Map() };
+    try {
+      for (const a of onlineActors()) {
+        here.add(a);
+        if (!raceOf(a)) { S.owed.delete(a); continue; }
+        let owed = S.owed.get(a);
+        if (!owed) { owed = { at: now - TICK_MS, health: 0, magicka: 0, stamina: 0 }; S.owed.set(a, owed); }
+        // Just after a cast the server still holds the bars from before it: a write now would hand the spell's magicka back
+        if (castHeld(a, now)) { owed.at = now; owed.health = owed.magicka = owed.stamina = 0; continue; }
+        // Never more than three ticks at once: a stall or a reload does not pay out
+        const secs = Math.min(Math.max(0, now - owed.at), 3 * TICK_MS) / 1000;
+        owed.at = now;
+        let pc = null; try { pc = mp.get(a, 'percentages'); } catch (e) { pc = null; }
+        let downed = false; try { downed = typeof globalThis.__dboIsDowned === 'function' && !!globalThis.__dboIsDowned(a); } catch (e) { downed = false; }
+        if (!pc || !(Number(pc.health) > 0) || downed || !(secs > 0)) { owed.health = owed.magicka = owed.stamina = 0; continue; }
+        const next = { health: Number(pc.health), magicka: Number(pc.magicka), stamina: Number(pc.stamina) };
+        // A write replaces the client's bar, so pay a bar only on the tick its own stored float32 moved (a fresh report):
+        // never on another bar's blow or blessing, never from a silent client's old value (a held spell, a menu)
+        const seen = owed.seen && typeof owed.seen === 'object' ? owed.seen : (owed.seen = {});
+        const paid = [];
+        for (const stat of STATS) {
+          const v = Math.fround(next[stat]);
+          const fresh = seen[stat] !== v;
+          seen[stat] = v;
+          if (!(next[stat] < 1)) { owed[stat] = 0; continue; }
+          const f = regenFactor(a, stat);
+          const per = f > 1 ? extraPerSecond(a, stat, f) : 0;
+          if (!(per > 0)) { owed[stat] = 0; continue; }
+          owed[stat] += per * secs;
+          if (!fresh) continue;
+          const own = per / (f - 1); // the bar's own regen a second
+          // At least payoutSeconds of own regen, more than a report's age takes back; or the rest if own regen fills the bar first
+          const step = Math.max(num(C.minStep, 0.002), own * Math.max(0, num(C.payoutSeconds, 1)));
+          const fillsFirst = next[stat] + own >= 1 && owed[stat] >= own * 0.5;
+          if (owed[stat] < step && !fillsFirst) continue;
+          next[stat] = Math.min(1, next[stat] + owed[stat]);
+          owed[stat] = 0;
+          paid.push(stat);
+        }
+        if (paid.length) {
+          try { mp.set(a, 'percentages', next); for (const stat of paid) seen[stat] = Math.fround(next[stat]); } catch (e) { S.owed.delete(a); }
+        }
       }
-      if (changed) { try { mp.set(a, 'percentages', next); } catch (e) { S.owed.delete(a); } }
-    }
+    } finally { memo = null; }
     for (const a of [...S.owed.keys()]) if (!here.has(a)) S.owed.delete(a);
   };
   // Registered whatever the config says and off inside, so a reload that turns it off replaces the running timer

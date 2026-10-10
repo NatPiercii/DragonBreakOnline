@@ -34,7 +34,7 @@ const load = () => {
   return require(RACIAL)({
     mp, log: () => {}, personal: () => {}, display: String, recordOf, giveItem: () => true, profileOf: (a) => (a < 1000 ? a : -1),
     every: (name) => { timers.push(name); }, onlineActors: () => Object.keys(state).map(Number),
-    weaponHandsOf: () => 1, sourceResistsOf: () => new Set(), gmstFloat: () => undefined, cfg: { racial: { enabled: true, castHoldSeconds: 3 } },
+    weaponHandsOf: () => 1, sourceResistsOf: () => new Set(), gmstFloat: () => undefined, cfg: { racial: { enabled: true, castHoldSeconds: 3, payoutSeconds: 0 } },
   });
 };
 delete globalThis.__dboRacialState;
