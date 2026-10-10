@@ -10,7 +10,7 @@ const hosters = new Map();
 const npcs = { [WOLF]: {}, [DEER]: {}, [ATRONACH]: { 'ff_companionOf': P1 }, [BODY]: { isDead: true } };
 const sets = [];
 const mp = {
-  get: (id, k) => (npcs[id] ? npcs[id][k] : undefined),
+  get: (id, k) => (k === 'pos' ? pos[id] : k === 'worldOrCellDesc' ? 'W' : npcs[id] ? npcs[id][k] : undefined),
   getHoster: (id) => hosters.get(id) || 0,
   setHoster: (id, h) => { sets.push([id, h]); hosters.set(id, h); },
 };
@@ -70,6 +70,20 @@ mp.getHoster = () => { throw new Error('not built'); }; load('on'); sight(P1, [[
 let threw = false; try { tick(); } catch (e) { threw = true; }
 check('without mp.getHoster (C++ not updated yet) it does nothing, quietly', !threw && !sets.length);
 
+// Release (Red Ruby, 9 Oct): a host gives up its dead NPCs and those beyond releaseUnits (4000), unless fighting
+mp.setHoster = keep; mp.getHoster = (id) => hosters.get(id) || 0; load('on'); now += 10000;
+const FAR = 0xff000104; npcs[FAR] = {}; pos[FAR] = [6000, 0, 0]; pos[P1] = [0, 0, 0];
+hosters.set(BODY, P1); hosters.set(FAR, P1); hosters.set(WOLF, P1); pos[WOLF] = [300, 0, 0];
+sets.length = 0; sight(P1, [[BODY, 10], [FAR, 6000], [WOLF, 300]]); sight(P2, []); tick();
+check('a host gives up its dead NPC', hosters.get(BODY) === 0, sets);
+check('...and one 6000 units away (beyond 4000)', hosters.get(FAR) === 0, sets);
+check('...but keeps one 300 units away', hosters.get(WOLF) === P1, sets);
+check('a client asking to drive the released dead NPC is refused', globalThis.__dboNpcDirectorRefuses(P1, BODY) === true);
+const FIGHT = 0xff000105; npcs[FIGHT] = {}; pos[FIGHT] = [7000, 0, 0]; hosters.set(FIGHT, P1);
+globalThis.__dboHostCooldown = { holds: (h, n) => n === FIGHT, noteHandover: () => {} };
+now += 4000; sight(P1, [[FIGHT, 7000]]); tick();
+check('a far NPC still fighting stays with its host', hosters.get(FIGHT) === P1);
+delete globalThis.__dboHostCooldown;
 Date.now = realNow; delete globalThis.__dboHostPolicy;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

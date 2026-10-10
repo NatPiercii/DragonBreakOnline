@@ -20,7 +20,10 @@
 
 module.exports = (api) => {
   const { mp, log, every, onUi, onlineActors, display, profileOf, cfg } = api;
-  const C = Object.assign({ mode: 'on', freshMs: 3000, holdFactor: 1.5, holdUnits: 512, changeEveryMs: 3000, logEveryMs: 60000 },
+  // releaseDead / releaseUnits: a host gives up a dead NPC, or one farther than releaseUnits from it (0 keeps it). A player's
+  // game kept hosting dungeon dead and far-off enemies, which it then fought the server over (Red Ruby, 9 Oct /bug)
+  const C = Object.assign({ mode: 'on', freshMs: 3000, holdFactor: 1.5, holdUnits: 512, changeEveryMs: 3000, logEveryMs: 60000,
+    releaseDead: true, releaseUnits: 4000 },
     cfg.npcDirector || {});
   // sight: player actorId -> { at, dist: Map<npcId, distance> }; changedAt: npcId -> ms; told: rate-limited logs
   const S = globalThis.__dboNpcDirector || (globalThis.__dboNpcDirector = { sight: new Map(), changedAt: new Map(), told: new Map() });
@@ -70,10 +73,43 @@ module.exports = (api) => {
     log(`npcDirector ${text}`);
   };
 
+  const isDead = (npc) => { try { return mp.get(npc, 'isDead') === true; } catch (e) { return false; } };
+  // Server distance from a player to an NPC, Infinity when they are in different worlds or cells
+  const apart = (p, npc) => {
+    try {
+      if (String(mp.get(p, 'worldOrCellDesc')) !== String(mp.get(npc, 'worldOrCellDesc'))) return Infinity;
+      const a = mp.get(p, 'pos'), b = mp.get(npc, 'pos');
+      return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    } catch (e) { return 0; }
+  };
+  // A host's dead or far-off NPCs (from its own sight report) go back to nobody; a fight or a fresh hand-over keeps them
+  const release = (now, out) => {
+    if (!C.releaseDead && !(C.releaseUnits > 0)) return;
+    const hc = globalThis.__dboHostCooldown;
+    for (const [p, s] of S.sight) {
+      if (now - s.at > C.freshMs) continue;
+      for (const npc of s.dist.keys()) {
+        if (typeof globalThis.__dboFormExists === 'function' && !globalThis.__dboFormExists(npc)) continue;
+        if (now - (S.changedAt.get(npc) || 0) < C.changeEveryMs) continue;
+        let host = 0; try { host = mp.getHoster(npc) >>> 0; } catch (e) { continue; }
+        if (host !== p) continue;
+        const dead = C.releaseDead && isDead(npc);
+        if (!dead && !(C.releaseUnits > 0 && apart(p, npc) > C.releaseUnits)) continue;
+        if (!dead && !managed(npc)) continue;                  // companions, summons and raiders keep their own rules
+        if (!dead && hc && hc.holds(p, npc)) continue;
+        out.push({ npc, from: p, to: 0, why: dead ? 'dead' : 'far' });
+        if (C.mode !== 'on') continue;
+        try { mp.setHoster(npc, 0); S.changedAt.set(npc, now); }
+        catch (e) { say('rel:' + npc, `could not release ${npc.toString(16)} from ${display(p)}: ${e.message}`, now); }
+      }
+    }
+  };
+
   // One decision pass; returns the assignments made (or that shadow mode would make)
   const decide = (now) => {
     const out = [];
     if (C.mode === 'off' || !built()) return out;
+    release(now, out);
     const online = new Set(onlineActors().map((x) => x >>> 0));
     for (const p of S.sight.keys()) if (!online.has(p)) S.sight.delete(p);
     // NPC -> [[player, SERVER distance]] for every fresh report the host policy accepts
@@ -125,7 +161,9 @@ module.exports = (api) => {
   // gamemode.js hostAttemptHook asks this first: a reporting client does not pick its own NPCs, the director does.
   // Companions are exempt (their owner hosts them through companionSystem).
   // Only NPCs the requester itself reported, that the director manages, and only when it can assign them
-  globalThis.__dboNpcDirectorRefuses = (requester, npc) => C.mode === 'on' && built() && reported(requester >>> 0, npc) && managed(npc >>> 0);
+  // A dead NPC is hosted by nobody once released, so a request to drive one is refused too
+  globalThis.__dboNpcDirectorRefuses = (requester, npc) => C.mode === 'on' && built() && reported(requester >>> 0, npc)
+    && (managed(npc >>> 0) || (C.releaseDead && isDead(npc >>> 0)));
 
   if (C.mode !== 'off' && !built()) log('npcDirector: mp.setHoster missing, director inactive (the server build predates it); clients keep asking to host');
   else log(`npcDirector ${C.mode}: hosts chosen from sight reports (fresh ${C.freshMs} ms, hold x${C.holdFactor} + ${C.holdUnits})`);
