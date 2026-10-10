@@ -60,6 +60,7 @@ import { DboRefAnimService } from "./services/services/dboRefAnimService";
 import { NpcSightService } from "./services/services/npcSightService";
 import { RemoteVitalsService } from "./services/services/remoteVitalsService";
 import { HostedDriftService } from "./services/services/hostedDriftService";
+import { PerfDiagService } from "./services/services/perfDiagService";
 import { InputDiagService } from "./services/services/inputDiagService";
 import { PageInputDiagService } from "./services/services/pageInputDiagService";
 import { MealService } from "./services/services/mealService";
@@ -200,6 +201,7 @@ const main = () => {
       new NpcSightService(sp, controller),
       new RemoteVitalsService(sp, controller),
       new HostedDriftService(sp, controller),
+      new PerfDiagService(sp, controller),
       new InputDiagService(sp, controller),
       new PageInputDiagService(sp, controller),
       new MealService(sp, controller),

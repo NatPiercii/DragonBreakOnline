@@ -26,6 +26,10 @@ export class DboGlowService extends ClientListener {
     this.controller.on("update", () => this.onUpdate());
   }
 
+  getGlowingCount(): number {
+    return this.glowing.size;
+  }
+
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
     if (!content || content["customPacketType"] !== "dboGlow") return;
