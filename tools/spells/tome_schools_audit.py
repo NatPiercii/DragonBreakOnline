@@ -68,7 +68,8 @@ for fname in ('spell-tomes.json', 'readables.json'):
         sc = spell_of.get(t['id'])
         got = classify(sc) if sc else None
         if got is None: print(f'{fname}: {t["name"]}: its spell is not in this load order'); continue
-        if (t['school'], int(t['rank'])) != got:
+        # A deliberate rank change keeps the data's rank in dataRank, with its reason in rankWhy (Nate, 10 Oct: lock spells)
+        if (t['school'], int(t.get('dataRank', t['rank']))) != got:
             bad += 1
             print(f'{fname}: {t["name"]} is recorded {t["school"]} {WORDS[int(t["rank"])]}, its spell is {got[0]} {WORDS[got[1]]}')
     print(f'{fname}: {len(tomes)} tomes checked')

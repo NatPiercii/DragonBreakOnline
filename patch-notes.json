@@ -1,5 +1,19 @@
 [
   {
+    "title": "Lock spells at their proper rank",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "The Open Expert Lock and Open Master Lock tomes are now Expert and Master spells, sold and learned at those ranks, instead of Apprentice."
+        ]
+      }
+    ]
+  },
+  {
     "title": "A crash no longer eats your beast form",
     "date": "2026-10-10",
     "version": "Server update",
