@@ -660,14 +660,20 @@ module.exports = (api) => {
     shelfCache = { week, order };
     return order;
   };
-  const stockSize = () => Math.max(1, Math.round(Number(CFG.shopStock) || 4));
+  // A college's leaders and officers see shopLeaderExtra more tomes on the weekly shelf (Nate, 10 Oct: a 5th), by their role
+  // in a shop faction (guilds.js __dboGuildsOf)
+  const leadsACollege = (a) => {
+    let mine = null; try { mine = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) : null; } catch (e) { mine = null; }
+    return Array.isArray(mine) && mine.some((m) => m && (CFG.shopFactions || []).includes(String(m.id)) && (m.role === 'leader' || m.role === 'officer'));
+  };
+  const stockSize = (a) => Math.max(1, Math.round(Number(CFG.shopStock) || 4)) + (a && leadsACollege(a) ? Math.max(0, Math.round(Number(CFG.shopLeaderExtra === undefined ? 1 : CFG.shopLeaderExtra) || 0)) : 0);
   // The tomes on the shelf for this buyer this week: the first shopStock of the week's order that are sold here (or any,
   // for an admin) and that the buyer can learn now (tomeBlock, as at reading, and not a spell they hold). Listed in SHOP order.
   const stockFor = (a, R, admin) => {
     const learned = new Set(learnedIds(a) || []), book = new Set(knownIds(a));
     const picked = [];
     for (const t of shelfOrder(weekNo(Date.now()))) {
-      if (picked.length >= stockSize()) break;
+      if (picked.length >= stockSize(a)) break;
       if ((soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t)) picked.push(t);
     }
     return SHOP.filter((t) => picked.includes(t));

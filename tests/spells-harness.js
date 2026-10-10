@@ -459,6 +459,14 @@ delete globalThis.__dboSchoolsRefusal;
 load({ shopStock: 3 });
 cmd('tomes', OTHER);
 check('shopStock 3 shows three', shop(OTHER).tomes.length === 3);
+// A college's leaders and officers see one more tome on the weekly shelf (Nate, 10 Oct)
+globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Magister', role: 'officer' }];
+cmd('tomes', OTHER);
+check('...and an officer of the Synod sees four (shopLeaderExtra 1)', shop(OTHER).tomes.length === 4, shop(OTHER).tomes.length);
+globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Associate', role: 'member' }];
+cmd('tomes', OTHER);
+check('...a plain member three', shop(OTHER).tomes.length === 3, shop(OTHER).tomes.length);
+delete globalThis.__dboGuildsOf;
 ui('tomeClose', OTHER, [shop(OTHER).nonce], 44);
 check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHER && c[1] === 44));
 
