@@ -174,6 +174,13 @@ module.exports = (api) => {
         audit(`MANUAL ${who(a)} could not follow ${m.name} (craft tier ${m.tier}) at Scholar tier ${have}`);
         return false;
       }
+      // The smith's own craft tier must reach the book's (Nate, 10 Oct), so a technique is never learned ahead of the forge
+      const craft = typeof globalThis.__dboSmithCraftTier === 'function' ? Number(globalThis.__dboSmithCraftTier(a)) || 0 : 0;
+      if (craft < m.tier) {
+        personal(a, `You can't follow this yet: ${m.title} is craft tier ${m.tier} work, and ${craft ? `your Blacksmith craft tier is ${craft}` : 'you have not taken up the Blacksmith'}. You keep the book.`);
+        audit(`MANUAL ${who(a)} could not follow ${m.name} (craft tier ${m.tier}) at craft tier ${craft}`);
+        return false;
+      }
     }
     const rank = rankIn(a, C.skill);
     if (!SMITH && rank < m.tier - 1) {
