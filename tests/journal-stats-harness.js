@@ -51,7 +51,8 @@ const api = {
   every: (k, ms, f) => { timers[k] = f; }, onlineActors: () => online, profileOf: (a) => (profiles.has(a >>> 0) ? profiles.get(a >>> 0) : -1),
   display: (a) => `P${(a >>> 0).toString(16)}`, findAnyByName: (q) => (findResult !== null ? findResult : ({ one: P1, two: P2 }[q] || 0)), isAdmin: () => true,
   creationPending: (a) => { creationReads++; if (throwsCreation.has(a >>> 0)) throw new Error('creator broke'); return creating.has(a >>> 0); },
-  cfg: { journalStats: { playersFile: path.join(dir, 'players.json') } },
+  // The counting checks sample synchronously; the async first read has its own check at the end
+  cfg: { journalStats: { playersFile: path.join(dir, 'players.json'), asyncFirstRead: false } },
 };
 const load = () => { delete require.cache[MODULE]; return require(MODULE)(api); };
 delete globalThis.__dboJournalStats; delete globalThis.__alduinakTradeLog; delete globalThis.__dboPrevTradeLog;
@@ -339,6 +340,18 @@ delete globalThis.__dboJournalStats; delete globalThis.__alduinakTradeLog; delet
   const n = await p; const flushMs = Number(process.hrtime.bigint() - f0) / 1e6;
   ok(n >= 100 && callOnly < 5, `starting a flush of ${n} files takes ${callOnly.toFixed(2)} ms on the game thread; they land in ${flushMs.toFixed(0)} ms`, [n, callOnly]);
   ok(Math.abs(st(many[0]).distanceUnits - 300 * 50) < 1, 'each of the 100 travelled 150 m');
+
+  // The async first read (lag fixes, 10 Oct): a new player's file is read off the main thread, sampled from the next tick
+  api.cfg.journalStats.asyncFirstRead = true; M = load();
+  const A9 = 0xff0009aa; profiles.set(A9, 9); at(A9, [0, 0, 0]); online = [A9];
+  const realRead = fs.readFileSync; let syncJournalReads = 0;
+  fs.readFileSync = function (f, ...rest) { if (String(f).includes('journal')) syncJournalReads++; return realRead.call(this, f, ...rest); };
+  tick();
+  ok(syncJournalReads === 0, 'a new player is not read synchronously by the sampler', syncJournalReads);
+  await new Promise((r) => setTimeout(r, 50));
+  at(A9, [700, 0, 0]); tick(); tick();
+  fs.readFileSync = realRead;
+  ok(syncJournalReads === 0 && st(A9) && st(A9).playMs > 0, 'once the async read lands, the player is sampled', st(A9) && st(A9).playMs);
 
   Date.now = realNow;
   console.log(fails ? `${fails} failed` : 'all passed');
