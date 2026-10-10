@@ -105,6 +105,7 @@ export class DboRelayService extends ClientListener {
       vitalsOn: true,
       watermarkOn: this.hudData["watermarkOn"] !== false,
       ...this.hudGold(),
+      ...this.hudPower(),
     };
     const key = JSON.stringify(w);
     if (key === this.hudKey) return;
@@ -123,6 +124,7 @@ export class DboRelayService extends ClientListener {
       vitalsOn: this.hudData["vitalsOn"] !== false,
       watermarkOn: this.hudData["watermarkOn"] !== false,
       ...this.hudGold(),
+      ...this.hudPower(),
     };
     const key = JSON.stringify(w);
     // Identical JSON is re-sent every 5 s so a widget dropped from the browser comes back
@@ -137,6 +139,13 @@ export class DboRelayService extends ClientListener {
     if (!this.hudData || this.hudData["gold"] === undefined || this.hudData["gold"] === null) return {};
     const gold = Number(this.hudData["gold"]);
     return { gold: Number.isFinite(gold) ? gold : 0, goldOn: this.hudData["goldOn"] !== false };
+  }
+
+  // The racial power's row (dboHud racialPower): { name, endsAt } on this clock while it lasts, nothing after, so the key changes
+  // once when it ends and the front drops the row
+  private hudPower(): { racialPower?: { name: string; endsAt: number } } {
+    const p = this.hudPowerEnd;
+    return p && p.endsAt > now() ? { racialPower: { name: p.name, endsAt: p.endsAt } } : {};
   }
 
   private pushParty(): void {
@@ -210,7 +219,14 @@ export class DboRelayService extends ClientListener {
     const content = parseCustomPacket(event);
     if (!content) return;
     const type = content["customPacketType"];
-    if (type === "dboHud") { this.hudData = content; this.hudKey = ""; this.nextPassive = 0; return; }
+    if (type === "dboHud") {
+      this.hudData = content;
+      // A racial power's countdown (racial.js hudField { name, ms }): the end on this game's own clock, set at arrival
+      const rp = content["racialPower"] as { name?: unknown; ms?: unknown } | undefined;
+      const ms = rp ? Number(rp.ms) : 0;
+      this.hudPowerEnd = rp && typeof rp.name === "string" && ms > 0 ? { name: rp.name, endsAt: now() + ms } : null;
+      this.hudKey = ""; this.nextPassive = 0; return;
+    }
     if (type === "dboParty") { this.partyData = content; this.partyKey = ""; this.nextPassive = 0; return; }
     if (type === "dboNotice") {
       if (typeof content["text"] === "string") notifyNextUpdate(this.controller, this.sp, content["text"]);
@@ -284,6 +300,7 @@ export class DboRelayService extends ClientListener {
 
   private focusedId = 0;
   private hudData: Record<string, unknown> | null = null;
+  private hudPowerEnd: { name: string; endsAt: number } | null = null;
   private partyData: Record<string, unknown> | null = null;
   private hudKey = "";
   private partyKey = "";

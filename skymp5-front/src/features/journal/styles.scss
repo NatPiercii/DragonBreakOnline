@@ -380,3 +380,6 @@ $border-dim: dbo-accent(0.2);
     &__meter--rank3 &__meter-bar { height: 112px; margin-top: 38px; }
   }
 }
+
+// The racial power (RacialPowerBox): a running power reads warm, like the HUD's row
+.journal__power-on { color: #e8d6a0; }

@@ -40,10 +40,23 @@ export interface JournalProfile {
   status?: { label: string; value: string; hint?: string }[];
   // Level points waiting to be spent (charlevel.js); the +1 buttons show while there are any
   levelPoints?: number;
+  // The race's once-a-day power (racial.js powerView), absent without one or from an older server. activeMs and waitMs are
+  // what was left when it was sent
+  racialPower?: JournalRacialPower | null;
   title: string;
   titleEpithet?: string;
   titleId: string;
   titles: Array<{ id: string; label: string }>;
+}
+
+export interface JournalRacialPower {
+  name: string;
+  seconds: number;
+  clientOnly?: boolean;
+  ready?: boolean;
+  activeMs?: number;
+  waitMs?: number;
+  buffs?: Record<string, number>;
 }
 
 export interface JournalStatGroup {
@@ -208,6 +221,59 @@ const ActionText = ({ label, hint, placeholder, send, busy, min }: {
   );
 };
 
+// What a power's buffs do, in words (racial.js DEFAULTS: shares and regeneration factors)
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+export const describePower = (p: JournalRacialPower): string => {
+  const b = p.buffs || {};
+  const out: string[] = [];
+  const share = (k: string, sign: string, text: string) => { if (Number(b[k]) > 0) out.push(`${sign}${pct(Number(b[k]))} ${text}`); };
+  share('meleeDamage', '+', 'melee damage'); share('bowDamage', '+', 'bow damage'); share('fireDealt', '+', 'fire damage'); share('shockDealt', '+', 'shock damage');
+  share('resistMagic', '+', 'magic resistance'); share('damageTaken', '-', 'damage taken'); share('physicalTaken', '-', 'physical damage taken');
+  for (const [k, word] of [['healthRegen', 'health'], ['magickaRegen', 'magicka'], ['staminaRegen', 'stamina']] as const) {
+    if (Number(b[k]) > 1) out.push(`${word} regenerates x${Number(b[k])}`);
+  }
+  if (Number(b.wardPoints) > 0) out.push(`a ward absorbs ${Number(b.wardPoints)} spell damage`);
+  const text = out.join(', ');
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+};
+const clock = (ms: number): string => {
+  const m = Math.ceil(ms / 60000);
+  return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${Math.max(1, m)} min`;
+};
+
+// The Profile tab's racial power: what it does, and the button while it is ready (journal.js journalAction racialPower)
+export const RacialPowerBox = ({ power, busy, act }: { power: JournalRacialPower; busy: boolean; act: (key: string, ...args: unknown[]) => void }) => {
+  const got = useRef(Date.now());
+  const sent = useRef(power);
+  if (sent.current !== power) { sent.current = power; got.current = Date.now(); }
+  const [, tick] = useState(0);
+  const since = Date.now() - got.current;
+  const left = Math.max(0, Number(power.activeMs || 0) - since);
+  const wait = Math.max(0, Number(power.waitMs || 0) - since);
+  useEffect(() => {
+    if (!(left > 0) && !(wait > 0)) return undefined;
+    const t = setTimeout(() => tick((n) => n + 1), 1000);
+    return () => clearTimeout(t);
+  });
+  const what = describePower(power);
+  return (
+    <section className="journal__actions journal__power">
+      <h2 className="journal__heading">Racial Power</h2>
+      <div className="journal__action">
+        <h3 className="journal__action-head">{power.name}</h3>
+        <p className="journal__hint">{what ? `${what}, for ${power.seconds} seconds.` : `For ${power.seconds} seconds.`} Once a day.</p>
+        <div className="journal__editor-actions">
+          {power.clientOnly ? <span className="journal__hint">Comes with a later update of the game.</span>
+            : left > 0 ? <span className="journal__hint journal__power-on">Upon you: {Math.ceil(left / 1000)} s</span>
+              : wait > 0 ? <span className="journal__hint">Returns in {clock(wait)}</span>
+                : <button type="button" className="journal__button journal__button--primary" disabled={busy}
+                  onClick={() => act('journalAction', 'racialPower')}>Call on {power.name}</button>}
+        </div>
+      </div>
+    </section>
+  );
+};
+
 export const ActionsBox = ({ points, busy, act }: { points: number; busy: boolean; act: (key: string, ...args: unknown[]) => void }) => {
   const [confirm, setConfirm] = useState(false);
   return (
@@ -316,6 +382,7 @@ export const ProfileTab = ({ data, editing, setEditing, busy, act, openSkill }: 
         </section>
         <SkillMeters skills={p.skills || []} onOpen={openSkill} />
         {p.status ? <StatusBox rows={p.status} /> : null}
+        {p.racialPower ? <RacialPowerBox power={p.racialPower} busy={busy} act={act} /> : null}
         {p.status ? <ActionsBox points={p.levelPoints || 0} busy={busy} act={act} /> : null}
       </aside>
     </div>

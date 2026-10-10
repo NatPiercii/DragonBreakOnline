@@ -27,6 +27,8 @@ export interface HudData {
   // still while this one is right.
   gold?: number;
   goldOn?: boolean;
+  // A racial power while it lasts (racial.js; the client turns the server's ms into an end on the game's own clock)
+  racialPower?: { name: string; endsAt: number };
 }
 
 const clampPct = (v: unknown): number => Math.max(0, Math.min(100, Number(v) || 0));
@@ -166,6 +168,27 @@ const Corner = ({ ui, talking, watch, stage, children }: { ui: UiSettings; talki
   return <div className={'dboCorner' + (shown ? '' : ' dboCorner--faded')}>{children}</div>;
 };
 
+// The racial power's row: its name and the seconds left, ticking each second; nothing once it has run out
+const PowerRow = ({ power }: { power: { name: string; endsAt: number } }) => {
+  const [, tick] = useState(0);
+  const left = Math.max(0, Math.ceil((Number(power.endsAt) - Date.now()) / 1000));
+  useEffect(() => {
+    if (!(left > 0)) return undefined;
+    const t = setTimeout(() => tick((n) => n + 1), 1000 - (Date.now() % 1000) + 5);
+    return () => clearTimeout(t);
+  });
+  if (!(left > 0)) return null;
+  return (
+    <div className="dboStatus">
+      <div className="dboStatus__row dboStatus__row--power" title="Your racial power">
+        <span className="dboStatus__icon dboStatus__icon--power" />
+        <span className="dboStatus__label">{power.name}</span>
+        <span className="dboStatus__value">{left}s</span>
+      </div>
+    </div>
+  );
+};
+
 const Hud = ({ data }: { data: HudData }) => {
   const { mode: voice, talking } = useVoice();
   const ui = useUiSettings();
@@ -178,7 +201,8 @@ const Hud = ({ data }: { data: HudData }) => {
   return (
     <>
       <Watermark on={data.watermarkOn !== false} />
-      <Corner ui={ui} talking={talking} watch={`${stage}|${voice}|${data.goldOn !== false ? gold : ''}`} stage={stage}>
+      <Corner ui={ui} talking={talking} watch={`${stage}|${voice}|${data.goldOn !== false ? gold : ''}|${data.racialPower ? data.racialPower.endsAt : ''}`} stage={stage}>
+        {data.racialPower && data.racialPower.name ? <PowerRow power={data.racialPower} /> : null}
         {data.goldOn !== false && data.gold !== undefined && (
           <div className="dboStatus">
             <div className="dboStatus__row dboStatus__row--gold" title="The gold you carry">
