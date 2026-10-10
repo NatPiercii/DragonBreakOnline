@@ -167,6 +167,16 @@ module.exports = (api) => {
     try { for (const e of ((mp.get(Number(holder) >>> 0, 'inventory') || {}).entries || [])) { const id = (Number(e.baseId) >>> 0).toString(16); out[id] = (out[id] || 0) + (Number(e.count) || 0); } } catch (e) { /* gone */ }
     return out;
   };
+  // Read once per process, off the main thread at load; a login in the first moments falls back to reading it inline
+  if (!S.snaps && !S.snapsLoading) {
+    S.snapsLoading = true;
+    fs.readFile(SNAP_PATH, 'utf8', (e, text) => {
+      S.snapsLoading = false;
+      if (S.snaps) return;
+      let d = {}; if (!e) try { d = JSON.parse(text) || {}; } catch (x) { d = {}; }
+      S.snaps = d;
+    });
+  }
   const readSnaps = () => {
     if (S.snaps) return S.snaps;
     try { S.snaps = JSON.parse(fs.readFileSync(SNAP_PATH, 'utf8')) || {}; } catch (e) { S.snaps = {}; }

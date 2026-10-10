@@ -257,7 +257,7 @@ ok('...while a Master sword keeps byTier (+100%)', withFists.masteryDamageMult(A
   ok('the inventory-numbers block is found', sf > 0 && se > sf, true);
   const sent = [];
   const S = new Function('mp', 'cfg', 'log', 'display', 'recordOf', 'masteryOf', 'fieldsOf', 'wornOf', 'profileOf', 'every', 'onlineActors', 'sendPacket',
-    block + '\n' + src.slice(sf, se) + '\nreturn { statItemsFor, pushStats };')(
+    block + '\n' + src.slice(sf, se) + '\nreturn { statItemsFor, pushStats, slices: typeof STAT_SLICES === "number" ? STAT_SLICES : 1 };')(
     mp, { weaponMaterials: { enabled: true, playersOnly: true, byKeyword: {} } }, () => {}, String,
     (id) => { const r = mp.lookupEspmRecordById(id >>> 0); return r && r.record ? r : null; },
     (id) => { try { const r = mp.get(id, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } },
@@ -272,10 +272,12 @@ ok('...while a Master sword keeps byTier (+100%)', withFists.masteryDamageMult(A
   ok('a Fine Daedric cuirass at Master Defense: (49 + 2) x 3.5 = 178.5, Heavy Armor', at(DAEDRIC_CUIRASS).value === 178.5 && at(DAEDRIC_CUIRASS).skill === 'HeavyArmor', true);
   ok('glass boots: 11 x 3.5 = 38.5, Light Armor', at(GLASS_BOOTS).value === 38.5 && at(GLASS_BOOTS).skill === 'LightArmor', true);
   ok('gold is not an item with a number', items.length === 4, true);
-  S.pushStats(); S.pushStats();
+  // statDisplay is sliced (gamemode.js STAT_SLICES): one full cycle reaches every player once
+  const cycle = () => { for (let i = 0; i < S.slices; i++) S.pushStats(); };
+  cycle(); cycle();
   ok('sent once, and not again while nothing changed', sent.length === 1 && sent[0][1].customPacketType === 'dboStatDisplay' && sent[0][1].items.length === 4, true);
   world.mastery.set(AGG, { order: ['blade'], skills: { blade: { rank: 2 } } });
-  S.pushStats();
+  cycle();
   ok('a tier change sends the new numbers', sent.length === 2 && sent[1][1].items.find((x) => x.id === IRON_SWORD).value === Math.round(17 * 1.35 * 100) / 100, true);
   world.mastery.delete(AGG); world.inv.delete(AGG);
 }

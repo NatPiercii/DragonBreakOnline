@@ -26,6 +26,7 @@ module.exports = (api) => {
   const { mp, log, personal, registerChatCommand, every, onlineActors, profileOf, display, findAnyByName, isAdmin, creationPending, cfg } = api;
   const C = Object.assign({
     enabled: true,
+    asyncFirstRead: true,       // the sampler reads a new player's file off the main thread (false: read it inline)
     dir: 'journal',
     sampleSeconds: 2,           // play time and distance are sampled this often
     flushSeconds: 60,           // changed files are written this often; a crash loses at most this much
@@ -136,6 +137,26 @@ module.exports = (api) => {
     return s;
   };
   const statsOf = (a) => { const k = keyOf(a); return k ? statsByKey(k, a) : null; };
+  // The sampler never reads a file on the main thread: a miss starts an async read, and the player is sampled from the
+  // next tick on (a synchronous first read froze the server up to 5.9 s when the disk stalled, ticks report 9 Oct).
+  // What lands is repaired and stamped exactly as statsByKey does; something already cached in the meantime wins.
+  if (!(S.loading instanceof Set)) S.loading = new Set();
+  const statsSoon = (k, actor) => {
+    const s = S.cache.get(k);
+    if (s) return s;
+    if (!C.asyncFirstRead) return statsByKey(k, actor);
+    if (S.loading.has(k)) return null;
+    S.loading.add(k);
+    fs.readFile(fileOf(k), 'utf8', (e, text) => {
+      S.loading.delete(k);
+      if (S.cache.has(k)) return;
+      let raw = null; if (!e) try { raw = JSON.parse(text); } catch (x) { raw = null; }
+      const fresh = repair(raw, Date.now());
+      stamp(fresh, k, actor);
+      S.cache.set(k, fresh);
+    });
+    return null;
+  };
   const touch = (a) => { const k = keyOf(a); if (k) S.dirty.add(k); };
 
   // A reload over the phase 0 module's state (cache and dirty by actor hex): its counts move to the characters' keys
@@ -233,7 +254,8 @@ module.exports = (api) => {
     if (!isPlayer(a)) return;
     const k = keyOf(a); if (!k) return;
     S.online.add(k);
-    const s = statsByKey(k, a);
+    const s = statsSoon(k, a);
+    if (!s) return;
     const prev = S.live.get(k);
     // A session left open by a restart or a crash ends where it was last seen
     if (s.open && now - s.open.last > C.sessionGapSeconds * 1000) closeSession(s);
@@ -322,7 +344,8 @@ module.exports = (api) => {
     if (S.writing) { S.waiters.push(resolve); return; }     // the batch under way finishes first; new dirt waits
     S.queue = [...new Set([...S.queue, ...S.dirty])]; S.dirty.clear();
     if (!S.queue.length) { evict(); return resolve(0); }
-    try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { log('journal stats: cannot make', DIR, e.message); for (const x of S.queue) S.dirty.add(x); S.queue = []; return resolve(0); }
+    // Made once: a synchronous call on every flush stalls the server when the disk does
+    if (!S.dirMade) try { fs.mkdirSync(DIR, { recursive: true }); S.dirMade = true; } catch (e) { log('journal stats: cannot make', DIR, e.message); for (const x of S.queue) S.dirty.add(x); S.queue = []; return resolve(0); }
     S.waiters.push(resolve);
     pump();
   });

@@ -406,7 +406,16 @@ const staffLog = (whoName, tier, what, detail, tally = true) => {
 // GM; counted in the week's summary only when that is staff
 const staffNote = (a, what, detail) => staffLog(display(a), tierOf(a), what, `${staffWho(a)}: ${detail}`, isAdmin(a));
 const flushStaff = async () => {
-  if (staffState.dirty) { staffState.dirty = false; try { fs.writeFileSync(STAFF_FILE + '.tmp', JSON.stringify(staffList())); fs.renameSync(STAFF_FILE + '.tmp', STAFF_FILE); } catch (e) { log('staff-actions.json write failed', e.message); } }
+  // Written off the main thread, one write at a time: a synchronous write here froze the server up to 5.4 s when the disk
+  // stalled (ticks report, 9 Oct). A change made during a write marks it dirty again for the next tick.
+  if (staffState.dirty && !staffState.writing) {
+    staffState.dirty = false; staffState.writing = true;
+    const tmp = STAFF_FILE + '.tmp';
+    fs.writeFile(tmp, JSON.stringify(staffList()), (e) => {
+      if (e) { staffState.writing = false; staffState.dirty = true; return log('staff-actions.json write failed', e.message); }
+      fs.rename(tmp, STAFF_FILE, (e2) => { staffState.writing = false; if (e2) { staffState.dirty = true; log('staff-actions.json write failed', e2.message); } });
+    });
+  }
   if (staffState.busy || !staffState.queue.length || Date.now() < staffState.pauseUntil || !discordTarget || discordTarget.kind !== 'bot') return;
   staffState.busy = true;
   const lines = []; let size = 0;
@@ -2002,22 +2011,30 @@ const redress = (a) => {
 // userId -> the interval waiting for that user's character; a hot reload drops the old waiters first.
 if (globalThis.__dboLoginWaits) { for (const t of globalThis.__dboLoginWaits.values()) clearInterval(t); }
 globalThis.__dboLoginWaits = new Map();
+// A login step over LOGIN_STEP_WARN_MS is logged by name: the loginWait tick froze up to 1.3 s (ticks report, 9 Oct)
+const LOGIN_STEP_WARN_MS = 100;
+const loginStep = (name, fn) => {
+  const t0 = performance.now();
+  try { fn(); } catch (e) { log(`${name} failed`, e.message); }
+  const ms = performance.now() - t0;
+  if (ms > LOGIN_STEP_WARN_MS) log(`slow login step ${name}: ${ms.toFixed(1)} ms`);
+};
 const onCharacterReady = (userId, a) => {
   connectedAt.set(a, Date.now());
   // The client resets its spells to the login list for its first seconds: a spell given then waits (schools.js)
-  try { if (globalThis.__dboSchoolsArrived) globalThis.__dboSchoolsArrived(a); } catch (e) { log('schools arrival failed', e.message); }
+  loginStep('schools arrival', () => { if (globalThis.__dboSchoolsArrived) globalThis.__dboSchoolsArrived(a); });
   // itemguards.js: the pack against the one written down at the last logout, before anything is handed out at login
-  try { if (globalThis.__dboItemLogin) globalThis.__dboItemLogin(a); } catch (e) { log('item relog check failed', e.message); }
+  loginStep('item relog check', () => { if (globalThis.__dboItemLogin) globalThis.__dboItemLogin(a); });
   // A crash mid-transform leaves the beast race stored; put the real one back before anything reads it
-  try { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, 'login'); } catch (e) { log('beast revert on login failed', e.message); }
-  try { if (globalThis.__dboSuperLogin) globalThis.__dboSuperLogin(a); } catch (e) { log('supernatural login failed', e.message); }
+  loginStep('beast revert on login', () => { if (globalThis.__dboBeastRevert) globalThis.__dboBeastRevert(a, 'login'); });
+  loginStep('supernatural login', () => { if (globalThis.__dboSuperLogin) globalThis.__dboSuperLogin(a); });
   try { if (globalThis.__dboClock) globalThis.__dboClock.sendTo(a); } catch (e) { /* clock later */ }
   // A new character is carried through the landing into the hub behind a black screen
   if (creationPending(a)) { creation.set(a, 'spawning'); setFade(a, true); if (inHub(a)) setCreatorHidden(a, true); setTimeout(() => fallBackToLanding(a), HUB_SPAWN_WAIT_MS); }
   // Seed the remembered outfit from the save before the client's undressed login reports replace it.
   try { const worn = wornOf(mp.get(a, 'equipment')); if (worn.length) mp.set(a, 'private.lastWorn', worn.map((w) => [w.baseId, w.left ? 1 : 0])); } catch (e) { /* nothing saved */ }
   setTimeout(() => { if (actorOf(userId) === a && !creationPending(a)) { try { redress(a); } catch (e) { log('redress failed', e.message); } } }, 12000);
-  setTimeout(() => {
+  setTimeout(timed('loginSetup', () => {
     if (actorOf(userId) !== a) return;
     try { mp.set(a, ADMIN_PROP, isAdmin(a)); } catch (e) { /* ignore */ }
     if (cfg.welcome) system(a, cfg.welcome);
@@ -2060,7 +2077,7 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboPrayerLogin) globalThis.__dboPrayerLogin(a); } catch (e) { log('prayer login failed', e.message); }
     // The first spell: a mage at Arcane Arts 25 with no school is offered the choice, one with a school and no spell gets its starter (schools.js)
     try { if (globalThis.__dboSchoolsLogin) globalThis.__dboSchoolsLogin(a); } catch (e) { log('schools login failed', e.message); }
-  }, 8000);
+  }), 8000);
 };
 const startLoginWait = (userId, seenActor) => {
   const old = globalThis.__dboLoginWaits.get(userId);
@@ -5985,10 +6002,15 @@ const statItemsFor = (a) => {
   return out;
 };
 const statSent = globalThis.__dboStatSent instanceof Map ? globalThis.__dboStatSent : (globalThis.__dboStatSent = new Map());
+// A fifth of the players each turn, every fifth of the interval: all of them at once took 20-40 ms (ticks report, 9 Oct)
+const STAT_SLICES = 5;
+let statTurn = 0;
 const pushStats = () => {
   if (!STAT_DISPLAY.enabled) return;
   const now = Date.now();
+  const turn = statTurn = (statTurn + 1) % STAT_SLICES;
   for (const a of onlineActors()) {
+    if ((a >>> 0) % STAT_SLICES !== turn) continue;
     if (!(profileOf(a) >= 0)) continue;
     let items; try { items = statItemsFor(a); } catch (e) { log('stat display failed', e.message); continue; }
     const key = JSON.stringify(items), last = statSent.get(a);
@@ -5998,7 +6020,7 @@ const pushStats = () => {
   }
   if (statSent.size > 512) for (const [k, v] of statSent) if (now - v.at > 3600000) statSent.delete(k);
 };
-every('statDisplay', Math.max(2, Number(STAT_DISPLAY.everySeconds) || 10) * 1000, pushStats);
+every('statDisplay', Math.max(2, Number(STAT_DISPLAY.everySeconds) || 10) * 1000 / STAT_SLICES, pushStats);
 globalThis.__dboStatItemsFor = statItemsFor;
 
 // ---- party panel: names and health of your party, owner-side widget fed by ff_party --------------

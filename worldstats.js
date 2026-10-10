@@ -97,23 +97,39 @@ module.exports = (api) => {
     } catch (e) { return false; }
   };
 
+  const OFFLINE_MS = 10 * 60000;
   const snapshot = () => {
     const online = onlineActors();
     for (const a of online) ST.chars.add(a >>> 0);
     const races = new Map(); const profiles = new Set();
     let carried = 0, stored = 0, banked = 0;
     ST.counted = [];
+    // An offline character does not change, so its numbers are reused for OFFLINE_MS: reading every character ever seen
+    // each minute cost 30-70 ms on the main thread (ticks report, 9 Oct). Online characters and their owners are fresh.
+    if (!(ST.offline instanceof Map)) ST.offline = new Map();
+    const now = Date.now();
+    const onlineSet = new Set(online.map((x) => x >>> 0));
+    const onlineProfiles = new Set(online.map((x) => profileOf(x)));
     for (const a of [...ST.chars]) {
-      const profileId = profileOf(a);
-      if (!isCharacter(a, profileId)) { ST.chars.delete(a); continue; }
-      let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { ST.chars.delete(a); continue; }
-      const realRace = (globalThis.__dboBeastOriginalRace && globalThis.__dboBeastOriginalRace(a)) || (app && app.raceId);
-      const race = realRace ? raceName(realRace) : 'Unknown';
-      ST.counted.push(`${(app && app.name) || 'Stranger'} (${race})`);
-      races.set(race, (races.get(race) || 0) + 1);
-      carried += goldIn(a);
-      banked += bankedOf(a);
-      if (!profiles.has(profileId)) { profiles.add(profileId); stored += storedGold(profileId); }
+      const hit = !onlineSet.has(a) && ST.offline.get(a);
+      let row = hit && now - hit.at < OFFLINE_MS && !onlineProfiles.has(hit.profileId) ? hit : null;
+      if (!row) {
+        const profileId = profileOf(a);
+        if (!isCharacter(a, profileId)) { ST.chars.delete(a); ST.offline.delete(a); continue; }
+        let app = null; try { app = mp.get(a, 'appearance'); } catch (e) { ST.chars.delete(a); ST.offline.delete(a); continue; }
+        const realRace = (globalThis.__dboBeastOriginalRace && globalThis.__dboBeastOriginalRace(a)) || (app && app.raceId);
+        row = { at: now, profileId, race: realRace ? raceName(realRace) : 'Unknown', name: (app && app.name) || 'Stranger', carried: goldIn(a), banked: bankedOf(a), stored: null };
+        if (!onlineSet.has(a)) ST.offline.set(a, row); else ST.offline.delete(a);
+      }
+      ST.counted.push(`${row.name} (${row.race})`);
+      races.set(row.race, (races.get(row.race) || 0) + 1);
+      carried += row.carried;
+      banked += row.banked;
+      if (!profiles.has(row.profileId)) {
+        profiles.add(row.profileId);
+        if (row.stored === null || onlineProfiles.has(row.profileId)) row.stored = storedGold(row.profileId);
+        stored += row.stored;
+      }
     }
     const held = heldGold();
     const day = new Date().toISOString().slice(0, 10);
