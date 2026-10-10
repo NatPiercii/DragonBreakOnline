@@ -939,7 +939,7 @@
   "orc": { "lowHealth": 0.3, "meleeDamage": 0.2, "damageTaken": 0.2 },
   "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 },
   "_maormer": "The Maormer with the overhaul on (Nate's table, 10 Oct): DBO_AbMaormerSeafarer (swimming) on every Maormer, Roaring Tempest's ward look DBO_MaormerTempestWard (DLE ec2de1a0). power is replaced whole by this block, so it carries every field.",
-  "maormer": {"resistShock": 0.5, "seafarerSpell": "192ee1:DragonBreak Online Edits.esp", "xp": {"blade": 1.15}, "power": {"name": "Roaring Tempest", "seconds": 60, "wardSpell": "192ee3:DragonBreak Online Edits.esp", "buffs": {"resistMagic": 0.25, "wardPoints": 60}}}
+  "maormer": {"resistShock": 0.5, "seafarerSpell": "192ee1:DragonBreak Online Edits.esp", "xp": {"blade": 1.15}, "power": {"name": "Roaring Tempest", "seconds": 60, "wardSpell": "192ee3:DragonBreak Online Edits.esp", "lookShader": "10f9a6:Skyrim.esm", "buffs": {"resistMagic": 0.25, "wardPoints": 60}}}
  },
  "loginGrace": {
   "_comment": "A player just in cannot be harmed by creatures for this many seconds after the JOIN (gamemode.js; Nate, 5 Oct: wolves downed one 12 s after it); the player's own attack or cast ends it, players can still hit them. 0 turns it off. Hot reload.",

@@ -89,7 +89,8 @@ const DEFAULTS = {
   // a ward that absorbs wardPoints of spell damage while it lasts (60, Steadfast Ward's), under reductionCap; wardSpell (the
   // DLE's DBO_MaormerTempestWard, its look only) is cast on the player when it is called
   maormer: { resistShock: 0.5, seafarerSpell: '', xp: { blade: 1.15 },
-    power: { name: 'Roaring Tempest', seconds: 60, wardSpell: '', buffs: { resistMagic: 0.25, wardPoints: 60 } } },
+    // lookShader: what everyone near sees on the caster, ShockPlayerCloakFXShader (the ward effect's own hit shader)
+    power: { name: 'Roaring Tempest', seconds: 60, wardSpell: '', lookShader: '10f9a6:Skyrim.esm', buffs: { resistMagic: 0.25, wardPoints: 60 } } },
 };
 const merge = (cfg) => {
   const c = Object.assign({}, DEFAULTS, cfg || {});
@@ -475,12 +476,41 @@ module.exports = (api) => {
     // Its look on the player's own game (the DLE's ward spell): nothing when the record is not in the load order yet
     const look = spellOf(p.wardSpell);
     if (look && typeof sendPacket === 'function') { try { sendPacket(a >>> 0, { customPacketType: 'dboCastSelf', spell: look }); } catch (e) { log('racial: ward look failed', e.message); } }
+    // What others see: the power's shader on the caster for every player near, until it fades (lookShader, an EFSH)
+    const shader = shaderOf(p.lookShader);
+    if (shader) { S.looks.set(a >>> 0, { shader, until: st.activeUntil, seen: new Set() }); showLooks(now); }
     log(`racial: ${display(a >>> 0)} used ${v.name} (${v.race}) for ${v.seconds} s`);
     return { ok: true, text: `${v.name}: ${v.seconds} seconds.` };
   };
   if (!(S.powerOn instanceof Map)) S.powerOn = new Map();   // actor -> activeUntil, to say when it fades
   const hudRefresh = (a) => { try { if (typeof globalThis.__dboHudRefresh === 'function') globalThis.__dboHudRefresh(a >>> 0); } catch (e) { /* the HUD catches up */ } };
+  // Others see a power through the gamemode's glow packet on the caster (dboGlow, kind champion: an actor shader), sent
+  // to each player within LOOK_UNITS when it starts or when they come near, and taken off when it fades (Nate, 11 Oct:
+  // nobody saw Roaring Tempest; its spell played on the caster's own game only)
+  const LOOK_UNITS = 6000;
+  if (!(S.looks instanceof Map)) S.looks = new Map();   // caster -> { shader, until, seen: Set of players told }
+  const near = (x, y) => {
+    try {
+      if (String(mp.get(x, 'worldOrCellDesc')) !== String(mp.get(y, 'worldOrCellDesc'))) return false;
+      const a = mp.get(x, 'pos'), b = mp.get(y, 'pos');
+      return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) <= LOOK_UNITS;
+    } catch (e) { return false; }
+  };
+  const glow = (to, caster, shader, on) => { try { sendPacket(to >>> 0, { customPacketType: 'dboGlow', refs: [caster >>> 0], on, kind: 'champion', shader }); } catch (e) { /* offline */ } };
+  const showLooks = (now = Date.now()) => {
+    if (typeof sendPacket !== 'function') return;
+    const online = onlineActors().map((x) => x >>> 0);
+    for (const [caster, l] of S.looks) {
+      if (l.until <= now || !online.includes(caster)) {
+        for (const p of l.seen) glow(p, caster, l.shader, false);
+        S.looks.delete(caster);
+        continue;
+      }
+      for (const p of online) if (p !== caster && !l.seen.has(p) && near(p, caster)) { l.seen.add(p); glow(p, caster, l.shader, true); }
+    }
+  };
   const powerTick = (now = Date.now()) => {
+    showLooks(now);
     for (const [a, until] of S.powerOn) {
       if (until > now) continue;
       S.powerOn.delete(a);
@@ -504,6 +534,10 @@ module.exports = (api) => {
   const hudField = (a, now = Date.now()) => { const v = powerView(a, now); return v && v.activeUntil ? { name: v.name, ms: Math.ceil(v.activeMs / 1000) * 1000 } : null; };
 
   // A config desc ('<hex>:<plugin>') to a SPEL in the load order, else 0: a record the DLE does not carry yet does nothing
+  const shaderOf = (desc) => {
+    if (!desc) return 0;
+    try { const id = mp.getIdFromDesc(String(desc)) >>> 0; const r = id ? recordOf(id) : null; return r && String(r.record.type) === 'EFSH' ? id : 0; } catch (e) { return 0; }
+  };
   const spellOf = (desc) => {
     if (!desc) return 0;
     try { const id = mp.getIdFromDesc(String(desc)) >>> 0; const r = id ? recordOf(id) : null; return r && String(r.record.type) === 'SPEL' ? id : 0; } catch (e) { return 0; }

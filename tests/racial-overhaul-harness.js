@@ -235,6 +235,32 @@ const gmSrc = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
 check('gamemode.js: the hit hands the ward its damage; racial gets sendPacket', /racial\.targetMult\(agg, tgt, src, dmg\)/.test(gmSrc) && /gmstFloat, cfg, sendPacket \}\);/.test(gmSrc));
 check('gamemode.js: the HUD carries the countdown and can be sent on demand', /globalThis\.__dboRacialPowerHud\(a\) : null; if \(rp\) v\.racialPower = rp;/.test(gmSrc) && /globalThis\.__dboHudRefresh = \(a\) =>/.test(gmSrc));
 check('the hooks are published', ['__dboRaceSkillRate', '__dboRaceDiseaseResist', '__dboRacialPowerUse', '__dboRacialPowerView', '__dboRacialPowerHud'].every((n) => typeof globalThis[n] === 'function'));
+// Others see a power (Nate, 11 Oct: nobody saw Roaring Tempest): its lookShader as a dboGlow on the caster, for players near
+{
+  const SHADER = 0x10f9a6;
+  records[SHADER] = { record: { type: 'EFSH', fields: [] } };
+  mp.getIdFromDesc = ((orig) => (d) => (d === '10f9a6:Skyrim.esm' ? SHADER : orig(d)))(mp.getIdFromDesc);
+  const pk = [];
+  const RC = make({ enabled: true, overhaul: true, maormer: { resistShock: 0.5, power: { name: 'Roaring Tempest', seconds: 60, lookShader: '10f9a6:Skyrim.esm', buffs: { resistMagic: 0.25 } } } },
+    { sendPacket: (to, p) => { pk.push([to, p]); return true; } });
+  state[MAORMER].props['private.racialPower'] = {}; globalThis.__dboRacialState.powerOn.delete(MAORMER); globalThis.__dboRacialState.looks.clear();
+  state[MAORMER].pos = [0, 0, 0]; state[NORD].pos = [500, 0, 0]; state[ORC].pos = [9000, 0, 0];
+  const glows = () => pk.filter(([, p]) => p.customPacketType === 'dboGlow');
+  RC.usePower(MAORMER);
+  let g = glows();
+  const toldOn = new Set(g.filter(([, p]) => p.on).map(([to]) => to));
+  check('a player near sees the shader on the caster', g.some(([to, p]) => to === NORD && p.on === true && p.refs[0] === MAORMER && p.shader === SHADER), g);
+  check('...one far away does not, nor the caster', !g.some(([to]) => to === ORC || to === MAORMER), g);
+  state[ORC].pos = [800, 0, 0]; pk.length = 0; RC.powerTick();
+  for (const [to, p] of glows()) if (p.on) toldOn.add(to);
+  check('someone who comes near while it lasts sees it then, once', glows().length === 1 && glows()[0][0] === ORC && glows()[0][1].on === true, glows());
+  pk.length = 0; RC.powerTick();
+  check('...and is not told again', glows().length === 0, glows());
+  globalThis.__dboRacialState.looks.get(MAORMER).until = Date.now() - 1; pk.length = 0; RC.powerTick();
+  const off = glows().filter(([, p]) => p.on === false).map(([to]) => to);
+  check('when it fades, everyone told sees it go, and only they', off.length === toldOn.size && off.every((to) => toldOn.has(to)) && toldOn.has(ORC), [...toldOn]);
+  state[NORD].pos = undefined; state[ORC].pos = undefined; state[MAORMER].pos = undefined;
+}
 check('the timers are named (a reload replaces them)', timers.includes('racialRegen') && timers.includes('racialPower'));
 
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');
