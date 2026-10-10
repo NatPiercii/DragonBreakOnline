@@ -95,7 +95,7 @@ module.exports = (api) => {
   const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice' && !f.free && !f.technique).map((f) => {
     const bookId = idOf((SMC.books || {})[f.id] || f.bookId), bookRec = lookup(bookId);
     return { key: f.id, name: f.name, title: `Schematics: ${f.name}`, tier: Math.max(2, Math.min(7, Number(f.tier) || 2)), bookId, markerId: 0,
-      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', held: !!f.held, withheld: WITHHELD.has(f.id), ready: !!(bookId && bookRec) };
+      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', held: !!f.held, noLoot: !!f.noLoot, withheld: WITHHELD.has(f.id), ready: !!(bookId && bookRec) };
   }) : (Array.isArray(table.manuals) ? table.manuals : []).map((m) => {
     const key = String(m.material || m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const bookId = idOf(m.book), markerId = idOf(m.marker);
@@ -297,7 +297,7 @@ module.exports = (api) => {
 
   // A technique book for this find (smithing.drops.<where> = { chance, families: [...] }, or per difficulty
   // { <difficulty>: { chance, families } }): { id, name } or null. Empty by default: no drop until the books exist and the
-  // rates are set. Staff-only families (Dragon) never drop.
+  // rates are set. Staff-only and noLoot families (Dragon, Daedric, Ebony...: found only by reading) never drop.
   globalThis.__dboTechniqueDrop = (where, difficulty) => {
     if (!C.enabled || !SMITH) return null;
     let rule = (SMC.drops || {})[where];
@@ -306,7 +306,7 @@ module.exports = (api) => {
     for (const r of (Array.isArray(rule) ? rule : rule ? [rule] : [])) {
       if (!r || !(Math.random() < (Number(r.chance) || 0))) continue;
       const allowed = new Set((r.families || []).map(String));
-      const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly && !m.withheld);
+      const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly && !m.withheld && !m.noLoot);
       if (!pool.length) continue;
       const pick = pool[Math.floor(Math.random() * pool.length)];
       return { id: pick.book, name: pick.title };

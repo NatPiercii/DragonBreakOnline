@@ -1,5 +1,6 @@
 // Scripted test for the ledger shops (Nate, 10 Oct): ledgersale.js's split and payout, the Synod no longer selling
-// schematics, the blacksmith's ledger (BlacksmithLedger) selling the basic ones, and the tome shop as a button on the
+// schematics, the blacksmith's ledger (BlacksmithLedger: off since 11 Oct, as T1-T2 are known by default; its sale and split
+// still tested on a test stock of Nordic), and the tome shop as a button on the
 // Scholars' Ledger with its gold split the same way. Loads the real spells.js, salvage.js, manuals.js (smithing mode, the
 // real smithing.json) and ledgersale.js against one stub mp, with gamemode-config.json's own settings.
 //
@@ -95,7 +96,8 @@ mp.onReadBook = () => undefined;
 const out = { said: [], audits: [], logs: [], widgets: [], closed: [], treasury: [], faction: [] };
 let online = [BUYER, MAGE];
 const handlers = new Map(), commands = new Map();
-const cfg = Object.assign({}, CONFIG, { spells: Object.assign({}, CONFIG.spells, { shopStock: 999 }) });
+// The blacksmith's ledger is off live (11 Oct); its machinery is tested on a stock of Nordic (a copyable T3 book)
+const cfg = Object.assign({}, CONFIG, { spells: Object.assign({}, CONFIG.spells, { shopStock: 999 }), manuals: Object.assign({}, CONFIG.manuals, { smithShop: Object.assign({}, CONFIG.manuals.smithShop, { enabled: true, families: ['nordic'] }) }) });
 const api = {
   mp, cfg,
   log: (...a) => out.logs.push(a.join(' ')), personal: (a, t) => out.said.push([a, t]), system: (a, t) => out.said.push([a, t]),
@@ -140,8 +142,10 @@ check('the Conclave\'s stock of schematics is empty', globalThis.__dboManualsSho
 check('...and a buy there is refused, no gold taken', globalThis.__dboManualsBuy(BUYER, BOOK('steel')).ok === false && count(BUYER, GOLD) === 5000);
 activate(SCHOLARS_LEDGER, BUYER);
 check('the Scholars\' Ledger offers no schematics, and offers the tome button', !/manualsBuy/.test(ids(lastWidget(BUYER))) && /(^|,)tomes(,|$)/.test(ids(lastWidget(BUYER))), ids(lastWidget(BUYER)));
-put(BUYER, 'private.dboManuals', { steel: { at: 1, how: 'book' } });
-check('a Scholar still copies a schematic they learned', globalThis.__dboManualsCopyList(BUYER).some((r) => r.bookId === BOOK('steel')));
+put(BUYER, 'private.dboManuals', { nordic: { at: 1, how: 'book' }, glass: { at: 1, how: 'book' } });
+check('a Scholar still copies a schematic they learned (Nordic)', globalThis.__dboManualsCopyList(BUYER).some((r) => r.bookId === BOOK('nordic')), globalThis.__dboManualsCopyList(BUYER));
+check('...never a closely held one (Glass, 11 Oct)', !globalThis.__dboManualsCopyList(BUYER).some((r) => r.bookId === BOOK('glass')));
+check('Steel needs no schematic now (free), so it has no book to sell or copy', FAMILIES.find((f) => f.id === 'steel').free === true && !globalThis.__dboManualsCopyList(BUYER).some((r) => r.bookId === BOOK('steel')));
 put(BUYER, 'private.dboManuals', {});
 
 // ---- the blacksmith's ledger --------------------------------------------------------------------------------------
@@ -150,49 +154,52 @@ check('another activator is no ledger', activate(OTHER_LEDGER, BUYER) === false)
 const W0 = out.widgets.length;
 check('the BlacksmithLedger activator is handled', activate(SMITH_LEDGER, BUYER) === true && out.widgets.length === W0 + 1);
 let w = lastWidget(BUYER);
-check('...a contextMenu of the basic schematics, Steel at 3x the book (300 gold); no Ancient Imperial, Nord or Goblin (their lore places)', w.type === 'contextMenu' && w.id === 66 && ids(w) === `sb:${BOOK('steel')}` && w.actions.every((x) => /, 300 gold$/.test(x.label)), w.actions);
-check('gamemode-config sells Steel only', JSON.stringify(CONFIG.manuals.smithShop.families) === '["steel"]');
+check('...a contextMenu of the basic schematics, Nordic (the test stock) at 3x the book (300 gold); no Ancient Imperial, Nord or Goblin (their lore places)', w.type === 'contextMenu' && w.id === 66 && ids(w) === `sb:${BOOK('nordic')}` && w.actions.every((x) => /, 300 gold$/.test(x.label)), w.actions);
+check('gamemode-config switches the blacksmith\'s ledger off (T1-T2 known by default, Nate 11 Oct)', CONFIG.manuals.smithShop.enabled === false);
+api.cfg = Object.assign({}, cfg, { manuals: CONFIG.manuals }); load();
+check('...so live it has nothing for sale', globalThis.__dboManualsSmithShop(BUYER).length === 0);
+api.cfg = cfg; load();
 check('...titled without naming any faction where the building is nobody\'s hall', w.targetName === 'Schematics for sale', w.targetName);
-ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
-check('buying takes 300 gold and gives the Steel schematics', count(BUYER, GOLD) === 4700 && count(BUYER, BOOK('steel')) === 1, [count(BUYER, GOLD), count(BUYER, BOOK('steel'))]);
+ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
+check('buying takes 300 gold and gives the Nordic schematics', count(BUYER, GOLD) === 4700 && count(BUYER, BOOK('nordic')) === 1, [count(BUYER, GOLD), count(BUYER, BOOK('nordic'))]);
 check('...45 tax (15 %) to Bruma', out.treasury.length === 1 && out.treasury[0][0] === 'bruma' && out.treasury[0][1] === 45, out.treasury);
 check('...30 sunk and 225 into the owner\'s first character\'s bank, though offline', bank(SMITH_A) === 225 && bank(SMITH_B) === 0, [bank(SMITH_A), bank(SMITH_B)]);
-check('...audited with the split', /LEDGERSALE P14 paid 300 gold for Schematics: Steel: tax 45\/45 to bruma \(rate 15%\), sink 30, owner 225\/225 to Smith A's bank account/.test(lastAudit(/LEDGERSALE/)) && /MANUAL P14 bought Steel/.test(lastAudit(/MANUAL/)), [lastAudit(/LEDGERSALE/), lastAudit(/MANUAL/)]);
-check('...and the menu reopens with the result', /You buy Schematics: Steel for 300 gold/.test(lastWidget(BUYER).targetName), lastWidget(BUYER).targetName);
+check('...audited with the split', /LEDGERSALE P14 paid 300 gold for Schematics: Nordic: tax 45\/45 to bruma \(rate 15%\), sink 30, owner 225\/225 to Smith A's bank account/.test(lastAudit(/LEDGERSALE/)) && /MANUAL P14 bought Nordic/.test(lastAudit(/MANUAL/)), [lastAudit(/LEDGERSALE/), lastAudit(/MANUAL/)]);
+check('...and the menu reopens with the result', /You buy Schematics: Nordic for 300 gold/.test(lastWidget(BUYER).targetName), lastWidget(BUYER).targetName);
 online = [BUYER, SMITH_B, MAGE];
-ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
-check('an online owner is told, and paid into the same account', bank(SMITH_A) === 450 && out.said.some(([a, t]) => a === SMITH_B && /Your ledger sold Schematics: Steel: 225 gold went into your bank account/.test(t)), bank(SMITH_A));
+ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
+check('an online owner is told, and paid into the same account', bank(SMITH_A) === 450 && out.said.some(([a, t]) => a === SMITH_B && /Your ledger sold Schematics: Nordic: 225 gold went into your bank account/.test(t)), bank(SMITH_A));
 ui('salvageChoose', BUYER, [`sb:${BOOK('ancient_imperial')}`]);
 check('Ancient Imperial is not sold (found in forts)', /not sold here/.test(lastWidget(BUYER).targetName) && count(BUYER, BOOK('ancient_imperial')) === 0);
 online = [BUYER, MAGE];
 ui('salvageChoose', BUYER, [`sb:${BOOK('glass')}`]);
 check('a schematic not on the list is refused', /not sold here/.test(lastWidget(BUYER).targetName) && count(BUYER, BOOK('glass')) === 0);
 gold(BUYER, 100);
-ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
-check('without the gold it is refused, nothing paid', /costs 300 gold, and you do not have it/.test(lastWidget(BUYER).targetName) && count(BUYER, BOOK('steel')) === 0 && out.treasury.length === 2, [lastWidget(BUYER).targetName, count(BUYER, BOOK('steel')), out.treasury]);
+ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
+check('without the gold it is refused, nothing paid', /costs 300 gold, and you do not have it/.test(lastWidget(BUYER).targetName) && count(BUYER, BOOK('nordic')) === 0 && out.treasury.length === 2, [lastWidget(BUYER).targetName, count(BUYER, BOOK('nordic')), out.treasury]);
 activate(SMITH_LEDGER, BUYER);
 check('the rows say what is more than you carry', lastWidget(BUYER).actions.every((x) => /more than you carry/.test(x.label)));
 gold(BUYER, 5000); at(BUYER, BRUMA, [0, 0, 0]);
-ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
+ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
 check('walking away closes the ledger, nothing sold', count(BUYER, GOLD) === 5000 && out.said.some(([a, t]) => a === BUYER && /walked away from the blacksmith's ledger/.test(t)));
 
 // A faction's hall: the owner's share to the faction's treasury, the title names it
 at(BUYER, HALLCELL, [0, 0, 0]); out.treasury.length = 0;
 activate(HALL_LEDGER, BUYER);
 check('a ledger in a faction hall is titled by the faction', lastWidget(BUYER).targetName === 'Fighters Guild: schematics for sale', lastWidget(BUYER).targetName);
-ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
+ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
 check('...its owner\'s share (225) goes to the faction\'s treasury, the tax to Bruma', out.faction.length === 1 && out.faction[0][0] === 'fighters-guild' && out.faction[0][1] === 225 && out.treasury.length === 1 && out.treasury[0][1] === 45 && bank(LEADER) === 0, [out.faction, out.treasury]);
 
 // Nobody's building: the owner's share to the hold
 at(BUYER, SHOPCELL, [0, 0, 0]); out.treasury.length = 0; holdTax = 0.1;
-activate(LOOSE_LEDGER, BUYER); ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
+activate(LOOSE_LEDGER, BUYER); ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
 check('a building nobody owns pays tax (30) and the owner\'s share (240) to the hold, 30 sunk', out.treasury.map((x) => x[1]).join() === '30,240' && /nobody owns the building/.test(lastAudit(/LEDGERSALE/)), [out.treasury, lastAudit(/LEDGERSALE/)]);
 
 // Without ledgersale.js the ledger sells nothing, rather than letting the gold vanish
 const keep = globalThis.__dboLedgerSale; globalThis.__dboLedgerSale = null;
 activate(LOOSE_LEDGER, BUYER);
 check('without the payout the ledger has nothing for sale', lastWidget(BUYER).actions.length === 0 && /nothing for sale/.test(lastWidget(BUYER).targetName));
-check('...and a buy is refused', globalThis.__dboManualsSmithBuy(BUYER, BOOK('steel'), LOOSE_LEDGER).ok === false);
+check('...and a buy is refused', globalThis.__dboManualsSmithBuy(BUYER, BOOK('nordic'), LOOSE_LEDGER).ok === false);
 globalThis.__dboLedgerSale = keep;
 const cfgOff = JSON.parse(JSON.stringify(CONFIG.manuals)); cfgOff.smithShop.enabled = false;
 api.cfg = Object.assign({}, cfg, { manuals: cfgOff }); load();
@@ -217,7 +224,7 @@ check('...audited with the split', /SPELL P18 bought tome 7232e:BSHeartland.esm 
 put(DOOR('d001'), 'private.housing', { owner: 2, ownerName: 'Smith A', partner: DOOR('d002') });
 globalThis.__dboHallFactionAt = ((orig) => (cell) => (String(cell).toLowerCase() === FORGE.toLowerCase() ? { id: 'college-of-whispers', name: 'College of Whispers' } : orig(cell)))(globalThis.__dboHallFactionAt);
 gold(BUYER, 1000); at(BUYER, FORGE, [0, 0, 0]); out.faction.length = 0; const bankBefore = bank(SMITH_A);
-activate(SMITH_LEDGER, BUYER); ui('salvageChoose', BUYER, [`sb:${BOOK('steel')}`]);
+activate(SMITH_LEDGER, BUYER); ui('salvageChoose', BUYER, [`sb:${BOOK('nordic')}`]);
 check('a ledger in a faction\'s hall pays that faction even where an account holds the claim', out.faction.length === 1 && out.faction[0][0] === 'college-of-whispers' && out.faction[0][1] === 225 && bank(SMITH_A) === bankBefore, [out.faction, bank(SMITH_A)]);
 at(MAGE, BRUMA, [0, 0, 0]); at(SCHOLARS_LEDGER, BRUMA, [50, 0, 0]);
 activate(SCHOLARS_LEDGER, MAGE);

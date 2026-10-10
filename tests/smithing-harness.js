@@ -169,7 +169,8 @@ ok(shop.includes(BOOK_STEEL) && !shop.includes(BOOK_GLASS) && !shop.includes(BOO
 ok(!(cmds.get('manual') && false) && globalThis.__dboTechniqueDrop('boss', 'nightmare') === null && globalThis.__dboManualsBossLoot('nightmare', '') === null, 'no drop without a rule (off until the books exist and rates are set)');
 load(Object.assign({}, ON, { drops: { goblinCamp: { chance: 1, families: ['steel', 'DRAGON'] } } }));
 const d = globalThis.__dboTechniqueDrop('goblinCamp');
-ok(d && d.id === 'b0001:Skyrim.esm', 'a drop rule hands out a listed book, never the staff-only one', d);
+ok(d && d.id === 'b0001:Skyrim.esm', 'a drop rule hands out a listed book, never Dragon (noLoot: dragon materials only from dragons; found only by reading)', d);
+{ let dragon = 0; for (let i = 0; i < 200; i++) { const x = globalThis.__dboTechniqueDrop('goblinCamp'); if (!x || x.id !== 'b0001:Skyrim.esm') dragon++; } ok(dragon === 0, '...in 200 rolls', dragon); }
 
 // Ancient Imperial (Nate, 9 Oct): its own T2 family with a book, split from the Legion's "imperial"
 load(ON); smith(A, 20); props.set(`${A}|private.dboManuals`, {}); props.set(`${SUP}|private.dboManuals`, {});
@@ -258,7 +259,10 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   const real = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).smithing.drops;
   const fams = (r) => [].concat(...[].concat(...Object.values(r || {}).map((x) => (Array.isArray(x) ? x : x && x.families ? [x] : Object.values(x || {}))).map((x) => (Array.isArray(x) ? x : [x]))).map((x) => (x && x.families) || []));
   const all = new Set(fams(real));
-  ok(['fort', 'nordRuin', 'dwemerRuin', 'falmerRuin', 'ayleidRuin', 'boss'].every((k) => real[k]) && !['DRAGON', 'madness', 'DAEDRIC', 'EBONY', 'glass', 'mithril', 'glacial_crystal', 'aetherium', 'artifact', 'orcish', 'stalhrim', 'chitin', 'bonemold', 'steel', 'goblin'].some((f) => all.has(f)), 'the live drop table covers every place and never drops a reading-only, staff, Orc-only, Dunmer or free technique (11 Oct)', [...all]);
+  ok(['fort', 'nordRuin', 'dwemerRuin', 'falmerRuin', 'ayleidRuin', 'boss'].every((k) => real[k]) && !['DRAGON', 'madness', 'DAEDRIC', 'EBONY', 'glacial_crystal', 'aetherium', 'artifact', 'orcish', 'stalhrim', 'chitin', 'bonemold', 'steel', 'goblin'].some((f) => all.has(f)), 'the live drop table covers every place and never drops a reading-only, staff, Orc-only, Dunmer or free technique (11 Oct)', [...all]);
+  const nm = real.boss.nightmare, walk = (v) => (Array.isArray(v) ? [].concat(...v.map(walk)) : v && typeof v === 'object' ? (Array.isArray(v.families) ? v.families : [].concat(...Object.values(v).map(walk))) : []);
+  const glassAt = Object.entries(real).filter(([k, v]) => k !== '_comment' && walk(v).some((f) => f === 'glass' || f === 'mithril')).map(([k]) => k);
+  ok(Array.isArray(nm) && nm.some((r) => r.chance === 0.01 && r.families.join() === 'glass,mithril') && glassAt.join() === 'boss' && !walk(real.boss.hard).includes('glass'), 'Glass and Mithril: 1% in Master boss chests only (Nate, 10 Oct)', [nm, glassAt]);
   load(ON);
 }
 

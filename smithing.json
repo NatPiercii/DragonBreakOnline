@@ -1,5 +1,5 @@
 {
- "_comment": "Smithing rework (Nate, 9 Oct; ~/claude-nate-release/specs/smithing-rework-1009.md): the Blacksmith's 7 craft tiers and the families each one opens, read by smithing.js and manuals.js. id is the family key of loot-materials.json (an item's family comes from there). A family above T1 needs its technique (a manual, private.dboManuals); free: none needed (the tier gate only); technique: <id> = worked with that family's technique; factionExempt: its faction gear (faction-gear.json) is left to the faction rule. book: 'staff' = never shop or loot (given in roleplay); 'apprentice' = no book, learned only by apprenticeship (supervisorRace). held: closely held (Nate, 11 Oct): never taught by apprenticeship nor copied by a Scholar, so each smith who works it found or bought the book. Most techniques are found by reading (config smithing.discovery). where: the learnHint shown in the F3 Blacksmith tab. bookId: the family's BOOK record (the PC's DBO_Schematics_<family> in DragonBreak Online Edits, 9 Oct); config smithing.books { <id>: '<hex>:<plugin>' } overrides it.py classifies them.",
+ "_comment": "Smithing rework (Nate, 9 Oct; ~/claude-nate-release/specs/smithing-rework-1009.md): the Blacksmith's 7 craft tiers and the families each one opens, read by smithing.js and manuals.js. id is the family key of loot-materials.json (an item's family comes from there). A family above T1 needs its technique (a manual, private.dboManuals); free: none needed (the tier gate only); technique: <id> = worked with that family's technique; factionExempt: its faction gear (faction-gear.json) is left to the faction rule. book: 'staff' = never shop or loot (given in roleplay); 'apprentice' = no book, learned only by apprenticeship (supervisorRace). noLoot: never in a chest, whatever a drop rule lists (found only by reading; dragon materials only from dragons, Nate 30 Sep). held: closely held (Nate, 11 Oct): never taught by apprenticeship nor copied by a Scholar, so each smith who works it found or bought the book. Most techniques are found by reading (config smithing.discovery). where: the learnHint shown in the F3 Blacksmith tab. bookId: the family's BOOK record (the PC's DBO_Schematics_<family> in DragonBreak Online Edits, 9 Oct); config smithing.books { <id>: '<hex>:<plugin>' } overrides it.py classifies them.",
  "tierNames": ["Basic", "Standard", "Advanced", "Superior", "Rare", "Legendary", "Mythic"],
  "families": [
   { "id": "wood", "name": "Wood", "tier": 1 },
@@ -28,20 +28,20 @@
   { "id": "dwarven", "name": "Dwarven", "tier": 4, "where": "found in Dwemer ruins", "bookId": "192e51:DragonBreak Online Edits.esp" },
   { "id": "elven", "name": "Elven", "tier": 4, "where": "a rare find when reading, or in boss chests; it teaches Gilded Elven too", "bookId": "192e52:DragonBreak Online Edits.esp" },
   { "id": "falmer_honed", "name": "Honed Falmer", "tier": 4, "where": "found in Falmer hives (Adept and harder)", "bookId": "192e53:DragonBreak Online Edits.esp" },
-  { "id": "mithril", "name": "Mithril", "tier": 4, "held": true, "where": "a very rare find when reading", "bookId": "192e54:DragonBreak Online Edits.esp" },
-  { "id": "glass", "name": "Glass", "tier": 5, "held": true, "where": "a very rare find when reading", "bookId": "192e55:DragonBreak Online Edits.esp" },
+  { "id": "mithril", "name": "Mithril", "tier": 4, "held": true, "where": "a very rare find when reading, or in Master boss chests", "bookId": "192e54:DragonBreak Online Edits.esp" },
+  { "id": "glass", "name": "Glass", "tier": 5, "held": true, "where": "a very rare find when reading, or in Master boss chests", "bookId": "192e55:DragonBreak Online Edits.esp" },
   { "id": "steelplate", "name": "Steel Plate", "tier": 5, "where": "a rare find when reading, or in boss chests", "bookId": "192e58:DragonBreak Online Edits.esp" },
   { "id": "elven_gilded", "name": "Gilded Elven", "tier": 5, "technique": "elven", "bookId": "192e59:DragonBreak Online Edits.esp" },
   { "id": "ayleid", "name": "Ayleid", "tier": 5, "held": true, "where": "learned by reading in Ayleid ruins, or found very rarely in their chests", "bookId": "192e5a:DragonBreak Online Edits.esp" },
   { "id": "adamantium", "name": "Adamantium", "tier": 5, "technique": "steelplate" },
-  { "id": "glacial_crystal", "name": "Glacial Crystal", "tier": 5, "held": true, "where": "an exceptionally rare find when reading", "bookId": "192e56:DragonBreak Online Edits.esp" },
+  { "id": "glacial_crystal", "name": "Glacial Crystal", "tier": 5, "held": true, "noLoot": true, "where": "an exceptionally rare find when reading", "bookId": "192e56:DragonBreak Online Edits.esp" },
   { "id": "amber", "name": "Amber", "tier": 5, "where": "a Valenwood craft: apprentice under a Blacksmith who knows it", "bookId": "192e57:DragonBreak Online Edits.esp" },
-  { "id": "EBONY", "name": "Ebony", "tier": 6, "held": true, "where": "an extremely rare find, and only for a Master Scholar's reading", "bookId": "192e5b:DragonBreak Online Edits.esp" },
-  { "id": "stalhrim", "name": "Stalhrim", "tier": 6, "held": true, "where": "an extremely rare find, and only for a Master Scholar's reading: the Skaal keep it close", "bookId": "192e5c:DragonBreak Online Edits.esp" },
-  { "id": "DAEDRIC", "name": "Daedric", "tier": 7, "held": true, "where": "the rarest find of all when reading", "bookId": "192e5e:DragonBreak Online Edits.esp" },
-  { "id": "madness", "name": "Madness", "tier": 7, "held": true, "where": "the rarest find of all when reading", "bookId": "192e5d:DragonBreak Online Edits.esp" },
+  { "id": "EBONY", "name": "Ebony", "tier": 6, "held": true, "noLoot": true, "where": "an extremely rare find, and only for a Master Scholar's reading", "bookId": "192e5b:DragonBreak Online Edits.esp" },
+  { "id": "stalhrim", "name": "Stalhrim", "tier": 6, "held": true, "noLoot": true, "where": "an extremely rare find, and only for a Master Scholar's reading: the Skaal keep it close", "bookId": "192e5c:DragonBreak Online Edits.esp" },
+  { "id": "DAEDRIC", "name": "Daedric", "tier": 7, "held": true, "noLoot": true, "where": "the rarest find of all when reading", "bookId": "192e5e:DragonBreak Online Edits.esp" },
+  { "id": "madness", "name": "Madness", "tier": 7, "held": true, "noLoot": true, "where": "the rarest find of all when reading", "bookId": "192e5d:DragonBreak Online Edits.esp" },
   { "id": "aetherium", "name": "Aetherium", "tier": 7, "book": "staff", "where": "taught only in roleplay" },
   { "id": "artifact", "name": "Artifacts", "tier": 7, "book": "staff", "where": "taught only in roleplay" },
-  { "id": "DRAGON", "name": "Dragonbone and Dragonscale", "tier": 7, "held": true, "where": "the rarest find of all when reading", "bookId": "192e5f:DragonBreak Online Edits.esp" }
+  { "id": "DRAGON", "name": "Dragonbone and Dragonscale", "tier": 7, "held": true, "noLoot": true, "where": "the rarest find of all when reading", "bookId": "192e5f:DragonBreak Online Edits.esp" }
  ]
 }
