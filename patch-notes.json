@@ -1,5 +1,116 @@
 [
   {
+    "title": "Smithing rework",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Feature",
+    "sections": [
+      {
+        "heading": "Blacksmith",
+        "items": [
+          "Blacksmiths now have 7 craft tiers, from Basic (wood, hide, leather, iron) to Mythic (Dragon, Daedric, Madness). Your tier grows with your Blacksmith skill.",
+          "Each material family above the basics is a technique you learn: read its Schematics book, or learn it as an apprentice by forging 10 pieces next to a Blacksmith of 75 or more who knows it.",
+          "Orcish smithing is taught only by an Orc Blacksmith. Dragon and Madness techniques come from staff only.",
+          "Schematics books: Scholars read them; the Synod sells the common ones, and rare ones turn up in ruins, forts, goblin camps and boss chests.",
+          "Improving gear at the workbench or grindstone is capped: up to two tiers above the item's own, never past tier 5, and only as far as your own craft tier.",
+          "Your Blacksmithing page in the F3 journal shows your tier, what you know and where to learn the rest (with client 0.3.90)."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Hundreds of new recipes",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Feature",
+    "sections": [
+      {
+        "heading": "Crafting",
+        "items": [
+          "About 580 weapons and armour pieces that could not be made before now have forge recipes.",
+          "New metal sets: Bronze, Copper, Brass, Adamantium and Mithril.",
+          "Leftover materials have a use: Tin and Copper make Bronze, Dwemer scrap smelts to Dwarven metal, exotic hides tan to leather, salt rock gives salt.",
+          "Quicksilver veins in Frostiron Mine and Adamantium veins in Gutted Mine; Jade turns up in loot; every troll drops its skull.",
+          "Backpacks, satchels and pouches can be made at the loom (Lore-friendly accessories by Everglaid).",
+          "Butter churns give Butter and the milk jugs in Bruma's farmhouses give milk."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Sancre Tor fights back",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Sancre Tor",
+        "items": [
+          "Sancre Tor's ruins have a navmesh now, so the undead chase you instead of standing still."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Smoother dungeons and fewer freezes",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Performance",
+        "items": [
+          "163 dungeon lights in the 14 heaviest dungeons no longer cast shadows, for better frame rates.",
+          "Your game no longer runs enemies that are dead or far away.",
+          "Several server freezes of up to 5 seconds are gone."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Two Imperial bodies",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Feature",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "The Imperial Civil Commission: Civil Commissioner, Praetor, Magistrate, Agent-Inspector and Clerk.",
+          "The Penitus Oculatus: Commander, Inspector, Agent and Recruit. The Emperor's own eyes; they answer to him alone."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Maormer",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Feature",
+    "sections": [
+      {
+        "heading": "Character creation",
+        "items": [
+          "The Maormer are their own race now, with pale, blue-grey skin and a little shorter than the Altmer (with client 0.3.90)."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Blessings explained",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Prayer",
+        "items": [
+          "When a god answers your prayer, the message now says what the blessing does."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Better spell tome finds",
     "date": "2026-10-10",
     "version": "Server update",
