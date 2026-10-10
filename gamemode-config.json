@@ -1150,5 +1150,5 @@
     ]
    }
   },
- "smithing": { "_comment": "Nate, 10 Oct: smithing rework held OFF after the 10 Oct plugin rollback (no schematics books in the live plugins); back on with them (craft tiers, techniques, upgrade caps; smithing.json). false turns it all off.", "enabled": false }
+ "smithing": { "_comment": "Nate, 10 Oct: smithing rework ON at launch (craft tiers, techniques, upgrade caps; smithing.json). false turns it all off.", "enabled": true }
 }
