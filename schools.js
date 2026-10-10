@@ -199,6 +199,8 @@ module.exports = (api) => {
     }
     return { level: lv, xp: lv >= 100 ? 0 : Math.round(x * 100) / 100, gained };
   };
+  // Units of work from nothing to `level`, as skillPoints.ts unitsForLevel
+  const unitsForLevel = (level) => { let u = 0; for (let l = 0; l < Math.max(0, Math.min(level, 100)); l++) u += 100 / xpPerUnitAt(l); return u; };
   const FLOORS = [1, 25, 50, 75, 90];
   const rankOfLevel = (level) => { if (!(level >= 1)) return -1; let r = 0; for (let i = 0; i < FLOORS.length; i++) if (level >= FLOORS[i]) r = i; return r; };
 
@@ -1138,14 +1140,30 @@ module.exports = (api) => {
   // ---- Priest Studies ------------------------------------------------------------------------------------------------
   // Study Magic's sittings, windows and limits under C.priestStudy, paying Priest through the Wheel; the same panel
   const PS = C.priestStudy;
-  S.priestStudying = S.priestStudying instanceof Map ? S.priestStudying : new Map(); // actor -> { ref, at, pos, cell, lastTick, lastWheel, gained }
+  // actor -> { ref, at, pos, cell, lastTick, lastWheel, gained (study time, in tick units), priestFrom (Priest's units at the start) }
+  S.priestStudying = S.priestStudying instanceof Map ? S.priestStudying : new Map();
   const priestNonces = S.priestNonces instanceof Map ? S.priestNonces : (S.priestNonces = new Map());
   const priestAt = S.priestAt instanceof Map ? S.priestAt : (S.priestAt = new Map()); // actor -> the study ref of the open panel
+  // `units`: Priest's work on the Wheel's curve, its levels and the xp inside the next one, or what masterySystem has banked
+  // (shadow) while Priest is not taken up yet
   const priestOf = (a) => {
     const r = get(a, 'private.mastery', null);
     const p = r && r.skills && r.skills[PS.skill];
     const held = !!(r && Array.isArray(r.order) && r.order.includes(PS.skill));
-    return { held, level: p ? Math.max(0, Number(p.level) || 0) : 0, rank: p ? Math.max(0, Number(p.rank) || 0) : 0 };
+    const level = p ? Math.max(0, Math.min(100, Number(p.level) || 0)) : 0;
+    const xp = p && level >= 1 && level < 100 ? Math.max(0, Math.min(99.99, Number(p.xp) || 0)) : 0;
+    const units = level >= 1 ? unitsForLevel(level) + xp / xpPerUnitAt(level) : Math.max(0, Number(p && p.shadow) || 0);
+    return { held, level, xp, units, rank: p ? Math.max(0, Number(p.rank) || 0) : 0 };
+  };
+  // What the sitting has paid Priest so far. Priest Studies has no meter of its own: Priest is paid only by the Wheel's cast
+  // credit once a minute (wheel() below), so the clock's tick units are not Priest's. The panel showed them as "This
+  // sitting: N units of study" (120 for a full sitting, against about 6.5 Priest units at Novice), and players read that as
+  // Priest XP that never arrived (#bugs 1556715483414405242, 5 Oct; launcher report 1557281429686194216, 7 Oct). The credit
+  // lands when masterySystem drains its queue, so the panel shows it at its next redraw. A sitting from before this reload
+  // has no starting mark and counts from now.
+  const priestPaid = (a, ses, pr = priestOf(a)) => {
+    if (!Number.isFinite(ses.priestFrom)) ses.priestFrom = pr.units;
+    return Math.round(Math.max(0, pr.units - ses.priestFrom) * 10) / 10;
   };
   // A Restoration spell studied through Priest: the race's own Healing is no study
   const firstPriestSpell = (a) => bookOf(a).find((sp) => sp && sp.school === PS.school && sp.book === PS.skill) || null;
@@ -1167,13 +1185,15 @@ module.exports = (api) => {
     const ses = S.priestStudying.get(a >>> 0);
     const b = studyBudget(s, PS, 'priestStudy');
     const pr = priestOf(a);
+    // The level with the tenths of it Priest has made (never rounded up into the next), so a sitting moves it visibly
+    const shown = pr.level + pr.xp / 100;
     openWidget(a, {
       type: 'studyMagic', id: PRIEST_PANEL_ID, nonce, title: 'Priest Studies',
       mode: ses ? 'studying' : 'idle',
-      school: 'Priest', level: pr.level, rank: pr.held ? RANKS[Math.min(RANKS.length - 1, pr.rank)] : 'Not yet taken up',
-      fill: Math.max(0, Math.min(1, pr.level / 100)),
+      school: 'Priest', level: Math.floor(shown * 10) / 10, rank: pr.held ? RANKS[Math.min(RANKS.length - 1, pr.rank)] : 'Not yet taken up',
+      fill: Math.max(0, Math.min(1, shown / 100)),
       leftSeconds: Math.round(Math.max(0, b.leftMs - (ses ? ses.lastTick - ses.at : 0)) / 1000), tickSeconds: PS.tickSeconds,
-      gained: ses ? Math.round(ses.gained * 10) / 10 : 0,
+      gained: ses ? priestPaid(a, ses, pr) : 0,
       whyNot: priestRefusal(a, s),
       choices: [],
       result: result || '', resultKind: resultKind || '',
@@ -1184,7 +1204,7 @@ module.exports = (api) => {
     const s = stateOf(a);
     const why = priestRefusal(a, s);
     if (why) return openPriest(a, ref, why, 'refused');
-    S.priestStudying.set(a >>> 0, { ref, at: Date.now(), pos: posOf(a), cell: String(get(a, 'worldOrCellDesc', '')), lastTick: Date.now(), lastWheel: Date.now(), gained: 0 });
+    S.priestStudying.set(a >>> 0, { ref, at: Date.now(), pos: posOf(a), cell: String(get(a, 'worldOrCellDesc', '')), lastTick: Date.now(), lastWheel: Date.now(), gained: 0, priestFrom: priestOf(a).units });
     anim(a, PS.anim);
     audit(`SCHOOLS ${who(a)} began Priest Studies at ${descOf(ref)}`);
     openPriest(a, ref, `You open the books on ${PS.school}.`, 'ok');
@@ -1197,13 +1217,16 @@ module.exports = (api) => {
     const s = stateOf(a);
     s.priestStudy = { log: studyLog(s, PS, 'priestStudy').concat(ses.lastTick > ses.at ? [[ses.at, ses.lastTick]] : []) };
     save(a, s);
-    audit(`SCHOOLS ${who(a)} stopped Priest Studies (${why}): ${Math.round(ses.gained * 10) / 10} units`);
+    // Study time in tick units as before, then what Priest was paid (a credit from this very tick is not drained yet)
+    audit(`SCHOOLS ${who(a)} stopped Priest Studies (${why}): ${Math.round(ses.gained * 10) / 10} units, Priest +${priestPaid(a, ses)} units`);
     if (why !== 'offline' && why !== 'closed') personal(a, why === 'budget' ? `You've done enough studying for the day. Come back in ${inWords(studyBudget(s, PS, 'priestStudy').resetsIn || windowMs(PS))}.` : 'You close the books.');
   };
   const priestTick = () => {
     const now = Date.now();
     for (const [a, ses] of [...S.priestStudying.entries()]) {
       if (!online(a)) { stopPriest(a, 'offline'); continue; }
+      // A sitting from before this reload: Priest's pay counts from here
+      if (!Number.isFinite(ses.priestFrom)) priestPaid(a, ses);
       const p = posOf(a);
       const moved = !p || !ses.pos || Math.hypot(p[0] - ses.pos[0], p[1] - ses.pos[1], p[2] - ses.pos[2]) / 70 > PS.moveLimitMeters;
       if (moved || String(get(a, 'worldOrCellDesc', '')) !== ses.cell) { stopPriest(a, 'moved'); closeWidget(a, PRIEST_PANEL_ID); continue; }

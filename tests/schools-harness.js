@@ -568,7 +568,9 @@ check('/schools reset clears them to choose again', !rec(ILLUSIONIST).primary &&
   const mine = wheelEvents.slice(before).filter((e) => e.a === ACOLYTE);
   check('a minute of Priest Studies credits the Wheel once, as a cast of Healing (Restoration: Priest by skills.json)', mine.length === 1 && mine[0].kind === 'cast' && mine[0].detail.spellId === HEAL, mine);
   check('...and no school meter: Restoration is not one of the four', Object.keys(rec(ACOLYTE).levels).length === 0, rec(ACOLYTE).levels);
-  check('the tick redraws the panel in place without focus', lastSent(ACOLYTE, 'studyMagic').focus === false && ps(ACOLYTE).mode === 'studying' && ps(ACOLYTE).gained === 6, ps(ACOLYTE));
+  // "This sitting" is what Priest was paid, not the six tick units: this harness's Wheel records the credit and pays
+  // nothing, so it says 0 (tests/priest-study-units-harness.js pays it and checks the number)
+  check('the tick redraws the panel in place without focus', lastSent(ACOLYTE, 'studyMagic').focus === false && ps(ACOLYTE).mode === 'studying' && ps(ACOLYTE).gained === 0 && globalThis.__dboSchoolsState.priestStudying.get(ACOLYTE).gained === 6, ps(ACOLYTE));
   // A hot reload mid-sitting keeps it
   load();
   check('a hot reload keeps the sitting and its timer', sitting(ACOLYTE) && timers.has('schools.tick'));
