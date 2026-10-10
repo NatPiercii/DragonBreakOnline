@@ -217,6 +217,10 @@ module.exports = (api) => {
       mp.set(a, 'private.beast', null);
     } catch (e) { log(`beastform: revert failed on ${display(a)}: ${e.message}`); return false; }
     sendPacket(a, { customPacketType: 'dboBeast', race: Number(s.original.raceId) >>> 0, beast: false, form: s.form, wear: [] });
+    // A revert at a death or a down reaches the player's own game while it lies in bleed-out, and the race change does not
+    // hold there: GroundedPasta (#7DJT, 10 Oct 21:24Z) woke at the temple still a wolf to himself, a mortal to everyone else.
+    // Sent again once they are up (the beastForms tick)
+    if (why === 'death') resendAfterDeath().set(a >>> 0, { race: Number(s.original.raceId) >>> 0, form: s.form, at: Date.now() });
     ST.ethereal.delete(a);
     for (const id of WEAR[s.form] || []) setCount(a, id, 0);
     learn(a, s.form, false);
@@ -323,11 +327,30 @@ module.exports = (api) => {
   globalThis.__dboBeastTransform = (a, key, forced) => transform(Number(a) >>> 0, key, forced);
   globalThis.__dboBeastOriginalRace = (a) => { const s = stateOf(Number(a) >>> 0); return s ? Number(s.original.raceId) >>> 0 : 0; };
 
+  // actor -> { race, form, at }: a revert at a death or a down, to send again once the player is up and alive
+  const resendAfterDeath = () => { if (!(ST.deathResend instanceof Map)) ST.deathResend = new Map(); return ST.deathResend; };
+  const RESEND_AFTER_MS = 2000, RESEND_GIVE_UP_MS = 15 * 60000;
+  const resendTick = (online, now = Date.now()) => {
+    const m = resendAfterDeath();
+    for (const [a, r] of m) {
+      if (!online.has(a) || now - r.at > RESEND_GIVE_UP_MS || stateOf(a)) { m.delete(a); continue; }   // gone, stale, or a beast again
+      let down = false; try { down = !!mp.get(a, 'isDead'); } catch (e) { m.delete(a); continue; }
+      if (down || now - r.at < RESEND_AFTER_MS) continue;
+      m.delete(a);
+      try { sendPacket(a, { customPacketType: 'dboBeast', race: r.race, beast: false, form: r.form, wear: [] }); } catch (e) { log('beastform: resend failed', e.message); continue; }
+      setTimeout(() => { try { if (!stateOf(a)) redress(a); } catch (e) { log('beastform re-dress failed', e.message); } }, 1500);
+      log(`beastform: ${display(a)} is up again after a death in ${FORMS[r.form] ? FORMS[r.form].name : r.form}: own race sent again`);
+    }
+  };
+  globalThis.__dboBeastResendTick = resendTick;
+
   every('beastForms', 1000, () => {
-    for (const a of api.onlineActors()) {
+    const online = new Set(api.onlineActors().map((x) => x >>> 0));
+    for (const a of online) {
       const s = stateOf(a);
       if (s && s.until && Date.now() >= s.until) revert(a, 'time up');
     }
+    try { resendTick(online); } catch (e) { log('beastform: resend tick failed', e.message); }
     watchBeasts();
     sendBeastBodies();
   });
