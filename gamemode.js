@@ -682,7 +682,7 @@ const STAFF_HELP = [
     ['officials', '[zone]: who holds which rank where'],
     ['property', 'at a door, as an official: list <deposit> <weekly> | unlist | offer <name> | remind | grace | evict']] },
   { key: 'beasts', title: 'Beasts and the supernatural', items: ['beastform', 'curse', 'vlremote', 'wwremote', 'feedpair', 'raid', 'warband'] },
-  { key: 'magic', title: 'Magic and crafts', items: ['schools', 'classteacher', 'preacher', 'manual'] },
+  { key: 'magic', title: 'Magic and crafts', items: ['schools', 'classteacher', 'preacher', 'manual', 'smithing'] },
   { key: 'law', title: 'Law', items: ['jail'] },
   { key: 'world', title: 'World', items: ['settime', 'setweather', 'timescale', 'region', ['dungeon end', '<dungeon id|name>: end a dungeon claim now'],
     'placed', 'placeundo', 'placeexport', 'masktest'] },

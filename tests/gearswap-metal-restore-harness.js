@@ -35,19 +35,20 @@ const P = JSON.parse(fs.readFileSync(out, 'utf8'));
 const sel = P.characters.find((c) => c.tag === 'PXVM');
 // Dwarven metal ingots came off the swap's list too (Nate, 4 Oct: "Keep them (crafted, like mined ores)"): given back as well
 const grimbo = P.characters.find((c) => c.tag === 'SB5X');
-check('the plan takes the kept metals only (moonstone, quicksilver, malachite and their ores, and Dwarven ingots), never Adamantium or gear', P.counts.lines === 5 && sel && sel.items.length === 3
-  && grimbo && grimbo.items.length === 1 && grimbo.items[0].fromEdid === 'IngotDwarven' && grimbo.items[0].count === 2 && !JSON.stringify(P).match(/BSKIngotAdamantium|GlassSword/), P.counts);
+// Adamantium is mined since 9 Oct (the Gutted Mine; loottiers LOOT_ONLY_METALS), so a swap of it is given back too
+check('the plan takes the kept metals only (moonstone, quicksilver, malachite and their ores, Dwarven ingots, and Adamantium since it is mined), never gear', P.counts.lines === 6 && sel && sel.items.length === 3
+  && grimbo && grimbo.items.length === 1 && grimbo.items[0].fromEdid === 'IngotDwarven' && grimbo.items[0].count === 2 && !JSON.stringify(P).match(/GlassSword/) && P.counts.byMetal.BSKIngotAdamantium === 12, P.counts);
 check('...from 02:45:57Z by default (the second pass): an earlier line is counted, not planned', P.counts.earlierLines === 1 && !P.characters.some((c) => c.tag === 'AAAA'));
-check('...characters by profile and tag, containers by ref', sel.profileId === 38 && P.containers.length === 1 && P.containers[0].ref === '800284a' && P.containers[0].items[0].count === 7);
+check('...characters by profile and tag, containers by ref', sel.profileId === 38 && P.containers.length === 1 && P.containers[0].ref === '800284a' && P.containers[0].items[0].count === 7 && P.containers[0].items[1].count === 12);
 check('...an identical line twice in a log counts once', sel.items.filter((i) => i.fromEdid === 'OreMoonstone').length === 1);
 check('...each item names the original and the replacement as the server spells them', sel.items.every((i) => i.kind === 'metal' && /:Skyrim\.esm$/.test(i.from) && /:Skyrim\.esm$/.test(i.to)), sel.items);
-check('...and the run says what it wrote', /5 swap line\(s\) of a mined metal/.test(said), said);
+check('...and the run says what it wrote', /6 swap line\(s\) of a mined metal/.test(said), said);
 
 // ---- 2. the runtime ----
 const PLUG = { 0: 'Skyrim.esm', 7: 'BSAssets.esm' };
 const descOf = (id) => `${((id >>> 0) & 0xffffff).toString(16)}:${PLUG[(id >>> 0) >>> 24] || 'X.esp'}`;
 const idOf = (desc) => { const m = /^([0-9a-f]+):(.+)$/i.exec(String(desc)); if (!m) return 0; const top = Object.keys(PLUG).find((k) => PLUG[k].toLowerCase() === m[2].toLowerCase()); return top === undefined ? 0 : ((Number(top) << 24) | parseInt(m[1], 16)) >>> 0; };
-const ID = { IngotSteel: 0x5ace5, IngotMalachite: 0x5ada1, IngotQuicksilver: 0x5ada0, OreMoonstone: 0x5ace0, OreIron: 0x71cf3, IronSword: 0x12eb7 };
+const ID = { BSKIngotAdamantium: 0x07602099, IngotSteel: 0x5ace5, IngotMalachite: 0x5ada1, IngotQuicksilver: 0x5ada0, OreMoonstone: 0x5ace0, OreIron: 0x71cf3, IronSword: 0x12eb7 };
 const SEL = 0xff000303, CH = 0x0800284a, MINER = 0x0800f003;
 const store = {
   [SEL]: { profileId: 38, 'private.charTag': 'PXVM', inventory: { entries: [{ baseId: ID.IngotSteel, count: 4 }, { baseId: ID.IngotSteel, count: 2, health: 1.1 }, { baseId: ID.OreIron, count: 5 }, { baseId: ID.IronSword, count: 1 }] }, equipment: { inv: { entries: [] } } },
@@ -75,9 +76,9 @@ const before = JSON.stringify(store[SEL].inventory.entries);
 globalThis.__dboGearSwapLogin(SEL);
 check('once only: the next login gives nothing more', JSON.stringify(store[SEL].inventory.entries) === before && store[SEL]['private.dboGearRestore'].done.length === 3);
 globalThis.__dboGearSwapContainer(CH);
-check('a container, when opened: 7 quicksilver back, 7 of its 9 steel taken', cnt(CH, ID.IngotQuicksilver) === 7 && cnt(CH, ID.IngotSteel) === 2, store[CH].inventory.entries);
+check('a container, when opened: 7 quicksilver and 12 Adamantium back, all 9 of its steel taken (no more is there)', cnt(CH, ID.IngotQuicksilver) === 7 && cnt(CH, ID.BSKIngotAdamantium) === 12 && cnt(CH, ID.IngotSteel) === 0, store[CH].inventory.entries);
 globalThis.__dboGearSwapContainer(CH);
-check('...once only (the container is marked)', cnt(CH, ID.IngotQuicksilver) === 7 && store[CH]['private.dboGearRestore'].done.length === 1);
+check('...once only (the container is marked)', cnt(CH, ID.IngotQuicksilver) === 7 && cnt(CH, ID.BSKIngotAdamantium) === 12 && store[CH]['private.dboGearRestore'].done.length === 2);
 check('...with an audit line', audits.some((t) => /^GEARRESTORE container 800284a: 7 x IngotQuicksilver back for 7 x IngotSteel/.test(t)), audits);
 globalThis.__dboGearSwapContainer(MINER);
 check('a miner\'s chest opened: moonstone ore, malachite and Dwarven ingots all stay as they are (the sweep; Dwarven kept since 4 Oct)',
