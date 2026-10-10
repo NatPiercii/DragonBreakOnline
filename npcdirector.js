@@ -73,7 +73,11 @@ module.exports = (api) => {
     log(`npcDirector ${text}`);
   };
 
-  const isDead = (npc) => { try { return mp.get(npc, 'isDead') === true; } catch (e) { return false; } };
+  // A form the server destroyed is not read (gamemode.js formExists)
+  const isDead = (npc) => {
+    if (typeof globalThis.__dboFormExists === 'function' && !globalThis.__dboFormExists(npc)) return false;
+    try { return mp.get(npc, 'isDead') === true; } catch (e) { return false; }
+  };
   // Server distance from a player to an NPC, Infinity when they are in different worlds or cells
   const apart = (p, npc) => {
     try {
