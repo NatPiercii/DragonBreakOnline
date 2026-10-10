@@ -47,6 +47,8 @@ const MEASURED = {
   peryite: ['DBO_BlessingOfPeryite', 0, 1, 0, [28800, 0]], vaermina: ['DBO_BlessingOfVaermina', 0, 1, 0, [28800, 0]],
   dragoncult: ['AltarTalosSpell', 0, 1, 0, [28800, 0]],
   riddlethar: ['DBO_BlessingOfVaermina', 0, 1, 0, [28800, 0]],
+  // Orgnum (11 Oct, PC session): Water Breathing and Resist Poison 25, both 8 hours
+  orgnum: ['DBO_BlessingOfOrgnum', 0, 1, 0, [28800, 28800]],
   trinimac: ['doomLordAbility', 4, 0, 0, [0, 0]], wormcult: ['doomApprenticeAbility', 4, 0, 0, [0]],
 };
 const CAST = Object.keys(MEASURED).filter((k) => MEASURED[k][1] === 0 && MEASURED[k][2] === 1);
@@ -151,11 +153,11 @@ load();
 
 // ---- 1. what each blessing is, read from its record --------------------------------------------------------------
 check('the measured table covers every blessing spell in skills.json',
-  SKILLS.deities.choices.filter((c) => /^[0-9a-f]+:/i.test(String(c.blessing))).every((c) => MEASURED[c.id]) && Object.keys(MEASURED).length === 26,
+  SKILLS.deities.choices.filter((c) => /^[0-9a-f]+:/i.test(String(c.blessing))).every((c) => MEASURED[c.id]) && Object.keys(MEASURED).length === 27,
   `${Object.keys(MEASURED).length} measured`);
 const boot = out.logs.find((l) => /^prayer on:/.test(l)) || '';
-check('the boot line counts 24 blessings cast on the worshipper, 2 learned and 7 kept by the server',
-  /26 resolved \(24 cast on the worshipper, 2 learned\), 7 server-side, 0 broken/.test(boot), boot.replace(/^.*blessings /, ''));
+check('the boot line counts 25 blessings cast on the worshipper, 2 learned and 7 kept by the server',
+  /27 resolved \(25 cast on the worshipper, 2 learned\), 7 server-side, 0 broken/.test(boot), boot.replace(/^.*blessings /, ''));
 
 // ---- 2. every blessing, granted for real -------------------------------------------------------------------------
 const rows = [];
@@ -170,9 +172,9 @@ for (const id of [...Object.keys(MEASURED), ...SERVER_HELD]) {
 }
 const row = (id) => rows.find((x) => x.id === id);
 const castRows = CAST.map(row);
-check('every Fire-and-Forget blessing (24, Riddle\'Thar\'s Night Eye among them) is cast on the worshipper by their own client',
-  castRows.length === 24 && castRows.every((x) => x.ok && x.sent === 1 && x.via === 'cast' && x.spellOk) && castRows.some((x) => x.id === 'riddlethar'),
-  castRows.filter((x) => !(x.ok && x.sent === 1 && x.via === 'cast')).map((x) => x.id).join(', ') || '24 of 24');
+check('every Fire-and-Forget blessing (25, Riddle\'Thar\'s Night Eye among them) is cast on the worshipper by their own client',
+  castRows.length === 25 && castRows.every((x) => x.ok && x.sent === 1 && x.via === 'cast' && x.spellOk) && castRows.some((x) => x.id === 'riddlethar'),
+  castRows.filter((x) => !(x.ok && x.sent === 1 && x.via === 'cast')).map((x) => x.id).join(', ') || '25 of 25');
 check('the packet is the one castSelfService reads: { customPacketType: dboCastSelf, spell }',
   castRows.every((x) => x.packet && x.packet.customPacketType === 'dboCastSelf' && x.packet.spell === spellOf(x.id) && Object.keys(x.packet).length === 2),
   JSON.stringify(row('akatosh').packet));

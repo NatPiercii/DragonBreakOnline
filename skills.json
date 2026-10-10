@@ -1823,6 +1823,7 @@
     "blessingChanceMult": 0.5,
     "blessingHoursMult": 0.5
    },
+   {"id": "orgnum", "name": "Orgnum", "kind": "faith", "shrines": ["192f51:DragonBreak Online Edits.esp"], "blessing": "192f50:DragonBreak Online Edits.esp", "blessingEditorId": "DBO_BlessingOfOrgnum", "note": "DBO_ShrineOfOrgnum (the vanilla Serpent Stone, scriptless) on the lake shore north-east of Bruma, ref 192F52, cell (19, 54). Built by the PC session 11 Oct from specs/maormer-faith.md.", "sphere": "The deathless Serpent King of Pyandonea, whom the Maormer hold to be the Serpent God of Satakal, the Tyrant God of the Sea.", "boon": "Breathe water, and resist poison 25%, while the blessing lasts - the serpents know their own.", "alsoKnownAs": ["The Serpent King", "Tyrant God of the Sea"], "blessingSource": "vanilla"},
    {
     "id": "wormcult",
     "name": "The Worm Cult",
