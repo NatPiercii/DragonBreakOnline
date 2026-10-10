@@ -4,6 +4,7 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { EffectShader, ObjectReference } from "skyrimPlatform";
 import { DEFAULT_SHADERS, Glow, GlowSet, readGlowPacket } from "./dboGlowPlan";
+import { remoteIdToLocalId } from "../../view/worldViewMisc";
 
 // Which shader lights what, and why the detect-life ones never showed on a chest: dboGlowPlan.ts
 const POLL_MS = 1000;
@@ -33,6 +34,12 @@ export class DboGlowService extends ClientListener {
     if (packet.clear) this.stopAll();   // anything still lit, wanted or not
   }
 
+  // A server-made form (a player or a spawned NPC, 0xff...) has a local copy under another id; a plugin ref keeps its own
+  private refOf(id: number): ObjectReference | null {
+    const local = id >= 0xff000000 ? remoteIdToLocalId(id) : id;
+    return local ? ObjectReference.from(this.sp.Game.getFormEx(local)) : null;
+  }
+
   private onUpdate(): void {
     const now = Date.now();
     if (now < this.nextPoll) return;
@@ -42,7 +49,7 @@ export class DboGlowService extends ClientListener {
       if (this.glowing.has(id)) return;
       const shader = this.shader(glow);
       if (!shader) return;
-      const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
+      const ref = this.refOf(id);
       if (!ref || ref.isDisabled() || ref.isDeleted() || !ref.is3DLoaded()) return;
       // A ref reloaded after an unload still carries the last play; stopping first keeps one shader, not a stack
       try { shader.stop(ref); } catch { /* none playing */ }
@@ -50,7 +57,7 @@ export class DboGlowService extends ClientListener {
     });
     // A ref that unloaded keeps its entry; play again when it comes back.
     for (const id of Array.from(this.glowing.keys())) {
-      const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
+      const ref = this.refOf(id);
       if (!ref || !ref.is3DLoaded()) this.glowing.delete(id);
     }
   }
@@ -60,7 +67,7 @@ export class DboGlowService extends ClientListener {
     if (glow === undefined) return;
     this.glowing.delete(id);
     const shader = this.shader(glow);   // the one it was started with
-    const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
+    const ref = this.refOf(id);
     if (shader && ref) { try { shader.stop(ref); } catch { /* gone */ } }
   }
 
