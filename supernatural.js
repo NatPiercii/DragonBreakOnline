@@ -183,7 +183,7 @@ module.exports = (api) => {
   // The DLE's MaormerRace and MaormerRaceVampire (config maormerRace), once both are RACE records: a pair like the rest
   const maormerRace = (() => {
     const M = cfg.maormerRace || {};
-    const rec = (d) => { const id = d ? (() => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } })() : 0; const r = id ? recordOf(id) : null; return r && String(r.record.type) === 'RACE' ? id : 0; };
+    const rec = (d) => { const id = d ? (() => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } })() : 0; let r = null; try { r = id ? recordOf(id) : null; } catch (e) { r = null; } const t = r && (r.record ? r.record.type : r.type); return t && String(t) === 'RACE' ? id : 0; };
     const r = rec(M.race), v = rec(M.vampire);
     return r && v ? [r, v] : null;
   })();
