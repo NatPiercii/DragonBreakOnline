@@ -14,7 +14,9 @@ const ok = (c, what, got) => { console.log(`${c ? 'ok  ' : 'FAIL'}  ${what}${c |
 
 const dir = fs.mkdtempSync(path.join(fs.existsSync('/dev/shm') ? '/dev/shm' : os.tmpdir(), 'claude-nate-smithing-'));
 process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
-fs.copyFileSync(path.join(SERVER, 'smithing.json'), path.join(dir, 'smithing.json'));
+// The mechanics below use Steel as a plain T2 technique, as it was until 11 Oct; the live table makes Steel free (tested
+// against the real table at the end)
+{ const t = JSON.parse(fs.readFileSync(path.join(SERVER, 'smithing.json'), 'utf8')); t.families.forEach((f) => { if (f.id === 'steel') delete f.free; }); fs.writeFileSync(path.join(dir, 'smithing.json'), JSON.stringify(t)); }
 fs.writeFileSync(path.join(dir, 'manuals.json'), JSON.stringify({ manuals: [] }));
 // The Legion's helm is faction gear (factiongear.js decides who makes it); the Imperial family leaves it alone (factionExempt)
 fs.writeFileSync(path.join(dir, 'faction-gear.json'), JSON.stringify({ items: { '7a3:Skyrim.esm': { name: 'Imperial Helmet', set: 'Imperial Legion', factions: ['imperial-legion'], role: 'blacksmith' } } }));
@@ -146,7 +148,8 @@ ok(!fam('glass').known && /Schematics: Glass/.test(fam('glass').learnHint) && /O
 ok(v.families.every((f, i, arr) => i === 0 || arr[i - 1].tier <= f.tier), 'families sorted by tier');
 ok(Array.isArray(v.tierNames) && v.tierNames.length === 7 && v.tierNames[6] === 'Mythic', 'view: the 7 tier names (Skills menu)');
 ok(fam('steel').recipes.join('|') === 'Steel Sword' && fam('dwarven').recipes.length === 1 && Array.isArray(fam('glass').recipes), 'view: every family lists what its recipes make, known or not', [fam('steel').recipes, fam('dwarven').recipes]);
-ok(/Blacksmith 75 to teach/.test(fam('glass').learnHint) && /Orc Blacksmith.*75/.test(fam('orcish').learnHint), 'hints say a teacher needs Blacksmith 75', fam('orcish').learnHint);
+ok(/Blacksmith 75 to teach/.test(fam('dwarven').learnHint) && /Orc Blacksmith.*75/.test(fam('orcish').learnHint), 'hints say a teacher needs Blacksmith 75', fam('orcish').learnHint);
+ok(/No smith teaches it/.test(fam('glass').learnHint) && !/apprentice/i.test(fam('glass').learnHint), 'a closely held family (Glass) says no smith teaches it', fam('glass').learnHint);
 
 // Technique books (manuals.js, smithing mode)
 props.set(`${A}|private.dboManuals`, {});
@@ -201,7 +204,7 @@ ok(/not to be had in Cyrodiil yet/.test(globalThis.__dboSmithView(SUP) && global
 load({ enabled: true, withheldBooks: [], drops: { ruin: { chance: 1, families: ['chitin'] } } });
 ok(globalThis.__dboManualsShop(A).some((x) => x.bookId === chitinBook) && globalThis.__dboTechniqueDrop('ruin') !== null, 'config smithing.withheldBooks [] brings it back (when Solstheim opens)');
 load({ enabled: true, drops: { boss: { chance: 1, families: ['madness'] } } });
-ok(REAL.find((f) => f.id === 'madness').book === 'staff' && globalThis.__dboTechniqueDrop('boss') === null && !globalThis.__dboManualsShop(A).some((x) => x.bookId === madnessBook), 'Madness is staff only: never sold or dropped, as Dragon');
+ok(['aetherium', 'artifact'].every((id) => REAL.find((f) => f.id === id).book === 'staff') && ['madness', 'DRAGON', 'DAEDRIC'].every((id) => REAL.find((f) => f.id === id).held && !REAL.find((f) => f.id === id).book), 'Aetherium and artifacts stay staff only; Madness, Dragon and Daedric are closely held books (found by reading, 11 Oct)');
 const LM = JSON.parse(fs.readFileSync(path.join(SERVER, 'loot-materials.json'), 'utf8')).counts;
 const noItems = REAL.filter((f) => !LM[f.id]).map((f) => f.id);
 ok(noItems.join() === '' && LM.madness && LM.amber && LM.glacial_crystal && LM.ancient_imperial, 'every smithing family has loot-materials items (the PC reskins gave Bronze, Copper, Brass and Adamantium their own)', noItems);
@@ -255,7 +258,58 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   const real = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).smithing.drops;
   const fams = (r) => [].concat(...[].concat(...Object.values(r || {}).map((x) => (Array.isArray(x) ? x : x && x.families ? [x] : Object.values(x || {}))).map((x) => (Array.isArray(x) ? x : [x]))).map((x) => (x && x.families) || []));
   const all = new Set(fams(real));
-  ok(['fort', 'nordRuin', 'dwemerRuin', 'falmerRuin', 'ayleidRuin', 'goblinCamp', 'boss'].every((k) => real[k]) && !['DRAGON', 'madness', 'aetherium', 'artifact', 'orcish', 'stalhrim', 'chitin'].some((f) => all.has(f)), 'the live drop table covers every place and never drops a staff, Orc-only or out-of-province technique', [...all]);
+  ok(['fort', 'nordRuin', 'dwemerRuin', 'falmerRuin', 'ayleidRuin', 'boss'].every((k) => real[k]) && !['DRAGON', 'madness', 'DAEDRIC', 'EBONY', 'glass', 'mithril', 'glacial_crystal', 'aetherium', 'artifact', 'orcish', 'stalhrim', 'chitin', 'bonemold', 'steel', 'goblin'].some((f) => all.has(f)), 'the live drop table covers every place and never drops a reading-only, staff, Orc-only, Dunmer or free technique (11 Oct)', [...all]);
+  load(ON);
+}
+
+// Recipe rarity (Nate, 11 Oct): the live table. T1-T2 known by default but Ancient Nord (and Ancient Imperial, its fort
+// counterpart); the top rows are closely held (no apprenticeship, no Scholar copy); schematics found by reading
+{
+  fs.copyFileSync(path.join(SERVER, 'smithing.json'), path.join(dir, 'smithing.json'));
+  const LIVE = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).smithing;
+  const BOOKS = {}; for (const f of REAL) if (f.bookId) { const id = mp.getIdFromDesc(f.bookId) >>> 0; rec(id, 'BOOK', 'DBO_Schematics_' + f.id, [{ type: 'DATA', data: bookData() }]); BOOKS[f.id] = id; }
+  load(Object.assign({}, LIVE, { enabled: true }));
+  const B = 0x14b0b; smith(B, 20); props.set(`${B}|private.dboManuals`, {}); props.set(`${B}|profileId`, 9);
+  ok(craft(B, STEEL, R_STEEL) === true, 'live: Steel needs no technique at tier 2', lastTold(B));
+  const v2 = globalThis.__dboSmithView(B), f2 = (id) => v2.families.find((f) => f.id === id);
+  ok(['steel', 'imperial', 'guard', 'brass', 'goblin'].every((id) => f2(id).known) && !f2('ancient_nord').known && !f2('ancient_imperial').known, 'live: every T2 family is known by default but Ancient Nord and Ancient Imperial', ['steel', 'imperial', 'guard', 'goblin', 'ancient_nord'].map((id) => [id, f2(id).known]));
+  ok(f2('elven_gilded').learnHint.includes('Elven technique'), 'live: Gilded Elven is worked with the Elven technique', f2('elven_gilded').learnHint);
+  ok(!globalThis.__dboManualsSmithShop(B).length, 'live: the blacksmith\'s ledger has no schematic to sell');
+  // No apprenticeship in a closely held family: Glass under a Master who knows it, in range
+  smith(B, 80); smith(SUP, 100); props.set(`${SUP}|private.dboManuals`, { glass: { at: 1 }, nordic: { at: 1 } }); put(SUP, 'pos', [300, 0, 0]); put(B, 'pos', [0, 0, 0]);
+  props.set(`${B}|worldOrCellDesc`, props.get(`${SUP}|worldOrCellDesc`));
+  ok(craft(B, GLASS, R_ORC) === false && /No smith teaches it/.test(lastTold(B)), 'live: Glass is never taught at the forge, even under a Master who knows it', lastTold(B));
+  // No Scholar copy of a closely held book; a rare one still copies
+  props.set(`${B}|private.mastery`, { order: ['blacksmith', 'scholar'], skills: { blacksmith: { level: 80 }, scholar: { rank: 4, level: 100 } } });
+  props.set(`${B}|private.dboManuals`, { glass: { at: 1 }, nordic: { at: 1 }, DAEDRIC: { at: 1 } });
+  const cl = globalThis.__dboManualsCopyList(B).map((x) => x.bookId);
+  ok(cl.includes(BOOKS.nordic) && !cl.includes(BOOKS.glass) && !cl.includes(BOOKS.DAEDRIC), 'live: a Scholar copies Nordic, never Glass or Daedric', cl);
+  // Discovery by reading, the live rows
+  const rows = LIVE.discovery.rows, row = (id) => rows.find((r) => r.id === id);
+  ok(Math.abs(row('mythic').chance - 1 / 15000) < 1e-9 && Math.abs(row('extremelyRare').chance - 1 / 3000) < 1e-9 && row('extremelyRare').minScholar === 5, 'live: Mythic 1 in 15,000; Ebony and Stalhrim 1 in 3,000 for a Master Scholar');
+  ok(rows.every((r, i) => i === 0 || r.chance >= rows[i - 1].chance), 'live: the rows roll rarest first');
+  const inRows = new Set([].concat(...rows.map((r) => r.families)));
+  ok(['ancient_nord', 'nordic', 'scaled', 'bonemold', 'chitin', 'silver', 'elven', 'glass', 'mithril', 'ayleid', 'glacial_crystal', 'steelplate', 'EBONY', 'stalhrim', 'DRAGON', 'madness', 'DAEDRIC'].every((f) => inRows.has(f)) && !['elven_gilded', 'steel', 'orcish', 'aetherium', 'artifact', 'dwarven', 'falmer'].some((f) => inRows.has(f)), 'live: every family of the design is in a row, and none outside it');
+  const real = Math.random; let seq = [];
+  const roll = (tier, where, rs) => { seq = rs.slice(); Math.random = () => (seq.length ? seq.shift() : 0.999); try { return globalThis.__dboSchematicFind(B, tier, where); } finally { Math.random = real; } };
+  const give = () => { const g = given.slice(); given.length = 0; return g; };
+  given.length = 0;
+  // Rows in order: mythic, glacial, extremelyRare (Master), veryRare, ayleid (its ruins), rare, ancientNord, ancientImperial
+  let r1 = roll(1, '', [0, 0]);
+  ok(r1 && r1.row === 'mythic' && give().length === 1, 'a hit on the rarest row hands over its book', r1);
+  r1 = roll(4, '', [0.999, 0]);
+  ok(r1 && r1.row !== 'extremelyRare', 'Ebony and Stalhrim skip a reader below Master', r1);
+  give(); r1 = roll(5, '', [0.999, 0.999, 0, 0]);
+  ok(r1 && r1.row === 'extremelyRare' && /Ebony|Stalhrim/.test(r1.name), '...and come to a Master', r1);
+  give(); r1 = roll(5, '', [0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 0, 0]);
+  ok(r1 === null, 'Ancient Nord comes only to a reader in a Nordic barrow', r1);
+  r1 = roll(5, 'nordRuin', [0.999, 0.999, 0.999, 0.999, 0.999, 0, 0]);
+  ok(r1 && r1.row === 'ancientNord' && /Ancient Nord/.test(r1.name), '...where it does', r1);
+  give(); r1 = roll(1, '', [0.999, 0.999, 0.999, 0, 0]);
+  ok(r1 && r1.row === 'rare' && !/Chitin/.test(r1.name), 'a Rare find (never Chitin while it is withheld)', r1);
+  give(); r1 = roll(5, '', []);
+  ok(r1 === null && !give().length, 'no hit, no book');
+  ok(audits.some((t) => /^SCHEMATIC .* found Schematics: /.test(t)), 'finds are audited');
   load(ON);
 }
 
@@ -270,6 +324,8 @@ const src = fs.readFileSync(path.join(SERVER, 'regions.js'), 'utf8');
 ok(/verdict !== false && typeof globalThis\.__dboSmithCrafted === 'function'/.test(src), 'regions.js counts the apprenticeship only after the final verdict');
 const dsrc = fs.readFileSync(path.join(SERVER, 'dungeons.js'), 'utf8'), wsrc = fs.readFileSync(path.join(SERVER, 'wildlife.js'), 'utf8');
 ok(/'ayleidRuin'/.test(dsrc) && /'dwemerRuin'/.test(dsrc) && /'falmerRuin'/.test(dsrc) && /isCyrodiilFort\(d\) \? 'fort'/.test(dsrc) && /__dboTechniqueDrop\(techniqueRuin\(d\), diff\.id\)/.test(dsrc) && /__dboTechniqueDrop\('goblinCamp'\)/.test(wsrc), 'ruin chests (Ayleid, Dwemer, Falmer, Cyrodiil forts) and goblin camps ask for a technique drop');
+const gsrc = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
+ok(/__dboSchematicFind\(a, tier \+ 1, where\)/.test(gsrc) && /globalThis\.__dboTechniqueRuinAt = \(a\) => techniqueRuin\(dungeonAround\(a\)\)/.test(dsrc), 'a won reading rolls for a schematic with the Scholar tier (1-5) and the ruin it is read in');
 ok(/__dboSmithCraft\(actorId, itemId, recipeId\) === false\) return false;\n    \/\/ Faction gear first/.test(src), 'regions.js asks the smithing gate before faction gear');
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);

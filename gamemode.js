@@ -3641,6 +3641,14 @@ onUi('reading', (a, args) => {
     try { if (globalThis.__dboBlessedWith && globalThis.__dboBlessedWith(a, 'scholarBoon') && typeof globalThis.__alduinakMasteryEvent === 'function') globalThis.__alduinakMasteryEvent('read', a, { refrId: ses.refId }); } catch (e) { /* no skill system */ }
     // A smithing skill book is Blacksmith work too, once a book; a manual on a shelf is learned (manuals.js)
     try { const line = globalThis.__dboManualsReadWon ? globalThis.__dboManualsReadWon(a, ses.baseId) : ''; if (line) results.push(line); } catch (e) { log('manuals read failed', e.message); }
+    // A smithing schematic, now and then (manuals.js, config smithing.discovery; Nate, 11 Oct): the rarer, the rarer
+    try {
+      if (typeof globalThis.__dboSchematicFind === 'function') {
+        const where = typeof globalThis.__dboTechniqueRuinAt === 'function' ? globalThis.__dboTechniqueRuinAt(a) : '';
+        const find = globalThis.__dboSchematicFind(a, tier + 1, where);
+        if (find) { results.push(`folded into the binding you find ${find.name}`); gained.push(find.name); }
+      }
+    } catch (e) { log('schematic find failed', e.message); }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const today = new Date().toISOString().slice(0, 10);

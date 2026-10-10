@@ -95,7 +95,7 @@ module.exports = (api) => {
   const MANUALS = SMITH ? smithFamilies.filter((f) => Number(f.tier) > 1 && f.book !== 'apprentice' && !f.free && !f.technique).map((f) => {
     const bookId = idOf((SMC.books || {})[f.id] || f.bookId), bookRec = lookup(bookId);
     return { key: f.id, name: f.name, title: `Schematics: ${f.name}`, tier: Math.max(2, Math.min(7, Number(f.tier) || 2)), bookId, markerId: 0,
-      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', withheld: WITHHELD.has(f.id), ready: !!(bookId && bookRec) };
+      book: bookId ? descOf(bookId) : '', value: bookValue(bookRec), provinces: null, staffOnly: f.book === 'staff', held: !!f.held, withheld: WITHHELD.has(f.id), ready: !!(bookId && bookRec) };
   }) : (Array.isArray(table.manuals) ? table.manuals : []).map((m) => {
     const key = String(m.material || m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const bookId = idOf(m.book), markerId = idOf(m.marker);
@@ -314,6 +314,29 @@ module.exports = (api) => {
     return null;
   };
 
+  // ---- schematics found by reading (Nate, 11 Oct: recipe rarity by rows) ---------------------------------------------
+  // Each won reading rolls the rows of config smithing.discovery.rows in turn, rarest first, and the first hit hands over
+  // one of its families' schematic books, picked evenly (a book, not the knowledge: a Scholar who is no smith sells it or
+  // passes it on). A row { id, families, chance (a reading), where (a dungeons.js ruin kind: only read inside one),
+  // minScholar (the reader's Scholar tier, 1 Novice..5 Master) }. Withheld and staff-only books never come.
+  // Returns { id, name, row } or null
+  globalThis.__dboSchematicFind = (a, scholarTierNow, where) => {
+    const D2 = SMC.discovery || {};
+    if (!C.enabled || !SMITH || D2.enabled === false || !isPlayer(a)) return null;
+    for (const r of (Array.isArray(D2.rows) ? D2.rows : [])) {
+      if (!r || (r.where && r.where !== where) || (Number(r.minScholar) || 0) > (Number(scholarTierNow) || 0)) continue;
+      if (!(Math.random() < (Number(r.chance) || 0))) continue;
+      const allowed = new Set((r.families || []).map(String));
+      const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly && !m.withheld);
+      if (!pool.length) continue;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      if (!giveItem(a, pick.bookId, 1)) { log(`manuals: ${who(a)} found ${pick.title} but it could not be handed over`); return null; }
+      audit(`SCHEMATIC ${who(a)} found ${pick.title} (${r.id || 'row'}, 1 in ${Math.round(1 / Number(r.chance))}) reading${where ? ' in a ' + where : ''}`);
+      return { id: pick.book, name: pick.title, row: String(r.id || '') };
+    }
+    return null;
+  };
+
   // ---- the Scholars' Ledger (salvage.js): the Synod's manuals, and a Scholar's copies ----------------------------
   const inShop = (a) => (C.shop.cells || []).map(norm).includes(norm(get(a, 'worldOrCellDesc', '')));
   const shopMax = () => Number(SMITH ? (C.shop.smithingMaxTier || 3) : C.shop.maxTier);
@@ -374,7 +397,7 @@ module.exports = (api) => {
     const rank = rankIn(a, C.scholarSkill);
     if (rank < 0) return [];
     const mine = recordOf(a);
-    return READY.filter((m) => mine[m.key] && !m.staffOnly && (SMITH ? scholarTier(a) >= scholarNeed(m.tier) : rank >= m.tier - 1)).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
+    return READY.filter((m) => mine[m.key] && !m.staffOnly && !m.held && (SMITH ? scholarTier(a) >= scholarNeed(m.tier) : rank >= m.tier - 1)).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name))
       .map((m) => ({ bookId: m.bookId, label: `Copy ${m.title} (T${m.tier})` }));
   };
   // Why this Scholar cannot copy now, or ''

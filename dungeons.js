@@ -703,6 +703,8 @@ module.exports = (api) => {
   const isCyrodiilFort = (d) => !!d && /^CYR/.test(d.id || '') && (d.type === 'fort' || (d.keywords || []).some((k) => /^(LocTypeMilitaryFort|LocSetMilitaryFort|CYRLocTypeFortRuin)$/.test(k)));
   // Nordic barrows give the ancient Nord techniques (Nate, 10 Oct: lore-accurate drop places)
   const techniqueRuin = (d) => (isAyleidRuin(d) ? 'ayleidRuin' : d && d.type === 'dwemer' ? 'dwemerRuin' : (d && d.keywords || []).includes('LocTypeFalmerHive') ? 'falmerRuin' : isCyrodiilFort(d) ? 'fort' : d && d.type === 'nordic' ? 'nordRuin' : '');
+  // The ruin kind a reader stands in, for the schematics found by reading (manuals.js __dboSchematicFind)
+  globalThis.__dboTechniqueRuinAt = (a) => techniqueRuin(dungeonAround(a));
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     if (lease) lease.stocked = new Set();

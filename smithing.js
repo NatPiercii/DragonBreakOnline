@@ -49,7 +49,9 @@ module.exports = (api) => {
   // A family may need no technique (free: Brass, a common alloy) or share another's (technique: Adamantium is worked with
   // the Steel Plate technique, on the same shapes; the PC's reskins, 9 Oct): the tier gate still applies
   const techOf = (fam) => (fam && fam.technique && BY_FAMILY.get(fam.technique)) || fam;
-  const knows = (a, fam) => fam.tier <= 1 || !!fam.free || !!known(a)[techOf(fam).id];
+  // A family worked with a free family's technique is free too (Imperial and Guard steel, on Steel's, from 11 Oct)
+  const isFree = (fam) => !!fam.free || !!techOf(fam).free;
+  const knows = (a, fam) => fam.tier <= 1 || isFree(fam) || !!known(a)[techOf(fam).id];
   const teach = (a, fam, how, from) => { set(a, REC, Object.assign({}, known(a), { [fam.id]: { at: Date.now(), how, from: from || how } })); audit(`SMITH ${who(a)} learned ${fam.name} (T${fam.tier}) by ${how}${from && from !== how ? ' from ' + from : ''}`); };
   // A family marked factionExempt (Imperial: the Legion's own pieces) leaves its faction gear to factiongear.js: the
   // faction decides who makes those, the technique gates only the rest (the Colovian and Springsteel bows...)
@@ -77,6 +79,7 @@ module.exports = (api) => {
   // A Blacksmith nearby who may supervise this family
   const supervisorFor = (a, fam) => {
     for (const s of onlineActors()) {
+      if (techOf(fam).held) return 0;
       if ((s >>> 0) === (a >>> 0) || craftTier(s) < fam.tier || pointsOf(s) < Number(C.supervisorMinPoints) || !knows(s, fam) || dist(a, s) > Number(C.apprenticeRange)) continue;
       if (get(s, 'worldOrCellDesc', '') !== get(a, 'worldOrCellDesc', '')) continue;
       if (fam.supervisorRace && raceEdid(s) !== fam.supervisorRace) continue;
@@ -86,7 +89,8 @@ module.exports = (api) => {
   };
   // A teacher needs supervisorMinPoints Blacksmith points (Nate, 9 Oct: 75), the technique and its craft tier
   const teacher = () => `a teacher needs Blacksmith ${Number(C.supervisorMinPoints)} to teach`;
-  const hintOf = (fam) => (fam.free ? '' : techOf(fam) !== fam ? `Worked with the ${techOf(fam).name} technique. ${hintOf(techOf(fam))}` : fam.book === 'apprentice' ? `${fam.where || 'Apprentice under a Blacksmith who knows it'} (${teacher()})`
+  // A closely held technique (held, Nate 11 Oct) is never taught at the forge: its book is the only way
+  const hintOf = (fam) => (isFree(fam) ? '' : techOf(fam) === fam && fam.held ? `Book: Schematics: ${fam.name}${fam.where ? ', ' + fam.where : ''}. No smith teaches it at the forge` : techOf(fam) !== fam ? `Worked with the ${techOf(fam).name} technique. ${hintOf(techOf(fam))}` : fam.book === 'apprentice' ? `${fam.where || 'Apprentice under a Blacksmith who knows it'} (${teacher()})`
     : fam.book === 'staff' ? fam.where || 'taught only in roleplay' : `Book: Schematics: ${fam.name}${(C.withheldBooks || []).includes(fam.id) ? ', not to be had in Cyrodiil yet' : fam.where ? ', ' + fam.where : ''}, or apprentice under a Blacksmith who knows it (${teacher()})`);
   // regions.js craft hook: false refuses the craft (materials kept); anything else lets it on
   globalThis.__dboSmithCraft = (actorId, itemId, recipeId) => {
@@ -171,7 +175,7 @@ module.exports = (api) => {
       const k = knows(a, f);
       const list = recipes().get(f.id) || [];
       const canMake = k && tier >= f.tier ? list.filter((r) => r.inputs.every(([id, n]) => (inv.get(id) || 0) >= n)).length : 0;
-      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 || f.free ? null : (rec[techOf(f).id] && rec[techOf(f).id].how) || (rec[techOf(f).id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f),
+      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 || isFree(f) ? null : (rec[techOf(f).id] && rec[techOf(f).id].how) || (rec[techOf(f).id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f),
         recipes: namesOf(f.id) };
     }).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name));
     return { tier, tierName: TIER_NAMES[tier - 1] || '', tierNames: TIER_NAMES.slice(0, 7), points, nextAt: tier >= 7 ? null : Number(C.tierPoints[tier]),
