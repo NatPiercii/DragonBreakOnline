@@ -3162,6 +3162,8 @@ const READ = Object.assign({
   scrollMaxValueByTier: [50, 100, 250, 500, 0],
   scrollDailyCap: 6,
   tomeDailyCap: 2,
+  // A guaranteed tome after this many won readings without one (0 = off; Nate, 10 Oct)
+  tomePityReads: 100,
   // Copies of the book read, a day. A spell tome, a skill book or a note that cannot be taken is never copied: reading
   // a placed tome every 30 minutes on each character got round the Synod's one a week (loot review, 2026-09-29)
   bookDailyCap: 6,
@@ -3641,10 +3643,17 @@ onUi('reading', (a, args) => {
     // own roll above.
     let tomesFound = null; try { tomesFound = mp.get(a, 'private.scholarTomes'); } catch (e) { tomesFound = null; }
     const tomesToday = tomesFound && tomesFound.day === today ? Number(tomesFound.n) || 0 : 0;
-    if (tomesToday < (Number(READ.tomeDailyCap) || 0) && Math.random() < tomeChance) {
+    // Pity (Nate, 10 Oct): after READ.tomePityReads won readings with no tome the next one brings a tome, still within the
+    // day's tomeDailyCap; the count is per character and resets with every tome found
+    let dry = 0; try { dry = Number(mp.get(a, 'private.scholarTomeDry')) || 0; } catch (e) { dry = 0; }
+    const pity = Number(READ.tomePityReads) > 0 && dry + 1 >= Number(READ.tomePityReads);
+    let tomeGiven = false;
+    if (tomesToday < (Number(READ.tomeDailyCap) || 0) && (pity || Math.random() < tomeChance)) {
       const pick = scholarTomePick(a, tier);
-      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
+      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); tomeGiven = true; mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
+    // Below the day's cap only: a reader at the cap is not owed a tome, so the count waits for the new day
+    if (tomesToday < (Number(READ.tomeDailyCap) || 0)) { try { mp.set(a, 'private.scholarTomeDry', tomeGiven ? 0 : dry + 1); } catch (e) { /* uncounted */ } }
     // The day's caps are silent rolls, so a reader who reached one is told once that day (#bugs 1556458497909194802)
     const dayCount = (k) => { try { const v = mp.get(a, k); return v && v.day === today ? Number(v.n) || 0 : 0; } catch (e) { return 0; } };
     let told = null; try { told = mp.get(a, 'private.scholarCapTold'); } catch (e) { told = null; }
