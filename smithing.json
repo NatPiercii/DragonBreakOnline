@@ -10,7 +10,7 @@
   { "id": "bronze", "name": "Bronze", "tier": 1 },
   { "id": "copper", "name": "Copper", "tier": 1 },
   { "id": "forsworn", "name": "Forsworn", "tier": 1 },
-  { "id": "steel", "name": "Steel", "tier": 2, "where": "sold at a blacksmith's ledger", "bookId": "192e47:DragonBreak Online Edits.esp" },
+  { "id": "steel", "name": "Steel", "tier": 2, "where": "sold at a blacksmith's ledger, or found in Cyrodiil's forts and in Novice boss chests", "bookId": "192e47:DragonBreak Online Edits.esp" },
   { "id": "imperial", "name": "Imperial", "tier": 2, "technique": "steel", "factionExempt": true },
   { "id": "guard", "name": "Guard and Soldier", "tier": 2, "technique": "steel" },
   { "id": "ancient_nord", "name": "Ancient Nord", "tier": 2, "where": "found in Nordic barrows", "bookId": "192e48:DragonBreak Online Edits.esp" },
