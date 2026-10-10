@@ -229,7 +229,7 @@ def main():
                 continue
             w, c, g = ctx
             seen[k] = (base, src(p, w) if w else None, src(p, c) if c else None, name_pos)
-    by_ref = {key_of(d): o for d, o in (lab.get('oreByRef') or dict(re.findall(r"'([0-9a-f]+:[^']+)': '(\w+)'", labsrc[labsrc.index('oreByRef: {'):labsrc.index('oreByRef: {') + 800]))).items()}
+    by_ref = {key_of(d): o for d, o in (lab.get('oreByRef') or dict(re.findall(r"'([0-9a-f]+:[^']+)': '(\w+)'", labsrc[labsrc.index('oreByRef: {'):labsrc.index('\n    },', labsrc.index('oreByRef: {'))]))).items()}
     lock_nodes = []
     for k, (base, w, c, pos) in seen.items():
         if k in by_ref:

@@ -6415,7 +6415,7 @@
 "to": "13987:Skyrim.esm",
 "edid": "IWAyleidGreatsword",
 "toEdid": "SteelGreatsword",
-"family": "glass",
+"family": "ayleid",
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
@@ -20623,7 +20623,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYRAyleidBow",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -20631,7 +20631,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYRAyleidDagger",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -20639,7 +20639,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYRAyleidSword",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
@@ -23287,7 +23287,7 @@
 "to": "5ef23:BSHeartland.esm",
 "edid": "BSKArmorAyleidLichHelmet",
 "toEdid": "CYRArmorLeatherHelmetA",
-"family": "elven",
+"family": "ayleid",
 "kind": "light head",
 "province": "cyrodiil"
 },
@@ -38767,7 +38767,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYREnchAyleidBowShock01",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -38775,7 +38775,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYREnchAyleidBowShock02",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -38783,7 +38783,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYREnchAyleidBowShock03",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -38791,7 +38791,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYREnchAyleidDaggerShock01",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -38799,7 +38799,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYREnchAyleidDaggerShock02",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -38807,7 +38807,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYREnchAyleidDaggerShock03",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -38815,7 +38815,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYREnchAyleidSwordShock01",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
@@ -38823,7 +38823,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYREnchAyleidSwordShock02",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
@@ -38831,7 +38831,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYREnchAyleidSwordShock03",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },

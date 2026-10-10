@@ -66,6 +66,9 @@ BANNED = ('DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish')
 # weapons carry WeapMaterialSteel, Immersive Armors' Glacial Crystal IAKMaterialGlass/Ebony): the smithing families
 # (smithing.json; Nate, 9 Oct) go by the set
 EDID_FIRST = [(r'AncientImperial', 'ancient_imperial'), (r'GlacialCrystal', 'glacial_crystal')]
+# Sets named by editor id whose metal pieces borrow another material's keyword (the Ayleid gear Elven, the Goblin gear
+# Iron or Leather); their robes and staves stay clothing and staves
+SET_BY_NAME = [(r'Ayleid', 'ayleid'), (r'Goblin', 'goblin')]
 BANNED_NAME = re.compile(r'Ebony|Daedric|Dragon(?:plate|scale|bone|hide)|DLC1Keeper|Dragonsteel|DragonPriestDagger|Orcish|Orichalcum|Stalhrim', re.I)
 
 
@@ -192,6 +195,10 @@ def classifier(scan_data):
     def classify_fixed(key):
         f = classify(key)
         e = (I.get(key) or {}).get('edid') or ''
+        if f not in ('clothing', 'staff', 'unclassified') + BANNED:
+            for pat, fam in SET_BY_NAME:
+                if re.search(pat, e):
+                    return fam
         if f in LOOKS and not re.search(LOOKS[f], e):
             by_name = fam_edid(e)
             return (by_name if by_name and by_name not in LOOKS and by_name != 'clothing' else None) or main_metal(key) or f
