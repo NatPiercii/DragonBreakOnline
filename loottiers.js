@@ -34,12 +34,14 @@
 
 const TIER_OF = {
   iron: 1, hide: 1, leather: 1, studded: 1, wood: 1, goblin: 1, ancient_nord: 1, falmer: 1, forsworn: 1, bronze: 1, copper: 1,
-  steel: 2, imperial: 2, brass: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, mithril: 2, silver: 2, vampire: 2,
+  steel: 2, imperial: 2, brass: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, silver: 2, vampire: 2,
   ancient_nord_honed: 2, falmer_honed: 2, ancient_imperial: 2, ayleid: 2,
-  steelplate: 3, adamantium: 3, scaled: 3, elven_gilded: 3, nordic: 3,
-  glass: 4, amber: 4, glacial_crystal: 4,
+  steelplate: 3, scaled: 3, elven_gilded: 3, nordic: 3,
+  // Mithril drops where it is forged (smithing tier 4, Nate 10 Oct)
+  glass: 4, amber: 4, glacial_crystal: 4, mithril: 4,
 };
-const NEVER = new Set(['DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
+// Adamantium is mined and crafted, never loot (smithing tier 5; its ingots are never loot either, Nate 10 Oct)
+const NEVER = new Set(['DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium', 'adamantium']);
 const UNIFORM = new Set(['stormcloak', 'guard', 'penitus', 'thievesguild', 'dawnguard', 'blades']);
 const TRINKET = new Set(['clothing', 'staff']);
 // Kept out of loot, never swapped: the metals players mine and their ingots (Skyrim.esm's five, from the Recipe<Ingot>
