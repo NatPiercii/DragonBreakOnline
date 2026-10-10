@@ -138,7 +138,7 @@ function run({ applyInventory, getDiff, getInventory, soulsMatch }) {
   check('soulsMatch: two readable levels must agree', !soulsMatch(1, 2));
 
   console.log(failures ? `\n${failures} FAILED` : '\nall passed');
-  process.exit(failures ? 1 : 0);
+  process.exitCode = failures ? 1 : 0;
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
