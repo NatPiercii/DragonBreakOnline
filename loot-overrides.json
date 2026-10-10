@@ -3,6 +3,7 @@
   "never": {
     "81dfc:BSHeartland.esm": "CYRIronFalchion: untextured model in Beyond Skyrim Bruma (#bugs \"Iron Falchion Missing Textures\", 1 Oct 2026)",
     "6173c:BSHeartland.esm": "CYRBloodscaleHelmet: its armor addons cover only Argonians and Khajiit, so every other race wears it bald (#bugs \"Bloodscales Bone Helmet\", 5 Oct 2026; Nate: out of every loot pool until the PC adds the addons)",
+    "602974:BSAssets.esm": "CYR_ColovianNobleClothes01 (the red Colovian Fine Clothes in BSAssets.esm): its armor addon 602976 gives a first-person mesh (1stPerson_nobleF_0.nif) as the female world model, so a woman wearing it is mostly invisible (#bugs \"As much as i dont want it reported cause its hilarious\", 7 Oct 2026); the BSHeartland twin CYRColovianNobleClothes01 (877b8) looks the same and stays loot. Out until a plugin override fixes the addon",
     "6e0f9:DragonBreak Online Edits.esp": "ArmorOrcishClanBoots: Orcish Clan gear is faction-only, handed out by staff, at the faction level for war (Nate, 6 Oct 2026); never loot, and never swapped to steel",
     "7325b:DragonBreak Online Edits.esp": "ArmorOrcishClanBootsMedium: Orcish Clan gear is faction-only, handed out by staff, at the faction level for war (Nate, 6 Oct 2026); never loot, and never swapped to steel",
     "9bcdb:DragonBreak Online Edits.esp": "ArmorOrcishClanBuckler: Orcish Clan gear is faction-only, handed out by staff, at the faction level for war (Nate, 6 Oct 2026); never loot, and never swapped to steel",

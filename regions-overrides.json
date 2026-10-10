@@ -37,6 +37,8 @@
   "recipes": {
     "_falchion": "CYRIronFalchion's model is untextured in Beyond Skyrim Bruma (#bugs \"Iron Falchion Missing Textures\", 1 Oct 2026): it is out of loot (loot-overrides.json) and not forged either until the model is fixed.",
     "CYRRecipeWeaponIronFalchion": "none",
+    "_colovianRed": "DBOLOOM_CYR_ColovianNobleClothes01 makes BSAssets.esm's red Colovian Fine Clothes (602974), whose female model is a first-person mesh, so a woman wearing them is mostly invisible (#bugs 7 Oct 2026). Woven nowhere until a plugin override fixes the addon; the same-looking BSHeartland twin (DBOLOOM_CYRColovianNobleClothes01, 885) is still woven. Keyed by desc, which names this one recipe whether or not regions.json lists it (its editor id differs from the twin's by one underscore).",
+    "85f:DragonBreak Nexus Patches.esp": "none",
     "_reskins": "The PC's metal reskins (9 Oct): Bronze on Ancient Nord shapes and Brass on Dwarven shapes took their shape's provinces (Skyrim, Solstheim), so they could not be forged in the Bruma lock; their metals are common, and so are they.",
     "DBORS_Recipe_BrassBattleaxe": "common",
     "DBORS_Recipe_BrassBoots": "common",
