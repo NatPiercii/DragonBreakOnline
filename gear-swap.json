@@ -37419,6 +37419,14 @@
 "kind": "light body",
 "province": "skyrim"
 },
+"caf:dragonbreak nexus patches.esp": {
+"to": "13952:Skyrim.esm",
+"edid": "DBORS_BrassCuirass",
+"toEdid": "ArmorSteelCuirassA",
+"family": "brass",
+"kind": "heavy body",
+"province": "skyrim"
+},
 "cb3eb:skyrim.esm": {
 "to": "1398a:Skyrim.esm",
 "edid": "EnchGlassWarhammerSoulTrap03",
@@ -37441,6 +37449,78 @@
 "toEdid": "SteelWarhammer",
 "family": "glass",
 "kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"cb5:dragonbreak nexus patches.esp": {
+"to": "13954:Skyrim.esm",
+"edid": "DBORS_BrassHelmet",
+"toEdid": "ArmorSteelHelmetA",
+"family": "brass",
+"kind": "heavy head",
+"province": "skyrim"
+},
+"cbb:dragonbreak nexus patches.esp": {
+"to": "13953:Skyrim.esm",
+"edid": "DBORS_BrassGauntlets",
+"toEdid": "ArmorSteelGauntletsA",
+"family": "brass",
+"kind": "heavy hands",
+"province": "skyrim"
+},
+"cc1:dragonbreak nexus patches.esp": {
+"to": "13951:Skyrim.esm",
+"edid": "DBORS_BrassBoots",
+"toEdid": "ArmorSteelBootsA",
+"family": "brass",
+"kind": "heavy feet",
+"province": "skyrim"
+},
+"cc6:dragonbreak nexus patches.esp": {
+"to": "13955:Skyrim.esm",
+"edid": "DBORS_BrassShield",
+"toEdid": "ArmorSteelShield",
+"family": "brass",
+"kind": "heavy shield",
+"province": "skyrim"
+},
+"ccc:dragonbreak nexus patches.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "DBORS_BrassDagger",
+"toEdid": "SteelDagger",
+"family": "brass",
+"kind": "weapon Dagger",
+"province": "skyrim"
+},
+"cd1:dragonbreak nexus patches.esp": {
+"to": "13989:Skyrim.esm",
+"edid": "DBORS_BrassSword",
+"toEdid": "SteelSword",
+"family": "brass",
+"kind": "weapon Sword",
+"province": "skyrim"
+},
+"cd6:dragonbreak nexus patches.esp": {
+"to": "13983:Skyrim.esm",
+"edid": "DBORS_BrassWarAxe",
+"toEdid": "SteelWarAxe",
+"family": "brass",
+"kind": "weapon WarAxe",
+"province": "skyrim"
+},
+"cdb:dragonbreak nexus patches.esp": {
+"to": "13988:Skyrim.esm",
+"edid": "DBORS_BrassMace",
+"toEdid": "SteelMace",
+"family": "brass",
+"kind": "weapon Mace",
+"province": "skyrim"
+},
+"ce0:dragonbreak nexus patches.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "DBORS_BrassGreatsword",
+"toEdid": "SteelGreatsword",
+"family": "brass",
+"kind": "weapon Greatsword",
 "province": "skyrim"
 },
 "ce1ad:skyrim.esm": {
@@ -37497,6 +37577,38 @@
 "toEdid": "ArmorSteelShield",
 "family": "orcish",
 "kind": "heavy shield",
+"province": "skyrim"
+},
+"ce5:dragonbreak nexus patches.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "DBORS_BrassBattleaxe",
+"toEdid": "SteelBattleaxe",
+"family": "brass",
+"kind": "weapon Battleaxe",
+"province": "skyrim"
+},
+"cea:dragonbreak nexus patches.esp": {
+"to": "1398a:Skyrim.esm",
+"edid": "DBORS_BrassWarhammer",
+"toEdid": "SteelWarhammer",
+"family": "brass",
+"kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"cef:dragonbreak nexus patches.esp": {
+"to": "13985:Skyrim.esm",
+"edid": "DBORS_BrassBow",
+"toEdid": "HuntingBow",
+"family": "brass",
+"kind": "weapon Bow",
+"province": "skyrim"
+},
+"cf6:dragonbreak nexus patches.esp": {
+"to": "13952:Skyrim.esm",
+"edid": "DBORS_AdamantiumCuirass",
+"toEdid": "ArmorSteelCuirassA",
+"family": "adamantium",
+"kind": "heavy body",
 "province": "skyrim"
 },
 "cf7af:skyrim.esm": {
@@ -38643,11 +38755,51 @@
 "kind": "weapon Bow",
 "province": "skyrim"
 },
+"cfb:dragonbreak nexus patches.esp": {
+"to": "13954:Skyrim.esm",
+"edid": "DBORS_AdamantiumHelmet",
+"toEdid": "ArmorSteelHelmetA",
+"family": "adamantium",
+"kind": "heavy head",
+"province": "skyrim"
+},
+"d02:dragonbreak nexus patches.esp": {
+"to": "13953:Skyrim.esm",
+"edid": "DBORS_AdamantiumGauntlets",
+"toEdid": "ArmorSteelGauntletsA",
+"family": "adamantium",
+"kind": "heavy hands",
+"province": "skyrim"
+},
 "d0758:skyrim.esm": {
 "to": "13986:Skyrim.esm",
 "edid": "MGRitual05Dagger",
 "toEdid": "SteelDagger",
 "family": "DRAGON",
+"kind": "weapon Dagger",
+"province": "skyrim"
+},
+"d09:dragonbreak nexus patches.esp": {
+"to": "13951:Skyrim.esm",
+"edid": "DBORS_AdamantiumBoots",
+"toEdid": "ArmorSteelBootsA",
+"family": "adamantium",
+"kind": "heavy feet",
+"province": "skyrim"
+},
+"d0f:dragonbreak nexus patches.esp": {
+"to": "13955:Skyrim.esm",
+"edid": "DBORS_AdamantiumShield",
+"toEdid": "ArmorSteelShield",
+"family": "adamantium",
+"kind": "heavy shield",
+"province": "skyrim"
+},
+"d15:dragonbreak nexus patches.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "DBORS_AdamantiumDagger",
+"toEdid": "SteelDagger",
+"family": "adamantium",
 "kind": "weapon Dagger",
 "province": "skyrim"
 },
@@ -38747,12 +38899,52 @@
 "kind": "heavy head",
 "province": "skyrim"
 },
+"d1a:dragonbreak nexus patches.esp": {
+"to": "13989:Skyrim.esm",
+"edid": "DBORS_AdamantiumSword",
+"toEdid": "SteelSword",
+"family": "adamantium",
+"kind": "weapon Sword",
+"province": "skyrim"
+},
+"d1f:dragonbreak nexus patches.esp": {
+"to": "13983:Skyrim.esm",
+"edid": "DBORS_AdamantiumWarAxe",
+"toEdid": "SteelWarAxe",
+"family": "adamantium",
+"kind": "weapon WarAxe",
+"province": "skyrim"
+},
+"d24:dragonbreak nexus patches.esp": {
+"to": "13988:Skyrim.esm",
+"edid": "DBORS_AdamantiumMace",
+"toEdid": "SteelMace",
+"family": "adamantium",
+"kind": "weapon Mace",
+"province": "skyrim"
+},
 "d2846:skyrim.esm": {
 "to": "13954:Skyrim.esm",
 "edid": "ClavicusVileMask",
 "toEdid": "ArmorSteelHelmetA",
 "family": "DAEDRIC",
 "kind": "heavy head",
+"province": "skyrim"
+},
+"d29:dragonbreak nexus patches.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "DBORS_AdamantiumGreatsword",
+"toEdid": "SteelGreatsword",
+"family": "adamantium",
+"kind": "weapon Greatsword",
+"province": "skyrim"
+},
+"d2e:dragonbreak nexus patches.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "DBORS_AdamantiumBattleaxe",
+"toEdid": "SteelBattleaxe",
+"family": "adamantium",
+"kind": "weapon Battleaxe",
 "province": "skyrim"
 },
 "d2fa9:bsheartland.esm": {
@@ -38835,6 +39027,54 @@
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
+"d33:dragonbreak nexus patches.esp": {
+"to": "1398a:Skyrim.esm",
+"edid": "DBORS_AdamantiumWarhammer",
+"toEdid": "SteelWarhammer",
+"family": "adamantium",
+"kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"d38:dragonbreak nexus patches.esp": {
+"to": "13985:Skyrim.esm",
+"edid": "DBORS_AdamantiumBow",
+"toEdid": "HuntingBow",
+"family": "adamantium",
+"kind": "weapon Bow",
+"province": "skyrim"
+},
+"d3e:dragonbreak nexus patches.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "DBORS_MithrilDagger",
+"toEdid": "SteelDagger",
+"family": "mithril",
+"kind": "weapon Dagger",
+"province": "skyrim"
+},
+"d44:dragonbreak nexus patches.esp": {
+"to": "13989:Skyrim.esm",
+"edid": "DBORS_MithrilSword",
+"toEdid": "SteelSword",
+"family": "mithril",
+"kind": "weapon Sword",
+"province": "skyrim"
+},
+"d49:dragonbreak nexus patches.esp": {
+"to": "13983:Skyrim.esm",
+"edid": "DBORS_MithrilWarAxe",
+"toEdid": "SteelWarAxe",
+"family": "mithril",
+"kind": "weapon WarAxe",
+"province": "skyrim"
+},
+"d4e:dragonbreak nexus patches.esp": {
+"to": "13988:Skyrim.esm",
+"edid": "DBORS_MithrilMace",
+"toEdid": "SteelMace",
+"family": "mithril",
+"kind": "weapon Mace",
+"province": "skyrim"
+},
 "d5238:bsheartland.esm": {
 "to": "300022:BSHeartland.esm",
 "edid": "CYREnchArmorDwarvenBootsWaterWalking",
@@ -38866,6 +39106,14 @@
 "family": "EBONY",
 "kind": "heavy feet",
 "province": "cyrodiil"
+},
+"d52:dragonbreak nexus patches.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "DBORS_MithrilGreatsword",
+"toEdid": "SteelGreatsword",
+"family": "mithril",
+"kind": "weapon Greatsword",
+"province": "skyrim"
 },
 "d536e:skyrim.esm": {
 "to": "13920:Skyrim.esm",
@@ -39601,6 +39849,30 @@
 "toEdid": "ArmorLeatherCuirass",
 "family": "scaled",
 "kind": "light body",
+"province": "skyrim"
+},
+"d57:dragonbreak nexus patches.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "DBORS_MithrilBattleaxe",
+"toEdid": "SteelBattleaxe",
+"family": "mithril",
+"kind": "weapon Battleaxe",
+"province": "skyrim"
+},
+"d5c:dragonbreak nexus patches.esp": {
+"to": "1398a:Skyrim.esm",
+"edid": "DBORS_MithrilWarhammer",
+"toEdid": "SteelWarhammer",
+"family": "mithril",
+"kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"d61:dragonbreak nexus patches.esp": {
+"to": "13985:Skyrim.esm",
+"edid": "DBORS_MithrilBow",
+"toEdid": "HuntingBow",
+"family": "mithril",
+"kind": "weapon Bow",
 "province": "skyrim"
 },
 "d62:hothtrooper44_armorcompilation.esp": {
@@ -42784,16 +43056,6 @@
 "2b06b:dragonborn.esm": {
 "to": "5ace5:Skyrim.esm",
 "edid": "DLC2OreStalhrim",
-"toEdid": "IngotSteel"
-},
-"601c87:bsassets.esm": {
-"to": "71cf3:Skyrim.esm",
-"edid": "BSKOreAdamantium",
-"toEdid": "OreIron"
-},
-"602099:bsassets.esm": {
-"to": "5ace5:Skyrim.esm",
-"edid": "BSKIngotAdamantium",
 "toEdid": "IngotSteel"
 }
 },

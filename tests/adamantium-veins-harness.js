@@ -1,4 +1,4 @@
-// Quicksilver in Mountainwatch's Frostiron Mine (smithing obtainability audit, 9 Oct; Nate: "fix everything"). No
+// Adamantium in the Gutted Mine (the PC's Adamantium reskin set, 9 Oct); after the pattern of quicksilver in Mountainwatch's Frostiron Mine (smithing obtainability audit, 9 Oct; Nate: "fix everything"). No
 // quicksilver vein stands inside the Bruma lock, so labour.js oreByRef gives four of the mine's iron veins Quicksilver,
 // as the Bleak-Frost Mine's three give Meteoric Iron (tests/meteoric-veins-harness.js, whose mock this reuses). Works
 // the mine's 12 iron veins (CYRFrostironmine01: 6 BSHeartland refs, 6 DLE v13 refs) and checks:
@@ -29,21 +29,23 @@ const idOfDesc = (d) => {
 const DLE = (local) => idOfDesc(`${local}:DragonBreak Online Edits.esp`);
 
 // The mine's iron veins (tools/crafting/obtainability.py lockNodes, cell CYRFrostironmine01): ref desc -> base editor id
-const BASES = { MineOreIron01: 'a2c46', MineOreIron02: 'a2c4b', MineOreIron03: 'a2c4c', MineOreIron04: 'a2c4d' };
+const BASES = {};
 const VEINS = {
-  'd9845:BSHeartland.esm': 'MineOreIron04', 'e59f9:BSHeartland.esm': 'MineOreIron01', 'd9847:BSHeartland.esm': 'MineOreIron04',
-  'e59f8:BSHeartland.esm': 'MineOreIron02', 'e59fe:BSHeartland.esm': 'MineOreIron03', 'e59fd:BSHeartland.esm': 'MineOreIron04',
-  '177fa4:DragonBreak Online Edits.esp': 'MineOreIron04', '177fa6:DragonBreak Online Edits.esp': 'MineOreIron04',
-  '177f9e:DragonBreak Online Edits.esp': 'MineOreIron04', '177fa8:DragonBreak Online Edits.esp': 'MineOreIron04',
-  '177fa2:DragonBreak Online Edits.esp': 'MineOreIron04', '177fa0:DragonBreak Online Edits.esp': 'MineOreIron04',
+  '734d4:BSHeartland.esm': 'MineOreSilver03', '734ee:BSHeartland.esm': 'MineOreSilver04', '73557:BSHeartland.esm': 'MineOreSilver01',
+  '73637:BSHeartland.esm': 'MineOreSilver02', '7364a:BSHeartland.esm': 'MineOreSilver01', '73687:BSHeartland.esm': 'MineOreSilver01',
+  '736af:BSHeartland.esm': 'MineOreSilver01', '736eb:BSHeartland.esm': 'MineOreSilver03', '73710:BSHeartland.esm': 'MineOreSilver03',
+  '7b94e:BSHeartland.esm': 'MineOreSilver03', '7ba53:BSHeartland.esm': 'MineOreSilver01', '7ba56:BSHeartland.esm': 'MineOreSilver01',
+  '7ba7d:BSHeartland.esm': 'MineOreSilver04',
 };
-const QUICK = ['e59f8:BSHeartland.esm', '177fa4:DragonBreak Online Edits.esp', 'e59fd:BSHeartland.esm', '177fa8:DragonBreak Online Edits.esp'];
-const ORE_ITEM = { iron: idOfDesc('71cf3:Skyrim.esm'), quicksilver: idOfDesc('5ace2:Skyrim.esm') };
+const QUICK = ['736eb:BSHeartland.esm', '7b94e:BSHeartland.esm', '7ba53:BSHeartland.esm'];
+const ORE_ITEM = { silver: idOfDesc('5acdf:Skyrim.esm'), adamantium: idOfDesc('601c87:BSAssets.esm') };
 
 // deny() says a refusal at most once in 1.5 s per player, so each refusal below is a different player
 let ACTOR = 0x14;
 const props = new Map();
 const records = new Map();
+for (const [edid, local] of Object.entries(BASES)) records.set(idOfDesc(`${local}:Skyrim.esm`), { record: { type: 'ACTI', editorId: edid } });
+for (const e of new Set(Object.values(VEINS))) BASES[e] = 'ad' + e.slice(-2);   // mock bases, by editor id
 for (const [edid, local] of Object.entries(BASES)) records.set(idOfDesc(`${local}:Skyrim.esm`), { record: { type: 'ACTI', editorId: edid } });
 for (const [ref, edid] of Object.entries(VEINS)) props.set(idOfDesc(ref) + '|baseDesc', `${BASES[edid]}:Skyrim.esm`);
 
@@ -112,38 +114,42 @@ const work = (local, rank, actor) => {
 };
 const oreOfBase = (edid) => /^MineOre([A-Za-z]+?)\d/.exec(edid)[1].toLowerCase();
 const MINER = SKILLS.skills.find((k) => k.id === 'miner');
-const bandOf = (ore) => MINER.oreByTier.findIndex((t) => (t || []).some((o) => String(o).toLowerCase() === ore));
-const yieldOf = (ore, rank) => Math.max(1, Math.round(({ iron: 5, quicksilver: 2 })[ore] * MINER.yieldMultiplierByTier[rank]));
+const LABOUR_SRC = fs.readFileSync(LABOUR, 'utf8');
+const bandOf = (ore) => (ore === 'adamantium' ? Number(/adamantium: (\d)/.exec(LABOUR_SRC.slice(LABOUR_SRC.indexOf('extraOreTier')))[1]) : MINER.oreByTier.findIndex((t) => (t || []).some((o) => String(o).toLowerCase() === ore)));
+const yieldOf = (ore, rank) => Math.max(1, Math.round(({ silver: 2, adamantium: 1 })[ore] * MINER.yieldMultiplierByTier[rank]));
 
 // ---- 1. the data ----
-check('the boot line counts ten veins by reference (3 meteoric, 4 quicksilver, 3 adamantium)', /10 veins by reference/.test(boot), boot);
-check('skills.json: quicksilver is a Miner tier 2 (Apprentice) ore', bandOf('quicksilver') === 1, MINER.oreByTier);
-check('the four quicksilver refs are iron veins of the mine by their base', QUICK.every((r) => /^MineOreIron/.test(VEINS[r])));
+check('the boot line counts ten veins by reference (3 meteoric, 4 quicksilver, 3 adamantium) and the adamantium rest', /10 veins by reference/.test(boot) && /adamantium 60/.test(boot), boot);
+check('labour.js: adamantium is a Miner tier 4 (Expert) ore, with malachite', bandOf('adamantium') === 3 && bandOf('malachite') === 3);
+check('the three adamantium refs are silver veins of the Gutted Mine', QUICK.every((r) => /^MineOreSilver/.test(VEINS[r])));
 
-// ---- 2. the quicksilver veins ----
+// ---- 2. the adamantium veins ----
 for (const [i, ref] of QUICK.entries()) {
-  const low = work(ref, 0, 0x100 + i);
-  check(`${ref}: a Novice is refused (quicksilver is beyond them)`, !low.opened && low.said.some((t) => /^Quicksilver is beyond your skill/.test(t)), low.said);
-  const r = work(ref, 1);
-  check(`${ref}: an Apprentice works a Quicksilver Seam`, r.opened && r.title === 'Quicksilver Seam', r.title);
-  check(`${ref}: ...and wins ${yieldOf('quicksilver', 1)} Quicksilver Ore (Skyrim 5ace2), no iron`, r.items.length === 1 && r.items[0][0] === ORE_ITEM.quicksilver && r.items[0][1] === yieldOf('quicksilver', 1), r.items);
+  const low = work(ref, 2, 0x100 + i);
+  check(`${ref}: an Adept is refused (adamantium is beyond them)`, !low.opened && low.said.some((t) => /^Adamantium is beyond your skill/.test(t)), low.said);
+  const r = work(ref, 3);
+  check(`${ref}: an Expert works an Adamantium Seam`, r.opened && r.title === 'Adamantium Seam', r.title);
+  check(`${ref}: ...and wins ${yieldOf('adamantium', 3)} Adamantium Ore (BSAssets 601c87), no silver`, r.items.length === 1 && r.items[0][0] === ORE_ITEM.adamantium && r.items[0][1] === yieldOf('adamantium', 3), r.items);
+  check(`${ref}: ...the seam rests 60 minutes for everyone`, r.restMin === 60, r.restMin);
 }
 
-// ---- 3. the other iron veins are as they were ----
+// ---- 3. the other silver veins are as they were ----
 let others = 0;
 for (const [ref, edid] of Object.entries(VEINS)) {
   if (QUICK.includes(ref)) continue;
-  const r = work(ref, 0);
-  if (r.opened && r.title === 'Iron Seam' && r.items.length === 1 && r.items[0][0] === ORE_ITEM.iron && r.items[0][1] === yieldOf('iron', 0)) others++;
-  else check(`${ref} ${edid} gives iron`, false, r);
+  const r = work(ref, 1);
+  if (r.opened && r.title === 'Silver Seam' && r.items.length === 1 && r.items[0][0] === ORE_ITEM.silver) others++;
+  else check(`${ref} ${edid} gives silver`, false, r);
 }
-check('the other 8 iron veins give iron to a Novice', others === 8, others);
+check('the other 10 silver veins give silver', others === 10, others);
 
-// ---- 4. gearswap never touches mined quicksilver ----
+// ---- 4. mined adamantium is never swapped, never loot ----
 const readJson = (f) => JSON.parse(fs.readFileSync(path.join(SERVER, f), 'utf8'));
 const SWAP = readJson('gear-swap.json');
 const lower = (o) => Object.keys(o || {}).map((k) => k.toLowerCase());
-check('gear-swap.json maps neither quicksilver ore nor ingot', ['5ace2:skyrim.esm', '5ada0:skyrim.esm'].every((d) => ![SWAP.metals, SWAP.items, SWAP.ammo].some((m) => lower(m).includes(d))));
+check('gear-swap.json maps neither adamantium ore nor ingot', ['601c87:bsassets.esm', '602099:bsassets.esm'].every((d) => ![SWAP.metals, SWAP.items, SWAP.ammo].some((m) => lower(m).includes(d))));
+const LT = require(path.join(SERVER, 'loottiers.js'));
+check('loottiers keeps both out of loot (LOOT_ONLY_METALS)', !!LT.LOOT_ONLY_METALS['601c87:bsassets.esm'] && !!LT.LOOT_ONLY_METALS['602099:bsassets.esm']);
 
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');
 process.exit(failures ? 1 : 0);
