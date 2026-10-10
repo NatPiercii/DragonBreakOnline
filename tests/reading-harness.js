@@ -215,12 +215,12 @@ check('an abandoned round expires and the book opens again', out.widgets.length 
   for (let i = 0; i < 9; i++) readThrough(SKYRIM_BOOK);
   const copies = out.given.filter((id) => id === 0xf).length;
   check('an ordinary book is copied at most 6 times a day', copies === 6, copies);
-  const capLines = out.personals.filter((x) => /you can today; more wait for the new day/.test(x));
+  const capLines = out.personals.filter((x) => /after midnight UTC/.test(x));
   check('a reader who reached the day\'s caps is told, each cap once', capLines.length >= 1 && ['books copied', 'scrolls', 'spell tomes'].every((k) => capLines.filter((x) => x.includes(k)).length === 1), capLines);
-  check('...in the round\'s result text too', out.results.some((x) => /You read it through\..* you can today/.test(x)), out.results.slice(-1));
+  check('...in the round\'s result text too', out.results.some((x) => /You read it through\..*after midnight UTC/.test(x)), out.results.slice(-1));
   const before = capLines.length;
   readThrough(SKYRIM_BOOK);
-  check('...and not again that day', out.personals.filter((x) => /you can today; more wait/.test(x)).length === before);
+  check('...and not again that day', out.personals.filter((x) => /after midnight UTC/.test(x)).length === before);
   check('the audit line stays as it was (the note is not a find)', !out.audits.some((x) => /you can today/.test(x)));
   props.set(READER + '|private.scholarCopies', { day: '2000-01-01', n: 6 }); // yesterday's six
   readThrough(SKYRIM_BOOK);

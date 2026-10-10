@@ -1,5 +1,23 @@
 [
   {
+    "title": "Better spell tome finds",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Scholar",
+        "items": [
+          "Reading never hands you a spell tome you already know or are carrying.",
+          "Tomes of your own magic schools turn up three times as often: Destruction, Conjuration and Illusion for Arcane, Restoration and Alteration for Priest.",
+          "Adept Scholars can now find Apprentice tomes as well as Novice ones; Masters still find up to Adept.",
+          "Tomes are a chance on each reading, better at a higher Scholar tier, with at most 2 a day. The message now says so.",
+          "Bad luck protection: after 100 readings without a tome, the next reading brings one (still at most 2 a day)."
+        ]
+      }
+    ]
+  },
+  {
     "title": "No more wasted reading",
     "date": "2026-10-09",
     "version": "Server update",

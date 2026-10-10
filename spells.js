@@ -475,6 +475,8 @@ module.exports = (api) => {
   globalThis.__dboSpellsBook = (a) => [].concat(...SPELL_SKILLS.map((s) => studiedIds(a, s.id).map((id) => { const sp = classifySpell(id); return sp ? Object.assign({ book: s.id }, sp) : null; }))).filter(Boolean);
   globalThis.__dboSpellsKnown = (a) => { const ids = new Set(learnedIds(a) || []); for (const id of knownIds(a)) ids.add(id); return [...ids].map(classifySpell).filter(Boolean); };
   globalThis.__dboSpellsClassify = (id) => classifySpell(Number(id) >>> 0);
+  // The spell a tome teaches (0 when it is not a spell tome): the reading's tome pick skips tomes the reader already knows
+  globalThis.__dboSpellsTomeSpell = (bookId) => { try { const t = tomeOf(Number(bookId) >>> 0); return t && t.spellId ? t.spellId >>> 0 : 0; } catch (e) { return 0; } };
   // A spell given outright into one skill's book, as a lesson adds it (schools.js: a new mage's first spell). No tier or
   // school check: the giver has decided. { ok, name, line }, or null when the spell is unknown here.
   globalThis.__dboSpellsGrant = (a, spellId, skillId) => {
