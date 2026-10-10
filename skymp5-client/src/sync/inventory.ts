@@ -162,6 +162,16 @@ export const sameEffects = (a?: EnchantmentEffect[], b?: EnchantmentEffect[]): b
 export const effectsKey = (effects?: EnchantmentEffect[]): string =>
   (effects || []).map((e) => `${e.effectId >>> 0}:${Math.round(e.magnitude * 1000) / 1000}:${e.area}:${e.duration}`).join(',');
 
+// The platform reads ExtraSoul through GetType(), so a held gem's soul comes back as the kSoul type id (0x9C), never its level
+const isSoulLevel = (soul: number): boolean => soul >= 1 && soul <= 5;
+
+// A soul the platform could not read the level of matches any soul, never an empty gem
+export const soulsMatch = (a?: number, b?: number): boolean => {
+  const x = a || 0;
+  const y = b || 0;
+  return x === y || (x > 0 && y > 0 && (!isSoulLevel(x) || !isSoulLevel(y)));
+};
+
 const extrasEqual = (a: Entry, b: Entry, ignoreWorn = false) => {
   return (
     healthStep(a.health) === healthStep(b.health) &&
@@ -172,7 +182,7 @@ const extrasEqual = (a: Entry, b: Entry, ignoreWorn = false) => {
     //a.chargePercent === b.chargePercent &&
     //namesEqual(a, b) &&
     ((a.baseId >>> 0) !== PROPERTY_KEY_BASE_ID || (a.name || '') === (b.name || '')) &&
-    (a.soul || 0) === (b.soul || 0) &&
+    soulsMatch(a.soul, b.soul) &&
     (a.poisonId || 0) === (b.poisonId || 0) &&
     (a.poisonCount || 0) === (b.poisonCount || 0) &&
     ((!!a.worn === !!b.worn && !!a.wornLeft === !!b.wornLeft) || ignoreWorn)
