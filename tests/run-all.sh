@@ -130,6 +130,7 @@ declare -A NEEDS=(
   [journal-tabs-b-front]=front:skymp5-front/src/features/journal/index.tsx
   [journal-status-front]=front:skymp5-front/src/features/journal/index.tsx
   [journal-actions-front]=front:skymp5-front/src/features/journal/index.tsx
+  [racial-power-front]=front:skymp5-front/src/features/journal/index.tsx
 )
 bundle() {
   local side=${1%%:*} entry=${1#*:}
