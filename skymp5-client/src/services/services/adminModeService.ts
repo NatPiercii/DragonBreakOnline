@@ -3,7 +3,7 @@ import { parseCustomPacket } from "./customPacketUtil";
 import { showSystemNotification } from "./systemNotification";
 import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
-import { GHOST_ALPHA, GHOST_SHADER_ID, INVIS_ABILITY_IDS } from "../../lib/ghostLook";
+import { GHOST_ALPHA, GHOST_SHADER_ID, INVIS_ABILITY_IDS, INVIS_ABILITY_SHADER_IDS } from "../../lib/ghostLook";
 
 const INVIS_REAPPLY_MS = 2000;
 const LOCAL_MODES = ["god", "noclip", "ghost", "invis"];
@@ -128,6 +128,14 @@ export class AdminModeService extends ClientListener {
       if (on && !player.hasSpell(spell)) player.addSpell(spell, false);
       else if (!on && player.hasSpell(spell)) player.removeSpell(spell);
     }
+    if (on) this.stopAbilityShaders();
+  }
+
+  // Each (re)add of an ability plays its hit shader again, so this follows every add and runs on each reapply
+  private stopAbilityShaders(): void {
+    const player = this.sp.Game.getPlayer();
+    if (!player) return;
+    for (const id of INVIS_ABILITY_SHADER_IDS) this.sp.EffectShader.from(this.sp.Game.getFormEx(id))?.stop(player);
   }
 
   // Respawn and 3D reloads reset the player's alpha (and a death can drop the abilities)
@@ -143,6 +151,7 @@ export class AdminModeService extends ClientListener {
       player.removeSpell(karliah);
       player.addSpell(karliah, false);
     }
+    this.stopAbilityShaders();
   }
 
   private collisionsDisabled = false;

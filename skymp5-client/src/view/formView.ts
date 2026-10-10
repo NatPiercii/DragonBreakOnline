@@ -24,7 +24,7 @@ import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
 import { PlayerCharacterDataHolder } from "./playerCharacterDataHolder";
 import { dropCopyNiNodeWork, queueCopyNiNodeUpdate } from "./niNodeQueue";
 import { lastTryHost, tryHost } from "./hostAttempts";
-import { GHOST_ALPHA, GHOST_SHADER_ID, INVIS_ABILITY_IDS } from "../lib/ghostLook";
+import { GHOST_ALPHA, GHOST_SHADER_ID, INVIS_ABILITY_IDS, INVIS_ABILITY_SHADER_IDS } from "../lib/ghostLook";
 import { AdminView, keepNoCopy, nextHiddenAt } from "./adminCopyPolicy";
 import { ModelApplyUtils } from "./modelApplyUtils";
 import { localIdToRemoteId } from "./worldViewMisc";
@@ -1152,6 +1152,8 @@ export class FormView {
       if (on && !actor.hasSpell(spell)) actor.addSpell(spell, false);
       else if (!on && actor.hasSpell(spell)) actor.removeSpell(spell);
     }
+    // The staff watcher's ghost copy shows the ghost shader only, not the potion's shimmer
+    if (on) for (const id of INVIS_ABILITY_SHADER_IDS) EffectShader.from(Game.getFormEx(id))?.stop(actor);
   }
 
   // Invisible admins are hidden from players and shown to admins as ghosts; Ghost admins look like ghosts to everyone

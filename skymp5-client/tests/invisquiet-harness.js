@@ -88,5 +88,21 @@ check('adminViewOf unchanged: invis is hidden to players and a ghost to staff',
 check('the alpha path stays for a copy that exists (spell Invisibility, staff ghost)', /actor\.setAlpha\(view === "hidden" \? 0 :/.test(src));
 check('the nametag guard stays', /adminViewOf\(model\) !== "hidden"/.test(src));
 
+// ---- no potion shimmer on an Invisible admin (Nate, 11 Oct) -------------------------------------------------------
+// The abilities that keep NPCs from seeing or hearing them carry hit shaders (read from Skyrim.esm, 11 Oct): MGEF
+// TG05KarliahInvisibility -> EFSH 2df92 InvisFXShader (the potion's), DA02MuffleConstantSelf -> EFSH 81180
+// DA02ArmorShadow. Both are stopped wherever the abilities are put on.
+{
+  const look = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'ghostLook.ts'), 'utf8');
+  const ams = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'services', 'adminModeService.ts'), 'utf8');
+  check('ghostLook lists the two abilities\' shaders', /INVIS_ABILITY_SHADER_IDS = \[0x0002df92, 0x00081180\]/.test(look));
+  const apply = ams.slice(ams.indexOf('private applyInvisAbilities('), ams.indexOf('private stopAbilityShaders('));
+  check('the admin\'s own client stops them after adding the abilities', /addSpell\(spell, false\)[\s\S]*if \(on\) this\.stopAbilityShaders\(\);/.test(apply));
+  check('...on the player, for each shader id', /for \(const id of INVIS_ABILITY_SHADER_IDS\) this\.sp\.EffectShader\.from\(this\.sp\.Game\.getFormEx\(id\)\)\?\.stop\(player\)/.test(ams));
+  check('...and again after the 2 s reapply re-adds Karliah\'s ability (it replays the shader)', /player\.addSpell\(karliah, false\);\s+\}\s+this\.stopAbilityShaders\(\);/.test(ams));
+  const fv = src.slice(src.indexOf('private static applyInvisAbilities('));
+  check('a staff watcher\'s ghost copy stops them too (the ghost shader only)', /if \(on\) for \(const id of INVIS_ABILITY_SHADER_IDS\) EffectShader\.from\(Game\.getFormEx\(id\)\)\?\.stop\(actor\);/.test(fv.slice(0, 800)));
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nall passed');
 process.exit(failures ? 1 : 0);
