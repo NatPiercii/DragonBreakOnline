@@ -380,12 +380,14 @@ export class BeastFormService extends ClientListener {
   private nextHandsCheck = 0;
   private nextDiagAt = 0;
 
-  // Sneak toggles the stance, the same key vanilla uses, read from the player's own bindings
+  // Shout reports a power and Sneak toggles the stance, by the player's bindings (a mouse bind is named by its event)
   private onButtonEvent(e: ButtonEvent): void {
-    if (!this.beastRace || !e.isDown || e.device !== InputDeviceType.Keyboard) return;
-    if (this.onAbilityKey(e.code)) return;
-    if (e.code === this.shoutKey()) { this.reportPower(); return; }
-    if (this.beastRace !== VAMPIRE_RACE || e.code !== this.sneakKey()) return;
+    const keyboard = e.device === InputDeviceType.Keyboard;
+    if (!this.beastRace || !e.isDown || (!keyboard && e.device !== InputDeviceType.Mouse)) return;
+    if (keyboard && this.onAbilityKey(e.code)) return;
+    if (e.userEventName === "Shout" || (keyboard && e.code === this.shoutKey())) { this.reportPower(); return; }
+    if (this.beastRace !== VAMPIRE_RACE) return;
+    if (e.userEventName !== "Sneak" && !(keyboard && e.code === this.sneakKey())) return;
     this.setVampireStance(this.vampireStance === VL_STATE_LEVITATING ? VL_STATE_WALKING : VL_STATE_LEVITATING);
   }
 
