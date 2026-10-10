@@ -378,11 +378,12 @@ module.exports = (api) => {
           const f = regenFactor(a, stat);
           const per = f > 1 ? extraPerSecond(a, stat, f) : 0;
           if (!(per > 0)) { owed[stat] = 0; continue; }
-          owed[stat] += per * secs;
-          if (!fresh) continue;
           const own = per / (f - 1); // the bar's own regen a second
           // At least payoutSeconds of own regen, more than a report's age takes back; or the rest if own regen fills the bar first
           const step = Math.max(num(C.minStep, 0.002), own * Math.max(0, num(C.payoutSeconds, 1)));
+          // Owed stops at a step plus 1.5 s of gift: a pause (a menu, the regen delay) adds no regen, so it is not paid as one jump
+          owed[stat] = Math.min(owed[stat] + per * secs, step + per * 1.5);
+          if (!fresh) continue;
           const fillsFirst = next[stat] + own >= 1 && owed[stat] >= own * 0.5;
           if (owed[stat] < step && !fillsFirst) continue;
           next[stat] = Math.min(1, next[stat] + owed[stat]);

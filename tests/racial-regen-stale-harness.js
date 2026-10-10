@@ -48,7 +48,9 @@ const simulate = (o) => {
   const out = { writes: 0, castRefunds: 0, lastWriteAt: -1, silentWrites: 0, crops: 0, writePulls: 0, writePull: 0, cropPulls: 0, refunds: 0, refund: 0, paid: 0, reachAt: null, ticks: 0 };
   let fightingUntil = -1;
   const casts = (o.casts || []).map((c) => Object.assign({}, c, { at: t0 + c.at }));
-  const silentAt = (t) => (o.silent || []).some(([a, b]) => t >= t0 + a && t < t0 + b) || casts.some((c) => t >= c.at && t < c.at + 300);
+  // paused: a game-pausing menu or the regen delay: the client neither regenerates nor reports
+  const pausedAt = (t) => (o.paused || []).some(([a, b]) => t >= t0 + a && t < t0 + b);
+  const silentAt = (t) => pausedAt(t) || (o.silent || []).some(([a, b]) => t >= t0 + a && t < t0 + b) || casts.some((c) => t >= c.at && t < c.at + 300);
   const mp = {
     get: (id, k) => {
       gets[k] = (gets[k] || 0) + 1;
@@ -63,7 +65,7 @@ const simulate = (o) => {
       const nv = {}; for (const s of STATS) nv[s] = fr(Math.max(0, Math.min(1, Number(v[s]))));
       const send = STATS.filter((s) => !(Math.abs(stored[s] - nv[s]) < EPS));
       const paid = {}; for (const s of STATS) paid[s] = nv[s] - stored[s];
-      if (paid[o.stat] > 0) out.paid += paid[o.stat];
+      if (paid[o.stat] > 0) { out.paid += paid[o.stat]; out.maxPay = Math.max(out.maxPay || 0, paid[o.stat]); }
       stored = nv;
       for (const s of send) lastUpd[s] = now;
       const pc = {}; for (const s of send) pc[s] = nv[s];
@@ -95,7 +97,7 @@ const simulate = (o) => {
   const target = o.target == null ? 1 : o.target;
   for (; now < end; now += 10) {
     const fighting = now < fightingUntil;
-    for (const s of STATS) client[s] = Math.min(1, client[s] + RATE[s] * (fighting ? COMBAT[s] : 1) * 0.01);
+    if (!pausedAt(now)) for (const s of STATS) client[s] = Math.min(1, client[s] + RATE[s] * (fighting ? COMBAT[s] : 1) * 0.01);
     for (const sp of spends) if (!sp.done && now >= sp.at) { sp.done = true; client[sp.stat] = Math.max(0, client[sp.stat] - sp.amount); }
     for (const c of casts) {
       if (!c.done && now >= c.at) { c.done = true; client.magicka = Math.max(0, client.magicka - c.amount); }
@@ -180,6 +182,13 @@ check('long refills: faster than vanilla in every case (at least x1.05)', long.e
 const mean = long.reduce((n, r) => n + r.ratio, 0) / long.length;
 // a write still loses the regen of a report's age and the trip back (latency), so the x1.25 lands a little lower
 check('long refills: x1.10 or more on average over the latencies and report phases', mean >= 1.1, +mean.toFixed(3));
+
+// ---- 1b. a pause (a game-pausing menu, the regen delay): no regen and no reports; the gift owed meanwhile is not paid as one jump ----
+const pauses = [['altmer', 'magicka', 60000], ['altmer', 'magicka', 10000], ['redguard', 'stamina', 60000]].map(([race, stat, ms]) =>
+  Object.assign({ name: `${race} ${stat} 0.30, paused ${ms / 1000} s` }, simulate({ race, stat, start: { [stat]: 0.3 }, seconds: ms / 1000 + 8, paused: [[1000, 1000 + ms]] })));
+// The biggest normal payment is a step (1 s of the bar's own regen) plus 1.5 s of gift: Altmer 0.03 + 0.011, Redguard 0.05 + 0.019
+check('a pause: no payment bigger than a step plus 1.5 s of gift (Altmer 0.045, Redguard 0.075)',
+  pauses.every((r) => (r.maxPay || 0) <= (r.name.startsWith('altmer') ? 0.045 : 0.075)), pauses.map((r) => [r.name, +(r.maxPay || 0).toFixed(4)]));
 
 // ---- 2. short refills that reach the full bar: the rest of the owed gift is paid before the client's own regen fills it ----
 const short = [['redguard', 'stamina', 0.85], ['redguard', 'stamina', 0.7], ['altmer', 'magicka', 0.85], ['nord', 'stamina', 0.7], ['nord', 'stamina', 0]]
