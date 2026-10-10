@@ -5,10 +5,9 @@
 // A manual (manuals.json, Worker C's table: DragonBreak Online Edits.esp BOOK DBO_BookManual<X> and marker SPEL
 // DBO_Manual_<X>; a forge recipe needs the Blacksmith tier marker and the manual's marker) is read from the inventory.
 // Below its tier (1-based, skills.json's Blacksmith list: rank 0 = T1) it is refused and kept: "You can't follow this
-// yet". Otherwise its marker is added, the material kept in private.dboManuals, and the book used up (Nate): not at once,
-// since the server cannot tell whether the Book menu still shows it and an item changed under an open vanilla menu is the
-// "base-form writes race open menus" risk, but at the reader's next cell change, logout or login, when no book can be
-// open (private.dboManualsOwed; a copy no longer carried then is taken from the next one they hold). A respec
+// yet". Otherwise its marker is added, the material kept in private.dboManuals, and the book used up (Nate): a moment
+// after the read, like a spell tome (10 Oct; consumeDelayMs, 1500), and failing that at the reader's next cell change,
+// logout or login (private.dboManualsOwed; a copy no longer carried then is taken from the next one they hold). A respec
 // keeps what was learned: the knowledge is not the Wheel's, and each recipe still needs its tier marker, so a character
 // who sets Blacksmith aside cannot forge with it and needs no second reading on taking it up again. A marker missing at
 // login is put back from the record.
@@ -183,8 +182,14 @@ module.exports = (api) => {
       return false;
     }
     if (!learn(a, m, fromInventory ? 'a book' : 'a book on the shelf')) { personal(a, 'The words will not settle. Try again in a moment.'); return false; }
-    if (fromInventory && C.consume) set(a, OWED, owedOf(a).concat([{ book: m.book, cell: String(get(a, 'worldOrCellDesc', '')) }]));
-    personal(a, `You study ${m.title}. You can work ${m.name} at the forge now.${fromInventory && C.consume ? ' Your notes fill every margin: the book is spent, and it is gone once you move on.' : ''}`);
+    if (fromInventory && C.consume) {
+      set(a, OWED, owedOf(a).concat([{ book: m.book, cell: String(get(a, 'worldOrCellDesc', '')) }]));
+      // Used up like a spell tome (Nate, 10 Oct): taken a moment after the read, as the engine takes a tome; the cell-change
+      // settle stays for a copy this misses (a reload in between, or the book moved first)
+      const delay = Math.max(0, Number(C.consumeDelayMs === undefined ? 1500 : C.consumeDelayMs) || 0);
+      setTimeout(() => { try { settleOwed(a, 'read', false); } catch (e) { log('manuals: settle after read failed', e.message); } }, delay);
+    }
+    personal(a, `You study ${m.title}. You can work ${m.name} at the forge now.${fromInventory && C.consume ? ' The book is spent.' : ''}`);
     return true;
   };
 

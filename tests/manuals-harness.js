@@ -91,7 +91,7 @@ globalThis.__alduinakMasteryFirstTouch = () => 'held';
 const out = { said: [], audits: [], logs: [], widgets: [], notices: [], treasury: [] };
 const handlers = new Map(), commands = new Map(), timers = new Map();
 const api = (extra) => Object.assign({
-  mp, cfg: { manuals: CONFIG.manuals, spells: CONFIG.spells, salvage: CONFIG.salvage, reading: { bookDailyCap: 2 } },
+  mp, cfg: { manuals: Object.assign({}, CONFIG.manuals, { consumeDelayMs: 600000 }), spells: CONFIG.spells, salvage: CONFIG.salvage, reading: { bookDailyCap: 2 } },
   log: (...a) => out.logs.push(a.join(' ')), personal: (a, t) => out.said.push([a, t]), system: (a, t) => out.said.push([a, t]),
   audit: (t) => out.audits.push(t), who: (a) => `P${a.toString(16)}`, display: (a) => NAMES[a] || 'P',
   giveItem: (a, baseId, n) => { const e = (getp(a, 'inventory') || { entries: [] }).entries; const h = e.find((x) => x.baseId === baseId); if (h) h.count += n; else e.push({ baseId, count: n }); put(a, 'inventory', { entries: e }); return true; },
@@ -139,7 +139,8 @@ check('...told why, and keeps the book, with no marker', /You can't follow this 
 check('...nor the Steel manual (T2): a Novice is T1', (await read(NOVICE, B('steel'))) === false && /Apprentice rank or better/.test(said(NOVICE)));
 skills(SMITH, { blacksmith: 1 }); inv(SMITH, [[B('steel'), 2]]);
 check('an Apprentice Blacksmith learns the Steel manual', (await read(SMITH, B('steel'))) !== false && spellSet(SMITH).has(K('steel')) && (getp(SMITH, 'private.dboManuals') || {}).steel, getp(SMITH, 'private.dboManuals'));
-check('...is told so; the book is spent but not taken while a Book menu may still show it', /You study Thorbald's Methods: Steel\. You can work Steel at the forge now\. Your notes fill every margin: the book is spent, and it is gone once you move on\./.test(said(SMITH)) && count(SMITH, B('steel')) === 2 && (getp(SMITH, 'private.dboManualsOwed') || []).length === 1, [said(SMITH), count(SMITH, B('steel')), getp(SMITH, 'private.dboManualsOwed')]);
+check('...is told so; the book is spent, owed until the take a moment later (held here by a long consumeDelayMs)', /You study Thorbald's Methods: Steel\. You can work Steel at the forge now\. The book is spent\./.test(said(SMITH)) && count(SMITH, B('steel')) === 2 && (getp(SMITH, 'private.dboManualsOwed') || []).length === 1, [said(SMITH), count(SMITH, B('steel')), getp(SMITH, 'private.dboManualsOwed')]);
+check('the read schedules the take like a spell tome (settleOwed after consumeDelayMs, 1500 by default)', /setTimeout\(\(\) => \{ try \{ settleOwed\(a, 'read', false\);/.test(fs.readFileSync(MANUALS, 'utf8')) && /consumeDelayMs === undefined \? 1500/.test(fs.readFileSync(MANUALS, 'utf8')));
 const owedMove = globalThis.__dboManualsOwedMove;
 check('the spent copy cannot be handed on while it is owed: moving both copies is refused', /spent/.test(owedMove(SMITH, B('steel'), 2) || ''), owedMove(SMITH, B('steel'), 2));
 check('...moving the copy they did not read is allowed (one stays to settle the debt)', owedMove(SMITH, B('steel'), 1) === null);
