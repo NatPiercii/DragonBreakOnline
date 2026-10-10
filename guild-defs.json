@@ -607,6 +607,74 @@
       }
     },
     {
+      "id": "imperial-civil-commission",
+      "name": "Imperial Civil Commission",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Civil Commissioner",
+          "role": "leader"
+        },
+        {
+          "title": "Praetor",
+          "role": "officer"
+        },
+        {
+          "title": "Magistrate",
+          "role": "officer"
+        },
+        {
+          "title": "Agent-Inspector",
+          "role": "sergeant"
+        },
+        {
+          "title": "Clerk",
+          "role": "member"
+        }
+      ],
+      "hall": {
+        "name": "Bruma Castle",
+        "zone": "bruma",
+        "doors": [
+          "b46a8:BSHeartland.esm"
+        ],
+        "shared": true
+      },
+      "note": "Nate 9 Oct 2026: the Elder Council's civil arm in the province: Imperial justice, charters and licences, audits of the holds (Lex Imperii I.3, VII). Titles from the Lex Imperii (Praetor, Agent-Inspector, Clerk), the games (Magistrate) and the Council's own letter (Civil Commissioner). Rules no county: the Count keeps county justice. Small by design: staff seat the Commissioner."
+    },
+    {
+      "id": "penitus-oculatus",
+      "name": "Penitus Oculatus",
+      "kind": "guild",
+      "ranks": [
+        {
+          "title": "Commander",
+          "role": "leader"
+        },
+        {
+          "title": "Inspector",
+          "role": "officer"
+        },
+        {
+          "title": "Agent",
+          "role": "sergeant"
+        },
+        {
+          "title": "Recruit",
+          "role": "member"
+        }
+      ],
+      "hall": {
+        "name": "Bruma Castle",
+        "zone": "bruma",
+        "doors": [
+          "b46a8:BSHeartland.esm"
+        ],
+        "shared": true
+      },
+      "note": "Nate 9 Oct 2026: the Mede dynasty's own eyes, sword and shield (UESP Lore:Penitus Oculatus; ranks Commander, Inspector, Agent, Recruit are attested). Answers to the Emperor, not the Civil Commission: a Magistrate may request the Oculatus, never order it. Wears the Penitus Oculatus set beside the Legion. Staff seat the Commander."
+    },
+    {
       "id": "stormcloaks",
       "name": "Stormcloaks",
       "kind": "guild",

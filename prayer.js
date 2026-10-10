@@ -299,7 +299,7 @@ module.exports = (api) => {
       const other = capriceOf(d);
       if (!other) { personal(a, `${d.name} laughs, and gives you nothing. He may have meant to.`); return false; }
       const got = grantBlessing(a, other, hours);
-      if (got) personal(a, `${d.name} rummages, and hands you the blessing of ${other.name}. He seems delighted.`);
+      if (got) personal(a, `${d.name} rummages, and hands you the blessing of ${other.name}${other.boon ? ` (${String(other.boon).replace(/\.$/, '')})` : ''}. He seems delighted.`);
       return got;
     }
     const spell = blessingIdOf(d);
@@ -1220,7 +1220,8 @@ module.exports = (api) => {
     let text = `${round.mode === 'pick' ? 'You speak the three verses' : 'You hold the three verses'}. ${d.name} takes note, and no more.`;
     if (Math.random() < chance * favour) {
       if (grantBlessing(a, d, hours)) {
-        text = `${d.name} answers. The blessing rests on you for ${hours} hours.`;
+        // Say what it does (skills.json `boon`): server-side boons show nowhere in the game's Active Effects (Nate, 9 Oct)
+        text = `${d.name} answers. The blessing rests on you for ${hours} hours${d.boon ? `: ${String(d.boon).replace(/\.$/, '')}` : ''}.`;
         audit(`PRAYER ${who(a)} received the blessing of ${d.name} (${hours} h, priest tier ${tier + 1})`);
       } else {
         text = `${d.name} answers, and the answer does not reach you.`;

@@ -54,6 +54,14 @@ put('hold-whiterun', GUARD, 'Guard');
 put('hold-whiterun', CITIZEN, 'Citizen');
 put('county-bruma', CAPTAIN, 'Guard Captain');
 
+// Nate 9 Oct: the Imperial Civil Commission and the Penitus Oculatus (guild-defs.json); their members are not lawful
+const MAGI = 0x40, CLERK = 0x41, AGENT = 0x42, RECRUIT = 0x43;
+Object.assign(names, { [MAGI]: 'Magistrate', [CLERK]: 'Clerk', [AGENT]: 'Agent', [RECRUIT]: 'Recruit' });
+put('imperial-civil-commission', MAGI, 'Magistrate');
+put('imperial-civil-commission', CLERK, 'Clerk');
+put('penitus-oculatus', AGENT, 'Agent');
+put('penitus-oculatus', RECRUIT, 'Recruit');
+
 const tick = () => timers.lawful.fn();
 const lawful = (a) => props.get(`${a}|private.dboLawful`) === true;
 ok('the lawful refresh runs every 15 s', timers.lawful && timers.lawful.ms === 15000);
@@ -66,6 +74,10 @@ ok('a Guard Captain of Bruma is lawful', lawful(CAPTAIN));
 ok('a hold Citizen is not', !lawful(CITIZEN));
 ok('a Court Mage (zone rank) is still not', !lawful(MAGE));
 ok('a zone-official guard is still lawful', lawful(JARLGUARD));
+ok('a Magistrate of the Civil Commission (officer) is lawful', lawful(MAGI));
+ok('a Commission Clerk (member) is not', !lawful(CLERK));
+ok('a Penitus Oculatus Agent (sergeant) is lawful', lawful(AGENT));
+ok('a Penitus Oculatus Recruit (member) is not', !lawful(RECRUIT));
 ok('instant restraint: a Legion officer cuffs at once', globalThis.__dboInstantRestraint(OFFICER, TARGET) === true);
 ok('instant restraint: a Legion soldier does not', globalThis.__dboInstantRestraint(SOLDIER, TARGET) === false);
 ok('instant restraint: a hold Guard cuffs at once', globalThis.__dboInstantRestraint(GUARD, TARGET) === true);
