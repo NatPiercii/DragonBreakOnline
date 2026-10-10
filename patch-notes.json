@@ -14,7 +14,8 @@
           "Schematics books: Scholars read them; the Synod sells the common ones, and rare ones turn up in ruins, forts, goblin camps and boss chests.",
           "Improving gear at the workbench or grindstone is capped: up to two tiers above the item's own, never past tier 5, and only as far as your own craft tier.",
           "Your Blacksmithing page in the F3 journal shows your tier, what you know and where to learn the rest (with client 0.3.90).",
-          "Smiths from before this update keep their experience: the first time you log in, you learn every technique your craft tier already allows (Orcish only for Orcs). You are told which ones."
+          "Smiths from before this update keep their experience: the first time you log in, you learn every technique your craft tier already allows (Orcish only for Orcs). You are told which ones.",
+          "A faction's own Blacksmith can forge that faction's armour and weapons at any craft tier, without learning the technique first."
         ]
       }
     ]

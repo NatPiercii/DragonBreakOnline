@@ -95,6 +95,9 @@ module.exports = (api) => {
     if (!isForgeRecipe(recipeId)) return true;
     const fam = familyOfItem(itemId);
     if (!fam || bypass(a)) return true;
+    // A faction's own Blacksmith makes that faction's gear without the tier or the technique (Nate, 10 Oct): the faction
+    // rule (factiongear.js) already says who may, and regions.js still asks it after this gate
+    try { if (typeof globalThis.__dboFactionGearMember === 'function' && globalThis.__dboFactionGearMember(a, itemId)) return true; } catch (e) { /* the usual gate */ }
     const tier = craftTier(a);
     if (tier < fam.tier) { tell(a, `${fam.name} is craft tier ${fam.tier} (${TIER_NAMES[fam.tier - 1] || ''}) work; you are at tier ${tier || 0}. Your materials come back when you close the menu.`); return false; }
     if (knows(a, fam)) return true;

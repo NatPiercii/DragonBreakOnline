@@ -232,6 +232,16 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   ok(carry(NEW) === 0 && !props.get(`${NEW}|private.dboSmithCarried`), 'no Blacksmith skill: nothing, not marked (they get it if they take it up)');
 }
 
+// A faction's own Blacksmith makes its gear without the tier or the technique
+{
+  const FS = 0xff000121; put(FS, 'appearance', { raceId: NORD_RACE }); put(FS, 'inventory', { entries: [] }); smith(FS, 0);
+  ok(craft(FS, DWARF, R_DWARF) === false, 'a tier 1 smith cannot forge Dwarven');
+  globalThis.__dboFactionGearMember = (a, item) => a === FS && item === DWARF;
+  ok(craft(FS, DWARF, R_DWARF) === true, '...unless it is their faction\'s gear and they are its Blacksmith');
+  ok(craft(A, DWARF, R_DWARF) === false || globalThis.__dboSmithCraftTier(A) >= 4, 'others still need the tier');
+  delete globalThis.__dboFactionGearMember;
+}
+
 // Staff
 cmds.get('smithing')(STAFF, 'teach sup dwarven');
 ok(props.get(`${SUP}|private.dboManuals`).dwarven.how === 'staff', '/smithing teach');
