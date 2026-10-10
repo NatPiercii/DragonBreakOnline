@@ -57,6 +57,12 @@ const MASTERY_PROP = "private.mastery";
 // { mult, until }: a timed skill boost the gameplay layer grants; honoured while Date.now() < until, mult 1..3
 const XP_BOOST_PROP = "private.xpBoost";
 const SKILL_RATE_HOOK = "__dboSkillRate";
+// After the meter: globalThis.__dboSkillRateCredited(actorId, skillId, kind, detail, units), the units the meter kept
+// for one act, before the rate (0 when the hourly bucket or the day's cap kept none). skillrates.js marks an item made for
+// its first-time bonus only then (Nate, 10 Oct), so a craft at a spent bucket does not use the bonus up.
+// CREDIT_HOOK_FLAG tells the gameplay this server calls it.
+const SKILL_CREDITED_HOOK = "__dboSkillRateCredited";
+const CREDIT_HOOK_FLAG = "__dboMasteryCreditsHook";
 const SKILLS_FILE = "skills.json";
 const GOLD_BASE_ID = 0x0000000f;
 
@@ -245,6 +251,7 @@ export class MasterySystem implements System {
   constructor(private log: Log) { }
 
   async initAsync(ctx: SystemContext): Promise<void> {
+    (globalThis as any)[CREDIT_HOOK_FLAG] = 1;
     const s = await Settings.get();
     const all = s.allSettings as Record<string, unknown> | null;
     this.loadSkillsFile();
@@ -652,7 +659,8 @@ export class MasterySystem implements System {
       // `value` is the scale term weightOf asks for per kind (ore band, product value, target health).
       // It was never passed before, so every weight sat at its v=0 base and every scaling term in
       // weightOf was dead; an emitter that does not send one still gets that base.
-      this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost, this.rateOf(ev.actorId, id, ev.kind, ev.detail));
+      const units = this.gain(ctx, ev.actorId, rec, id, prog, this.weightFor(id, ev) * mult, this.noveltyOf(ev), now, userId, boost, this.rateOf(ev.actorId, id, ev.kind, ev.detail));
+      this.credited(ev.actorId, id, ev.kind, ev.detail, units);
       changed = true;
     }
     if (changed) this.write(ctx, ev.actorId, rec);
@@ -752,6 +760,13 @@ export class MasterySystem implements System {
     try { const needs = mp.get(actorId, "private.needs"); mult *= clamp(needs && typeof needs === "object" ? needs.xpMult : 1); } catch { /* fed */ }
     try { mult *= clamp(mp.get(actorId, "private.partyXpMult")); } catch { /* no party */ }
     return mult;
+  }
+
+  // What one act really credited, for the gameplay (SKILL_CREDITED_HOOK); a hook that throws changes nothing here
+  private credited(actorId: number, skillId: string, kind: string, detail: Record<string, number> | undefined, units: number): void {
+    const hook = (globalThis as any)[SKILL_CREDITED_HOOK];
+    if (typeof hook !== "function") return;
+    try { hook(actorId, skillId, kind, detail || {}, Number(units) || 0); } catch { /* the gameplay's own business */ }
   }
 
   // The gameplay's per-skill, per-activity rate (skillrates.js, gamemode-config "skillRates"); 1 when it is not loaded or answers oddly
