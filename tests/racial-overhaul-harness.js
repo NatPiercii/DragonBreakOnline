@@ -201,6 +201,28 @@ state[MAORMER].props['private.racialPower'] = {};
 const tu = RB.usePower(MAORMER);
 check("Roaring Tempest casts the ward's look on the player (dboCastSelf)", tu.ok && packets.some(([a, p]) => a === MAORMER && p.customPacketType === 'dboCastSelf' && p.spell === LOOK), packets);
 
+// ---- the DLE's MaormerRace (config maormerRace) ----
+const MRACE = 0x7801, MVAMP = 0x7802, MR_ACTOR = 12;
+const R0 = make({ enabled: true, overhaul: true, maormerRace: { race: '7801:DragonBreak Online Edits.esp', vampire: '7802:DragonBreak Online Edits.esp' } });
+check('not in the load order yet: no creator override', JSON.stringify(globalThis.__dboRaceOverrides) === '{}');
+records[MRACE] = RACE(4); records[MVAMP] = RACE(4);
+mp.getIdFromDesc = ((orig) => (d) => ({ '7801:DragonBreak Online Edits.esp': MRACE, '7802:DragonBreak Online Edits.esp': MVAMP })[d] || orig(d))(mp.getIdFromDesc);
+const RM = make({ enabled: true, overhaul: true }, { cfg: { racial: { enabled: true, overhaul: true }, maormerRace: { race: '7801:DragonBreak Online Edits.esp', vampire: '7802:DragonBreak Online Edits.esp' } } });
+check('both RACE records: the creator makes new Maormer on MaormerRace (__dboRaceOverrides)', globalThis.__dboRaceOverrides && globalThis.__dboRaceOverrides.maormer === MRACE);
+state[MR_ACTOR] = { race: MRACE, pc: { health: 1, magicka: 1, stamina: 1 } };
+check('a character on MaormerRace is the Maormer, without private.rp', RM.raceOf(MR_ACTOR) === 'maormer' && near(RM.targetMult(NPC, MR_ACTOR, SPARKS), 0.5));
+state[MR_ACTOR].race = MVAMP;
+check('...and on MaormerRaceVampire too', RM.raceOf(MR_ACTOR) === 'maormer');
+const RMoff = make({ enabled: true }, { cfg: { racial: { enabled: true }, maormerRace: { race: '7801:DragonBreak Online Edits.esp', vampire: '7802:DragonBreak Online Edits.esp' } } });
+state[MR_ACTOR].race = MRACE;
+check('with the overhaul off a MaormerRace character has the Altmer gift, as on the High Elf record', RMoff.raceOf(MR_ACTOR) === 'altmer' && near(RMoff.regenFactor(MR_ACTOR, 'magicka'), 1.25));
+check('a High Elf record Maormer (private.rp) is still one', RM.raceOf(MAORMER) === 'maormer');
+const sup2 = fs.readFileSync(path.join(SERVER, 'supernatural.js'), 'utf8'), app2 = fs.readFileSync(path.join(SERVER, 'appearance.js'), 'utf8');
+check('supernatural.js: MaormerRace <-> MaormerRaceVampire beside the vanilla pairs, the High Elf\'s tells', /VAMPIRE_RACES\.set\(maormerRace\[0\], maormerRace\[1\]\); MORTAL_RACES\.set\(maormerRace\[1\], maormerRace\[0\]\)/.test(sup2) && /FAMILY\.set\(maormerRace\[0\], 'highelf'\)/.test(sup2) && sup2.indexOf('const maormerRace') > sup2.indexOf('const recordOf = '));
+check('appearance.js: both guarded as the High Elf\'s heads', /HEADS\.raceOf\.set\(r, 'HighElfRace'\); HEADS\.raceOf\.set\(v, 'HighElfRace'\)/.test(app2));
+const gc = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8'));
+check('gamemode-config.json: maormerRace race and vampire empty until the DLE ships', gc.maormerRace && gc.maormerRace.race === '' && gc.maormerRace.vampire === '');
+
 // ---- 6. the wiring ----
 const jr = fs.readFileSync(path.join(SERVER, 'journal.js'), 'utf8');
 check('journal.js: the Profile tab\'s action racialPower and its view', /racialPower: \(a\) => \(typeof globalThis\.__dboRacialPowerUse === 'function'/.test(jr) && /racialPower: own === false \? null : racialPowerView\(a\)/.test(jr) && /racialPower: 'Racial Power'/.test(jr));

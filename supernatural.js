@@ -180,6 +180,14 @@ module.exports = (api) => {
   // Record-local form ids become load-order ids through the lookup result of the record that holds them (as dungeons.js does)
   const fieldIds = (rec, type) => { const out = []; for (const f of (rec && rec.fields) || []) if (f.type === type) out.push(...u32s(f)); return out; };
   const globalOf = (idHolder, local) => { try { const x = mp.lookupEspmRecordById(idHolder >>> 0); return x && typeof x.toGlobalRecordId === 'function' ? x.toGlobalRecordId(local) >>> 0 : 0; } catch (e) { return 0; } };
+  // The DLE's MaormerRace and MaormerRaceVampire (config maormerRace), once both are RACE records: a pair like the rest
+  const maormerRace = (() => {
+    const M = cfg.maormerRace || {};
+    const rec = (d) => { const id = d ? (() => { try { return mp.getIdFromDesc(String(d)) >>> 0; } catch (e) { return 0; } })() : 0; const r = id ? recordOf(id) : null; return r && String(r.record.type) === 'RACE' ? id : 0; };
+    const r = rec(M.race), v = rec(M.vampire);
+    return r && v ? [r, v] : null;
+  })();
+  if (maormerRace) { VAMPIRE_RACES.set(maormerRace[0], maormerRace[1]); MORTAL_RACES.set(maormerRace[1], maormerRace[0]); }
   const keywordsOf = (id) => fieldIds(recordOf(id), 'KWDA').map((k) => globalOf(id, k));
   const hasKeyword = (id, kw) => !!kw && keywordsOf(id).includes(kw);
   const effectsOf = (id) => fieldIds(recordOf(id), 'EFID').map((e) => globalOf(id, e));
@@ -251,6 +259,8 @@ module.exports = (api) => {
   };
   const FAMILY = new Map([['13746', 'human'], ['13741', 'human'], ['13744', 'human'], ['13748', 'human'], ['13743', 'highelf'], ['13742', 'elf'],
     ['13749', 'elf'], ['13747', 'orc'], ['13745', 'khajiit'], ['13740', 'argonian']].map(([r, f]) => [idOf(`${r}:Skyrim.esm`), f]).filter(([r]) => r));
+  // A Maormer has the High Elf's body and so its tells (the DLE must list MaormerRace in those eyes' valid races)
+  if (maormerRace) FAMILY.set(maormerRace[0], 'highelf');
   const familyOf = (race) => FAMILY.get(race) || FAMILY.get(MORTAL_RACES.get(race)) || null;
   const isEyePart = (id) => fieldIds(recordOf(id), 'PNAM')[0] === 2;
   // A head part's extra parts (HNAM), and theirs in turn: eyes such as the blind ones carry an overlay part that the

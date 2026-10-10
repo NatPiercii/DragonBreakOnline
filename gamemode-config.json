@@ -899,6 +899,11 @@
   "hours": 150,
   "slots": 1
  },
+ "maormerRace": {
+  "_comment": "The DLE's own Maormer race (Nate, 10 Oct: lore skin tones, a little shorter than the Altmer): MaormerRace and MaormerRaceVampire, as <hex>:<plugin> descs. Until both resolve to RACE records in the load order every Maormer stays on the High Elf record. Once they do: the character creator makes new Maormer on it (charCreatorData.ts reads __dboRaceOverrides), racial.js counts it as the Maormer, supernatural.js turns it into its vampire and back, and appearance.js guards its heads as the High Elf's.",
+  "race": "",
+  "vampire": ""
+ },
  "racial": {
   "_comment": "One passive gift per race (racial.js; Nate approved all ten and the rules, 3 Oct 2026). Resistances, damage and the Orc's low-health rage go through the hit path; reductionCap caps Defense x blessing x race together (0.75 = never more than 75% off a hit). Regeneration is added server-side like a blessing's: alwaysRegenCap bounds an always-on factor, conditionalRegenCap a conditional one; for combatSeconds after a landed blow the extra is slowed by the game's own combat regen GMSTs (argonian.inCombat true keeps Hist-Blooded's full extra in a fight). Off in beast forms, players only. Imperial goldBonus counts lease chests and bodies, camp chests and contract pay only. altmer.elementalWeakness is Nate's optional price (0 = off). nord.coldAreas: the Jerall Mountains around Bruma and the Pale Pass road. castHoldSeconds: no server-side regeneration (race, blessing, Ayleid well) is written for that long after the player's last cast, since the server's bars still predate the spell then (5 Oct: casts cost no magicka). channelHoldSeconds: after a concentration cast the hold lasts until the client's report moves the server's magicka, at most that long (8 Oct: a Flames channel past 3 s cost nothing).",
   "_overhaul": "The racial overhaul (racial.js, Nate 10 Oct; specs/racial-overhaul.md): the Maormer on the High Elf record, one +15% XP boost per race, the Argonian's disease resistance, a Racial Power once a real day from the Journal. false: every number stays the 3 Oct one. Switching it on is Nate's call.",

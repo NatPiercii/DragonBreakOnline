@@ -111,12 +111,22 @@ module.exports = (api) => {
   const inBeastForm = (a) => { try { const b = mp.get(a >>> 0, 'private.beast'); return !!(b && b.form); } catch (e) { return false; } };
   const raceIdOf = (a) => { try { const app = mp.get(a >>> 0, 'appearance'); return app && app.raceId ? Number(app.raceId) >>> 0 : 0; } catch (e) { return 0; } };
   // The creator's race key (spawn.ts private.rp.race: 'maormer', 'nibenese', ...), lower case, or ''
+  // The DLE's MaormerRace and its vampire (config maormerRace), once both are RACE records in the load order: the Maormer by
+  // the race itself, the creator's override (charCreatorData.ts __dboRaceOverrides) and nothing at all before
+  const raceRec = (desc) => { try { const id = desc ? mp.getIdFromDesc(String(desc)) >>> 0 : 0; const r = id ? recordOf(id) : null; return r && String(r.record.type) === 'RACE' ? id : 0; } catch (e) { return 0; } };
+  const MR = (cfg && cfg.maormerRace) || {};
+  const MAORMER_IDS = (() => { const r = raceRec(MR.race), v = raceRec(MR.vampire); return r && v ? [r, v] : []; })();
+  globalThis.__dboRaceOverrides = MAORMER_IDS.length ? { maormer: MAORMER_IDS[0] } : {};
   const rpRace = (a) => { try { const rp = mp.get(a >>> 0, 'private.rp'); return rp && rp.race ? String(rp.race).toLowerCase() : ''; } catch (e) { return ''; } };
   // The race whose gift this player has now, or '' (not a player, a beast form, an unknown race, switched off)
   const raceOf = (a) => {
     if (!on() || !isPlayer(a) || inBeastForm(a)) return '';
-    const r = RACE_OF_ID.get(raceIdOf(a)) || '';
-    // A Maormer stands on the High Elf record (charCreatorData.ts): without this every Maormer counts as an Altmer
+    const id = raceIdOf(a);
+    // On the DLE's MaormerRace: the Maormer with the overhaul, the Altmer's gift without it (as on the High Elf record)
+    if (MAORMER_IDS.includes(id)) return C.overhaul === true ? 'maormer' : 'altmer';
+    const r = RACE_OF_ID.get(id) || '';
+    // A Maormer made before the DLE's race stands on the High Elf record (charCreatorData.ts): without this every Maormer
+    // counts as an Altmer
     return r === 'altmer' && C.overhaul === true && rpRace(a) === 'maormer' ? 'maormer' : r;
   };
   const healthOf = (a) => { try { const p = mp.get(a >>> 0, 'percentages'); return p ? Number(p.health) : NaN; } catch (e) { return NaN; } };
@@ -478,7 +488,7 @@ module.exports = (api) => {
       return true;
     } catch (e) { log(`racial: ${add ? 'AddSpell' : 'RemoveSpell'} ${id.toString(16)} on ${display(a >>> 0)} failed`, e.message); return false; }
   };
-  const isMaormer = (a) => C.overhaul === true && on() && isPlayer(a) && RACE_OF_ID.get(raceIdOf(a)) === 'altmer' && rpRace(a) === 'maormer';
+  const isMaormer = (a) => C.overhaul === true && on() && isPlayer(a) && (MAORMER_IDS.includes(raceIdOf(a)) || (RACE_OF_ID.get(raceIdOf(a)) === 'altmer' && rpRace(a) === 'maormer'));
   const abilityTick = () => {
     const want = spellOf(C.maormer.seafarerSpell);
     const here = new Set();
