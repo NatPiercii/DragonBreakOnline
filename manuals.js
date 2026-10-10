@@ -287,12 +287,16 @@ module.exports = (api) => {
     if (!C.enabled || !SMITH) return null;
     let rule = (SMC.drops || {})[where];
     if (rule && difficulty && rule[difficulty] && typeof rule[difficulty] === 'object') rule = rule[difficulty];
-    if (!rule || !(Math.random() < (Number(rule.chance) || 0))) return null;
-    const allowed = new Set((rule.families || []).map(String));
-    const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly && !m.withheld);
-    if (!pool.length) return null;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    return { id: pick.book, name: pick.title };
+    // A list of rules rolls each in turn, first hit wins (a Master boss chest: the common roll, then a rare one)
+    for (const r of (Array.isArray(rule) ? rule : rule ? [rule] : [])) {
+      if (!r || !(Math.random() < (Number(r.chance) || 0))) continue;
+      const allowed = new Set((r.families || []).map(String));
+      const pool = READY.filter((m) => allowed.has(m.key) && !m.staffOnly && !m.withheld);
+      if (!pool.length) continue;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      return { id: pick.book, name: pick.title };
+    }
+    return null;
   };
 
   // ---- the Scholars' Ledger (salvage.js): the Synod's manuals, and a Scholar's copies ----------------------------

@@ -450,6 +450,22 @@ module.exports = (api) => {
   // the doors that lead in. The Blades have none on purpose while Cloud Ruler Temple is a ruin.
   globalThis.__dboGuildHall = (id) => { const f = FACTIONS.get(String(id)); return f ? hallOf(f) : null; };
   globalThis.__dboGuildStorage = (id) => storageOf(String(id));
+  // The faction whose hall (guild-defs hall.doors) stands in this interior cell, { id, name } or null: a hall door's own
+  // cell from doors-pos.json, worldspaces left out, so Frostcrag Spire's lectern names the College of Whispers (Nate, 10 Oct)
+  const HALL_CELLS = (() => {
+    const out = new Map();
+    let rows = {}; try { rows = (readJson(path.resolve('doors-pos.json'), {}) || {}).doors || {}; } catch (e) { rows = {}; }
+    const low = new Map(Object.entries(rows).map(([k, v]) => [String(k).toLowerCase(), v]));
+    for (const f of FACTIONS.values()) for (const d of (hallOf(f) || { doors: [] }).doors) {
+      const row = low.get(String(d).toLowerCase());
+      const cell = String((Array.isArray(row) && row[3]) || '').toLowerCase();
+      if (!cell) continue;
+      let world = false; try { const r = mp.lookupEspmRecordById(mp.getIdFromDesc(cell) >>> 0); world = !!(r && r.record && String(r.record.type) === 'WRLD'); } catch (e) { world = true; }
+      if (!world && !out.has(cell)) out.set(cell, { id: f.id, name: f.name });
+    }
+    return out;
+  })();
+  globalThis.__dboHallFactionAt = (cellDesc) => HALL_CELLS.get(String(cellDesc || '').toLowerCase()) || null;
   // A faction's hall as a house (Nate, 4 Oct: the College of Whispers in Frostcrag Spire): a claimed building one of whose
   // doors guild-defs lists as the faction's hall, owned by an account that leads the faction. Its members use it as its
   // owner does (beds in rest.js; chests and doors in fork housingSystem.ts); only the owner sells, hands it over or gives it up.

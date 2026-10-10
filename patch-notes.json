@@ -1,5 +1,28 @@
 [
   {
+    "title": "Schematics in ruins and boss chests",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Feature",
+    "sections": [
+      {
+        "heading": "Where schematics turn up",
+        "items": [
+          "Schematics books now turn up as loot, in the places their craft comes from. The big chests of Cyrodiil's forts hold Ancient Imperial and Steel; Nordic barrows hold Ancient Nord and Nordic; Dwemer ruins hold Dwarven; Falmer hives hold Falmer (Honed Falmer from Adept up); Ayleid ruins hold Ayleid (Adept and harder); goblin camps hold Goblin.",
+          "Boss chests: Steel and Silver on Novice, Elven and Mithril on Adept, and Glass, Steel Plate and Gilded Elven on Expert and Master. Master boss chests very rarely hold Ebony or Daedric.",
+          "Some crafts never drop: Dragon, Madness and Aetherium are taught in roleplay, Orcish only by an Orc Blacksmith, and Stalhrim, Amber and Glacial Crystal are learned from a smith who knows them.",
+          "Your Blacksmithing page in the F3 journal now says where each schematic is found."
+        ]
+      },
+      {
+        "heading": "The College of Whispers",
+        "items": [
+          "The Class Lectern in Frostcrag Spire now names the College of Whispers, not the Synod."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Smithing rework",
     "date": "2026-10-10",
     "version": "Server update",

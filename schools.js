@@ -1286,7 +1286,7 @@ module.exports = (api) => {
     const listed = (a) => { const t = stateOf(a)[K.listKey]; return !!(t && t.at); };
     const teacherRefusal = (a) => {
       if (!C.enabled || !conf.enabled) return W.closed;
-      if (conf.requireList && !listed(a)) return W.notListed;
+      if (conf.requireList && !listed(a)) return typeof W.notListed === 'function' ? W.notListed(a) : W.notListed;
       const qual = K.qualified(a);
       if (qual) return qual;
       const next = (Number(stateOf(a)[K.teacherAtKey]) || 0) + conf.teacherCooldownMinutes * MIN;
@@ -1478,8 +1478,13 @@ module.exports = (api) => {
     return { open: openPanel, tick, listed, forget: (a) => open.delete(a >>> 0), runs };
   };
 
+  // Which house a lectern belongs to: the faction whose hall the player stands in (guilds.js), the Synod by default
+  const schoolHouse = (a) => {
+    let h = null; try { h = typeof globalThis.__dboHallFactionAt === 'function' ? globalThis.__dboHallFactionAt(mp.get(a, 'worldOrCellDesc')) : null; } catch (e) { h = null; }
+    return h && h.name ? `the ${h.name.replace(/^the /i, '')}` : 'the Synod';
+  };
   const classWords = {
-    title: 'Class Lectern', closed: 'Classes are not held just now.', notListed: 'Only teachers the Synod has named may hold a class. Ask the staff.',
+    title: 'Class Lectern', closed: 'Classes are not held just now.', notListed: (a) => `Only teachers ${schoolHouse(a)} has named may hold a class. Ask the staff.`,
     teacherCooldown: (w) => `You taught a class not long ago. You may hold the next in ${w}.`,
     idleStatus: 'No class is being held here.', noSpells: 'You know no spell of your schools to set a class by.',
     inProgress: 'Class in Progress', runCourse: 'The class has run its course.',
@@ -1508,7 +1513,7 @@ module.exports = (api) => {
     panelId: CLASS_PANEL_ID, events: 'lectern', nonceKind: 'l', words: classWords,
     qualified: (a) => {
       const guilds = Array.isArray(C.classes.teacherGuilds) ? C.classes.teacherGuilds : [];
-      if (guilds.length && !guildsOf(a).some((g) => guilds.includes(g))) return 'A class is held by a member of the Synod or a College.';
+      if (guilds.length && !guildsOf(a).some((g) => guilds.includes(g))) return `A class here is held by a member of ${schoolHouse(a)}, or of another college.`;
       const s = stateOf(a);
       if (!SCHOOLS.some((n) => schoolRank(s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes ${RANKS[C.classes.teacherMinRank]} study in one of your schools.`;
       return '';

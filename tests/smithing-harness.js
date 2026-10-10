@@ -242,6 +242,18 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   delete globalThis.__dboFactionGearMember;
 }
 
+// Drop rules as a list (Nate, 10 Oct: a Master boss chest rolls the common pool, then a rare one): first hit wins
+{
+  load(Object.assign({}, ON, { drops: { boss: { nightmare: [{ chance: 0, families: ['steel'] }, { chance: 1, families: ['glass'] }], story: { chance: 1, families: ['steel'] } } } }));
+  const d1 = globalThis.__dboTechniqueDrop('boss', 'nightmare'), d2 = globalThis.__dboTechniqueDrop('boss', 'story'), d3 = globalThis.__dboTechniqueDrop('boss', 'hard');
+  ok(d1 && /Glass/.test(d1.name) && d2 && /Steel/.test(d2.name) && d3 === null, 'a list of rules rolls each in turn; a difficulty with no rule drops nothing', [d1, d2, d3]);
+  const real = JSON.parse(fs.readFileSync(path.join(SERVER, 'gamemode-config.json'), 'utf8')).smithing.drops;
+  const fams = (r) => [].concat(...[].concat(...Object.values(r || {}).map((x) => (Array.isArray(x) ? x : x && x.families ? [x] : Object.values(x || {}))).map((x) => (Array.isArray(x) ? x : [x]))).map((x) => (x && x.families) || []));
+  const all = new Set(fams(real));
+  ok(['fort', 'nordRuin', 'dwemerRuin', 'falmerRuin', 'ayleidRuin', 'goblinCamp', 'boss'].every((k) => real[k]) && !['DRAGON', 'madness', 'aetherium', 'artifact', 'orcish', 'stalhrim', 'chitin'].some((f) => all.has(f)), 'the live drop table covers every place and never drops a staff, Orc-only or out-of-province technique', [...all]);
+  load(ON);
+}
+
 // Staff
 cmds.get('smithing')(STAFF, 'teach sup dwarven');
 ok(props.get(`${SUP}|private.dboManuals`).dwarven.how === 'staff', '/smithing teach');

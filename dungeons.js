@@ -701,7 +701,8 @@ module.exports = (api) => {
   // The finds smithing.drops names for a ruin's chests: Ayleid, Dwemer or Falmer, else ''
   // Cyrodiil's forts and fort ruins (BS Heartland: CYR ids with a military-fort type or CYRLocTypeFortRuin), Ancient Imperial ground
   const isCyrodiilFort = (d) => !!d && /^CYR/.test(d.id || '') && (d.type === 'fort' || (d.keywords || []).some((k) => /^(LocTypeMilitaryFort|LocSetMilitaryFort|CYRLocTypeFortRuin)$/.test(k)));
-  const techniqueRuin = (d) => (isAyleidRuin(d) ? 'ayleidRuin' : d && d.type === 'dwemer' ? 'dwemerRuin' : (d && d.keywords || []).includes('LocTypeFalmerHive') ? 'falmerRuin' : isCyrodiilFort(d) ? 'fort' : '');
+  // Nordic barrows give the ancient Nord techniques (Nate, 10 Oct: lore-accurate drop places)
+  const techniqueRuin = (d) => (isAyleidRuin(d) ? 'ayleidRuin' : d && d.type === 'dwemer' ? 'dwemerRuin' : (d && d.keywords || []).includes('LocTypeFalmerHive') ? 'falmerRuin' : isCyrodiilFort(d) ? 'fort' : d && d.type === 'nordic' ? 'nordRuin' : '');
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     if (lease) lease.stocked = new Set();

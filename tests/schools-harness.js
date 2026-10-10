@@ -347,7 +347,16 @@ check('an activator whose base is ClassLectern opens the lectern panel', activat
 check('...but a teacher not on the list may not start one', lastWidget(TEACHER, 'classLectern').canTeach === false && /Only teachers the Synod has named/.test(lastWidget(TEACHER, 'classLectern').whyNot));
 cmd('classteacher', TEACHER, 'add Teacher');
 activate(LECTERN, TEACHER);
-check('named, but not a member of the Synod or a College', /member of the Synod or a College/.test(lastWidget(TEACHER, 'classLectern').whyNot), lastWidget(TEACHER, 'classLectern'));
+check('named, but not a member of the Synod or a College', /member of the Synod, or of another college/.test(lastWidget(TEACHER, 'classLectern').whyNot), lastWidget(TEACHER, 'classLectern'));
+// Frostcrag Spire's lectern names the College of Whispers, not the Synod (Nate, 10 Oct): the hall faction at the reader's cell
+{
+  const prevHall = globalThis.__dboHallFactionAt;
+  globalThis.__dboHallFactionAt = () => ({ id: 'college-of-whispers', name: 'College of Whispers' });
+  activate(LECTERN, TEACHER);
+  const w = lastWidget(TEACHER, 'classLectern').whyNot || '';
+  check('a lectern in the College of Whispers hall names that college, not the Synod', /member of the College of Whispers/.test(w) && !/Synod/.test(w), w);
+  globalThis.__dboHallFactionAt = prevHall;
+}
 put(TEACHER, 'private.dboGuilds', [{ id: 'synod', rank: 1 }]);
 activate(LECTERN, TEACHER);
 w = lastWidget(TEACHER, 'classLectern');
