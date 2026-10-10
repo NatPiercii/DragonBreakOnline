@@ -361,6 +361,8 @@ module.exports = (api) => {
       }
       return false;
     }
+    // The Blacksmith's craft tier and techniques (smithing.js; off unless smithing.enabled)
+    if (typeof globalThis.__dboSmithCraft === 'function' && globalThis.__dboSmithCraft(actorId, itemId, recipeId) === false) return false;
     // Faction gear first (factiongear.js): a faction's own work is refused to anyone but its smiths and tailors
     if (typeof globalThis.__dboFactionCraft === 'function' && globalThis.__dboFactionCraft(actorId, itemId) === false) return false;
     // A faction's own gear, made by its own smith or leader, is not held to the province: the Dawnguard's recipes are Skyrim's
@@ -393,6 +395,7 @@ module.exports = (api) => {
     const verdict = prev ? prev.call(this, actorId, itemId, count, recipeId, ...rest) : undefined;
     if (fuel && verdict !== false && fuel.need && !takeHeld(a, fuel.wood, fuel.need)) log(`regions: could not burn ${fuel.need} firewood for ${who(a)}`);
     if (fuel && verdict !== false && fuel.coalNeed && !takeHeld(a, fuel.coal, fuel.coalNeed)) log(`regions: could not burn ${fuel.coalNeed} charcoal for ${who(a)}`);
+    if (verdict !== false && typeof globalThis.__dboSmithCrafted === 'function') { try { globalThis.__dboSmithCrafted(a); } catch (e) { log('regions: smithing count failed', e.message); } }
     return verdict;
   };
   craftHook.__dboRegions = true;

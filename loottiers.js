@@ -33,13 +33,13 @@
 'use strict';
 
 const TIER_OF = {
-  iron: 1, hide: 1, leather: 1, studded: 1, wood: 1, goblin: 1, ancient_nord: 1, falmer: 1, forsworn: 1,
-  steel: 2, imperial: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, mithril: 2, silver: 2, vampire: 2,
+  iron: 1, hide: 1, leather: 1, studded: 1, wood: 1, goblin: 1, ancient_nord: 1, falmer: 1, forsworn: 1, bronze: 1, copper: 1,
+  steel: 2, imperial: 2, brass: 2, dwarven: 2, elven: 2, bonemold: 2, chitin: 2, mithril: 2, silver: 2, vampire: 2,
   ancient_nord_honed: 2, falmer_honed: 2, ancient_imperial: 2, ayleid: 2,
-  steelplate: 3, scaled: 3, elven_gilded: 3, nordic: 3,
-  glass: 4,
+  steelplate: 3, adamantium: 3, scaled: 3, elven_gilded: 3, nordic: 3,
+  glass: 4, amber: 4, glacial_crystal: 4,
 };
-const NEVER = new Set(['DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
+const NEVER = new Set(['DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
 const UNIFORM = new Set(['stormcloak', 'guard', 'penitus', 'thievesguild', 'dawnguard', 'blades']);
 const TRINKET = new Set(['clothing', 'staff']);
 // Kept out of loot, never swapped: the metals players mine and their ingots (Skyrim.esm's five, from the Recipe<Ingot>
@@ -54,16 +54,18 @@ const LOOT_ONLY_METALS = {
   '5acdc:skyrim.esm': { edid: 'OreEbony', to: IRON_ORE }, '5ad9d:skyrim.esm': { edid: 'IngotEbony', to: STEEL },
   '601c92:bsassets.esm': { edid: 'BSKOreMeteoricIron', to: IRON_ORE }, '601c91:bsassets.esm': { edid: 'BSKIngotMeteoricIron', to: STEEL },
   'db8a2:skyrim.esm': { edid: 'IngotDwarven', to: STEEL },
+  // Adamantium, mined in the Gutted Mine since 9 Oct (labour.js oreByRef): off gear-swap.json's metals, never loot
+  '601c87:bsassets.esm': { edid: 'BSKOreAdamantium', to: IRON_ORE }, '602099:bsassets.esm': { edid: 'BSKIngotAdamantium', to: STEEL },
 };
 // Nate, 1 Oct ("you can allow it"): vanilla Steel plate, Scaled and Elven gilded drop in Cyrodiil too, filling its tier 3
 const ANY_PROVINCE = new Set(['steelplate', 'scaled', 'elven_gilded']);
 // Cyrodiil has no tier 3 weapon: the high Elven weapons stand in (Nate's (c))
 const T3_WEAPON_STANDIN = /^(?:CYR)?Elven(?:Greatsword|Battleaxe|Warhammer|Bow)$/;
-// The ceilings. 'steel' (the default): tier 1 and the steel of each province (steel, Imperial, silver; Cyrodiil's
+// The ceilings. 'steel' (the default): tier 1 and the steel of each province (steel, Imperial, Ancient Imperial, silver; Cyrodiil's
 // Colovian, Nibenese and Akaviri steel are steel). Honed Ancient Nord and Falmer hit like Elven, Mithril armours like it,
 // so they stay out. 'iron': tier 1 only. 'none': no ceiling, the tiers alone.
 const TIER1 = Object.keys(TIER_OF).filter((f) => TIER_OF[f] === 1);
-const CAPS = { iron: TIER1, steel: TIER1.concat(['steel', 'imperial', 'silver']) };
+const CAPS = { iron: TIER1, steel: TIER1.concat(['steel', 'imperial', 'ancient_imperial', 'silver']) };
 
 // Shares by tier, per difficulty (story Novice, normal Adept, hard Expert, nightmare Master)
 const ROWS = {

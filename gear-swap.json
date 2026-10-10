@@ -147,22 +147,6 @@
 }
 },
 "items": {
-"1011:immersive weapons.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "IWWolfDaito",
-"toEdid": "SteelGreatsword",
-"family": "ancient_nord_honed",
-"kind": "weapon Greatsword",
-"province": "skyrim"
-},
-"1013:immersive weapons.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "IWWolfKatana",
-"toEdid": "SteelSword",
-"family": "ancient_nord_honed",
-"kind": "weapon Sword",
-"province": "skyrim"
-},
 "1019ca:skyrim.esm": {
 "to": "13954:Skyrim.esm",
 "edid": "ArmorDraugrHelmetUnplayable",
@@ -249,14 +233,6 @@
 "toEdid": "SteelMace",
 "family": "EBONY",
 "kind": "weapon Mace",
-"province": "skyrim"
-},
-"10901:immersive weapons.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "IWHousecarlsGreatsword",
-"toEdid": "SteelGreatsword",
-"family": "ancient_nord_honed",
-"kind": "weapon Greatsword",
 "province": "skyrim"
 },
 "10b2fd:skyrim.esm": {
@@ -2107,14 +2083,6 @@
 "kind": "heavy shield",
 "province": "skyrim"
 },
-"10e6c:immersive weapons.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "IWTridentBladeSword",
-"toEdid": "SteelSword",
-"family": "dwarven",
-"kind": "weapon Sword",
-"province": "skyrim"
-},
 "10e70:immersive weapons.esp": {
 "to": "1398a:Skyrim.esm",
 "edid": "IWOrnateMaulWarhammer",
@@ -2947,14 +2915,6 @@
 "kind": "weapon Warhammer",
 "province": "skyrim"
 },
-"1444:immersive weapons.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "IWWolfClaymore",
-"toEdid": "SteelGreatsword",
-"family": "ancient_nord_honed",
-"kind": "weapon Greatsword",
-"province": "skyrim"
-},
 "14c9e:dawnguard.esm": {
 "to": "1398a:Skyrim.esm",
 "edid": "DLC1WrathmanWarhammer",
@@ -3071,7 +3031,7 @@
 "to": "13954:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorMadnessHelmetMagickaRate06",
 "toEdid": "ArmorSteelHelmetA",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "heavy head",
 "province": "skyrim"
 },
@@ -4177,6 +4137,14 @@
 "toEdid": "ArmorLeatherBoots",
 "family": "chitin",
 "kind": "light feet",
+"province": "skyrim"
+},
+"1cd86:dragonbreak hub.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "RP_ZahkriiDoBormahu",
+"toEdid": "SteelGreatsword",
+"family": "EBONY",
+"kind": "weapon Greatsword",
 "province": "skyrim"
 },
 "1cd87:dragonborn.esm": {
@@ -6447,7 +6415,7 @@
 "to": "13987:Skyrim.esm",
 "edid": "IWAyleidGreatsword",
 "toEdid": "SteelGreatsword",
-"family": "glass",
+"family": "ayleid",
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
@@ -7331,19 +7299,19 @@
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
-"22c9e:immersive weapons.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "IWSithissBladeNinjato",
-"toEdid": "SteelSword",
-"family": "ancient_nord_honed",
-"kind": "weapon Sword",
+"22c9b:immersive weapons.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "IWBarbarianBattleAxe",
+"toEdid": "SteelBattleaxe",
+"family": "EBONY",
+"kind": "weapon Battleaxe",
 "province": "skyrim"
 },
 "22ca7:immersive weapons.esp": {
 "to": "13987:Skyrim.esm",
 "edid": "IWCrowGreatsword",
 "toEdid": "SteelGreatsword",
-"family": "ancient_nord_honed",
+"family": "EBONY",
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
@@ -7351,7 +7319,7 @@
 "to": "13989:Skyrim.esm",
 "edid": "IWCrowSword",
 "toEdid": "SteelSword",
-"family": "ancient_nord_honed",
+"family": "EBONY",
 "kind": "weapon Sword",
 "province": "skyrim"
 },
@@ -8111,7 +8079,7 @@
 "to": "13951:Skyrim.esm",
 "edid": "IABoiledChitinHBoots",
 "toEdid": "ArmorSteelBootsA",
-"family": "dwarven",
+"family": "chitin",
 "kind": "heavy feet",
 "province": "skyrim"
 },
@@ -8119,7 +8087,7 @@
 "to": "13953:Skyrim.esm",
 "edid": "IABoiledChitinHGauntlets",
 "toEdid": "ArmorSteelGauntletsA",
-"family": "dwarven",
+"family": "chitin",
 "kind": "heavy hands",
 "province": "skyrim"
 },
@@ -8127,7 +8095,7 @@
 "to": "13954:Skyrim.esm",
 "edid": "IABoiledChitinHHelmet",
 "toEdid": "ArmorSteelHelmetA",
-"family": "dwarven",
+"family": "chitin",
 "kind": "heavy head",
 "province": "skyrim"
 },
@@ -8135,7 +8103,7 @@
 "to": "13955:Skyrim.esm",
 "edid": "IABoiledChitinHShield",
 "toEdid": "ArmorSteelShield",
-"family": "dwarven",
+"family": "chitin",
 "kind": "heavy shield",
 "province": "skyrim"
 },
@@ -8143,7 +8111,7 @@
 "to": "13951:Skyrim.esm",
 "edid": "IAGlacialCrystalHBoots",
 "toEdid": "ArmorSteelBootsA",
-"family": "EBONY",
+"family": "glacial_crystal",
 "kind": "heavy feet",
 "province": "skyrim"
 },
@@ -8151,7 +8119,7 @@
 "to": "13953:Skyrim.esm",
 "edid": "IAGlacialCrystalHGauntlets",
 "toEdid": "ArmorSteelGauntletsA",
-"family": "EBONY",
+"family": "glacial_crystal",
 "kind": "heavy hands",
 "province": "skyrim"
 },
@@ -8159,7 +8127,7 @@
 "to": "13954:Skyrim.esm",
 "edid": "IAGlacialCrystalHHelmet",
 "toEdid": "ArmorSteelHelmetA",
-"family": "EBONY",
+"family": "glacial_crystal",
 "kind": "heavy head",
 "province": "skyrim"
 },
@@ -8167,7 +8135,7 @@
 "to": "13955:Skyrim.esm",
 "edid": "IAGlacialCrystalHShield",
 "toEdid": "ArmorSteelShield",
-"family": "EBONY",
+"family": "glacial_crystal",
 "kind": "heavy shield",
 "province": "skyrim"
 },
@@ -8175,7 +8143,7 @@
 "to": "13952:Skyrim.esm",
 "edid": "IABoiledChitinHCuirass",
 "toEdid": "ArmorSteelCuirassA",
-"family": "dwarven",
+"family": "chitin",
 "kind": "heavy body",
 "province": "skyrim"
 },
@@ -8191,7 +8159,7 @@
 "to": "13952:Skyrim.esm",
 "edid": "IAGlacialCrystalHCuirass",
 "toEdid": "ArmorSteelCuirassA",
-"family": "EBONY",
+"family": "glacial_crystal",
 "kind": "heavy body",
 "province": "skyrim"
 },
@@ -8369,46 +8337,6 @@
 "toEdid": "ArmorLeatherGauntlets",
 "family": "elven",
 "kind": "light hands",
-"province": "skyrim"
-},
-"238ec:hothtrooper44_armorcompilation.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "IABosmerHeavyBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "dwarven",
-"kind": "heavy feet",
-"province": "skyrim"
-},
-"238ed:hothtrooper44_armorcompilation.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "IABosmerHeavyCoif",
-"toEdid": "ArmorSteelHelmetA",
-"family": "dwarven",
-"kind": "heavy head",
-"province": "skyrim"
-},
-"238ee:hothtrooper44_armorcompilation.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "IABosmerHeavyCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "dwarven",
-"kind": "heavy body",
-"province": "skyrim"
-},
-"238ef:hothtrooper44_armorcompilation.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "IABosmerHeavyGauntlets",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "dwarven",
-"kind": "heavy hands",
-"province": "skyrim"
-},
-"238f0:hothtrooper44_armorcompilation.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "IABosmerHeavyHelmet",
-"toEdid": "ArmorSteelHelmetA",
-"family": "dwarven",
-"kind": "heavy head",
 "province": "skyrim"
 },
 "238f1:hothtrooper44_armorcompilation.esp": {
@@ -20651,46 +20579,6 @@
 "kind": "light shield",
 "province": "cyrodiil"
 },
-"300038:bsheartland.esm": {
-"to": "300022:BSHeartland.esm",
-"edid": "CYRArmorOrcishBoots",
-"toEdid": "CYRArmorColovianSteelBoots",
-"family": "orcish",
-"kind": "heavy feet",
-"province": "cyrodiil"
-},
-"300039:bsheartland.esm": {
-"to": "300021:BSHeartland.esm",
-"edid": "CYRArmorOrcishCuirass",
-"toEdid": "CYRArmorColovianSteelCuirass",
-"family": "orcish",
-"kind": "heavy body",
-"province": "cyrodiil"
-},
-"30003a:bsheartland.esm": {
-"to": "300023:BSHeartland.esm",
-"edid": "CYRArmorOrcishGauntlets",
-"toEdid": "CYRArmorColovianSteelGauntlets",
-"family": "orcish",
-"kind": "heavy hands",
-"province": "cyrodiil"
-},
-"30003b:bsheartland.esm": {
-"to": "300024:BSHeartland.esm",
-"edid": "CYRArmorOrcishHelmet",
-"toEdid": "CYRArmorColovianSteelHelmet",
-"family": "orcish",
-"kind": "heavy head",
-"province": "cyrodiil"
-},
-"30003c:bsheartland.esm": {
-"to": "300025:BSHeartland.esm",
-"edid": "CYRArmorOrcishShield",
-"toEdid": "CYRArmorColovianSteelShield",
-"family": "orcish",
-"kind": "heavy shield",
-"province": "cyrodiil"
-},
 "30003d:bsheartland.esm": {
 "to": "300022:BSHeartland.esm",
 "edid": "CYRArmorEbonyBoots",
@@ -20735,7 +20623,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYRAyleidBow",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -20743,7 +20631,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYRAyleidDagger",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -20751,7 +20639,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYRAyleidSword",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
@@ -21059,14 +20947,6 @@
 "kind": "weapon Battleaxe",
 "province": "skyrim"
 },
-"331022:immersive weapons.esp": {
-"to": "13984:Skyrim.esm",
-"edid": "IWNordHeroDoubleAxe",
-"toEdid": "SteelBattleaxe",
-"family": "ancient_nord_honed",
-"kind": "weapon Battleaxe",
-"province": "skyrim"
-},
 "3350:immersive weapons.esp": {
 "to": "13987:Skyrim.esm",
 "edid": "IWEbonyDadao",
@@ -21319,7 +21199,7 @@
 "to": "13988:Skyrim.esm",
 "edid": "IWHonedNordicWarPick",
 "toEdid": "SteelMace",
-"family": "ancient_nord_honed",
+"family": "nordic",
 "kind": "weapon Mace",
 "province": "skyrim"
 },
@@ -21887,7 +21767,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "IWWhiteMammothRecurveBow",
 "toEdid": "HuntingBow",
-"family": "ancient_nord_honed",
+"family": "glass",
 "kind": "weapon Bow",
 "province": "skyrim"
 },
@@ -21895,7 +21775,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "IWBlackMammothRecurveBow",
 "toEdid": "HuntingBow",
-"family": "ancient_nord_honed",
+"family": "EBONY",
 "kind": "weapon Bow",
 "province": "skyrim"
 },
@@ -21915,28 +21795,12 @@
 "kind": "weapon Dagger",
 "province": "skyrim"
 },
-"44005:immersive weapons.esp": {
-"to": "13987:Skyrim.esm",
-"edid": "IWWolfDadao",
-"toEdid": "SteelGreatsword",
-"family": "ancient_nord_honed",
-"kind": "weapon Greatsword",
-"province": "skyrim"
-},
 "440d62:immersive weapons.esp": {
 "to": "13988:Skyrim.esm",
 "edid": "IWAevarStoneSingerMace",
 "toEdid": "SteelMace",
 "family": "DAEDRIC",
 "kind": "weapon Mace",
-"province": "skyrim"
-},
-"441003:immersive weapons.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "IWWolfSword",
-"toEdid": "SteelSword",
-"family": "ancient_nord_honed",
-"kind": "weapon Sword",
 "province": "skyrim"
 },
 "449cad:riften expansion.esp": {
@@ -22441,6 +22305,14 @@
 "toEdid": "ArmorSteelHelmetA",
 "family": "orcish",
 "kind": "heavy head",
+"province": "skyrim"
+},
+"48e559:immersive weapons.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "IWSithissRazorTanto",
+"toEdid": "SteelDagger",
+"family": "glass",
+"kind": "weapon Dagger",
 "province": "skyrim"
 },
 "4925:immersive weapons.esp": {
@@ -23415,7 +23287,7 @@
 "to": "5ef23:BSHeartland.esm",
 "edid": "BSKArmorAyleidLichHelmet",
 "toEdid": "CYRArmorLeatherHelmetA",
-"family": "elven",
+"family": "ayleid",
 "kind": "light head",
 "province": "cyrodiil"
 },
@@ -23731,6 +23603,14 @@
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
+"69173:immersive weapons.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "IWWraithScythe",
+"toEdid": "SteelBattleaxe",
+"family": "EBONY",
+"kind": "weapon Battleaxe",
+"province": "skyrim"
+},
 "6a13c:skyrim.esm": {
 "to": "13986:Skyrim.esm",
 "edid": "MGRKeening",
@@ -23825,14 +23705,6 @@
 "toEdid": "SteelGreatsword",
 "family": "EBONY",
 "kind": "weapon Greatsword",
-"province": "skyrim"
-},
-"701007:immersive weapons.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "IWWolfScimitar",
-"toEdid": "SteelSword",
-"family": "ancient_nord_honed",
-"kind": "weapon Sword",
 "province": "skyrim"
 },
 "7058a:bsheartland.esm": {
@@ -24313,14 +24185,6 @@
 "toEdid": "ArmorSteelGauntletsA",
 "family": "steelplate",
 "kind": "heavy hands",
-"province": "skyrim"
-},
-"8041:hothtrooper44_armorcompilation.esp": {
-"to": "13954:Skyrim.esm",
-"edid": "IARedguardKnightHeavyCoif",
-"toEdid": "ArmorSteelHelmetA",
-"family": "dwarven",
-"kind": "heavy head",
 "province": "skyrim"
 },
 "80466:journey to baan malur.esp": {
@@ -25351,7 +25215,7 @@
 "to": "13920:Skyrim.esm",
 "edid": "IAGlacialCrystalLBoots",
 "toEdid": "ArmorLeatherBoots",
-"family": "glass",
+"family": "glacial_crystal",
 "kind": "light feet",
 "province": "skyrim"
 },
@@ -25359,7 +25223,7 @@
 "to": "3619e:Skyrim.esm",
 "edid": "IAGlacialCrystalLCuirass",
 "toEdid": "ArmorLeatherCuirass",
-"family": "glass",
+"family": "glacial_crystal",
 "kind": "light body",
 "province": "skyrim"
 },
@@ -25367,7 +25231,7 @@
 "to": "13921:Skyrim.esm",
 "edid": "IAGlacialCrystalLGauntlets",
 "toEdid": "ArmorLeatherGauntlets",
-"family": "glass",
+"family": "glacial_crystal",
 "kind": "light hands",
 "province": "skyrim"
 },
@@ -25375,7 +25239,7 @@
 "to": "13922:Skyrim.esm",
 "edid": "IAGlacialCrystalLHelmet",
 "toEdid": "ArmorLeatherHelmet",
-"family": "glass",
+"family": "glacial_crystal",
 "kind": "light head",
 "province": "skyrim"
 },
@@ -25383,7 +25247,7 @@
 "to": "13914:Skyrim.esm",
 "edid": "IAGlacialCrystalLShield",
 "toEdid": "ArmorHideShield",
-"family": "glass",
+"family": "glacial_crystal",
 "kind": "light shield",
 "province": "skyrim"
 },
@@ -26043,14 +25907,6 @@
 "kind": "heavy head",
 "province": "skyrim"
 },
-"875:sentinel.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "TH_Orc0Cuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "orcish",
-"kind": "heavy body",
-"province": "skyrim"
-},
 "876:armors of the velothi pt2.esp": {
 "to": "13954:Skyrim.esm",
 "edid": "TSHelmetAltDUPLICATE001",
@@ -26075,14 +25931,6 @@
 "kind": "heavy body",
 "province": "skyrim"
 },
-"877:sentinel.esp": {
-"to": "13920:Skyrim.esm",
-"edid": "TH_Orc1Boots",
-"toEdid": "ArmorLeatherBoots",
-"family": "orcish",
-"kind": "light feet",
-"province": "skyrim"
-},
 "878:armors of the velothi pt2.esp": {
 "to": "13952:Skyrim.esm",
 "edid": "ArmorBonesaintCuirass",
@@ -26099,28 +25947,12 @@
 "kind": "heavy feet",
 "province": "skyrim"
 },
-"878:sentinel.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "TH_Orc1Cuirass",
-"toEdid": "ArmorLeatherCuirass",
-"family": "orcish",
-"kind": "light body",
-"province": "skyrim"
-},
 "879:armors of the velothi pt2.esp": {
 "to": "13953:Skyrim.esm",
 "edid": "ArmorBonesaintGauntlets",
 "toEdid": "ArmorSteelGauntletsA",
 "family": "bonemold",
 "kind": "heavy hands",
-"province": "skyrim"
-},
-"879:sentinel.esp": {
-"to": "3619e:Skyrim.esm",
-"edid": "TH_Orc1CuirassStudded",
-"toEdid": "ArmorLeatherCuirass",
-"family": "orcish",
-"kind": "light body",
 "province": "skyrim"
 },
 "87a:armors of the velothi pt2.esp": {
@@ -26131,28 +25963,12 @@
 "kind": "heavy head",
 "province": "skyrim"
 },
-"87a:sentinel.esp": {
-"to": "13921:Skyrim.esm",
-"edid": "TH_Orc1Gauntlets",
-"toEdid": "ArmorLeatherGauntlets",
-"family": "orcish",
-"kind": "light hands",
-"province": "skyrim"
-},
 "87b:armors of the velothi pt2.esp": {
 "to": "13955:Skyrim.esm",
 "edid": "ArmorBonesaintShield",
 "toEdid": "ArmorSteelShield",
 "family": "bonemold",
 "kind": "heavy shield",
-"province": "skyrim"
-},
-"87b:sentinel.esp": {
-"to": "13922:Skyrim.esm",
-"edid": "TH_Orc1Helmet",
-"toEdid": "ArmorLeatherHelmet",
-"family": "orcish",
-"kind": "light head",
 "province": "skyrim"
 },
 "87c:armors of the velothi pt2.esp": {
@@ -31407,7 +31223,7 @@
 "to": "13954:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorMadnessHelmet",
 "toEdid": "ArmorSteelHelmetA",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "heavy head",
 "province": "skyrim"
 },
@@ -31415,7 +31231,7 @@
 "to": "13953:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorMadnessGauntlets",
 "toEdid": "ArmorSteelGauntletsA",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "heavy hands",
 "province": "skyrim"
 },
@@ -31423,7 +31239,7 @@
 "to": "13952:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorMadnessCuirass",
 "toEdid": "ArmorSteelCuirassA",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "heavy body",
 "province": "skyrim"
 },
@@ -31431,7 +31247,7 @@
 "to": "13951:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorMadnessBoots",
 "toEdid": "ArmorSteelBootsA",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "heavy feet",
 "province": "skyrim"
 },
@@ -31439,7 +31255,7 @@
 "to": "13914:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorAmberShield",
 "toEdid": "ArmorHideShield",
-"family": "glass",
+"family": "amber",
 "kind": "light shield",
 "province": "skyrim"
 },
@@ -31447,7 +31263,7 @@
 "to": "13922:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorAmberHelmet",
 "toEdid": "ArmorLeatherHelmet",
-"family": "glass",
+"family": "amber",
 "kind": "light head",
 "province": "skyrim"
 },
@@ -31455,7 +31271,7 @@
 "to": "13921:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorAmberGauntlets",
 "toEdid": "ArmorLeatherGauntlets",
-"family": "glass",
+"family": "amber",
 "kind": "light hands",
 "province": "skyrim"
 },
@@ -31463,7 +31279,7 @@
 "to": "3619e:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorAmberCuirass",
 "toEdid": "ArmorLeatherCuirass",
-"family": "glass",
+"family": "amber",
 "kind": "light body",
 "province": "skyrim"
 },
@@ -31471,7 +31287,7 @@
 "to": "13920:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorAmberBoots",
 "toEdid": "ArmorLeatherBoots",
-"family": "glass",
+"family": "amber",
 "kind": "light feet",
 "province": "skyrim"
 },
@@ -31479,7 +31295,7 @@
 "to": "13955:Skyrim.esm",
 "edid": "ccBGSSSE025_ArmorMadnessShield",
 "toEdid": "ArmorSteelShield",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "heavy shield",
 "province": "skyrim"
 },
@@ -31783,7 +31599,7 @@
 "to": "13984:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberBattleaxe",
 "toEdid": "SteelBattleaxe",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Battleaxe",
 "province": "skyrim"
 },
@@ -31791,7 +31607,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberBow",
 "toEdid": "HuntingBow",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Bow",
 "province": "skyrim"
 },
@@ -31799,7 +31615,7 @@
 "to": "13986:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberDagger",
 "toEdid": "SteelDagger",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Dagger",
 "province": "skyrim"
 },
@@ -31807,7 +31623,7 @@
 "to": "13987:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberGreatsword",
 "toEdid": "SteelGreatsword",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
@@ -31815,7 +31631,7 @@
 "to": "13988:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberMace",
 "toEdid": "SteelMace",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Mace",
 "province": "skyrim"
 },
@@ -32311,7 +32127,7 @@
 "to": "13989:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberSword",
 "toEdid": "SteelSword",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Sword",
 "province": "skyrim"
 },
@@ -32799,7 +32615,7 @@
 "to": "13983:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberWarAxe",
 "toEdid": "SteelWarAxe",
-"family": "glass",
+"family": "amber",
 "kind": "weapon WarAxe",
 "province": "skyrim"
 },
@@ -34327,7 +34143,7 @@
 "to": "1398a:Skyrim.esm",
 "edid": "ccBGSSSE025_AmberWarhammer",
 "toEdid": "SteelWarhammer",
-"family": "glass",
+"family": "amber",
 "kind": "weapon Warhammer",
 "province": "skyrim"
 },
@@ -34343,7 +34159,7 @@
 "to": "13984:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessBattleaxe",
 "toEdid": "SteelBattleaxe",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Battleaxe",
 "province": "skyrim"
 },
@@ -34351,7 +34167,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessBow",
 "toEdid": "HuntingBow",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Bow",
 "province": "skyrim"
 },
@@ -34359,7 +34175,7 @@
 "to": "13986:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessDagger",
 "toEdid": "SteelDagger",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Dagger",
 "province": "skyrim"
 },
@@ -34367,7 +34183,7 @@
 "to": "13987:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessGreatsword",
 "toEdid": "SteelGreatsword",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
@@ -34375,7 +34191,7 @@
 "to": "13988:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessMace",
 "toEdid": "SteelMace",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Mace",
 "province": "skyrim"
 },
@@ -34383,7 +34199,7 @@
 "to": "13989:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessSword",
 "toEdid": "SteelSword",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Sword",
 "province": "skyrim"
 },
@@ -34391,7 +34207,7 @@
 "to": "13983:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessWarAxe",
 "toEdid": "SteelWarAxe",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon WarAxe",
 "province": "skyrim"
 },
@@ -34399,7 +34215,7 @@
 "to": "1398a:Skyrim.esm",
 "edid": "ccBGSSSE025_MadnessWarhammer",
 "toEdid": "SteelWarhammer",
-"family": "DAEDRIC",
+"family": "madness",
 "kind": "weapon Warhammer",
 "province": "skyrim"
 },
@@ -37603,6 +37419,14 @@
 "kind": "light body",
 "province": "skyrim"
 },
+"caf:dragonbreak nexus patches.esp": {
+"to": "13952:Skyrim.esm",
+"edid": "DBORS_BrassCuirass",
+"toEdid": "ArmorSteelCuirassA",
+"family": "brass",
+"kind": "heavy body",
+"province": "skyrim"
+},
 "cb3eb:skyrim.esm": {
 "to": "1398a:Skyrim.esm",
 "edid": "EnchGlassWarhammerSoulTrap03",
@@ -37625,6 +37449,78 @@
 "toEdid": "SteelWarhammer",
 "family": "glass",
 "kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"cb5:dragonbreak nexus patches.esp": {
+"to": "13954:Skyrim.esm",
+"edid": "DBORS_BrassHelmet",
+"toEdid": "ArmorSteelHelmetA",
+"family": "brass",
+"kind": "heavy head",
+"province": "skyrim"
+},
+"cbb:dragonbreak nexus patches.esp": {
+"to": "13953:Skyrim.esm",
+"edid": "DBORS_BrassGauntlets",
+"toEdid": "ArmorSteelGauntletsA",
+"family": "brass",
+"kind": "heavy hands",
+"province": "skyrim"
+},
+"cc1:dragonbreak nexus patches.esp": {
+"to": "13951:Skyrim.esm",
+"edid": "DBORS_BrassBoots",
+"toEdid": "ArmorSteelBootsA",
+"family": "brass",
+"kind": "heavy feet",
+"province": "skyrim"
+},
+"cc6:dragonbreak nexus patches.esp": {
+"to": "13955:Skyrim.esm",
+"edid": "DBORS_BrassShield",
+"toEdid": "ArmorSteelShield",
+"family": "brass",
+"kind": "heavy shield",
+"province": "skyrim"
+},
+"ccc:dragonbreak nexus patches.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "DBORS_BrassDagger",
+"toEdid": "SteelDagger",
+"family": "brass",
+"kind": "weapon Dagger",
+"province": "skyrim"
+},
+"cd1:dragonbreak nexus patches.esp": {
+"to": "13989:Skyrim.esm",
+"edid": "DBORS_BrassSword",
+"toEdid": "SteelSword",
+"family": "brass",
+"kind": "weapon Sword",
+"province": "skyrim"
+},
+"cd6:dragonbreak nexus patches.esp": {
+"to": "13983:Skyrim.esm",
+"edid": "DBORS_BrassWarAxe",
+"toEdid": "SteelWarAxe",
+"family": "brass",
+"kind": "weapon WarAxe",
+"province": "skyrim"
+},
+"cdb:dragonbreak nexus patches.esp": {
+"to": "13988:Skyrim.esm",
+"edid": "DBORS_BrassMace",
+"toEdid": "SteelMace",
+"family": "brass",
+"kind": "weapon Mace",
+"province": "skyrim"
+},
+"ce0:dragonbreak nexus patches.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "DBORS_BrassGreatsword",
+"toEdid": "SteelGreatsword",
+"family": "brass",
+"kind": "weapon Greatsword",
 "province": "skyrim"
 },
 "ce1ad:skyrim.esm": {
@@ -37681,6 +37577,38 @@
 "toEdid": "ArmorSteelShield",
 "family": "orcish",
 "kind": "heavy shield",
+"province": "skyrim"
+},
+"ce5:dragonbreak nexus patches.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "DBORS_BrassBattleaxe",
+"toEdid": "SteelBattleaxe",
+"family": "brass",
+"kind": "weapon Battleaxe",
+"province": "skyrim"
+},
+"cea:dragonbreak nexus patches.esp": {
+"to": "1398a:Skyrim.esm",
+"edid": "DBORS_BrassWarhammer",
+"toEdid": "SteelWarhammer",
+"family": "brass",
+"kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"cef:dragonbreak nexus patches.esp": {
+"to": "13985:Skyrim.esm",
+"edid": "DBORS_BrassBow",
+"toEdid": "HuntingBow",
+"family": "brass",
+"kind": "weapon Bow",
+"province": "skyrim"
+},
+"cf6:dragonbreak nexus patches.esp": {
+"to": "13952:Skyrim.esm",
+"edid": "DBORS_AdamantiumCuirass",
+"toEdid": "ArmorSteelCuirassA",
+"family": "adamantium",
+"kind": "heavy body",
 "province": "skyrim"
 },
 "cf7af:skyrim.esm": {
@@ -38827,11 +38755,51 @@
 "kind": "weapon Bow",
 "province": "skyrim"
 },
+"cfb:dragonbreak nexus patches.esp": {
+"to": "13954:Skyrim.esm",
+"edid": "DBORS_AdamantiumHelmet",
+"toEdid": "ArmorSteelHelmetA",
+"family": "adamantium",
+"kind": "heavy head",
+"province": "skyrim"
+},
+"d02:dragonbreak nexus patches.esp": {
+"to": "13953:Skyrim.esm",
+"edid": "DBORS_AdamantiumGauntlets",
+"toEdid": "ArmorSteelGauntletsA",
+"family": "adamantium",
+"kind": "heavy hands",
+"province": "skyrim"
+},
 "d0758:skyrim.esm": {
 "to": "13986:Skyrim.esm",
 "edid": "MGRitual05Dagger",
 "toEdid": "SteelDagger",
 "family": "DRAGON",
+"kind": "weapon Dagger",
+"province": "skyrim"
+},
+"d09:dragonbreak nexus patches.esp": {
+"to": "13951:Skyrim.esm",
+"edid": "DBORS_AdamantiumBoots",
+"toEdid": "ArmorSteelBootsA",
+"family": "adamantium",
+"kind": "heavy feet",
+"province": "skyrim"
+},
+"d0f:dragonbreak nexus patches.esp": {
+"to": "13955:Skyrim.esm",
+"edid": "DBORS_AdamantiumShield",
+"toEdid": "ArmorSteelShield",
+"family": "adamantium",
+"kind": "heavy shield",
+"province": "skyrim"
+},
+"d15:dragonbreak nexus patches.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "DBORS_AdamantiumDagger",
+"toEdid": "SteelDagger",
+"family": "adamantium",
 "kind": "weapon Dagger",
 "province": "skyrim"
 },
@@ -38931,12 +38899,52 @@
 "kind": "heavy head",
 "province": "skyrim"
 },
+"d1a:dragonbreak nexus patches.esp": {
+"to": "13989:Skyrim.esm",
+"edid": "DBORS_AdamantiumSword",
+"toEdid": "SteelSword",
+"family": "adamantium",
+"kind": "weapon Sword",
+"province": "skyrim"
+},
+"d1f:dragonbreak nexus patches.esp": {
+"to": "13983:Skyrim.esm",
+"edid": "DBORS_AdamantiumWarAxe",
+"toEdid": "SteelWarAxe",
+"family": "adamantium",
+"kind": "weapon WarAxe",
+"province": "skyrim"
+},
+"d24:dragonbreak nexus patches.esp": {
+"to": "13988:Skyrim.esm",
+"edid": "DBORS_AdamantiumMace",
+"toEdid": "SteelMace",
+"family": "adamantium",
+"kind": "weapon Mace",
+"province": "skyrim"
+},
 "d2846:skyrim.esm": {
 "to": "13954:Skyrim.esm",
 "edid": "ClavicusVileMask",
 "toEdid": "ArmorSteelHelmetA",
 "family": "DAEDRIC",
 "kind": "heavy head",
+"province": "skyrim"
+},
+"d29:dragonbreak nexus patches.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "DBORS_AdamantiumGreatsword",
+"toEdid": "SteelGreatsword",
+"family": "adamantium",
+"kind": "weapon Greatsword",
+"province": "skyrim"
+},
+"d2e:dragonbreak nexus patches.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "DBORS_AdamantiumBattleaxe",
+"toEdid": "SteelBattleaxe",
+"family": "adamantium",
+"kind": "weapon Battleaxe",
 "province": "skyrim"
 },
 "d2fa9:bsheartland.esm": {
@@ -38951,7 +38959,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYREnchAyleidBowShock01",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -38959,7 +38967,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYREnchAyleidBowShock02",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -38967,7 +38975,7 @@
 "to": "13985:Skyrim.esm",
 "edid": "CYREnchAyleidBowShock03",
 "toEdid": "HuntingBow",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Bow",
 "province": "cyrodiil"
 },
@@ -38975,7 +38983,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYREnchAyleidDaggerShock01",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -38983,7 +38991,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYREnchAyleidDaggerShock02",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -38991,7 +38999,7 @@
 "to": "300056:BSHeartland.esm",
 "edid": "CYREnchAyleidDaggerShock03",
 "toEdid": "CYRSteelDagger",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Dagger",
 "province": "cyrodiil"
 },
@@ -38999,7 +39007,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYREnchAyleidSwordShock01",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
@@ -39007,7 +39015,7 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYREnchAyleidSwordShock02",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
 },
@@ -39015,9 +39023,57 @@
 "to": "300059:BSHeartland.esm",
 "edid": "CYREnchAyleidSwordShock03",
 "toEdid": "CYRSteelSword",
-"family": "elven",
+"family": "ayleid",
 "kind": "weapon Sword",
 "province": "cyrodiil"
+},
+"d33:dragonbreak nexus patches.esp": {
+"to": "1398a:Skyrim.esm",
+"edid": "DBORS_AdamantiumWarhammer",
+"toEdid": "SteelWarhammer",
+"family": "adamantium",
+"kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"d38:dragonbreak nexus patches.esp": {
+"to": "13985:Skyrim.esm",
+"edid": "DBORS_AdamantiumBow",
+"toEdid": "HuntingBow",
+"family": "adamantium",
+"kind": "weapon Bow",
+"province": "skyrim"
+},
+"d3e:dragonbreak nexus patches.esp": {
+"to": "13986:Skyrim.esm",
+"edid": "DBORS_MithrilDagger",
+"toEdid": "SteelDagger",
+"family": "mithril",
+"kind": "weapon Dagger",
+"province": "skyrim"
+},
+"d44:dragonbreak nexus patches.esp": {
+"to": "13989:Skyrim.esm",
+"edid": "DBORS_MithrilSword",
+"toEdid": "SteelSword",
+"family": "mithril",
+"kind": "weapon Sword",
+"province": "skyrim"
+},
+"d49:dragonbreak nexus patches.esp": {
+"to": "13983:Skyrim.esm",
+"edid": "DBORS_MithrilWarAxe",
+"toEdid": "SteelWarAxe",
+"family": "mithril",
+"kind": "weapon WarAxe",
+"province": "skyrim"
+},
+"d4e:dragonbreak nexus patches.esp": {
+"to": "13988:Skyrim.esm",
+"edid": "DBORS_MithrilMace",
+"toEdid": "SteelMace",
+"family": "mithril",
+"kind": "weapon Mace",
+"province": "skyrim"
 },
 "d5238:bsheartland.esm": {
 "to": "300022:BSHeartland.esm",
@@ -39050,6 +39106,14 @@
 "family": "EBONY",
 "kind": "heavy feet",
 "province": "cyrodiil"
+},
+"d52:dragonbreak nexus patches.esp": {
+"to": "13987:Skyrim.esm",
+"edid": "DBORS_MithrilGreatsword",
+"toEdid": "SteelGreatsword",
+"family": "mithril",
+"kind": "weapon Greatsword",
+"province": "skyrim"
 },
 "d536e:skyrim.esm": {
 "to": "13920:Skyrim.esm",
@@ -39787,6 +39851,30 @@
 "kind": "light body",
 "province": "skyrim"
 },
+"d57:dragonbreak nexus patches.esp": {
+"to": "13984:Skyrim.esm",
+"edid": "DBORS_MithrilBattleaxe",
+"toEdid": "SteelBattleaxe",
+"family": "mithril",
+"kind": "weapon Battleaxe",
+"province": "skyrim"
+},
+"d5c:dragonbreak nexus patches.esp": {
+"to": "1398a:Skyrim.esm",
+"edid": "DBORS_MithrilWarhammer",
+"toEdid": "SteelWarhammer",
+"family": "mithril",
+"kind": "weapon Warhammer",
+"province": "skyrim"
+},
+"d61:dragonbreak nexus patches.esp": {
+"to": "13985:Skyrim.esm",
+"edid": "DBORS_MithrilBow",
+"toEdid": "HuntingBow",
+"family": "mithril",
+"kind": "weapon Bow",
+"province": "skyrim"
+},
 "d62:hothtrooper44_armorcompilation.esp": {
 "to": "13951:Skyrim.esm",
 "edid": "IAFalkreathBoots",
@@ -39843,14 +39931,6 @@
 "kind": "light head",
 "province": "skyrim"
 },
-"d6a:hothtrooper44_armorcompilation.esp": {
-"to": "13951:Skyrim.esm",
-"edid": "IARedguardKnightHeavyBoots",
-"toEdid": "ArmorSteelBootsA",
-"family": "dwarven",
-"kind": "heavy feet",
-"province": "skyrim"
-},
 "d6a:immersive weapons.esp": {
 "to": "13989:Skyrim.esm",
 "edid": "IWAlikrCrownScimitar",
@@ -39867,14 +39947,6 @@
 "kind": "light feet",
 "province": "skyrim"
 },
-"d6c:hothtrooper44_armorcompilation.esp": {
-"to": "13953:Skyrim.esm",
-"edid": "IARedguardKnightHeavyGauntlets",
-"toEdid": "ArmorSteelGauntletsA",
-"family": "dwarven",
-"kind": "heavy hands",
-"province": "skyrim"
-},
 "d6d:hothtrooper44_armorcompilation.esp": {
 "to": "13921:Skyrim.esm",
 "edid": "IARedguardKnightLightGauntlets",
@@ -39889,14 +39961,6 @@
 "toEdid": "SteelSword",
 "family": "glass",
 "kind": "weapon Sword",
-"province": "skyrim"
-},
-"d70:hothtrooper44_armorcompilation.esp": {
-"to": "13952:Skyrim.esm",
-"edid": "IARedguardKnightHeavyCuirass",
-"toEdid": "ArmorSteelCuirassA",
-"family": "dwarven",
-"kind": "heavy body",
 "province": "skyrim"
 },
 "d71:hothtrooper44_armorcompilation.esp": {
@@ -42619,14 +42683,6 @@
 "kind": "weapon Greatsword",
 "province": "skyrim"
 },
-"fe2a:immersive weapons.esp": {
-"to": "13989:Skyrim.esm",
-"edid": "IWFleurDeLysSword",
-"toEdid": "SteelSword",
-"family": "ancient_nord_honed",
-"kind": "weapon Sword",
-"province": "skyrim"
-},
 "fe2b:immersive weapons.esp": {
 "to": "13987:Skyrim.esm",
 "edid": "IWGreybladeGreatsword",
@@ -43000,16 +43056,6 @@
 "2b06b:dragonborn.esm": {
 "to": "5ace5:Skyrim.esm",
 "edid": "DLC2OreStalhrim",
-"toEdid": "IngotSteel"
-},
-"601c87:bsassets.esm": {
-"to": "71cf3:Skyrim.esm",
-"edid": "BSKOreAdamantium",
-"toEdid": "OreIron"
-},
-"602099:bsassets.esm": {
-"to": "5ace5:Skyrim.esm",
-"edid": "BSKIngotAdamantium",
 "toEdid": "IngotSteel"
 }
 },

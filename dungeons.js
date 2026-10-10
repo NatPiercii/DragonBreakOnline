@@ -698,6 +698,10 @@ module.exports = (api) => {
     if (!yes) log(`dungeon anchor ${ref} is not in the server's world; its enemy spawns at the spot instead`);
     return yes;
   };
+  // The finds smithing.drops names for a ruin's chests: Ayleid, Dwemer or Falmer, else ''
+  // Cyrodiil's forts and fort ruins (BS Heartland: CYR ids with a military-fort type or CYRLocTypeFortRuin), Ancient Imperial ground
+  const isCyrodiilFort = (d) => !!d && /^CYR/.test(d.id || '') && (d.type === 'fort' || (d.keywords || []).some((k) => /^(LocTypeMilitaryFort|LocSetMilitaryFort|CYRLocTypeFortRuin)$/.test(k)));
+  const techniqueRuin = (d) => (isAyleidRuin(d) ? 'ayleidRuin' : d && d.type === 'dwemer' ? 'dwemerRuin' : (d && d.keywords || []).includes('LocTypeFalmerHive') ? 'falmerRuin' : isCyrodiilFort(d) ? 'fort' : '');
   const fillChests = (d, diff, lease) => {
     let filled = 0;
     if (lease) lease.stocked = new Set();
@@ -719,6 +723,8 @@ module.exports = (api) => {
         // 4 Oct: "no loot from locked chests") holds coin by the difficulty's range instead; a roll again would raise every
         // other share (Ayleid pieces, potions) the tables are tuned to
         if (ch.big && !boss && lock !== undefined && !entries.length) addEntry(entries, { id: 'f:Skyrim.esm' }, goldAmount(rnd(diff.gold[0], diff.gold[1])));
+        // A technique book in a ruin's chest (manuals.js __dboTechniqueDrop, config smithing.drops; empty: none)
+        if (ch.big && techniqueRuin(d) && typeof globalThis.__dboTechniqueDrop === 'function') { try { addEntry(entries, globalThis.__dboTechniqueDrop(techniqueRuin(d), diff.id), 1); } catch (e) { log('technique drop failed', e.message); } }
         mp.set(id, 'inventory', { entries }); filled++;
         if (lease && entries.length) lease.stocked.add(id);
         if (lease) { const g = entries.reduce((n, e) => n + ((Number(e.baseId) >>> 0) === GOLD_BASE ? Number(e.count) || 0 : 0), 0); if (g > 0) lease.rolledGold.set(id >>> 0, g); }

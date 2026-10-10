@@ -25,7 +25,7 @@ const path = require('path');
 
 const VERSION = 'steelcap-2026-10-01';
 const MARK = 'private.dboGearSwap';
-const NEVER_SWAP = new Set(['DRAGON', 'DAEDRIC', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
+const NEVER_SWAP = new Set(['DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish', 'golden', 'aetherium']);
 const RESTORE_MARK = 'private.dboGearRestore';
 const RESTORE_FILE = 'gearswap-restore.json';
 // The mined metals swapped for steel before they came off the swap's list (Nate, 4 Oct: "Keep mined ores, swap only

@@ -13,12 +13,12 @@ const TIERS = require(path.join(SERVER, 'loottiers.js'))({ materials: readJson('
 const SWAP = readJson('gear-swap.json');
 
 // Real records: Skyrim.esm is plugin 0, BSHeartland.esm plugin 8 on the server
-const PLUG = { 0: 'Skyrim.esm', 7: 'BSAssets.esm', 8: 'BSHeartland.esm' };
+const PLUG = { 0: 'Skyrim.esm', 4: 'Dragonborn.esm', 7: 'BSAssets.esm', 8: 'BSHeartland.esm' };
 const descOf = (id) => `${((id >>> 0) & 0xffffff).toString(16)}:${PLUG[(id >>> 0) >>> 24] || 'X.esp'}`;
 const idOf = (desc) => { const m = /^([0-9a-f]+):(.+)$/i.exec(desc); const top = Object.keys(PLUG).find((k) => PLUG[k].toLowerCase() === m[2].toLowerCase()); return top === undefined ? 0 : ((Number(top) << 24) | parseInt(m[1], 16)) >>> 0; };
 const ID = {
   GlassSword: 0x139a9, SteelSword: 0x13989, ArmorEbonyCuirass: 0x13961, ArmorSteelCuirassA: 0x13952, IronSword: 0x12eb7,
-  IngotEbony: 0x5ad9d, IngotIMoonstone: 0x5ad9f, IngotSteel: 0x5ace5, IngotDwarven: 0xdb8a2, BSKIngotAdamantium: 0x07602099, OreMoonstone: 0x5ace0, DA08EbonyBlade: 0x4a38f, SteelGreatsword: 0x13987,
+  IngotEbony: 0x5ad9d, IngotIMoonstone: 0x5ad9f, IngotSteel: 0x5ace5, IngotDwarven: 0xdb8a2, DLC2OreStalhrim: 0x0402b06b, OreMoonstone: 0x5ace0, DA08EbonyBlade: 0x4a38f, SteelGreatsword: 0x13987,
   CYRElvenSword: 0x08300070, CYRSteelSword: 0x08300059, CYRArmorElvenCuirass: 0x08300009, CYRArmorLeatherCuirassA: 0x0805ef24,
   ArmorElvenCuirass: 0x896a3, ArmorLeatherCuirass: 0x3619e, Gold: 0xf, ElvenArrow: 0x139bd, IronArrow: 0x1397d, SteelArrow: 0x1397f,
 };
@@ -35,7 +35,7 @@ check('Cyrodiil pieces stay Cyrodiil: an Elven sword to CYR steel, an Elven cuir
 const targets = Object.values(SWAP.replacements).map((r) => r.to);
 check('every replacement is loot under the cap itself (loottiers says gear)', targets.every((d) => TIERS.classOf(d).kind === 'gear'), targets.filter((d) => TIERS.classOf(d).kind !== 'gear'));
 check('every mapped item is above the cap by loottiers', Object.keys(SWAP.items).every((d) => { const c = TIERS.classOf(d); return c.kind === 'capped' || c.kind === 'never'; }));
-check('Adamantium ingots (no ore to mine) become steel ingots; Dwarven ingots, smelted from scrap, are off the list (Nate, 4 Oct: "Keep them (crafted, like mined ores)")', SWAP.metals['602099:bsassets.esm'].toEdid === 'IngotSteel' && !SWAP.metals['db8a2:skyrim.esm']);
+check('Stalhrim (no ore a player may mine) becomes a steel ingot; Adamantium, mined in the Gutted Mine since 9 Oct, and Dwarven ingots, smelted from scrap, are off the list (Nate, 4 Oct: "Keep them (crafted, like mined ores)")', SWAP.metals['2b06b:dragonborn.esm'].toEdid === 'IngotSteel' && !SWAP.metals['602099:bsassets.esm'] && !SWAP.metals['601c87:bsassets.esm'] && !SWAP.metals['db8a2:skyrim.esm']);
 check('the metals players mine and their ingots are not on the list (Nate, 4 Oct: "Keep mined ores, swap only gear")', !Object.values(SWAP.metals).some((m) => /^(Ingot|Ore)I?(Moonstone|Malachite|Ebony|Quicksilver|Orichalcum)$|MeteoricIron/.test(m.edid)));
 check('corundum, silver and gold ingots are not on the metals list', !Object.values(SWAP.metals).some((m) => /^(Ingot|Ore)(Corundum|Silver|Gold)$|^ingotSilver$/i.test(m.edid)));
 
@@ -44,13 +44,13 @@ let p = planOf([{ baseId: ID.GlassSword, count: 1 }, { baseId: ID.IronSword, cou
 check('a glass sword is swapped, iron and gold stay', p.swaps.length === 1 && p.swaps[0].to === ID.SteelSword && p.keep.length === 2, p.swaps);
 check('...worn in the right hand, so its replacement goes on there', p.swaps[0].worn === true && p.swaps[0].wornLeft === false);
 check('...and the new inventory has the steel sword instead', p.entries.some((e) => e.baseId === ID.SteelSword && e.count === 1) && !p.entries.some((e) => e.baseId === ID.GlassSword));
-p = planOf([{ baseId: ID.BSKIngotAdamantium, count: 5 }, { baseId: ID.IngotSteel, count: 4 }]);
+p = planOf([{ baseId: ID.DLC2OreStalhrim, count: 5 }, { baseId: ID.IngotSteel, count: 4 }]);
 check('metals go count for count into the plain steel ingot stack', p.entries.length === 1 && p.entries[0].baseId === ID.IngotSteel && p.entries[0].count === 9, p.entries);
 p = planOf([{ baseId: ID.IngotDwarven, count: 3 }]);
 check('Dwarven metal ingots, smelted from scrap, are kept like a mined ore (Nate, 4 Oct: "Keep them (crafted, like mined ores)")', p.swaps.length === 0 && p.entries.length === 1 && p.entries[0].baseId === ID.IngotDwarven && p.entries[0].count === 3, p.swaps);
 p = planOf([{ baseId: ID.IngotIMoonstone, count: 2 }, { baseId: ID.OreMoonstone, count: 6 }, { baseId: ID.IngotEbony, count: 1 }]);
 check('mined metals and their ingots are kept as they are (refined moonstone, moonstone ore, ebony)', p.swaps.length === 0 && p.entries.length === 3, p.swaps);
-p = planOf([{ baseId: ID.BSKIngotAdamantium, count: 1 }, { baseId: ID.IngotSteel, count: 1, health: 1.2 }]);
+p = planOf([{ baseId: ID.DLC2OreStalhrim, count: 1 }, { baseId: ID.IngotSteel, count: 1, health: 1.2 }]);
 check('...but never into a tempered stack', p.entries.length === 2 && p.entries.some((e) => e.baseId === ID.IngotSteel && e.count === 1 && !e.health));
 p = planOf([{ baseId: ID.DA08EbonyBlade, count: 1 }]);
 check('an artifact is never touched, even above the cap', p.swaps.length === 0 && p.skipped.artifact === 1 && p.entries[0].baseId === ID.DA08EbonyBlade);
@@ -71,7 +71,7 @@ check('wornIn reads the equipment', G.wornIn({ inv: { entries: [{ baseId: 5, wor
 // ---- 3. the runtime, against a stub server ----
 const A = 0xff000303, B = 0xff000304;
 const store = {
-  [A]: { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }, { baseId: ID.CYRArmorElvenCuirass, count: 1 }, { baseId: ID.BSKIngotAdamantium, count: 2 }, { baseId: ID.IngotDwarven, count: 2 }, { baseId: ID.IngotIMoonstone, count: 3 }] },
+  [A]: { inventory: { entries: [{ baseId: ID.GlassSword, count: 1 }, { baseId: ID.CYRArmorElvenCuirass, count: 1 }, { baseId: ID.DLC2OreStalhrim, count: 2 }, { baseId: ID.IngotDwarven, count: 2 }, { baseId: ID.IngotIMoonstone, count: 3 }] },
     equipment: { inv: { entries: [{ baseId: ID.GlassSword, worn: true }, { baseId: ID.CYRArmorElvenCuirass, worn: true }] } },
     'private.lastWorn': [ID.GlassSword, ID.CYRArmorElvenCuirass], profileId: 35 },
   [B]: { inventory: { entries: [{ baseId: ID.ArmorEbonyCuirass, count: 1 }] }, equipment: { inv: { entries: [] } }, profileId: 3 },
@@ -111,8 +111,8 @@ check('...and one in a beast form', !store[A]['private.dboGearSwap']);
 globalThis.__dboBeastOriginalRace = () => 0;
 loginAll();
 const inv = store[A].inventory.entries;
-check('then the swap: steel sword, CYR leather cuirass, steel ingots for the Adamantium, the high-end pieces gone, Dwarven and moonstone ingots kept',
-  inv.some((e) => e.baseId === ID.SteelSword) && inv.some((e) => e.baseId === ID.CYRArmorLeatherCuirassA) && inv.some((e) => e.baseId === ID.IngotSteel && e.count === 2) && !inv.some((e) => [ID.GlassSword, ID.CYRArmorElvenCuirass, ID.BSKIngotAdamantium].includes(e.baseId)) && inv.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 3) && inv.some((e) => e.baseId === ID.IngotDwarven && e.count === 2), inv);
+check('then the swap: steel sword, CYR leather cuirass, steel ingots for the Stalhrim, the high-end pieces gone, Dwarven and moonstone ingots kept',
+  inv.some((e) => e.baseId === ID.SteelSword) && inv.some((e) => e.baseId === ID.CYRArmorLeatherCuirassA) && inv.some((e) => e.baseId === ID.IngotSteel && e.count === 2) && !inv.some((e) => [ID.GlassSword, ID.CYRArmorElvenCuirass, ID.DLC2OreStalhrim].includes(e.baseId)) && inv.some((e) => e.baseId === ID.IngotIMoonstone && e.count === 3) && inv.some((e) => e.baseId === ID.IngotDwarven && e.count === 2), inv);
 const equips = calls.filter((c) => c[2] === 'EquipItem').map((c) => c[4][0].desc);
 check('both worn pieces are put on again as their replacements', equips.length === 2 && equips.includes(descOf(ID.SteelSword)) && equips.includes(descOf(ID.CYRArmorLeatherCuirassA)), equips);
 check('the login re-dress remembers the replacements', JSON.stringify(store[A]['private.lastWorn']) === JSON.stringify([ID.SteelSword, ID.CYRArmorLeatherCuirassA]));
