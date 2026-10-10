@@ -34,9 +34,9 @@ const mp = {
   onHitDamageAttempt: () => true, onHitDamage: () => undefined, onDeath: () => undefined,
   onSpellHit: () => undefined, onSpellCast: () => undefined,
 };
-const audits = [], ui = {}, cmds = {}, widgets = [], said = [], banners = [];
+const audits = [], ui = {}, cmds = {}, widgets = [], said = [], banners = [], logs = [];
 const load = (cfg) => require(MODULE)({
-  mp, log: () => {}, personal: (a, t) => said.push(t), sendPacket: (a, p) => { if (p.customPacketType === 'dboBanner') banners.push(p.text); return true; },
+  mp, log: (t) => logs.push(String(t)), personal: (a, t) => said.push(t), sendPacket: (a, p) => { if (p.customPacketType === 'dboBanner') banners.push(p.text); return true; },
   onUi: (n, f) => { ui[n] = f; }, openWidget: (a, w) => widgets.push(w), closeWidget: () => {},
   audit: (t) => audits.push(t), who: (a) => 'P' + (a >>> 0).toString(16), display: (a) => 'P' + (a >>> 0).toString(16),
   profileOf: (a) => Number(get(a, 'profileId')), nameOf: (a) => 'P' + (a >>> 0).toString(16),
@@ -88,6 +88,16 @@ check('so is /respawn', globalThis.__dboDownedState.downed.has(P) && said.some((
 now += 5000;
 ui.downedGiveUp(P, [panel.nonce]);
 check('after 15 s Give up wakes them at the temple', !globalThis.__dboDownedState.downed.has(P) && audits.some((t) => /woke at the temple/.test(t)), audits.join(' | '));
+
+// The down line says how far the one who downed them stood (Licks-His-Fur #KBX7, 10 Oct: trolls "from nothing")
+reset();
+set(WOLF, 'pos', [700, 0, 0]); set(WOLF, 'worldOrCellDesc', 'a764b:BSHeartland.esm');
+set(P, 'isDead', true); mp.onDeath(P, WOLF);
+check('the down line gives the killer\'s distance', logs.some((t) => /is down \(by Pff0000aa, 10\.0 m away\)/.test(t)), logs.filter((t) => /is down/.test(t)).pop());
+reset();
+set(WOLF, 'worldOrCellDesc', 'somewhere else');
+set(P, 'isDead', true); mp.onDeath(P, WOLF);
+check('or that it was in another cell', logs.some((t) => /is down \(by Pff0000aa, in another cell\)/.test(t)), logs.filter((t) => /is down/.test(t)).pop());
 
 console.log(failures ? `${failures} failure(s)` : 'all checks passed');
 process.exit(failures ? 1 : 0);

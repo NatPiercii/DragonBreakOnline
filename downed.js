@@ -27,6 +27,19 @@ module.exports = (api) => {
     } catch (e) { return nameOf(x); }
   };
 
+  // How far the one who downed a player stood, by the server's positions: the player's own and the killer's host's
+  // (Licks-His-Fur #KBX7, 10 Oct: "died from literally nothing after running away from trolls"; every one of the three
+  // downs was a troll's logged blow, so this measures whether the blow came from a copy far behind on the host's screen)
+  const killerGap = (a, k) => {
+    try {
+      if (!k || k === a) return '';
+      if (mp.get(a, 'worldOrCellDesc') !== mp.get(k, 'worldOrCellDesc')) return ', in another cell';
+      const p = mp.get(a, 'pos'), q = mp.get(k, 'pos');
+      const m = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) / 70;
+      return Number.isFinite(m) ? `, ${m.toFixed(1)} m away` : '';
+    } catch (e) { return ''; }
+  };
+
   const C = Object.assign({
     friendlyDamage: 0.2,
     // Every character has at least 150 health (150/150/100 plus the race's own). Until a hit has taught a target's real
@@ -430,7 +443,7 @@ module.exports = (api) => {
             }
             pushTimers(true);
             if (Number(C.inputDiagSeconds) > 0) sendPacket(a, { customPacketType: 'dboInputDiag', seconds: Number(C.inputDiagSeconds), reason: 'down' });
-            log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)})` : ''}`);
+            log(`downed: ${display(a)} is down${killerId ? ` (by ${display(Number(killerId) >>> 0)}${killerGap(a, Number(killerId) >>> 0)})` : ''}`);
             // Journal stats (journalstats.js): the down, and who put them down if it was a player
             try { if (globalThis.__dboStatsAdd) { globalThis.__dboStatsAdd(a, 'downs'); if (d.by && d.by !== a && isPlayer(d.by)) globalThis.__dboStatsAdd(d.by, 'playersDowned'); } } catch (e) { /* stats only */ }
           }
