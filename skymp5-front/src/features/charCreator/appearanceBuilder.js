@@ -17,8 +17,12 @@ export function setModHeadparts (parts, extras) {
   modExtras = extras && typeof extras === 'object' ? extras : {};
 }
 
+// A race whose own record the data does not know yet (the DLE's MaormerRace before headparts.json and tints.json are
+// generated with it) reads its fallbackEditorId's head parts, tints and defaults
+const knownRace = (edid) => !!(headparts.raceDefaults[edid] || tints[edid] || headparts.parts.some(p => p.races.includes(edid)));
 export function editorIdFor (race, age) {
   if (age === 'child' && race.childRaceId) return race.raceEditorId + 'Child';
+  if (race.fallbackEditorId && !knownRace(race.raceEditorId)) return race.fallbackEditorId;
   return race.raceEditorId;
 }
 

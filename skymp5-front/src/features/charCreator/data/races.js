@@ -150,8 +150,14 @@ export const SPECIES = [
       {
         id: 'maormer',
         name: 'Maormer',
+        // The DLE's own MaormerRace (Nate, 10 Oct: lore skin tones, a little shorter than the Altmer). raceId stays the High
+        // Elf's: its id depends on the load order, so the server makes the character on MaormerRace once it is in the
+        // order (charCreatorData.ts raceOverrideFor). Head parts and skin tones come from MaormerRace's own data once
+        // headparts.json and tints.json carry it, from the High Elf's until then (fallbackEditorId). placeholder goes
+        // when the DLE ships.
         raceId: HIGHELF,
-        raceEditorId: 'HighElfRace',
+        raceEditorId: 'MaormerRace',
+        fallbackEditorId: 'HighElfRace',
         faceGen: true,
         placeholder: true,
         lore: 'Sea Elves of Pyandonea: serpent-charming raiders with chameleon skin, ancient foes of the Altmer.'
