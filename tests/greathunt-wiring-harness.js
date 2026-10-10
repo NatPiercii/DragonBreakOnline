@@ -62,6 +62,8 @@ store.set(`${WOLF}|private.beast`, null);
 globalThis.__dboClock = { gameDays: () => 10.5, summary: () => ({ timeScale: 6 }) };
 ok(globalThis.__dboBeastAllow(WOLF, 'werewolf', false) === null && globalThis.__dboBeastAllow(WOLF, 'werewolf', false) === null, 'a Hunter changes twice a game day');
 ok(typeof globalThis.__dboBeastAllow(WOLF, 'werewolf', false) === 'string', 'and not a third time');
+ok(globalThis.__dboBeastAllow(WOLF, 'werewolf', false, { carry: true }) === null, 'but the rest of a change a login cut short is allowed (beastform.js keepCarry)');
+ok(typeof globalThis.__dboBeastAllow(WOLF, 'werewolf', false) === 'string', 'and spends no daily change');
 
 // Vampires (bloodranks.js)
 const VICTIM = 9;

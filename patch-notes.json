@@ -1,5 +1,19 @@
 [
   {
+    "title": "A crash no longer eats your beast form",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Beast form",
+        "items": [
+          "If your game crashes or you log out while in beast form, the time you had left is kept. Your next change the same in-game day lasts for that time and does not use up the day's change. Your total time in beast form per day stays the same as before."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Werewolves come back to themselves",
     "date": "2026-10-10",
     "version": "Server update",

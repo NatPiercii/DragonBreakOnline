@@ -1783,7 +1783,8 @@ module.exports = (api) => {
     }
   });
   // beastform asks before a transform; a reason string refuses it
-  globalThis.__dboBeastAllow = (a, key, forced) => {
+  // opts.carry: the rest of a change a login or logout cut short (beastform.js keepCarry), which spends no daily change
+  globalThis.__dboBeastAllow = (a, key, forced, opts) => {
     if (isAdmin(a) || forced) return null;
     const s = stateOf(a);
     if (key === 'vampirelord') return crownHolder() === (a >>> 0) || mp.get(a, 'private.vampireLordGrant') === true ? null : 'Only the holder of the Blood Crown can take the form of a Vampire Lord.';
@@ -1792,7 +1793,7 @@ module.exports = (api) => {
       return s && s.disease && s.disease.kind === 'werewolf' ? 'The beast is not yours yet. Wait for the fever to peak.' : 'You are no werewolf.';
     }
     // Once per in-game day, which is the design and not a real day: the world clock owns the calendar
-    if (key === 'werewolf' && s && s.kind === 'werewolf' && !spared(a, s)) {
+    if (key === 'werewolf' && s && s.kind === 'werewolf' && !spared(a, s) && !(opts && opts.carry === true)) {
       const clock = globalThis.__dboClock;
       const now = clock && typeof clock.gameDays === 'function' ? clock.gameDays() : null;
       if (now !== null) {

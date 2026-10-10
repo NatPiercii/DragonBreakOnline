@@ -142,6 +142,29 @@ module.exports = (api) => {
   const papyrus = (a, method, args) => { try { mp.callPapyrusFunction('method', 'Actor', method, self(a), args); return true; } catch (e) { log(`beastform: ${method} failed on ${display(a)}: ${e.message}`); return false; } };
   const spellArg = (id) => ({ type: 'espm', desc: mp.getDescFromId(id) });
   const stateOf = (a) => { try { const s = mp.get(a, 'private.beast'); return s && s.form && s.original ? s : null; } catch (e) { return null; } };
+  // A beast cut short by the session ending keeps what was left of it (GroundedPasta #7DJT, 10 Oct: "crashed while in
+  // wolf form and lost my whole beast form"; the crash took the day's one change). A login or logout revert of a timed
+  // form writes private.beastCarry { form, seconds, at, day }, and the next change into that form the same in-game day
+  // takes only those seconds and spends no daily change. It is bounded by itself, so no crash proof is needed: the day's
+  // beast time never exceeds one change's length, however the session ended (a quit keeps the rest too).
+  const CARRY_MIN_SECONDS = 10, CARRY_REAL_MS = 4 * 3600000;
+  const gameDay = () => { try { const c = globalThis.__dboClock; const d = c && typeof c.gameDays === 'function' ? Number(c.gameDays()) : NaN; return Number.isFinite(d) ? Math.floor(d) : null; } catch (e) { return null; } };
+  const carryOf = (a, key) => {
+    let c = null; try { c = mp.get(a, 'private.beastCarry'); } catch (e) { return null; }
+    if (!c || typeof c !== 'object') return null;
+    const day = gameDay();
+    const fresh = c.form === key && Number(c.seconds) >= CARRY_MIN_SECONDS &&
+      (day !== null && Number.isFinite(Number(c.day)) ? Number(c.day) === day : Date.now() - Number(c.at) < CARRY_REAL_MS);
+    if (!fresh) { if (c.form === key) { try { mp.set(a, 'private.beastCarry', null); } catch (e) { /* offline */ } } return null; }
+    return c;
+  };
+  const keepCarry = (a, s, why) => {
+    if ((why !== 'login' && why !== 'logout') || !s.until) return;
+    const left = Math.ceil((Number(s.until) - Date.now()) / 1000);
+    if (!(left >= CARRY_MIN_SECONDS)) return;
+    try { mp.set(a, 'private.beastCarry', { form: s.form, seconds: left, at: Date.now(), day: gameDay() }); } catch (e) { return; }
+    log(`beastform: ${display(a)} keeps ${left} s of ${FORMS[s.form] ? FORMS[s.form].name : s.form} for the next change today (${why})`);
+  };
 
   // Returns '' when the change happened and a reason when it did not. Every exit says why: a transform that
   // fails in silence is indistinguishable from a cast that never reached the server.
@@ -157,11 +180,15 @@ module.exports = (api) => {
     let original = null; try { original = mp.get(a, 'appearance'); } catch (e) { /* none */ }
     if (!original || !original.raceId) return 'this character has no appearance yet';
     // supernatural.js decides who may change: the daily limit, the Blood Crown
-    const refusal = typeof globalThis.__dboBeastAllow === 'function' ? globalThis.__dboBeastAllow(a, key, !!forced) : null;
+    // A carried rest (keepCarry) changes without spending the day's change, for the seconds it kept
+    const carry = forced ? null : carryOf(a, key);
+    const refusal = typeof globalThis.__dboBeastAllow === 'function' ? globalThis.__dboBeastAllow(a, key, !!forced, carry ? { carry: true } : undefined) : null;
     if (refusal) return refusal;
     // The Great Hunt (greathunt.js) lengthens a werewolf's change by rank
     const hunt = key === 'werewolf' && typeof globalThis.__dboHuntBeastSeconds === 'function' ? Number(globalThis.__dboHuntBeastSeconds(a)) : 0;
-    const seconds = Number.isFinite(hunt) && hunt > 0 ? hunt : f.seconds;
+    const full = Number.isFinite(hunt) && hunt > 0 ? hunt : f.seconds;
+    const seconds = carry && full ? Math.min(full, Math.ceil(Number(carry.seconds))) : full;
+    if (carry) { try { mp.set(a, 'private.beastCarry', null); } catch (e) { /* written below anyway */ } log(`beastform: ${display(a)} takes back ${seconds} s kept from the last change`); }
     mp.set(a, 'private.beast', { form: key, original, at: Date.now(), until: seconds ? Date.now() + seconds * 1000 : 0 });
     // No server UnequipAll: it reached the client after the change and stripped the spells it had just equipped
     // (only the abPreventRemoval robes survived). The client unequips before it swaps race.
@@ -212,6 +239,7 @@ module.exports = (api) => {
     if (globalThis.__dboBeastStaleTaken instanceof Map) globalThis.__dboBeastStaleTaken.delete(Number(a) >>> 0);
     const s = stateOf(a);
     if (!s) return false;
+    keepCarry(a, s, why);
     try {
       mp.set(a, 'appearance', s.original);
       mp.set(a, 'private.beast', null);
