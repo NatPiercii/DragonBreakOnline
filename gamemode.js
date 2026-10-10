@@ -3400,6 +3400,38 @@ const scholarNoRoom = (a, now = Date.now()) => {
   return null;
 };
 globalThis.__dboScholarNoRoom = scholarNoRoom;
+// The tome a reading presses between the pages (Nate, 10 Oct, #suggestions: "5 courage tomes", "10 lesser wards"):
+// - ranks by Scholar tier: Novice to Apprentice readers Novice tomes, Adept and Expert up to Apprentice, Master up to
+//   Adept (READ.tomeRankByTier, was Adept still Novice-only);
+// - never a tome whose spell the reader already knows, nor one they are carrying;
+// - a tome of a school the reader's own magic skills cover (arcane: Destruction, Conjuration, Illusion; priest:
+//   Restoration, Alteration, from skills.json vanillaSkills) is READ.tomeSchoolWeight times as likely.
+// null when nothing is left to give (the day's tome count is then not spent).
+const scholarTomePick = (a, tier) => {
+  const caps = Array.isArray(READ.tomeRankByTier) ? READ.tomeRankByTier : [0, 0, 1, 1, 2];
+  const maxRank = Number(caps[Math.max(0, Math.min(tier, caps.length - 1))]) || 0;
+  let carried = new Set();
+  try { const inv = mp.get(a, 'inventory'); carried = new Set(((inv && inv.entries) || []).filter((e) => Number(e.count) > 0).map((e) => Number(e.baseId) >>> 0)); } catch (e) { /* none known */ }
+  let known = new Set();
+  try { if (typeof globalThis.__dboSpellsKnown === 'function') known = new Set((globalThis.__dboSpellsKnown(a) || []).map((sp) => Number(sp && sp.id) >>> 0)); } catch (e) { /* none known */ }
+  const r = masteryOf(a); const chosen = new Set((r && Array.isArray(r.order)) ? r.order : []);
+  const schools = new Set();
+  for (const sk of (SKILLS_DEF && SKILLS_DEF.skills) || []) if (chosen.has(sk.id)) for (const v of sk.vanillaSkills || []) schools.add(String(v));
+  const weight = Math.max(1, Number(READ.tomeSchoolWeight) || 3);
+  const pool = [];
+  for (const t of READABLES.tomes || []) {
+    if (Number(t.rank) > maxRank) continue;
+    let id = 0; try { id = mp.getIdFromDesc(String(t.id).replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')) >>> 0; } catch (e) { continue; }
+    if (!id || carried.has(id)) continue;
+    const spell = typeof globalThis.__dboSpellsTomeSpell === 'function' ? globalThis.__dboSpellsTomeSpell(id) : 0;
+    if (spell && known.has(spell)) continue;
+    pool.push({ t, w: schools.has(String(t.school)) ? weight : 1 });
+  }
+  if (!pool.length) return null;
+  let roll = Math.random() * pool.reduce((n, x) => n + x.w, 0);
+  for (const x of pool) { roll -= x.w; if (roll < 0) return x.t; }
+  return pool[pool.length - 1].t;
+};
 const masteryOf = (a) => { try { const r = mp.get(a, 'private.mastery'); return r && typeof r === 'object' ? r : null; } catch (e) { return null; } };
 const scholarTier = (a) => { const r = masteryOf(a); if (!r || !Array.isArray(r.order) || !r.order.includes('scholar')) return -1; const p = r.skills && r.skills.scholar; return p ? Math.max(0, Number(p.rank) || 0) : 0; };
 const readsOf = (a) => { try { const r = mp.get(a, 'private.scholarReads'); return r && typeof r === 'object' ? r : {}; } catch (e) { return {}; } };
@@ -3610,8 +3642,7 @@ onUi('reading', (a, args) => {
     let tomesFound = null; try { tomesFound = mp.get(a, 'private.scholarTomes'); } catch (e) { tomesFound = null; }
     const tomesToday = tomesFound && tomesFound.day === today ? Number(tomesFound.n) || 0 : 0;
     if (tomesToday < (Number(READ.tomeDailyCap) || 0) && Math.random() < tomeChance) {
-      const pool = (READABLES.tomes || []).filter((t) => Number(t.rank) <= Math.max(0, tier - 2));
-      const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      const pick = scholarTomePick(a, tier);
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     // The day's caps are silent rolls, so a reader who reached one is told once that day (#bugs 1556458497909194802)
@@ -3622,7 +3653,11 @@ onUi('reading', (a, args) => {
       .filter(([kind, k, cap]) => !toldKinds.includes(kind) && dayCount(k) >= (Number(cap) || 0));
     if (reached.length) {
       try { mp.set(a, 'private.scholarCapTold', { day: today, kinds: toldKinds.concat(reached.map(([kind]) => kind)) }); } catch (e) { /* told again next read */ }
-      capNotes.push(`You have found all the ${reached.map((x) => x[3]).join(' and ')} you can today; more wait for the new day (midnight UTC). Reading still trains Scholar.`);
+      // Players read the old line as "2 tomes a day" (Nate, 10 Oct): say it is a chance, and that the day's most is reached
+      const tomeCap = reached.some((x) => x[0] === 'tomes');
+      capNotes.push(tomeCap
+        ? `That is the most spell tomes one day allows (${Number(READ.tomeDailyCap) || 0}). Tomes are a chance on each reading, better at a higher Scholar tier, and they come back after midnight UTC. Reading still trains Scholar${reached.length > 1 ? `; the ${reached.filter((x) => x[0] !== 'tomes').map((x) => x[3]).join(' and ')} for today are found too` : ''}.`
+        : `You have found all the ${reached.map((x) => x[3]).join(' and ')} one day allows; they come back after midnight UTC. Reading still trains Scholar.`);
     }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
     say('win');
