@@ -82,5 +82,12 @@ check('a living creature: not a skinning matter', r.result === null && r.opened.
 r = run({ pelts: undefined });
 check('a body with no pelt record (a player, a dungeon humanoid): not a skinning matter', r.result === null);
 
+// A dragon's bones and scales (Nate, 11 Oct): a Master's work, and the refusal says so
+const dragon = [{ baseId: 0x3ada4, count: 2, dragon: true }];
+r = run({ pelts: dragon, worth: 500, cap: 100 });
+check('a dragon below Master: told only a Master Skinner can take its bones and scales', r.result === null && r.said.length === 1 && /Only a Master Skinner can take the bones and scales of a dragon/.test(r.said[0]));
+r = run({ pelts: dragon, worth: 500, cap: 1000000 });
+check('...a Master: the skinning game opens', r.result === false && r.opened.length === 1);
+
 console.log(failures ? `${failures} FAILED` : 'all passed');
 process.exit(failures ? 1 : 0);

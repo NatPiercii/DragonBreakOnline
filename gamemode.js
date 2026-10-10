@@ -4094,9 +4094,23 @@ const trophyFor = (actorId) => {
 // 2026-09-29). __dboSkin refuses the body until the stash has run, for 2 s at most.
 const peltPending = globalThis.__dboPeltPending instanceof Map ? globalThis.__dboPeltPending : (globalThis.__dboPeltPending = new Map());
 const PELT_PENDING_MS = 2000;
+// A dragon's bones and scales (dragon-materials.json) are skinned too, and only a Master Skinner can (Nate, 11 Oct: "the
+// ability to skin dragons for the last tier in skinning"). They come off the body into the stash whatever spawned the
+// dragon (a staff spawn carries no spawn tag), and the pelt-value bands put DragonBone (500) past Expert (100); its gold
+// and other death items stay with the body. No second-pelt bonus on them: what the dragon carried is what there is.
+const dragonParts = (entries) => entries.filter((e) => isDragonMaterial(Number(e.baseId) >>> 0) && Number(e.count) > 0)
+  .map((e) => ({ baseId: Number(e.baseId) >>> 0, count: Number(e.count) || 1, dragon: true }));
 const stashPelts = (actorId) => {
   peltPending.delete(actorId);
   if (actorId < 0xff000000) return;
+  {
+    let inv = []; try { const i = mp.get(actorId, 'inventory'); inv = i && Array.isArray(i.entries) ? i.entries : []; } catch (e) { return; }
+    const parts = dragonParts(inv);
+    if (parts.length) {
+      try { mp.set(actorId, 'private.dboPelts', parts); mp.set(actorId, 'inventory', { entries: inv.filter((e) => !parts.some((p) => p.baseId === (Number(e.baseId) >>> 0))) }); } catch (e) { log('dragon stash failed', e.message); }
+      return;
+    }
+  }
   let tag = ''; try { tag = String(mp.get(actorId, 'private.npcSpawner') || ''); } catch (e) { return; }
   if (!tag) return;
   // A creature whose skin is not what it carries: its own trophy goes to the stash, the hides it hunted stay loot
@@ -4409,7 +4423,8 @@ globalThis.__dboSkin = (targetId, casterId) => {
   const worth = peltsWorth(pelts);
   if (worth > tierCap(tier)) {
     const need = rankForValue(worth);
-    skinSay(casterId, `This hide is beyond your hand. A ${RANK_NAMES[Math.min(need, RANK_NAMES.length - 1)]} Skinner could take it.`);
+    skinSay(casterId, pelts.some((p) => p && p.dragon) ? 'Only a Master Skinner can take the bones and scales of a dragon.'
+      : `This hide is beyond your hand. A ${RANK_NAMES[Math.min(need, RANK_NAMES.length - 1)]} Skinner could take it.`);
     return null;
   }
   const round = skinRound(casterId, tier, targetId, creatureName(targetId));
@@ -4578,7 +4593,7 @@ const skinReport = (a, args) => {
     try { mp.set(ses.corpse, 'private.dboSkinned', true); } catch (e) { /* corpse gone */ }
     for (const p of pelts) {
       const bonus = Array.isArray(SKIN.bonusByTier) ? Number(SKIN.bonusByTier[Math.min(Math.max(ses.tier, 0), SKIN.bonusByTier.length - 1)]) || 0 : 0;
-      const count = (Number(p.count) || 1) + (Math.random() < bonus ? 1 : 0);
+      const count = (Number(p.count) || 1) + (!p.dragon && Math.random() < bonus ? 1 : 0);
       if (giveItem(a, Number(p.baseId) >>> 0, count)) { const r = recordOf(Number(p.baseId) >>> 0); got.push(`${count > 1 ? count + ' ' : ''}${edidWords(r && r.record.editorId, 'pelt')}`); }
     }
     text = got.length ? `The hide comes away clean: ${got.join(', ')}.` : 'The hide comes away, but there is nothing to keep.';
