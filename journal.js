@@ -182,6 +182,8 @@ module.exports = (api) => {
       titles: titles.length > 1 ? titles.map((t) => ({ id: t.id, label: t.label })) : [],
       status: own === false ? [] : statusView(a),
       levelPoints: own === false ? 0 : levelPoints(a),
+      // The race's once-a-day power (racial.js, the overhaul): its button and countdown; null without one
+      racialPower: own === false ? null : racialPowerView(a),
     };
   };
   const km = (units) => Number(units) / 70 / 1000;
@@ -191,7 +193,8 @@ module.exports = (api) => {
   // of its /status wording. NAMES gives the names a line starts with; a line without one (blood, hunt: a rank) gets LABEL.
   const NAMES = { level: ['Level'], hunger: ['Hunger'], rest: ['Well Rested', 'Well Fed'], chill: ["Death's Chill"], sentence: ['Sentence'],
     rerolls: ['Rerolls'], boost: ['Skill boost'] };
-  const LABEL = { blood: 'Vampire rank', hunt: 'Great Hunt' };
+  const LABEL = { blood: 'Vampire rank', hunt: 'Great Hunt', racialPower: 'Racial Power' };
+  const racialPowerView = (a) => { try { return typeof globalThis.__dboRacialPowerView === 'function' ? globalThis.__dboRacialPowerView(a) : null; } catch (e) { log('journal: racial power view failed', e.message); return null; } };
   const chillHint = () => {
     let tier = 0; try { tier = Number(globalThis.__dboChillCureTier && globalThis.__dboChillCureTier()) || 0; } catch (e) { tier = 0; }
     return tier ? `A Priest of tier ${tier} or higher can lift it with a healing spell` : 'A Priest can lift it with a healing spell';
@@ -638,6 +641,8 @@ module.exports = (api) => {
     'level:health': (a) => run(a, 'level', 'health 1'),
     'level:magicka': (a) => run(a, 'level', 'magicka 1'),
     'level:stamina': (a) => run(a, 'level', 'stamina 1'),
+    // The race's power (racial.js usePower: once a real day, kept on the character)
+    racialPower: (a) => (typeof globalThis.__dboRacialPowerUse === 'function' ? globalThis.__dboRacialPowerUse(a) : null),
   };
   const run = (a, name, args) => {
     const lines = typeof globalThis.__dboRunCommand === 'function' ? globalThis.__dboRunCommand(a, name, args) : null;

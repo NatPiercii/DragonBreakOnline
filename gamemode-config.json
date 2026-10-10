@@ -899,8 +899,15 @@
   "hours": 150,
   "slots": 1
  },
+ "maormerRace": {
+  "_comment": "The DLE's own Maormer race (Nate, 10 Oct: lore skin tones, a little shorter than the Altmer): MaormerRace and MaormerRaceVampire, as <hex>:<plugin> descs. Until both resolve to RACE records in the load order every Maormer stays on the High Elf record. Once they do: the character creator makes new Maormer on it (charCreatorData.ts reads __dboRaceOverrides), racial.js counts it as the Maormer, supernatural.js turns it into its vampire and back, and appearance.js guards its heads as the High Elf's.",
+  "race": "192ede:DragonBreak Online Edits.esp",
+  "vampire": "192edf:DragonBreak Online Edits.esp"
+ },
  "racial": {
   "_comment": "One passive gift per race (racial.js; Nate approved all ten and the rules, 3 Oct 2026). Resistances, damage and the Orc's low-health rage go through the hit path; reductionCap caps Defense x blessing x race together (0.75 = never more than 75% off a hit). Regeneration is added server-side like a blessing's: alwaysRegenCap bounds an always-on factor, conditionalRegenCap a conditional one; for combatSeconds after a landed blow the extra is slowed by the game's own combat regen GMSTs (argonian.inCombat true keeps Hist-Blooded's full extra in a fight). Off in beast forms, players only. Imperial goldBonus counts lease chests and bodies, camp chests and contract pay only. altmer.elementalWeakness is Nate's optional price (0 = off). nord.coldAreas: the Jerall Mountains around Bruma and the Pale Pass road. castHoldSeconds: no server-side regeneration (race, blessing, Ayleid well) is written for that long after the player's last cast, since the server's bars still predate the spell then (5 Oct: casts cost no magicka). channelHoldSeconds: after a concentration cast the hold lasts until the client's report moves the server's magicka, at most that long (8 Oct: a Flames channel past 3 s cost nothing).",
+  "_overhaul": "The racial overhaul (racial.js, Nate 10 Oct; specs/racial-overhaul.md): the Maormer on the High Elf record, one +15% XP boost per race, the Argonian's disease resistance, a Racial Power once a real day from the Journal. false: every number stays the 3 Oct one. Switching it on is Nate's call.",
+  "overhaul": false,
   "enabled": true,
   "castHoldSeconds": 3,
   "channelHoldSeconds": 30,
@@ -917,7 +924,9 @@
   "khajiit": { "unarmedDamage": 8 },
   "nord": { "resistFrost": 0.5, "coldStaminaRegen": 1.15, "coldProvinces": ["skyrim"], "coldAreas": [{ "world": "a764b:BSHeartland.esm", "pos": [56000, 232000], "radius": 60000 }] },
   "orc": { "lowHealth": 0.3, "meleeDamage": 0.2, "damageTaken": 0.2 },
-  "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 }
+  "redguard": { "staminaRegen": 1.25, "resistPoison": 0.5 },
+  "_maormer": "The Maormer with the overhaul on (Nate's table, 10 Oct): DBO_AbMaormerSeafarer (swimming) on every Maormer, Roaring Tempest's ward look DBO_MaormerTempestWard (DLE ec2de1a0). power is replaced whole by this block, so it carries every field.",
+  "maormer": {"resistShock": 0.5, "seafarerSpell": "192ee1:DragonBreak Online Edits.esp", "xp": {"blade": 1.15}, "power": {"name": "Roaring Tempest", "seconds": 60, "wardSpell": "192ee3:DragonBreak Online Edits.esp", "buffs": {"resistMagic": 0.25, "wardPoints": 60}}}
  },
  "loginGrace": {
   "_comment": "A player just in cannot be harmed by creatures for this many seconds after the JOIN (gamemode.js; Nate, 5 Oct: wolves downed one 12 s after it); the player's own attack or cast ends it, players can still hit them. 0 turns it off. Hot reload.",

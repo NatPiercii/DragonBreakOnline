@@ -118,6 +118,14 @@ module.exports = (api) => {
   // The harness passes its own clock for the settle write
   const later = typeof api.later === 'function' ? api.later : (fn, ms) => setTimeout(fn, ms);
   const HEADS = loadHeads(log);
+  // The DLE's MaormerRace and its vampire (config maormerRace) are copies of the High Elf's with its default heads: guarded as
+  // the High Elf, so their own default head is never taken for another race's. Nothing until both are RACE records
+  try {
+    const M = (cfg && cfg.maormerRace) || {};
+    const rec = (d) => { const id = d ? mp.getIdFromDesc(String(d)) >>> 0 : 0; const r = id ? mp.lookupEspmRecordById(id) : null; return r && r.record && String(r.record.type) === 'RACE' ? id : 0; };
+    const r = rec(M.race), v = rec(M.vampire);
+    if (r && v && HEADS.own.has('HighElfRace')) { HEADS.raceOf.set(r, 'HighElfRace'); HEADS.raceOf.set(v, 'HighElfRace'); }
+  } catch (e) { log('appearance: the Maormer race could not be read', e.message); }
 
   const get = (a, k) => { try { return mp.get(a, k); } catch (e) { return undefined; } };
   const userOf = (a) => {

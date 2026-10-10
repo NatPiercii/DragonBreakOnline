@@ -2191,6 +2191,8 @@ const hudSent = globalThis.__dboHudSent = globalThis.__dboHudSent || new Map(); 
 const pushHud = (a, n, force) => {
   try {
     const v = { customPacketType: 'dboHud', hunger: Math.round(n.hunger), stage: stageFor(n.hunger).name, hungerOn: NEEDS.enabled !== false, vitalsOn: (cfg.hud || {}).vitals !== false, watermarkOn: (cfg.hud || {}).watermark !== false, gold: goldOf(a), goldOn: (cfg.hud || {}).gold !== false };
+    // A racial power's countdown while it lasts (racial.js, the overhaul): { name, ms left }; the client and front draw it
+    try { const rp = typeof globalThis.__dboRacialPowerHud === 'function' ? globalThis.__dboRacialPowerHud(a) : null; if (rp) v.racialPower = rp; } catch (e) { /* no countdown */ }
     const key = JSON.stringify(v);
     if (!force && hudSent.get(a) === key) return;
     if (typeof sendPacket === 'function' && sendPacket(a, v)) hudSent.set(a, key);
@@ -2931,6 +2933,8 @@ onUi('close', (a, args, widgetId) => { if (widgetId === PIGEON_WIDGET_ID) pigeon
 // isBadMenuShown), so the figure on screen does not move until something closes the menu. These two tell the HUD, which
 // reads the server's own count and never goes through the engine at all.
 const goldChanged = (a) => { try { if (userOf(a) >= 0) pushHud(a, needsOf(a)); } catch (e) { /* not a player yet */ } };
+// Send the HUD now when something it shows changed outside the needs and the gold (racial.js: a power's countdown)
+globalThis.__dboHudRefresh = (a) => { try { if (userOf(a) >= 0) pushHud(a, needsOf(a)); } catch (e) { /* not a player yet */ } };
 // An entry with nothing but its base and count: a new item joins only such a stack. Loot merged into any stack of the
 // same base, so a looted copy took the tempering or enchantment of one the player kept (economy review, 2026-09-29).
 const plainEntry = (e) => Object.keys(e).every((k) => k === 'baseId' || k === 'count' || e[k] === undefined || e[k] === null || ((k === 'worn' || k === 'wornLeft') && !e[k]));
@@ -5408,7 +5412,7 @@ let racial = null;
 try {
   const RACIAL_JS = path.resolve('racial.js');
   delete require.cache[RACIAL_JS];
-  racial = require(RACIAL_JS)({ mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, gmstFloat, cfg });
+  racial = require(RACIAL_JS)({ mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, gmstFloat, cfg, sendPacket });
 } catch (e) { log('racial.js failed to load:', e.stack || e.message); racial = null; globalThis.__dboRaceGold = null; globalThis.__dboRaceOf = null; }
 // How much a Defense tier multiplies a piece's rating: heavy by the tier's factor, light by lightShare of the gain
 const defensePieceMult = (targetId) => {
@@ -5865,7 +5869,7 @@ const hitDamageAttemptHook =(aggressorId, targetId, sourceId, damage, flags) => 
     let beastAgg = false; try { const b = mp.get(agg, 'private.beast'); beastAgg = !!(b && b.form); } catch (e) { /* not an actor */ }
     // The target's side (Defense, a blessing, the race's resistance) is capped together: racial.js reductionCap
     let targetSide = defenseDamageMult(tgt) * fleshDamageMult(tgt, src) * blessingTargetMult(tgt, src);
-    if (racial) { try { targetSide = racial.capTargetSide(targetSide * racial.targetMult(agg, tgt, src)); } catch (e) { log('racial target failed', e.message); } }
+    if (racial) { try { targetSide = racial.capTargetSide(targetSide * racial.targetMult(agg, tgt, src, dmg)); } catch (e) { log('racial target failed', e.message); } }
     let raceAtk = 1;
     if (racial && !beastAgg) { try { raceAtk = racial.attackMult(agg, tgt, src, dmg); } catch (e) { log('racial attack failed', e.message); } }
     let mult = (beastAgg ? 1 : masteryDamageMult(agg, src)) * arcaneDamageMult(agg, src) * materialDamageMult(agg, src) * temperDamageMult(agg, src) * arrowDamageMult(agg, src) * targetSide * blessingAttackMult(agg, src) * raceAtk * huntDamageMult(agg, tgt) * pvp;
