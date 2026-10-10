@@ -6259,7 +6259,7 @@ try {
   const SKILLRATES_JS = path.resolve('skillrates.js');
   delete require.cache[SKILLRATES_JS];
   const inBeastForm = (a) => { try { const b = mp.get(a, 'private.beast'); return !!(b && b.form); } catch (e) { return false; } };
-  require(SKILLRATES_JS)({ log, cfg, recordOf, fieldsOf, inBeastForm });
+  require(SKILLRATES_JS)({ log, cfg, recordOf, fieldsOf, inBeastForm, mp, personal });
 } catch (e) { log('skillrates.js failed to load:', e.stack || e.message); globalThis.__dboSkillRate = null; globalThis.__dboSkillRateBrokeDown = null; }
 // ---- breaking gear and books down into materials at the trade's station (server\salvage.js, salvage.json, config "salvage") ----
 try {

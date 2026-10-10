@@ -9,6 +9,12 @@
 // rates.<skill> is a number (every activity), or { default, <kind>: n, craftByTier: [t1..t5] }. Kinds are the
 // masterySystem event kinds: craft, mine, chop, skin, kill, hit, hurt, cast, read, lock, prayer, eat, activate, award.
 // Anything done in beast form is worth beastRate (0), a staff award excepted: the beast trains no skill.
+// firstCraft (Discord, 10 Oct: "bonus xp for new items crafted up to a certain number, then diminished"; Nate: build it):
+// the first time a character makes an item it has never made in that skill, the craft is worth `rate` times as much, in
+// full for the first `fullFor` different items, then less and less (1 + (rate - 1) x fullFor / (n + 1) for the n-th
+// different item, never below 1). It multiplies after the meter like every rate here, so it speeds a skill along and
+// never lets more work through the bucket or the day's caps. Tempering makes nothing new and earns none. The items made are
+// kept on the character (private.dboCraftedKinds: { <skill>: [desc...] }), so a relog resets nothing.
 // craftByTier rates a craft by the recipe's tier: the recipe's own DBO_Skill_<skill>_T<n> gate when it carries one,
 // otherwise the highest materialTiers entry among its ingredients (editor ids; anything not listed is tier 1: iron,
 // copper, bronze, leather, hide, wood). salvageLoop rates a craft of a product the same character broke down at a
@@ -16,10 +22,12 @@
 'use strict';
 
 module.exports = (api) => {
-  const { log, cfg, recordOf, fieldsOf, inBeastForm } = api;
+  const { log, cfg, recordOf, fieldsOf, inBeastForm, mp, personal } = api;
   // beastRate: work done in werewolf or Vampire Lord form trains no skill (Nate, 5 Oct): claws arrive as fists (0x1f4)
   const C = Object.assign({ enabled: true, rates: {}, materialTiers: {}, salvageLoop: {}, beastRate: 0 }, cfg.skillRates || {});
   const LOOP = Object.assign({ enabled: false, windowMinutes: 60, rate: 0 }, C.salvageLoop || {});
+  const FIRST = Object.assign({ enabled: false, rate: 3, fullFor: 25, skills: ['cook', 'blacksmith', 'alchemist', 'tailor'], maxKept: 3000,
+    noBenches: ['CraftingSmithingArmorTable', 'CraftingSmithingSharpeningWheel'] }, C.firstCraft || {});
   const TIERS = {};
   for (const [k, v] of Object.entries(C.materialTiers || {})) if (!k.startsWith('_') && Number(v) >= 1) TIERS[k.toLowerCase()] = Math.min(5, Math.floor(Number(v)));
 
@@ -48,7 +56,9 @@ module.exports = (api) => {
       const type = String((r && r.record.type) || '');
       if (item && (type === 'WEAP' || type === 'ARMO')) consumes.push(item);
     }
-    const out = { product: globalOf(lr, u32(fieldsOf(lr, 'CNAM')[0], 0)), tier, consumes };
+    const benchId = globalOf(lr, u32(fieldsOf(lr, 'BNAM')[0], 0));
+    const benchRec = benchId ? recordOf(benchId) : null;
+    const out = { product: globalOf(lr, u32(fieldsOf(lr, 'CNAM')[0], 0)), tier, consumes, bench: String((benchRec && benchRec.record.editorId) || '') };
     recipeCache.set(id, out);
     return out;
   };
@@ -91,7 +101,30 @@ module.exports = (api) => {
     if (typeof globalThis.__dboRaceSkillRate === 'function') {
       try { const r = Number(globalThis.__dboRaceSkillRate(actorId >>> 0, skillId, kind)); if (Number.isFinite(r) && r > 0) rate *= r; } catch (e) { /* no race boost */ }
     }
+    if (kind === 'craft' && rate > 0) rate *= firstCraftRate(actorId, skillId, detail);
     return rate;
+  };
+
+  // The first-time bonus for this craft (1 when it is not one), noting the item as made
+  const KINDS = 'private.dboCraftedKinds';
+  const firstCraftRate = (actorId, skillId, detail) => {
+    if (FIRST.enabled !== true || !detail || !detail.recipeId || !(FIRST.skills || []).includes(skillId) || !mp) return 1;
+    const { product, bench } = recipeOf(detail.recipeId);
+    if (!product || (FIRST.noBenches || []).includes(bench)) return 1;
+    let desc = ''; try { desc = String(mp.getDescFromId(product >>> 0)).toLowerCase(); } catch (e) { return 1; }
+    if (!desc) return 1;
+    let all = null; try { all = mp.get(actorId >>> 0, KINDS); } catch (e) { return 1; }
+    all = all && typeof all === 'object' ? all : {};
+    const made = Array.isArray(all[skillId]) ? all[skillId] : [];
+    if (made.includes(desc)) return 1;
+    const n = made.length;   // different items made before this one
+    const full = Math.max(1, Number(FIRST.fullFor) || 25), r = Math.max(1, Number(FIRST.rate) || 1);
+    const mult = n < full ? r : 1 + (r - 1) * full / (n + 1);
+    if (n < (Number(FIRST.maxKept) || 3000)) {
+      try { mp.set(actorId >>> 0, KINDS, Object.assign({}, all, { [skillId]: made.concat([desc]) })); } catch (e) { return 1; }
+    }
+    try { if (typeof personal === 'function') personal(actorId >>> 0, mult >= 1.5 ? 'Something new: you learn more making it the first time.' : 'Something new, though by now you learn little more from it.'); } catch (e) { /* the message is optional */ }
+    return mult;
   };
 
   const noteBreakdown = (actorId, baseId) => {

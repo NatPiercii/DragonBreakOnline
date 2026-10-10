@@ -1,5 +1,22 @@
 [
   {
+    "title": "Learning by making something new",
+    "date": "SHIP_DATE",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Crafting skills",
+        "items": [
+          "The first time you make something you have never made before, it is worth three times the usual progress toward that skill. This counts for Cook, Blacksmith, Alchemist and Tailor, each skill on its own.",
+          "The full bonus lasts for your first 25 different items in a skill, then grows smaller with each new one, so trying new recipes always pays a little more than repeating old ones.",
+          "The hourly and daily limits on each skill still apply, and tempering does not count as making something new.",
+          "The server starts keeping track with this update, so things you made before it count as new the first time you make them again."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Initiates of the colleges",
     "date": "2026-10-10",
     "version": "Server update",

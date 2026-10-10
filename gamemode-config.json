@@ -975,7 +975,9 @@
    "_ores": "Ores by the Miner's tier order (skills.json miner.oreByTier, tier = index + 1), so only an iron-tier ore smelt is tier 1 (Nate, 4 Oct); copper, iron, corundum and tin are unlisted. Editor ids read from Skyrim.esm and BSAssets.esm.",
    "OreSilver": 2, "OreQuicksilver": 2, "OreOrichalcum": 3, "OreMoonstone": 3, "OreGold": 3, "BSKOreMeteoricIron": 3, "OreMalachite": 4, "OreEbony": 5
   },
-  "salvageLoop": { "enabled": true, "windowMinutes": 60, "rate": 0 }
+  "salvageLoop": { "enabled": true, "windowMinutes": 60, "rate": 0 },
+  "_firstCraft": "The first time a character makes an item it has never made in that skill (Discord 10 Oct; Nate: build it and turn it on with this update): rate times the XP for the first fullFor different items, then less and less (1 + (rate - 1) x fullFor / (n + 1)), never below 1. After the meter, like every rate: the hourly bucket and the day's caps still hold. Tempering earns none. skills: which crafts.",
+  "firstCraft": { "enabled": true, "rate": 3, "fullFor": 25, "skills": ["cook", "blacksmith", "alchemist", "tailor"] }
  },
  "craftPerkTiers": {
   "_comment": "Forge recipes that ask for a vanilla Smithing perk (HasPerk): the fork's masterySystem counts the perk as held when the crafter's tier in this skill (1 Novice .. 5 Master) reaches the tier listed here. Keys are perk editor ids; a perk not listed stays locked (ArcaneBlacksmith only gates tempering enchanted gear and a few enchanted Immersive Armors sets, so it is left out). Re-read when this file changes; an empty perks turns it off. The same table is sent to each player (dboCraftPerks) so their own crafting menu shows the recipes; ArcaneBlacksmith is never granted. Needs fork craft-perk-tiers (C++ onCraftPerkRequired, masterySystem) and the client-craft-perks client.",
