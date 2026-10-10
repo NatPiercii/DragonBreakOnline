@@ -6,7 +6,8 @@ import './styles.scss';
 
 // The F3 journal's Nobility tab (gameplay nobility.js; Nate, 10 Oct). Holds on the left; the hold's fiefs and its roll of
 // nobles in the middle; your own titles on the right, with your fief's buildings and treasury. Everyone sees the roll and the
-// fiefs; only the hold's ruler (Count or Countess, Jarl) sees the fief treasuries and the controls to grant and revoke.
+// fiefs; only the hold's ruler (Count or Countess, Jarl) sees the fief treasuries and the controls to grant and revoke. A Lead GM
+// sees Revoke only.
 // Actions are dbo:nobility* with the journal nonce first; the answer lands in the journal's footer.
 
 export interface NobleRow { actor: string; name: string; tag: string; online: boolean; title: string; label: string; fief: string; estate: string; since: number }
@@ -14,6 +15,8 @@ export interface FiefRow { id: string; name: string; buildings: number; holder: 
 export interface TitleOption { id: string; label: string; needs: 'fief' | 'estate' | '' }
 export interface HoldView {
   id: string; name: string; realm: 'cyrodiil' | 'skyrim'; ruler: { name: string; style: string } | null; isRuler: boolean;
+  // The ruler, or a Lead GM (an emergency revoke only, Nate 10 Oct)
+  canRevoke?: boolean;
   fiefs: FiefRow[]; roll: NobleRow[]; titles: TitleOption[];
 }
 export interface MineRow {
@@ -95,7 +98,7 @@ export const HoldPane = ({ hold, busy, act }: { hold: HoldView; busy: boolean; a
           <NobleName n={n} />
           <span className="nobility__label">{n.label}</span>
           <span className="nobility__muted">since {sinceText(n.since)}</span>
-          {hold.isRuler ? <button type="button" className="journal__button journal__button--small" disabled={busy} onClick={() => act('dbo:nobilityRevoke', hold.id, n.actor)}>Revoke</button> : null}
+          {hold.isRuler || hold.canRevoke ? <button type="button" className="journal__button journal__button--small" disabled={busy} onClick={() => act('dbo:nobilityRevoke', hold.id, n.actor)}>Revoke</button> : null}
         </div>
       )) : <p className="nobility__empty">No title has been granted here.</p>}
     </div>
