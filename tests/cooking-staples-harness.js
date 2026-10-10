@@ -35,8 +35,10 @@ for (const n of STAPLES) ok(ovr.items && ovr.items[n] === 'common', `regions-ove
 // nothing else in loot.json moved (against the release line this branch starts from, when git has it)
 try {
   const base = JSON.parse(execFileSync('git', ['-C', SERVER, 'show', 'origin/release-1003-gameplay:loot.json'], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }));
-  const strip = (l) => JSON.stringify(Object.fromEntries(Object.entries(l.pools || {}).map(([k, v]) => [k, (v || []).map((it) => (it && STAPLES.includes(it.name) ? { ...it, p: undefined } : it))])));
-  ok(strip(base) === strip(loot), 'no other loot.json entry changed');
+  // Plain Jade joined the gems pool on purpose (smithing obtainability, 9 Oct: nothing else produces it)
+  const LATER = new Set(['BSKGemJade']);
+  const strip = (l) => JSON.stringify(Object.fromEntries(Object.entries(l.pools || {}).map(([k, v]) => [k, (v || []).filter((it) => !(it && LATER.has(it.name))).map((it) => (it && STAPLES.includes(it.name) ? { ...it, p: undefined } : it))])));
+  ok(strip(base) === strip(loot), 'no other loot.json entry changed (plain Jade, added to the gems on purpose, aside)');
 } catch (e) { console.log('skip  no origin/release-1003-gameplay to compare with'); }
 
 console.log(fails ? `${fails} FAILED` : 'all checks passed');

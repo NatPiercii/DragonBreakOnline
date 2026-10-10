@@ -40,11 +40,15 @@ const loadRegions = () => { delete require.cache[REGIONS]; require(REGIONS)({ mp
 const realNow = Date.now; let now = realNow(); Date.now = () => now;
 const oldOvr = before('regions-overrides.json');
 delete globalThis.__dboRegionsState;
+// Since the PC's regions.json rebuild (9 Oct, the smithing records) regions.json itself tags the bank Cyrodiil, so the
+// old overrides no longer leave it to the default: the before-check then says what the data says
+const regionsTagsBank = /"130040:DragonBreak Online Edits\.esp"/i.test(JSON.stringify((JSON.parse(fs.readFileSync(path.join(SERVER, 'regions.json'), 'utf8')).places || {}).cells || {}));
 if (oldOvr) {
   fs.writeFileSync('regions-overrides.json', oldOvr);
   const R = loadRegions();
   const p = R.placeOf(BANK);
-  ok(p.province === 'skyrim' && p.source === 'default', 'before the change the bank falls to the default province, Skyrim', p);
+  if (regionsTagsBank) ok(p.province === 'cyrodiil' && p.source === 'cell', 'before the change: regions.json itself now tags the bank Cyrodiil (the 9 Oct rebuild)', p);
+  else ok(p.province === 'skyrim' && p.source === 'default', 'before the change the bank falls to the default province, Skyrim', p);
 }
 // The new overrides file is saved over it: regions.js re-reads it within 2 s, no reload
 fs.writeFileSync('regions-overrides.json', fs.readFileSync(path.join(SERVER, 'regions-overrides.json')));

@@ -2267,6 +2267,14 @@
 "kind": "weapon Sword",
 "province": "skyrim"
 },
+"12e8a:dawnguard.esm": {
+"to": "13954:Skyrim.esm",
+"edid": "DLC1ArmorShellbugHelmet",
+"toEdid": "ArmorSteelHelmetA",
+"family": "chitin",
+"kind": "heavy head",
+"province": "skyrim"
+},
 "12f3:immersive weapons.esp": {
 "to": "13989:Skyrim.esm",
 "edid": "IWSeekerSaber",
@@ -8505,6 +8513,14 @@
 "toEdid": "ArmorLeatherHelmet",
 "family": "EBONY",
 "kind": "light head",
+"province": "skyrim"
+},
+"23eb:dawnguard.esm": {
+"to": "13954:Skyrim.esm",
+"edid": "DLC1ArmorFAlmerHeavyHelmet",
+"toEdid": "ArmorSteelHelmetA",
+"family": "falmer_honed",
+"kind": "heavy head",
 "province": "skyrim"
 },
 "2401a:dragonborn.esm": {
@@ -25161,14 +25177,6 @@
 "toEdid": "ArmorSteelHelmetA",
 "family": "bonemold",
 "kind": "heavy head",
-"province": "skyrim"
-},
-"84e:ccbgssse001-fish.esm": {
-"to": "13989:Skyrim.esm",
-"edid": "ccBGSSSE001_FishingRodDwarvenWeap",
-"toEdid": "SteelSword",
-"family": "dwarven",
-"kind": "weapon Sword",
 "province": "skyrim"
 },
 "84f48:hothtrooper44_armorcompilation.esp": {

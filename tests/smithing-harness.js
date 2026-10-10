@@ -16,9 +16,11 @@ const dir = fs.mkdtempSync(path.join(fs.existsSync('/dev/shm') ? '/dev/shm' : os
 process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 fs.copyFileSync(path.join(SERVER, 'smithing.json'), path.join(dir, 'smithing.json'));
 fs.writeFileSync(path.join(dir, 'manuals.json'), JSON.stringify({ manuals: [] }));
+// The Legion's helm is faction gear (factiongear.js decides who makes it); the Imperial family leaves it alone (factionExempt)
+fs.writeFileSync(path.join(dir, 'faction-gear.json'), JSON.stringify({ items: { '7a3:Skyrim.esm': { name: 'Imperial Helmet', set: 'Imperial Legion', factions: ['imperial-legion'], role: 'blacksmith' } } }));
 // Items: an iron sword (T1), a steel sword (T2), orcish (T3), dwarven (T4), glass (T5), an unclassified one
 const IRON = 0x12eb7, STEEL = 0x13989, ORC = 0x13991, DWARF = 0x139b4, GLASS = 0x139a5, ODD = 0x777777, INGOT = 0x5ace5, LEATHER = 0x800e4;
-fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial', '7b1:skyrim.esm': 'brass', '7b2:skyrim.esm': 'adamantium' } }));
+fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial', '7a6:skyrim.esm': 'imperial', '7b1:skyrim.esm': 'brass', '7b2:skyrim.esm': 'adamantium' } }));
 process.chdir(dir);
 
 const u32 = (x) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, x, true); return b; };
@@ -39,6 +41,8 @@ const ANC_HELM = 0x7a1, ANC_SHIELD = 0x7a2, LEGION_HELM = 0x7a3, R_ANC = 0xc1007
 rec(ANC_HELM, 'ARMO', 'DBO_AncientImperialHelmet'); rec(ANC_SHIELD, 'ARMO', 'DBO_ArmorOldEmpireShield'); rec(LEGION_HELM, 'ARMO', 'ArmorImperialHelmetFull');
 cobj(R_ANC, ANC_HELM, FORGE, [[INGOT, 1]]); cobj(R_ANC2, ANC_SHIELD, FORGE, [[INGOT, 1]]); cobj(R_LEGION, LEGION_HELM, FORGE, [[INGOT, 1]]);
 const BRASS_SWORD = 0x7b1, ADAM_SWORD = 0x7b2, R_BRASS = 0xc100a, R_ADAM = 0xc100b;
+const COLOVIAN_BOW = 0x7a6, R_COLOVIAN = 0xc100c;
+rec(COLOVIAN_BOW, 'WEAP', 'IWColovianCompositeBow'); cobj(R_COLOVIAN, COLOVIAN_BOW, FORGE, [[INGOT, 2]]);
 rec(BRASS_SWORD, 'WEAP', 'DBORS_BrassSword'); rec(ADAM_SWORD, 'WEAP', 'DBORS_AdamantiumSword');
 cobj(R_BRASS, BRASS_SWORD, FORGE, [[INGOT, 2]]); cobj(R_ADAM, ADAM_SWORD, FORGE, [[INGOT, 2]]);
 rec(ORC_RACE, 'RACE', 'OrcRace'); rec(NORD_RACE, 'RACE', 'NordRace');
@@ -164,6 +168,7 @@ load(ON); smith(A, 20); props.set(`${A}|private.dboManuals`, {}); props.set(`${S
 ok(craft(A, ANC_HELM, R_ANC) === false && /Ancient Imperial/.test(lastTold(A)), 'an Ancient Imperial piece needs its technique', lastTold(A));
 ok(craft(A, ANC_SHIELD, R_ANC2) === false, '...each piece of the family');
 ok(craft(A, LEGION_HELM, R_LEGION) !== false, 'plain Imperial (Legion faction gear) is not gated here');
+ok(craft(A, COLOVIAN_BOW, R_COLOVIAN) === false && /Steel technique/.test(lastTold(A)), 'an Imperial piece that is not faction gear (a Colovian bow) needs the Steel technique', lastTold(A));
 props.set(`${A}|private.dboManuals`, { ancient_imperial: { at: 1, how: 'book' } });
 ok(craft(A, ANC_HELM, R_ANC) !== false && globalThis.__dboTemperCap(A, ANC_HELM) === 10 && globalThis.__dboTemperCap(A, LEGION_HELM) === 16, 'with the technique: crafted; tempered as T2 (no level at smith tier 2), the Legion piece unruled');
 const ai = globalThis.__dboSmithView(A).families.find((f) => f.id === 'ancient_imperial');
@@ -174,7 +179,7 @@ ok(globalThis.__dboManualsShop(A).some((x) => /^Schematics: Ancient Imperial \(T
 
 // The PC's books (9 Oct): smithing.json carries each family's bookId; config smithing.books overrides it
 const REAL = JSON.parse(fs.readFileSync(path.join(SERVER, 'smithing.json'), 'utf8')).families;
-const noBook = REAL.filter((f) => f.tier > 1 && !f.bookId && !f.free && !f.technique).map((f) => f.id);
+const noBook = REAL.filter((f) => f.tier > 1 && !f.bookId && !f.free && !f.technique && f.book !== 'staff').map((f) => f.id);
 ok(noBook.join() === 'orcish' && REAL.filter((f) => f.bookId).every((f) => /^[0-9a-f]+:DragonBreak Online Edits\.esp$/.test(f.bookId)), 'every family above T1 has a DLE book except Orcish (apprentice only)', noBook);
 const steelBook = mp.getIdFromDesc(REAL.find((f) => f.id === 'steel').bookId);
 rec(steelBook, 'BOOK', 'DBO_Schematics_steel', [{ type: 'DATA', data: bookData() }]);

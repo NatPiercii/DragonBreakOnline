@@ -1,5 +1,5 @@
 {
- "_comment": "Smithing rework (Nate, 9 Oct; ~/claude-nate-release/specs/smithing-rework-1009.md): the Blacksmith's 7 craft tiers and the families each one opens, read by smithing.js and manuals.js. id is the family key of loot-materials.json (an item's family comes from there). A family above T1 needs its technique (a manual, private.dboManuals); free: none needed (the tier gate only); technique: <id> = worked with that family's technique. book: 'staff' = never shop or loot (given in roleplay); 'apprentice' = no book, learned only by apprenticeship (supervisorRace). where: the learnHint shown in the F3 Blacksmith tab. bookId: the family's BOOK record (the PC's DBO_Schematics_<family> in DragonBreak Online Edits, 9 Oct); config smithing.books { <id>: '<hex>:<plugin>' } overrides it.py classifies them.",
+ "_comment": "Smithing rework (Nate, 9 Oct; ~/claude-nate-release/specs/smithing-rework-1009.md): the Blacksmith's 7 craft tiers and the families each one opens, read by smithing.js and manuals.js. id is the family key of loot-materials.json (an item's family comes from there). A family above T1 needs its technique (a manual, private.dboManuals); free: none needed (the tier gate only); technique: <id> = worked with that family's technique; factionExempt: its faction gear (faction-gear.json) is left to the faction rule. book: 'staff' = never shop or loot (given in roleplay); 'apprentice' = no book, learned only by apprenticeship (supervisorRace). where: the learnHint shown in the F3 Blacksmith tab. bookId: the family's BOOK record (the PC's DBO_Schematics_<family> in DragonBreak Online Edits, 9 Oct); config smithing.books { <id>: '<hex>:<plugin>' } overrides it.py classifies them.",
  "tierNames": ["Basic", "Standard", "Advanced", "Superior", "Rare", "Legendary", "Mythic"],
  "families": [
   { "id": "wood", "name": "Wood", "tier": 1 },
@@ -9,7 +9,10 @@
   { "id": "studded", "name": "Studded", "tier": 1 },
   { "id": "bronze", "name": "Bronze", "tier": 1 },
   { "id": "copper", "name": "Copper", "tier": 1 },
+  { "id": "forsworn", "name": "Forsworn", "tier": 1 },
   { "id": "steel", "name": "Steel", "tier": 2, "where": "sold at the Scholars' Ledger in the Synod Conclave", "bookId": "192e47:DragonBreak Online Edits.esp" },
+  { "id": "imperial", "name": "Imperial", "tier": 2, "technique": "steel", "factionExempt": true },
+  { "id": "guard", "name": "Guard and Soldier", "tier": 2, "technique": "steel" },
   { "id": "ancient_nord", "name": "Ancient Nord", "tier": 2, "where": "sold at the Scholars' Ledger in the Synod Conclave", "bookId": "192e48:DragonBreak Online Edits.esp" },
   { "id": "ancient_nord_honed", "name": "Honed Ancient Nord", "tier": 2, "where": "sold at the Scholars' Ledger in the Synod Conclave", "bookId": "192e49:DragonBreak Online Edits.esp" },
   { "id": "ancient_imperial", "name": "Ancient Imperial", "tier": 2, "where": "found in Cyrodiil's ruins and forts, or sold at the Scholars' Ledger in the Synod Conclave", "bookId": "192e60:DragonBreak Online Edits.esp" },
@@ -37,6 +40,8 @@
   { "id": "stalhrim", "name": "Stalhrim", "tier": 6, "where": "found in Master boss chests", "bookId": "192e5c:DragonBreak Online Edits.esp" },
   { "id": "DAEDRIC", "name": "Daedric", "tier": 7, "where": "found in Master boss chests", "bookId": "192e5e:DragonBreak Online Edits.esp" },
   { "id": "madness", "name": "Madness", "tier": 7, "book": "staff", "where": "taught only in roleplay", "bookId": "192e5d:DragonBreak Online Edits.esp" },
+  { "id": "aetherium", "name": "Aetherium", "tier": 7, "book": "staff", "where": "taught only in roleplay" },
+  { "id": "artifact", "name": "Artifacts", "tier": 7, "book": "staff", "where": "taught only in roleplay" },
   { "id": "DRAGON", "name": "Dragonbone and Dragonscale", "tier": 7, "book": "staff", "where": "taught only in roleplay", "bookId": "192e5f:DragonBreak Online Edits.esp" }
  ]
 }

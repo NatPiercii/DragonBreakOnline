@@ -1,6 +1,292 @@
 {
  "_comment": "Faction gear (server/factiongear.js; built by tools/faction_gear.py from regions.json, edit the SETS there and re-run, or edit an entry here by hand). An item listed here may be crafted only by a member of one of its factions whose rank role is its role (blacksmith for forge work, tailor for the loom and tanning rack) or leader. Nate, 2026-09-28: faction armor and weapons.",
  "items": {
+  "a6d7f:Skyrim.esm": {
+   "name": "Fur Boots",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8d8:MoreCraftableEquipment.esp"
+   ]
+  },
+  "a6d7d:Skyrim.esm": {
+   "name": "Fur Gauntlets",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "8da:MoreCraftableEquipment.esp"
+   ]
+  },
+  "8b5:sentinel.esp": {
+   "name": "TH_SonsBootsSoldier",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d8b:sentinel.esp"
+   ]
+  },
+  "8b6:sentinel.esp": {
+   "name": "TH_SonsBootsSoldierA",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d8c:sentinel.esp"
+   ]
+  },
+  "8b7:sentinel.esp": {
+   "name": "TH_SonsBootsSoldierB",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d8d:sentinel.esp"
+   ]
+  },
+  "8b8:sentinel.esp": {
+   "name": "TH_SonsBootsSoldierC",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d8e:sentinel.esp"
+   ]
+  },
+  "8b9:sentinel.esp": {
+   "name": "TH_SonsBootsSoldierD",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d8f:sentinel.esp"
+   ]
+  },
+  "8ba:sentinel.esp": {
+   "name": "TH_SonsCuirassSoldier",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d90:sentinel.esp"
+   ]
+  },
+  "8bc:sentinel.esp": {
+   "name": "TH_SonsCuirassSoldierB",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d91:sentinel.esp"
+   ]
+  },
+  "8bd:sentinel.esp": {
+   "name": "TH_SonsCuirassSoldierC",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d92:sentinel.esp"
+   ]
+  },
+  "8be:sentinel.esp": {
+   "name": "TH_SonsCuirassSoldierD",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d93:sentinel.esp"
+   ]
+  },
+  "8bf:sentinel.esp": {
+   "name": "TH_SonsCuirassSoldierE",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d94:sentinel.esp"
+   ]
+  },
+  "8c0:sentinel.esp": {
+   "name": "TH_SonsGauntletsSoldier",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d95:sentinel.esp"
+   ]
+  },
+  "8c1:sentinel.esp": {
+   "name": "TH_SonsGauntletsSoldierA",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d96:sentinel.esp"
+   ]
+  },
+  "8c2:sentinel.esp": {
+   "name": "TH_SonsGauntletsSoldierB",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d97:sentinel.esp"
+   ]
+  },
+  "8c3:sentinel.esp": {
+   "name": "TH_SonsGauntletsSoldierC",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d98:sentinel.esp"
+   ]
+  },
+  "8c4:sentinel.esp": {
+   "name": "TH_SonsGauntletsSoldierD",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d99:sentinel.esp"
+   ]
+  },
+  "8c5:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldier",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d9a:sentinel.esp"
+   ]
+  },
+  "8c6:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldierA",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d9b:sentinel.esp"
+   ]
+  },
+  "8c7:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldierB",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d9c:sentinel.esp"
+   ]
+  },
+  "8c8:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldierC",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d9d:sentinel.esp"
+   ]
+  },
+  "8c9:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldierD",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d9e:sentinel.esp"
+   ]
+  },
+  "8ca:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldierE",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "d9f:sentinel.esp"
+   ]
+  },
+  "8cb:sentinel.esp": {
+   "name": "TH_SonsHelmetSoldierF",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "da0:sentinel.esp"
+   ]
+  },
+  "8cc:sentinel.esp": {
+   "name": "TH_SonsShield",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "da1:sentinel.esp"
+   ]
+  },
+  "8cd:sentinel.esp": {
+   "name": "TH_SonsShieldA",
+   "set": "Stormcloaks",
+   "factions": [
+    "stormcloaks"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "da2:sentinel.esp"
+   ]
+  },
   "8e2:sentinel.esp": {
    "name": "Wolf Armor",
    "set": "Companions",
