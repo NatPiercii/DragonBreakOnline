@@ -68,7 +68,11 @@ BANNED = ('DRAGON', 'DAEDRIC', 'madness', 'EBONY', 'stalhrim', 'orcish')
 EDID_FIRST = [(r'AncientImperial', 'ancient_imperial'), (r'GlacialCrystal', 'glacial_crystal'),
               # the PC's metal reskins (Nexus Patches DBORS_*, 9 Oct) carry their shape's keywords (Ebony on Adamantium...)
               (r'^DBORS_Bronze', 'bronze'), (r'^DBORS_Copper', 'copper'), (r'^DBORS_Brass', 'brass'),
-              (r'^DBORS_Adamantium', 'adamantium'), (r'^DBORS_Mithril', 'mithril')]
+              (r'^DBORS_Adamantium', 'adamantium'), (r'^DBORS_Mithril', 'mithril'),
+              # forge pieces the keywords leave unclassified or under misc (smithing on at launch, Nate 10 Oct: every forged
+              # piece tiered): fishing rods are tools (free); Tsun's MCE set is an artifact (staff only)
+              (r'^ArmorFAlmerHelmet$', 'falmer'), (r'^DLC1ArmorFAlmerHeavyHelmet$', 'falmer_honed'), (r'^DLC1ArmorShellbugHelmet$', 'chitin'),
+              (r'^0WHPiecesBearCapeBigReward$', 'hide'), (r'FishingRod', 'tool'), (r'^MCEArmorGiant', 'hide'), (r'^MCEArmorTsun', 'artifact')]
 # Sets named by editor id whose metal pieces borrow another material's keyword (the Ayleid gear Elven, the Goblin gear
 # Iron or Leather); their robes and staves stay clothing and staves
 SET_BY_NAME = [(r'Ayleid', 'ayleid'), (r'Goblin', 'goblin')]

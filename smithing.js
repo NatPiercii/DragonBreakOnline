@@ -51,7 +51,13 @@ module.exports = (api) => {
   const techOf = (fam) => (fam && fam.technique && BY_FAMILY.get(fam.technique)) || fam;
   const knows = (a, fam) => fam.tier <= 1 || !!fam.free || !!known(a)[techOf(fam).id];
   const teach = (a, fam, how, from) => { set(a, REC, Object.assign({}, known(a), { [fam.id]: { at: Date.now(), how, from: from || how } })); audit(`SMITH ${who(a)} learned ${fam.name} (T${fam.tier}) by ${how}${from && from !== how ? ' from ' + from : ''}`); };
-  const familyOfItem = (itemId) => BY_FAMILY.get(ITEM_FAMILY[normDesc(descOf(itemId))]) || null;
+  // A family marked factionExempt (Imperial: the Legion's own pieces) leaves its faction gear to factiongear.js: the
+  // faction decides who makes those, the technique gates only the rest (the Colovian and Springsteel bows...)
+  const FACTION_GEAR = new Set(Object.keys((readJson('faction-gear.json', { items: {} }).items) || {}).map(normDesc));
+  const familyOfItem = (itemId) => {
+    const key = normDesc(descOf(itemId)); const fam = BY_FAMILY.get(ITEM_FAMILY[key]) || null;
+    return fam && fam.factionExempt && FACTION_GEAR.has(key) ? null : fam;
+  };
   const raceEdid = (a) => { const app = get(a, 'appearance', null); const r = app && app.raceId ? lookup(Number(app.raceId) >>> 0) : null; return r ? String(r.record.editorId || '') : ''; };
   const dist = (a, b) => { const p = get(a, 'pos', null), q = get(b, 'pos', null); return Array.isArray(p) && Array.isArray(q) ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : Infinity; };
   const tell = (a, text) => { const now = Date.now(); if (now - (S.told.get(a >>> 0) || 0) < 3000) return; S.told.set(a >>> 0, now); personal(a, text); try { sendPacket(a, { customPacketType: 'dboNotice', text }); } catch (e) { /* chat is enough */ } };
