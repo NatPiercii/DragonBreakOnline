@@ -34,7 +34,37 @@
     "BYOHFoodFlour": "common",
     "BYOHFoodMilk": "common"
   },
-  "recipes": {"_falchion": "CYRIronFalchion's model is untextured in Beyond Skyrim Bruma (#bugs \"Iron Falchion Missing Textures\", 1 Oct 2026): it is out of loot (loot-overrides.json) and not forged either until the model is fixed.", "CYRRecipeWeaponIronFalchion": "none"},
-  "tomes": { "ISS_SpellTomeConjureSkeleton": ["skyrim"] },
+  "recipes": {
+    "_falchion": "CYRIronFalchion's model is untextured in Beyond Skyrim Bruma (#bugs \"Iron Falchion Missing Textures\", 1 Oct 2026): it is out of loot (loot-overrides.json) and not forged either until the model is fixed.",
+    "CYRRecipeWeaponIronFalchion": "none",
+    "_reskins": "The PC's metal reskins (9 Oct): Bronze on Ancient Nord shapes and Brass on Dwarven shapes took their shape's provinces (Skyrim, Solstheim), so they could not be forged in the Bruma lock; their metals are common, and so are they.",
+    "DBORS_Recipe_BrassBattleaxe": "common",
+    "DBORS_Recipe_BrassBoots": "common",
+    "DBORS_Recipe_BrassBow": "common",
+    "DBORS_Recipe_BrassCuirass": "common",
+    "DBORS_Recipe_BrassDagger": "common",
+    "DBORS_Recipe_BrassGauntlets": "common",
+    "DBORS_Recipe_BrassGreatsword": "common",
+    "DBORS_Recipe_BrassHelmet": "common",
+    "DBORS_Recipe_BrassMace": "common",
+    "DBORS_Recipe_BrassShield": "common",
+    "DBORS_Recipe_BrassSword": "common",
+    "DBORS_Recipe_BrassWarAxe": "common",
+    "DBORS_Recipe_BrassWarhammer": "common",
+    "DBORS_Recipe_BronzeBattleaxe": "common",
+    "DBORS_Recipe_BronzeBow": "common",
+    "DBORS_Recipe_BronzeGreatsword": "common",
+    "DBORS_Recipe_BronzeSword": "common",
+    "DBORS_Recipe_BronzeWarAxe": "common"
+  },
+  "tomes": {
+    "ISS_SpellTomeConjureSkeleton": ["skyrim"],
+    "_saintsSeducers": "Kept Skyrim's (9 Oct) until Nate says: ck-mcp's 9 Oct regen tagged these Saints and Seducers conjure tomes Cyrodiil, which would stock them in the Synod.",
+    "ccBGSSSE025_SpellTomeConjureStaada": ["skyrim"],
+    "ccBGSSSE025_SpellTomeConjureGoldenSaintArcher": ["skyrim"],
+    "ccBGSSSE025_SpellTomeConjureGoldenSaintWarrior": ["skyrim"],
+    "ccBGSSSE025_SpellTomeConjureDarkSeducerArcher": ["skyrim"],
+    "ccBGSSSE025_SpellTomeConjureDarkSeducerWarrior": ["skyrim"]
+  },
   "places": { "RealmofLorkhan": "none", "130040:DragonBreak Online Edits.esp": "cyrodiil" }
 }
