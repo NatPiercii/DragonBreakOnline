@@ -18,5 +18,12 @@ check('statDisplay is sliced', slices > 1 && /\(a >>> 0\) % STAT_SLICES !== turn
 const ids = Array.from({ length: 40 }, (_, i) => (0xff000400 + i * 7) >>> 0);
 const seen = new Map(); for (let turn = 0; turn < slices; turn++) for (const a of ids) if (a % slices === turn) seen.set(a, (seen.get(a) || 0) + 1);
 check('one cycle of turns reaches every player exactly once', ids.every((a) => seen.get(a) === 1));
+// Login (10 Oct): the loginWait tick's steps are timed by name, the deferred setup is a timed tick of its own, and the
+// relog snapshots are read off the main thread at load
+const ig = fs.readFileSync(path.resolve(__dirname, '..', 'itemguards.js'), 'utf8');
+const ready = gm.slice(gm.indexOf('const onCharacterReady = '), gm.indexOf("setTimeout(timed('loginSetup'"));
+check('the loginWait steps are timed by name (slow ones logged)', /const loginStep = /.test(gm) && (ready.match(/loginStep\('/g) || []).length >= 4);
+check("the deferred login setup is its own timed tick ('loginSetup')", /setTimeout\(timed\('loginSetup', \(\) => \{/.test(gm) && /\}\), 8000\);/.test(gm));
+check('the relog snapshots are read asynchronously at load', /S\.snapsLoading = true;\s*fs\.readFile\(SNAP_PATH/.test(ig));
 console.log(''); console.log(failures ? `${failures} FAILURES` : 'all checks passed');
 process.exit(failures ? 1 : 0);
