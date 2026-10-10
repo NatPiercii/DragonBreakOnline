@@ -60,7 +60,7 @@ const S0 = globalThis.__dboRacialState, ch0 = S0.channel, held0 = globalThis.__d
 R = load();
 check('reload: the same state object and channel map are kept', globalThis.__dboRacialState === S0 && S0.channel === ch0 && ch0 instanceof Map && ch0.has(ALT));
 check('reload: __dboCastHeld is replaced, not stacked, and still holds', globalThis.__dboCastHeld !== held0 && globalThis.__dboCastHeld(ALT, t + 9000) === true);
-check('reload: one racialRegen timer per load, by name (every() replaces it; the power has its own named timer)', timers.filter((n) => n === 'racialRegen').length === 2 && timers.every((n) => n === 'racialRegen' || n === 'racialPower'), timers);
+check('reload: one racialRegen timer per load, by name (every() replaces it; the power and the Maormer ability have their own named timers)', timers.filter((n) => n === 'racialRegen').length === 2 && timers.every((n) => ['racialRegen', 'racialPower', 'racialAbility'].includes(n)), timers);
 R.regenTick(t + 9000);
 check('reload: no write after the reload while the channel runs', near(mag(), 0.8));
 

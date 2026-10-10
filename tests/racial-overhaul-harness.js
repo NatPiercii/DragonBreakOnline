@@ -91,12 +91,12 @@ check('off: nothing is written to the character', !(state[NORD].props || {})['pr
 // ---- 2. the Maormer ----
 check('on: a Maormer (High Elf record, private.rp.race maormer) is a Maormer', R.raceOf(MAORMER) === 'maormer');
 check('on: an Altmer is still an Altmer (magicka x1.25)', R.raceOf(ALTMER) === 'altmer' && near(R.regenFactor(ALTMER, 'magicka'), 1.25));
-check('Maormer: shock 50% and magic 15% (a shock spell: 0.5 x 0.85)', near(R.targetMult(NPC, MAORMER, SPARKS), 0.5 * 0.85), R.targetMult(NPC, MAORMER, SPARKS));
-check('Maormer: a fire spell 15% less (magic), a sword unchanged, no Altmer magicka gift', near(R.targetMult(NPC, MAORMER, FLAMES), 0.85) && R.targetMult(NPC, MAORMER, SWORD) === 1 && R.regenFactor(MAORMER, 'magicka') === 1);
+check('Maormer: shock 50% (Nate\'s table), no other resistance', near(R.targetMult(NPC, MAORMER, SPARKS), 0.5) && R.targetMult(NPC, MAORMER, FLAMES) === 1, R.targetMult(NPC, MAORMER, SPARKS));
+check('Maormer: a sword unchanged, no Altmer magicka gift', R.targetMult(NPC, MAORMER, SWORD) === 1 && R.regenFactor(MAORMER, 'magicka') === 1);
 check('Maormer in a beast form has no gift', (() => { state[MAORMER].beast = { form: 'werewolf' }; const r = R.raceOf(MAORMER); delete state[MAORMER].beast; return r === ''; })());
 
 // ---- 3. one XP boost per race, +15% ----
-const XP = { altmer: 'arcane', argonian: 'harvesting', bosmer: 'archery', breton: 'priest', dunmer: 'arcane', imperial: 'defense', khajiit: 'unarmed', nord: 'blade', orc: 'blacksmith', redguard: 'blade', maormer: 'arcane' };
+const XP = { altmer: 'arcane', argonian: 'harvesting', bosmer: 'archery', breton: 'priest', dunmer: 'arcane', imperial: 'defense', khajiit: 'unarmed', nord: 'blade', orc: 'blacksmith', redguard: 'blade', maormer: 'blade' };
 const ids = { altmer: ALTMER, argonian: ARGONIAN, bosmer: BOSMER, breton: BRETON, dunmer: DUNMER, imperial: IMPERIAL, khajiit: KHAJIIT, nord: NORD, orc: ORC, redguard: REDGUARD, maormer: MAORMER };
 check('every race: its one skill x1.15, another skill x1', Object.entries(XP).every(([r, sk]) => near(R.skillRate(ids[r], sk, 'hit'), 1.15) && R.skillRate(ids[r], sk === 'cook' ? 'blunt' : 'cook', 'craft') === 1), Object.entries(XP).map(([r, sk]) => [r, R.skillRate(ids[r], sk, 'hit')]));
 check('...never for a staff award, never for an NPC', R.skillRate(NORD, 'blade', 'award') === 1 && R.skillRate(NPC, 'blade', 'hit') === 1);
@@ -106,7 +106,7 @@ require(path.join(SERVER, 'skillrates.js'))({ log: () => {}, cfg: { skillRates: 
 check('skillrates.js: a Nord swinging a blade at rate 2 earns x2.3; an Imperial x2', near(globalThis.__dboSkillRate(NORD, 'blade', 'hit'), 2.3) && near(globalThis.__dboSkillRate(IMPERIAL, 'blade', 'hit'), 2), [globalThis.__dboSkillRate(NORD, 'blade', 'hit')]);
 
 // ---- 4. disease ----
-check('the Argonian shrugs off every fever (diseaseResist 1); the others none', R.diseaseResist(ARGONIAN) === 1 && R.diseaseResist(NORD) === 0 && R.diseaseResist(NPC) === 0);
+check('the Argonian shrugs off half of every fever (diseaseResist 0.5, Skyrim\'s 50%); the others none', R.diseaseResist(ARGONIAN) === 0.5 && R.diseaseResist(NORD) === 0 && R.diseaseResist(NPC) === 0);
 const sup = fs.readFileSync(path.join(SERVER, 'supernatural.js'), 'utf8');
 check('supernatural.js: a hit\'s and a feed\'s infection chance are scaled by it; rites and GM curses are not', /Math\.random\(\) < chance \* \(1 - raceDiseaseResist\(tgt\)\)\) infect\(tgt/.test(sup) && /Math\.random\(\) < C\.infectFeed \* \(1 - raceDiseaseResist\(t\)\)\) infect\(t, 'vampire'/.test(sup) && (sup.match(/raceDiseaseResist\(/g) || []).length === 2);
 
@@ -118,7 +118,7 @@ const u = R.usePower(NORD);
 check('used: told, and kept on the character with a day\'s wait', u.ok && /^Battle Cry: 60 seconds/.test(u.text) && (() => { const st = state[NORD].props['private.racialPower']; return st.race === 'nord' && st.activeUntil - st.usedAt === 60000 && st.readyAt - st.usedAt === 24 * 3600000; })(), u);
 check('Battle Cry: melee +15% (a sword, fists), a bow and a spell unchanged', near(R.attackMult(NORD, NPC, SWORD, 10), 1.15) && near(R.attackMult(NORD, NPC, FIST, 10), 1.15) && R.attackMult(NORD, NPC, BOW, 10) === 1 && R.attackMult(NORD, NPC, FLAMES, 10) === 1);
 check('...not used twice while it lasts', /already upon you/.test(R.usePower(NORD).text));
-check('the status line and the HUD countdown say so', /^Battle Cry: upon you, (59|60) s left$/.test(R.statusLine(NORD)) && R.hudField(NORD) && R.hudField(NORD).name === 'Battle Cry', R.statusLine(NORD));
+check('the status line and the HUD countdown say so', /^Battle Cry: upon you, (59|60) s left$/.test(R.statusLine(NORD)) && R.hudField(NORD) && R.hudField(NORD).name === 'Battle Cry' && [59000, 60000].includes(R.hudField(NORD).ms) && R.powerView(NORD).activeMs > 59000 && R.powerView(NORD).waitMs > 86399000, [R.statusLine(NORD), R.hudField(NORD)]);
 // a relog: a new module over the same character state
 const R2 = make({ enabled: true, overhaul: true });
 check('a relog or a reload keeps the buff and the wait', near(R2.attackMult(NORD, NPC, SWORD, 10), 1.15) && /already upon you/.test(R2.usePower(NORD).text));
@@ -157,7 +157,13 @@ check('Wild Hunt: a bow x1.1 x1.2, stamina x1.5, a sword unchanged; 30 s', near(
 // Dunmer and Maormer: damage dealt by element
 R.usePower(DUNMER); R.usePower(MAORMER);
 check("Ancestor's Wrath: fire dealt x1.25 (a spell or a fire staff), frost unchanged", near(R.attackMult(DUNMER, NPC, FLAMES, 10), 1.25) && near(R.attackMult(DUNMER, NPC, FIRE_STAFF, 10), 1.25) && R.attackMult(DUNMER, NPC, FROSTBITE, 10) === 1);
-check('Roaring Tempest: shock dealt x1.25, magic resist 15% + 15% (a shock spell: 0.5 x 0.7)', near(R.attackMult(MAORMER, NPC, SPARKS, 10), 1.25) && near(R.targetMult(NPC, MAORMER, SPARKS), 0.5 * 0.7), R.targetMult(NPC, MAORMER, SPARKS));
+check('Roaring Tempest: no shock damage dealt; the ward is 60 points', R.attackMult(MAORMER, NPC, SPARKS, 10) === 1 && state[MAORMER].props['private.racialPower'].wardLeft === 60);
+check('...a 20-point fire spell: 25% magic resist leaves 15, the ward takes all of it', R.targetMult(NPC, MAORMER, FLAMES, 20) === 0 && state[MAORMER].props['private.racialPower'].wardLeft === 45, state[MAORMER].props['private.racialPower']);
+check('...a sword is not warded', R.targetMult(NPC, MAORMER, SWORD, 20) === 1 && state[MAORMER].props['private.racialPower'].wardLeft === 45);
+told.length = 0;
+check('...a 100-point shock spell: x0.5 x0.75 = 37.5, the ward takes the last 45 to 0... and breaks', near(R.targetMult(NPC, MAORMER, SPARKS, 100), 0) && state[MAORMER].props['private.racialPower'].wardLeft === 7.5 && near(R.targetMult(NPC, MAORMER, SPARKS, 100), 0.375 * (37.5 - 7.5) / 37.5) && state[MAORMER].props['private.racialPower'].wardLeft === 0 && told.some(([a, x]) => a === MAORMER && x === 'Your ward breaks.'), state[MAORMER].props['private.racialPower']);
+check('...spent: magic resist only', near(R.targetMult(NPC, MAORMER, FLAMES, 20), 0.75));
+check('...under the cap: Defense x0.3 with the ward\'s 0 is floored at 0.25', near(R.capTargetSide(0.3 * 0), 0.25));
 // Khajiit Night Eye: the client's, later
 const k = R.usePower(KHAJIIT);
 check('Night Eye is refused until the client can draw it; its view says so, not ready', !k.ok && /later update/.test(k.text) && R.powerView(KHAJIIT).ready === false && /later update/.test(R.statusLine(KHAJIIT)));
@@ -170,10 +176,36 @@ check('in a beast form the running power gives nothing and none can be called', 
 delete state[ORC].beast;
 check('NPCs have no power', R.powerView(NPC) === null && R.usePower(NPC).ok === false);
 
+// ---- the Maormer's swimming ability and the ward's look (DLE records, config ids) ----
+const calls = [];
+mp.callPapyrusFunction = (kind, cls, method, self, args) => { calls.push([method, self.desc, args[0].desc]); };
+mp.getDescFromId = (id) => `${(id >>> 0).toString(16)}:Skyrim.esm`;
+const ABIL = 0x7701, LOOK = 0x7702;
+const RA = make({ enabled: true, overhaul: true, maormer: { resistShock: 0.5, seafarerSpell: '' } });
+RA.abilityTick();
+check('no ability record in the load order yet: nothing is added', calls.length === 0);
+records[ABIL] = { record: { type: 'SPEL', fields: [] } }; records[LOOK] = { record: { type: 'SPEL', fields: [] } };
+mp.getIdFromDesc = ((orig) => (d) => ({ '7701:DragonBreak Online Edits.esp': ABIL, '7702:DragonBreak Online Edits.esp': LOOK, '7701:Skyrim.esm': ABIL })[d] || orig(d))(mp.getIdFromDesc);
+const packets = [];
+const RB = make({ enabled: true, overhaul: true, maormer: { resistShock: 0.5, seafarerSpell: '7701:DragonBreak Online Edits.esp', power: { name: 'Roaring Tempest', seconds: 60, wardSpell: '7702:DragonBreak Online Edits.esp', buffs: { resistMagic: 0.25, wardPoints: 60 } } } },
+  { sendPacket: (a, p) => { packets.push([a, p]); return true; } });
+RB.abilityTick();
+check('the ability goes on the Maormer only, once', calls.length === 1 && calls[0][0] === 'AddSpell' && calls[0][1] === MAORMER.toString(16) + ':Skyrim.esm' && state[MAORMER].props['private.racialAbility'] === '7701:Skyrim.esm', calls);
+RB.abilityTick();
+check('...not again in the same session', calls.length === 1);
+state[MAORMER].props['private.rp'] = { race: 'altmer' };
+RB.abilityTick();
+check('a character no longer a Maormer loses it', calls.length === 2 && calls[1][0] === 'RemoveSpell' && calls[1][2] === '7701:Skyrim.esm' && state[MAORMER].props['private.racialAbility'] === null, calls);
+state[MAORMER].props['private.rp'] = { race: 'maormer' };
+state[MAORMER].props['private.racialPower'] = {};
+const tu = RB.usePower(MAORMER);
+check("Roaring Tempest casts the ward's look on the player (dboCastSelf)", tu.ok && packets.some(([a, p]) => a === MAORMER && p.customPacketType === 'dboCastSelf' && p.spell === LOOK), packets);
+
 // ---- 6. the wiring ----
 const jr = fs.readFileSync(path.join(SERVER, 'journal.js'), 'utf8');
 check('journal.js: the Profile tab\'s action racialPower and its view', /racialPower: \(a\) => \(typeof globalThis\.__dboRacialPowerUse === 'function'/.test(jr) && /racialPower: own === false \? null : racialPowerView\(a\)/.test(jr) && /racialPower: 'Racial Power'/.test(jr));
 const gmSrc = fs.readFileSync(path.join(SERVER, 'gamemode.js'), 'utf8');
+check('gamemode.js: the hit hands the ward its damage; racial gets sendPacket', /racial\.targetMult\(agg, tgt, src, dmg\)/.test(gmSrc) && /gmstFloat, cfg, sendPacket \}\);/.test(gmSrc));
 check('gamemode.js: the HUD carries the countdown and can be sent on demand', /globalThis\.__dboRacialPowerHud\(a\) : null; if \(rp\) v\.racialPower = rp;/.test(gmSrc) && /globalThis\.__dboHudRefresh = \(a\) =>/.test(gmSrc));
 check('the hooks are published', ['__dboRaceSkillRate', '__dboRaceDiseaseResist', '__dboRacialPowerUse', '__dboRacialPowerView', '__dboRacialPowerHud'].every((n) => typeof globalThis[n] === 'function'));
 check('the timers are named (a reload replaces them)', timers.includes('racialRegen') && timers.includes('racialPower'));

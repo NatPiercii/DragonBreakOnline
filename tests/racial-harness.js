@@ -218,7 +218,7 @@ delete globalThis.__dboCombatAt;
 // ---- 4. the wiring ----
 const hook = gm.slice(gm.indexOf('const hitDamageAttemptHook'), gm.indexOf('hitDamageAttemptHook.__dbo = true;'));
 check('gamemode: the target\'s side is Defense x a Flesh spell x the target\'s blessing x the race, capped together',
-  /let targetSide = defenseDamageMult\(tgt\) \* fleshDamageMult\(tgt, src\) \* blessingTargetMult\(tgt, src\);/.test(hook) && /targetSide = racial\.capTargetSide\(targetSide \* racial\.targetMult\(agg, tgt, src\)\)/.test(hook));
+  /let targetSide = defenseDamageMult\(tgt\) \* fleshDamageMult\(tgt, src\) \* blessingTargetMult\(tgt, src\);/.test(hook) && /targetSide = racial\.capTargetSide\(targetSide \* racial\.targetMult\(agg, tgt, src, dmg\)\)/.test(hook));
 check('gamemode: the race\'s attack gift joins the product, never for a beast',
   /if \(racial && !beastAgg\) \{ try \{ raceAtk = racial\.attackMult\(agg, tgt, src, dmg\)/.test(hook) && /\* targetSide \* blessingAttackMult\(agg, src\) \* raceAtk \*/.test(hook) && !/blessingDamageMult\(/.test(hook));
 check('gamemode: the blessing split keeps the old product', /const blessingDamageMult = \(aggressorId, targetId, sourceId\) => blessingAttackMult\(aggressorId, sourceId\) \* blessingTargetMult\(targetId, sourceId\);/.test(gm));

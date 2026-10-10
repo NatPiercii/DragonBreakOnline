@@ -25,7 +25,7 @@
 // The racial overhaul (Nate's "Racial Updates", 10 Oct; ~/claude-nate-release/specs/racial-overhaul.md), all behind
 // `overhaul` (false: every number is the 3 Oct one):
 //   - the Maormer: a creator option on the High Elf race record, told apart by private.rp.race 'maormer' (spawn.ts), with
-//     its own gifts (shock resist, magic resist) instead of the Altmer's;
+//     its own gifts (shock resist, a swimming ability) instead of the Altmer's;
 //   - one skill XP boost per race (xp: { <skill>: rate }), through skillrates.js __dboSkillRate after the ring, the hourly
 //     bucket and the day's caps have metered the work, so it speeds a skill and never lifts a cap;
 //   - the Argonian's Hist-given disease resistance: the share of a bite's or a feed's fever that never takes (supernatural.js);
@@ -51,14 +51,16 @@ const HIGHBORN = 0x0e40c8; // PowerHighElfMagickaRegen
 const GOLD = 0xf;
 // A power's buffs: meleeDamage, bowDamage, fireDealt, shockDealt (shares added to the attacker's hit); damageTaken (every
 // hit), physicalTaken (a hit that is not a spell, enchantment or scroll), resistMagic (added to the race's own share):
-// shares off the target's; healthRegen, staminaRegen, magickaRegen: factors, at most conditionalRegenCap
+// shares off the target's; wardPoints: spell damage absorbed in all while it lasts; healthRegen, staminaRegen,
+// magickaRegen: factors, at most conditionalRegenCap
 const DEFAULTS = {
   enabled: false, overhaul: false, reductionCap: 0.75, alwaysRegenCap: 1.25, conditionalRegenCap: 1.5, combatSeconds: 10, tickSeconds: 1, minStep: 0.002,
   altmer: { magickaRegen: 1.25, elementalWeakness: 0, xp: { arcane: 1.15 },
     power: { name: 'Highborn', seconds: 60, buffs: { magickaRegen: 1.5 } } },
   // inCombat: Hist-Blooded keeps its full extra in a fight (the base game heals nothing in combat: off scales it to 0).
-  // diseaseResist 1: the Hist keeps every fever out (lore), a bite's or a feed's; rites and a GM's curse are chosen
-  argonian: { resistPoison: 0.5, lowHealth: 0.35, lowHealthHealRegen: 1.5, inCombat: false, diseaseResist: 1, xp: { harvesting: 1.15 },
+  // diseaseResist 0.5: the Hist keeps half of every fever out (Skyrim's 50%; not immunity: Argonian vampires are canon),
+  // a bite's or a feed's; rites and a GM's curse are chosen
+  argonian: { resistPoison: 0.5, lowHealth: 0.35, lowHealthHealRegen: 1.5, inCombat: false, diseaseResist: 0.5, xp: { harvesting: 1.15 },
     power: { name: 'Histskin', seconds: 60, buffs: { healthRegen: 1.5, physicalTaken: 0.15 } } },
   bosmer: { bowDamage: 0.1, resistPoison: 0.5, xp: { archery: 1.15 },
     power: { name: 'Wild Hunt', seconds: 30, buffs: { bowDamage: 0.2, staminaRegen: 1.5 } } },
@@ -79,9 +81,13 @@ const DEFAULTS = {
     power: { name: 'Berserker Rage', seconds: 30, buffs: { meleeDamage: 0.25, damageTaken: 0.25 } } },
   redguard: { staminaRegen: 1.25, resistPoison: 0.5, xp: { blade: 1.15 },
     power: { name: 'Adrenaline Rush', seconds: 60, buffs: { staminaRegen: 1.5 } } },
-  // Pyandonea's storm-callers (lore): a High Elf record with private.rp.race 'maormer', only with the overhaul on
-  maormer: { resistShock: 0.5, resistMagic: 0.15, xp: { arcane: 1.15 },
-    power: { name: 'Roaring Tempest', seconds: 60, buffs: { shockDealt: 0.25, resistMagic: 0.15 } } },
+  // Pyandonea's sea-elves (lore), Nate's own table (10 Oct): a High Elf record with private.rp.race 'maormer', only with the
+  // overhaul on. seafarerSpell: the DLE's DBO_AbMaormerSeafarer (SpeedMult +25 while swimming), an ability kept on every
+  // Maormer while they are one; '' or a record not in the load order does nothing. Roaring Tempest: +25% magic resistance and
+  // a ward that absorbs wardPoints of spell damage while it lasts (60, Steadfast Ward's), under reductionCap; wardSpell (the
+  // DLE's DBO_MaormerTempestWard, its look only) is cast on the player when it is called
+  maormer: { resistShock: 0.5, seafarerSpell: '', xp: { blade: 1.15 },
+    power: { name: 'Roaring Tempest', seconds: 60, wardSpell: '', buffs: { resistMagic: 0.25, wardPoints: 60 } } },
 };
 const merge = (cfg) => {
   const c = Object.assign({}, DEFAULTS, cfg || {});
@@ -92,7 +98,7 @@ const num = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 module.exports = (api) => {
-  const { mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, gmstFloat, cfg } = api;
+  const { mp, log, personal, giveItem, profileOf, display, recordOf, every, onlineActors, weaponHandsOf, sourceResistsOf, gmstFloat, cfg, sendPacket } = api;
   const C = merge(cfg && cfg.racial);
   const on = () => C.enabled === true;
   const overhaul = () => on() && C.overhaul === true;
@@ -143,6 +149,18 @@ module.exports = (api) => {
     return p && st.race === race && Number(st.activeUntil) > now ? (p.buffs || {}) : null;
   };
   const buff = (a, key) => { const b = activeBuffs(a); return b ? Math.max(0, num(b[key], 0)) : 0; };
+  // The ward: a pool of spell damage (wardPoints, set when the power is called) it takes off hits until it is spent or the
+  // power ends. dmg: the hit after the race's other shares. Returns the factor on the hit, spending what it absorbed (the
+  // reductionCap floor may let a little more through than the pool counted)
+  const wardAbsorb = (a, dmg) => {
+    const st = powerState(a);
+    const left = Math.max(0, num(st.wardLeft, 0));
+    if (!(left > 0) || !(dmg > 0)) return 1;
+    const took = Math.min(left, dmg);
+    try { mp.set(a >>> 0, POWER, Object.assign({}, st, { wardLeft: left - took })); } catch (e) { return 1; }
+    if (took >= left) { try { personal(a >>> 0, 'Your ward breaks.'); } catch (e) { /* the message is optional */ } }
+    return (dmg - took) / dmg;
+  };
 
   // ---- damage -------------------------------------------------------------------------------------------------------
   const resists = (src) => { try { return sourceResistsOf(src >>> 0) || new Set(); } catch (e) { return new Set(); } };
@@ -177,7 +195,8 @@ module.exports = (api) => {
     return m;
   };
   // The target's gift: below 1 takes less, above 1 more (the Altmer's optional weakness)
-  const targetMult = (agg, tgt, src) => {
+  // dmg: the engine's damage, for the ward's absorb (no ward without it)
+  const targetMult = (agg, tgt, src, dmg) => {
     const race = raceOf(tgt); if (!race || agg === tgt) return 1;
     const R = C[race];
     const rs = resists(src);
@@ -192,6 +211,7 @@ module.exports = (api) => {
     if (magic > 0 && isMagicSource(src)) resist(magic);
     const b = activeBuffs(tgt);
     if (b) { resist(b.damageTaken); if (!isMagicSource(src)) resist(b.physicalTaken); }
+    if (b && num(b.wardPoints, 0) > 0 && isMagicSource(src) && dmg > 0) m *= wardAbsorb(tgt, dmg * m);
     if (race === 'altmer' && (rs.has(AV.fire) || rs.has(AV.frost) || rs.has(AV.shock))) m *= 1 + Math.max(0, num(R.elementalWeakness, 0));
     if (race === 'orc' && healthOf(tgt) < num(R.lowHealth, 0)) resist(R.damageTaken);
     return m;
@@ -391,8 +411,10 @@ module.exports = (api) => {
     const st = powerState(a);
     const activeUntil = st.race === race && Number(st.activeUntil) > now ? Number(st.activeUntil) : 0;
     const readyAt = Number(st.readyAt) > now ? Number(st.readyAt) : 0;
+    // activeMs, waitMs: what is left at the time of sending, for a countdown on the player's own clock
     return { race, name: String(p.name || 'Racial Power'), seconds: Math.max(1, num(p.seconds, 60)), clientOnly: p.clientOnly === true,
-      activeUntil, readyAt, ready: !readyAt && !activeUntil && p.clientOnly !== true, buffs: Object.assign({}, p.buffs || {}) };
+      activeUntil, readyAt, activeMs: activeUntil ? activeUntil - now : 0, waitMs: readyAt ? readyAt - now : 0,
+      ready: !readyAt && !activeUntil && p.clientOnly !== true, buffs: Object.assign({}, p.buffs || {}) };
   };
   // Use it: { ok, text }. Once a real day (cooldownHours), counted from the use, kept on the character
   const usePower = (a, now = Date.now()) => {
@@ -405,9 +427,13 @@ module.exports = (api) => {
     const p = powerOf(v.race);
     const hours = Math.max(0, num(p.cooldownHours, num(C.powerCooldownHours, 24)));
     const st = { race: v.race, usedAt: now, activeUntil: now + v.seconds * 1000, readyAt: now + hours * 3600000 };
+    if (num((p.buffs || {}).wardPoints, 0) > 0) st.wardLeft = num(p.buffs.wardPoints, 0);
     try { mp.set(a >>> 0, POWER, st); } catch (e) { return { ok: false, text: 'Your power cannot be called just now.' }; }
     S.powerOn.set(a >>> 0, st.activeUntil);
     hudRefresh(a);
+    // Its look on the player's own game (the DLE's ward spell): nothing when the record is not in the load order yet
+    const look = spellOf(p.wardSpell);
+    if (look && typeof sendPacket === 'function') { try { sendPacket(a >>> 0, { customPacketType: 'dboCastSelf', spell: look }); } catch (e) { log('racial: ward look failed', e.message); } }
     log(`racial: ${display(a >>> 0)} used ${v.name} (${v.race}) for ${v.seconds} s`);
     return { ok: true, text: `${v.name}: ${v.seconds} seconds.` };
   };
@@ -432,8 +458,44 @@ module.exports = (api) => {
     return `${v.name}: ready`;
   };
   if (typeof globalThis.__dboRegisterStatus === 'function') globalThis.__dboRegisterStatus('racialPower', 57, (a) => statusLine(a) || null);
-  // The HUD's countdown (gamemode.js pushHud): { name, endsAt } while it lasts
-  const hudField = (a, now = Date.now()) => { const v = powerView(a, now); return v && v.activeUntil ? { name: v.name, endsAt: v.activeUntil } : null; };
+  // The HUD's countdown (gamemode.js pushHud): { name, ms } while it lasts. ms is what is left at sending; the client turns it
+  // into an end on its own clock. Whole seconds, so the HUD's dedupe sends it once a second at most
+  const hudField = (a, now = Date.now()) => { const v = powerView(a, now); return v && v.activeUntil ? { name: v.name, ms: Math.ceil(v.activeMs / 1000) * 1000 } : null; };
+
+  // A config desc ('<hex>:<plugin>') to a SPEL in the load order, else 0: a record the DLE does not carry yet does nothing
+  const spellOf = (desc) => {
+    if (!desc) return 0;
+    try { const id = mp.getIdFromDesc(String(desc)) >>> 0; const r = id ? recordOf(id) : null; return r && String(r.record.type) === 'SPEL' ? id : 0; } catch (e) { return 0; }
+  };
+  // The Maormer's swimming ability: on a Maormer character once a session (a relog builds the actor again), off a character
+  // that is no longer one (private.racialAbility remembers what was given). A beast form keeps it; it comes off only with the race
+  const ABILITY = 'private.racialAbility';
+  if (!(S.abilityOn instanceof Set)) S.abilityOn = new Set();
+  const papyrusSpell = (a, add, id) => {
+    try {
+      mp.callPapyrusFunction('method', 'Actor', add ? 'AddSpell' : 'RemoveSpell', { type: 'form', desc: mp.getDescFromId(a >>> 0) },
+        add ? [{ type: 'espm', desc: mp.getDescFromId(id >>> 0) }, false] : [{ type: 'espm', desc: mp.getDescFromId(id >>> 0) }]);
+      return true;
+    } catch (e) { log(`racial: ${add ? 'AddSpell' : 'RemoveSpell'} ${id.toString(16)} on ${display(a >>> 0)} failed`, e.message); return false; }
+  };
+  const isMaormer = (a) => C.overhaul === true && on() && isPlayer(a) && RACE_OF_ID.get(raceIdOf(a)) === 'altmer' && rpRace(a) === 'maormer';
+  const abilityTick = () => {
+    const want = spellOf(C.maormer.seafarerSpell);
+    const here = new Set();
+    for (const a0 of onlineActors()) {
+      const a = a0 >>> 0; here.add(a);
+      let held = ''; try { held = String(mp.get(a, ABILITY) || ''); } catch (e) { held = ''; }
+      if (want && isMaormer(a)) {
+        if (S.abilityOn.has(a)) continue;
+        if (papyrusSpell(a, true, want)) { S.abilityOn.add(a); try { mp.set(a, ABILITY, mp.getDescFromId(want)); } catch (e) { /* given anyway */ } }
+      } else if (held) {
+        const id = (() => { try { return mp.getIdFromDesc(held) >>> 0; } catch (e) { return 0; } })();
+        if (!id || papyrusSpell(a, false, id)) { S.abilityOn.delete(a); try { mp.set(a, ABILITY, null); } catch (e) { /* tried */ } }
+      }
+    }
+    for (const a of [...S.abilityOn]) if (!here.has(a)) S.abilityOn.delete(a);
+  };
+  if (typeof every === 'function') every('racialAbility', 15000, () => { try { abilityTick(); } catch (e) { log('racial ability failed', e.message); } });
 
   globalThis.__dboRaceGold = goldBonus;
   globalThis.__dboRaceOf = raceOf;
@@ -443,7 +505,7 @@ module.exports = (api) => {
   globalThis.__dboRacialPowerView = powerView;
   globalThis.__dboRacialPowerHud = hudField;
   return { config: C, raceOf, attackMult, targetMult, capTargetSide, regenFactor, extraPerSecond, regenTick, onCast, castHeld, goldBonus, inCold, fighting, COMBAT,
-    skillRate, diseaseResist, powerView, usePower, powerTick, statusLine, hudField };
+    skillRate, diseaseResist, powerView, usePower, powerTick, statusLine, hudField, abilityTick, wardAbsorb };
 };
 module.exports.RACES = RACES;
 module.exports.RACE_IDS = RACE_IDS;
