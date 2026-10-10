@@ -53,12 +53,13 @@ export class DboGlowService extends ClientListener {
       if (!ref || ref.isDisabled() || ref.isDeleted() || !ref.is3DLoaded()) return;
       // A ref reloaded after an unload still carries the last play; stopping first keeps one shader, not a stack
       try { shader.stop(ref); } catch { /* none playing */ }
-      try { shader.play(ref, -1); this.glowing.set(id, glow); } catch { /* not loaded yet */ }
+      try { shader.play(ref, -1); this.glowing.set(id, glow); this.litCopy.set(id, ref.getFormID()); } catch { /* not loaded yet */ }
     });
-    // A ref that unloaded keeps its entry; play again when it comes back.
+    // A ref that unloaded keeps its entry; play again when it comes back. So does a server form whose local copy was made
+    // again under another id (a host change, a respawn): the new copy is lit on the next poll, the old one is gone.
     for (const id of Array.from(this.glowing.keys())) {
       const ref = this.refOf(id);
-      if (!ref || !ref.is3DLoaded()) this.glowing.delete(id);
+      if (!ref || !ref.is3DLoaded() || ref.getFormID() !== this.litCopy.get(id)) { this.glowing.delete(id); this.litCopy.delete(id); }
     }
   }
 
@@ -66,6 +67,7 @@ export class DboGlowService extends ClientListener {
     const glow = this.glowing.get(id);
     if (glow === undefined) return;
     this.glowing.delete(id);
+    this.litCopy.delete(id);
     const shader = this.shader(glow);   // the one it was started with
     const ref = this.refOf(id);
     if (shader && ref) { try { shader.stop(ref); } catch { /* gone */ } }
@@ -85,5 +87,7 @@ export class DboGlowService extends ClientListener {
 
   private set = new GlowSet();
   private glowing = new Map<number, Glow>();
+  // The local copy each glow was played on, so a copy made again is lit again
+  private readonly litCopy = new Map<number, number>();
   private nextPoll = 0;
 }
