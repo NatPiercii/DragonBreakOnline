@@ -4,6 +4,7 @@ import { ConnectionMessage } from "../events/connectionMessage";
 import { CustomPacketMessage } from "../messages/customPacketMessage";
 import { EffectShader, ObjectReference } from "skyrimPlatform";
 import { DEFAULT_SHADERS, Glow, GlowSet, readGlowPacket } from "./dboGlowPlan";
+import { remoteIdToLocalId } from "../../view/worldViewMisc";
 
 // Which shader lights what, and why the detect-life ones never showed on a chest: dboGlowPlan.ts
 const POLL_MS = 1000;
@@ -25,12 +26,22 @@ export class DboGlowService extends ClientListener {
     this.controller.on("update", () => this.onUpdate());
   }
 
+  getGlowingCount(): number {
+    return this.glowing.size;
+  }
+
   private onCustomPacketMessage(event: ConnectionMessage<CustomPacketMessage>): void {
     const content = parseCustomPacket(event);
     if (!content || content["customPacketType"] !== "dboGlow") return;
     const packet = readGlowPacket(content);
     for (const id of this.set.apply(packet)) this.stop(id);
     if (packet.clear) this.stopAll();   // anything still lit, wanted or not
+  }
+
+  // A server-made form (a player or a spawned NPC, 0xff...) has a local copy under another id; a plugin ref keeps its own
+  private refOf(id: number): ObjectReference | null {
+    const local = id >= 0xff000000 ? remoteIdToLocalId(id) : id;
+    return local ? ObjectReference.from(this.sp.Game.getFormEx(local)) : null;
   }
 
   private onUpdate(): void {
@@ -42,16 +53,17 @@ export class DboGlowService extends ClientListener {
       if (this.glowing.has(id)) return;
       const shader = this.shader(glow);
       if (!shader) return;
-      const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
+      const ref = this.refOf(id);
       if (!ref || ref.isDisabled() || ref.isDeleted() || !ref.is3DLoaded()) return;
       // A ref reloaded after an unload still carries the last play; stopping first keeps one shader, not a stack
       try { shader.stop(ref); } catch { /* none playing */ }
-      try { shader.play(ref, -1); this.glowing.set(id, glow); } catch { /* not loaded yet */ }
+      try { shader.play(ref, -1); this.glowing.set(id, glow); this.litCopy.set(id, ref.getFormID()); } catch { /* not loaded yet */ }
     });
-    // A ref that unloaded keeps its entry; play again when it comes back.
+    // A ref that unloaded keeps its entry; play again when it comes back. So does a server form whose local copy was made
+    // again under another id (a host change, a respawn): the new copy is lit on the next poll, the old one is gone.
     for (const id of Array.from(this.glowing.keys())) {
-      const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
-      if (!ref || !ref.is3DLoaded()) this.glowing.delete(id);
+      const ref = this.refOf(id);
+      if (!ref || !ref.is3DLoaded() || ref.getFormID() !== this.litCopy.get(id)) { this.glowing.delete(id); this.litCopy.delete(id); }
     }
   }
 
@@ -59,8 +71,9 @@ export class DboGlowService extends ClientListener {
     const glow = this.glowing.get(id);
     if (glow === undefined) return;
     this.glowing.delete(id);
+    this.litCopy.delete(id);
     const shader = this.shader(glow);   // the one it was started with
-    const ref = ObjectReference.from(this.sp.Game.getFormEx(id));
+    const ref = this.refOf(id);
     if (shader && ref) { try { shader.stop(ref); } catch { /* gone */ } }
   }
 
@@ -78,5 +91,7 @@ export class DboGlowService extends ClientListener {
 
   private set = new GlowSet();
   private glowing = new Map<number, Glow>();
+  // The local copy each glow was played on, so a copy made again is lit again
+  private readonly litCopy = new Map<number, number>();
   private nextPoll = 0;
 }
