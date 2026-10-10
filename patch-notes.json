@@ -1,5 +1,19 @@
 [
   {
+    "title": "Werewolves come back to themselves",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Beast form",
+        "items": [
+          "A werewolf or Vampire Lord who is downed or killed in beast form no longer wakes up still looking like a beast on their own screen while everyone else sees them as mortal. Their own form is sent again once they are back on their feet."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Initiates of the colleges",
     "date": "2026-10-10",
     "version": "Server update",
