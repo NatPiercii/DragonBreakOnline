@@ -15,6 +15,7 @@ process.chdir(dir);
 
 const HOUSE_DOOR = 0x5000;
 fs.writeFileSync('doors.json', JSON.stringify({ doors: { '5000:Skyrim.esm': 'Home' } }));
+fs.writeFileSync('doors-pos.json', JSON.stringify({ doors: { '5000:Skyrim.esm': [0, 0, 0, 'house:skyrim.esm'] } }));
 const ME = 1, CLAN = 2, GUILD = 3, STRANGER = 4, FRIEND = 5, ADMIN = 6, OUTSIDER = 7;
 const chars = {
   [ME]: { name: 'Argosh gro-Shatul', tag: 'ME00', profile: 10, where: 'tamriel', pos: [0, 0, 0], met: [CLAN, GUILD, STRANGER, FRIEND] },

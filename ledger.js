@@ -44,13 +44,17 @@ module.exports = (api) => {
   const cellDoors = () => {
     if (S.cellDoors) return S.cellDoors;
     S.cellDoors = new Map();
-    let ids = [];
-    try { ids = Object.keys(JSON.parse(fs.readFileSync(path.resolve('doors.json'), 'utf8')).doors || {}); } catch (e) { log('ledger: doors.json unreadable', e.message); }
-    for (const desc of ids) {
+    // From doors-pos.json (tools/door-positions.py: [x, y, z, cell] per door, read from the plugins). Asking the server for
+    // each of ~4,000 doors' cell loaded every one of them and froze the main loop for minutes on the first Ledger
+    // command after a restart (10 Oct 04:05Z, the same trap tenancy.js left on 9 Oct)
+    let doors = {};
+    try { doors = JSON.parse(fs.readFileSync(path.resolve('doors-pos.json'), 'utf8')).doors || {}; } catch (e) { log('ledger: doors-pos.json unreadable', e.message); }
+    for (const [desc, row] of Object.entries(doors)) {
       try {
-        const id = mp.getIdFromDesc(desc) >>> 0;
-        const where = String(mp.get(id, 'worldOrCellDesc') || '').toLowerCase();
+        const where = String((Array.isArray(row) && row[3]) || '').toLowerCase();
         if (!where || isWorldspace(where)) continue;
+        const id = mp.getIdFromDesc(desc) >>> 0;
+        if (!id) continue;
         const list = S.cellDoors.get(where); if (list) list.push(id); else S.cellDoors.set(where, [id]);
       } catch (e) { /* not in this load order */ }
     }
