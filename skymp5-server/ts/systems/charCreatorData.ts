@@ -81,6 +81,16 @@ export function raceIdFor(entry: RaceEntry, age: string): number {
   return entry.raceId;
 }
 
+// A creator race the DLE gives a record of its own (the Maormer's MaormerRace, Nate 10 Oct): the gameplay layer resolves
+// config maormerRace and publishes the id in globalThis.__dboRaceOverrides (racial.js) once the record is in the load
+// order. The front keeps sending its static High Elf id; the character is made on the override. Nothing without it.
+export function raceOverrideFor(race: string, age: string): number {
+  if (age === "child") return 0;
+  const o = (globalThis as Record<string, unknown>).__dboRaceOverrides as Record<string, unknown> | undefined;
+  const id = o && typeof o === "object" ? Number(o[race]) : 0;
+  return Number.isInteger(id) && id > 0 && id <= 0xffffffff ? id >>> 0 : 0;
+}
+
 export interface CharCreatorConfig {
   allowChildren: boolean;
   disabledRaces: string[];
@@ -183,7 +193,8 @@ export function validateResult(data: unknown, config: CharCreatorConfig): Valida
   if (!app || typeof app !== "object") return fail("Missing appearance");
   const a = app as Record<string, unknown>;
 
-  if (a.raceId !== raceIdFor(entry, age)) return fail("Appearance race does not match the chosen race");
+  const override = raceOverrideFor(race, age);
+  if (a.raceId !== raceIdFor(entry, age) && !(override && a.raceId === override)) return fail("Appearance race does not match the chosen race");
   if (a.isFemale !== (sex === "female")) return fail("Appearance sex does not match the chosen sex");
 
   const weight = a.weight;
@@ -280,7 +291,7 @@ export function validateResult(data: unknown, config: CharCreatorConfig): Valida
 
   const appearance: CleanAppearance = {
     isFemale: sex === "female",
-    raceId: raceIdFor(entry, age),
+    raceId: override || raceIdFor(entry, age),
     weight,
     skinColor,
     hairColor,
