@@ -57,6 +57,7 @@ import { ConnectionMessage } from '../events/connectionMessage';
 import { SetInventoryMessage } from '../messages/setInventoryMessage';
 import { CreateActorMessage, CreateActorMessageAdditionalProps } from '../messages/createActorMessage';
 import { DestroyActorMessage } from '../messages/destroyActorMessage';
+import { dropStaleEntry, previousOwnIdx } from '../../sync/staleEntry';
 import { SetRaceMenuOpenMessage } from '../messages/setRaceMenuOpenMessage';
 import { UpdatePropertyMessage } from '../messages/updatePropertyMessage';
 import { TeleportMessage2 } from '../messages/teleportMessage2';
@@ -569,6 +570,13 @@ export class RemoteServer extends ClientListener {
 
     logTrace(this, "Create actor");
 
+    // An idx this client still holds an entry for (LHF/Tarhiel, 10 Oct: his old character's body stood for hours after a
+    // switch, and his blows reached it): the character select detaches the player from his character without a destroy, so
+    // the old character's entry stays, and when the body is streamed back under the same idx, allocateIdFor gave it a
+    // second slot and left the first orphaned; the despawn then freed only the second. The old entry goes first, as a
+    // destroy would take it.
+    this.dropStaleEntry(msg.idx, "its idx came again");
+
     const i = this.getIdManager().allocateIdFor(msg.idx);
     if (this.worldModel.forms.length <= i) {
       this.worldModel.forms.length = i + 1;
@@ -642,6 +650,10 @@ export class RemoteServer extends ClientListener {
     });
 
     if (msg.isMe) {
+      // The character before this one (a switch): its entry is never destroyed for this client, and a body far away is
+      // never streamed again to replace it, so it would stay where it was left
+      const prevIdx = previousOwnIdx(this.worldModel, this.getIdManager(), i, msg.idx);
+      if (prevIdx !== undefined) this.dropStaleEntry(prevIdx, "the player's previous character");
       this.worldModel.playerCharacterFormIdx = i;
       this.worldModel.playerCharacterRefrId = msg.refrId || 0;
     }
@@ -861,6 +873,15 @@ export class RemoteServer extends ClientListener {
         });
       });
     }
+  }
+
+  // Clears the entry an idx points to, as onDestroyActorMessage does for a destroyed form (sync/staleEntry.ts)
+  private dropStaleEntry(idx: number, why: string): void {
+    const gone = dropStaleEntry(this.worldModel, this.getIdManager(), idx);
+    if (gone < 0) return;
+    if (gone) this.forgetHosted(gone);
+    getViewFromStorage()?.syncFormArray(this.worldModel);
+    logTrace(this, "Dropped a stale entry", idx, gone ? gone.toString(16) : "?", why);
   }
 
   private onDestroyActorMessage(event: ConnectionMessage<DestroyActorMessage>): void {
