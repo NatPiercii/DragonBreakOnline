@@ -4310,10 +4310,24 @@ const giveAnimalEntry = (a, e) => {
     return true;
   } catch (err) { log('animal body give failed', err.message); return false; }
 };
+// A claimed dungeon's creature (spawn tag dungeon:<id>:<zone>: a cave's rats, wolves and bears) is searched the same way,
+// by its claiming party (Purr #7DJT, #bug-tracker 1557894681508061319, 8 Oct, Red Ruby Cave: "rats arent harvestable in
+// caves"; the same player took Rat Meat off wild rats that evening). dungeons.js __dboCorpseLoot, earlier in the chain,
+// takes only a lease's humanoids, undead and master, and the client blocks the engine's own container on every actor, so
+// nothing searched any other lease body. The lease is the live one in dungeons.js; without dungeons.js, its lease gone, or
+// for someone outside the party, the body is left to the chain as before.
+const leaseOfBody = (tag, casterId) => {
+  if (!tag.startsWith('dungeon:') || typeof globalThis.__dboCorpseLoot !== 'function') return null;
+  const st = globalThis.__dboDungeons;
+  if (!st || !(st.leases instanceof Map)) return null;
+  for (const l of st.leases.values()) if (l && l.id && tag.startsWith(`dungeon:${l.id}:`)) return l.members instanceof Set && l.members.has(profileOf(casterId)) ? l : null;
+  return null;
+};
 globalThis.__dboAnimalBody = (targetId, casterId) => {
   if (targetId < 0xff000000 || profileOf(casterId) < 0) return null;
   let tag = ''; try { tag = String(mp.get(targetId, 'private.npcSpawner') || ''); } catch (e) { return null; }
-  if (!tag.startsWith('wild:')) return null;
+  const inLease = !tag.startsWith('wild:') && !!leaseOfBody(tag, casterId);
+  if (!tag.startsWith('wild:') && !inLease) return null;
   try { if (mp.get(targetId, 'isDead') !== true) return null; } catch (e) { return null; }
   let entries = [];
   try { const inv = mp.get(targetId, 'inventory'); entries = inv && Array.isArray(inv.entries) ? inv.entries : []; } catch (e) { return null; }
@@ -4325,8 +4339,10 @@ globalThis.__dboAnimalBody = (targetId, casterId) => {
     if (rule) { entries = entries.slice(); for (const id of rule.ids) if (!entries.some((e) => (Number(e.baseId) >>> 0) === id && Number(e.count) > 0)) entries.push({ baseId: id, count: 1 }); }
     try { mp.set(targetId, 'private.dboBodyFed', true); } catch (e) { /* the flag only stops a second helping */ }
   }
+  // keepAllKinds and keepChance name wildlife kinds (wild:<kind>:<n>); a lease tag's middle is its dungeon, so a lease
+  // body keeps none (only its animal parts are handed over)
   const kind = tag.split(':')[1];
-  const keepAll = (ANIMAL_BODY.keepAllKinds || []).includes(kind);
+  const keepAll = !inLease && (ANIMAL_BODY.keepAllKinds || []).includes(kind);
   const keepChance = (ANIMAL_BODY.keepChance || {})[kind] === undefined ? 1 : Math.max(0, Math.min(1, Number((ANIMAL_BODY.keepChance || {})[kind]) || 0));
   const got = [], dropped = [];
   const said = (baseId, count) => { const r = recordOf(baseId); return `${count}x ${(r && r.record.editorId) || baseId.toString(16)}`; };
