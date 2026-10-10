@@ -616,6 +616,8 @@ module.exports = (api) => {
 
   // ---- becoming and ending -------------------------------------------------------------------------------
   // `chosen` is for the ways a player asks for this: the Great Hunt's mark and an admin's /super infect.
+  // The share of a bite's or a feed's fever a race shrugs off (racial.js: the Argonian's Hist, with the overhaul on)
+  const raceDiseaseResist = (t) => { try { const v = typeof globalThis.__dboRaceDiseaseResist === 'function' ? Number(globalThis.__dboRaceDiseaseResist(t >>> 0)) : 0; return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0; } catch (e) { return 0; } };
   const infect = (t, kind, by, chosen) => {
     const s = stateOf(t); if (!s || s.kind === kind || s.disease) return false;
     // A werewolf does not catch vampirism from a scratch, nor a vampire lycanthropy. Lycanthropy's immunity to
@@ -1242,7 +1244,7 @@ module.exports = (api) => {
     } else {
       kind = npcKind(agg); chance = kind === 'vampire' ? C.infectVampire : kind === 'werewolf' ? C.infectWerewolf : 0;
     }
-    if (kind && ts.kind !== kind && Math.random() < chance) infect(tgt, kind, isPlayer(agg) ? agg : 0);
+    if (kind && ts.kind !== kind && Math.random() < chance * (1 - raceDiseaseResist(tgt))) infect(tgt, kind, isPlayer(agg) ? agg : 0);
   };
   globalThis.__dboSuperEat = (a, baseId) => {
     const as = cureTakenAs(baseId); if (!as) return;
@@ -1326,7 +1328,7 @@ module.exports = (api) => {
         if (p) setHealth(t, Math.max(o.long ? 0.05 : 0.1, p.health - (o.long ? Number(C.feed.longHealthTaken) : Number(C.feed.healthTaken))));
         personal(t, o.long ? `${nameTo(t, a)} drinks long from you. The world goes dark.` : `${nameTo(t, a)} drinks from you. You feel weak.`);
         if (o.long) blackout(t);
-        if (Math.random() < C.infectFeed) infect(t, 'vampire', a);
+        if (Math.random() < C.infectFeed * (1 - raceDiseaseResist(t))) infect(t, 'vampire', a);
       }
       if (wasUnfed) personal(a, 'Blood, at last. The withering lifts, and your gifts wake in you.');
       personal(a, o.long ? `You drink long and deep. The blood sings in you: your wounds and breath mend faster for ${C.feed.longSatedHours} hours, and the thirst stays away longer.` : 'You drink deep. The thirst recedes.');

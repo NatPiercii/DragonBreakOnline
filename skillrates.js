@@ -87,6 +87,10 @@ module.exports = (api) => {
       // breakdown too, as salvage.js's are
       for (const item of consumes) noteBreakdown(actorId, item);
     }
+    // The race's one boosted skill (racial.js, the overhaul): after the rate above, never for a staff award
+    if (typeof globalThis.__dboRaceSkillRate === 'function') {
+      try { const r = Number(globalThis.__dboRaceSkillRate(actorId >>> 0, skillId, kind)); if (Number.isFinite(r) && r > 0) rate *= r; } catch (e) { /* no race boost */ }
+    }
     return rate;
   };
 
