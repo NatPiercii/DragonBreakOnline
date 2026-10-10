@@ -8,6 +8,7 @@ import { logError, logTrace } from "../../logging";
 import { adoptHeld } from "./beastLoadout";
 import { howlShoutIds, mayHoldHowl, stripDue } from "./beastHowl";
 import { parseBeastBodies, setBeastBodies } from "../../sync/beastBody";
+import { RaceWanted, raceCheckStep, wantRace } from "./beastRaceCheck";
 
 // WerewolfChange 92c48, DLC1VampireChange 0200283b, DLC1RevertForm 0200cd5c (load order: Dawnguard is index 02)
 const BEAST_POWERS = new Set([0x00092c48, 0x0200283b, 0x0200cd5c]);
@@ -194,6 +195,11 @@ export class BeastFormService extends ClientListener {
         if (!player || !race) { logError(this, "race not found", raceId.toString(16)); return; }
         if (beast) player.unequipAll();
         player.setRace(race);
+        // A revert that lands while the character lies in bleed-out or dead does not hold (GroundedPasta, 10 Oct: downed as
+        // a werewolf, woke at the temple still a wolf on his own screen): watched until it is seen to stick. Only a revert:
+        // a beast race watched the same way would force the form back on someone whose own race returned without a
+        // revert this client saw (a lost dboBeast), which beastHowl already handles
+        this.raceWanted = beast ? null : wantRace(raceId, beast, Date.now());
         // Vanilla brackets the change with Game.SetBeastForm(True/False) (PlayerWerewolfChangeScript,
         // DLC1PlayerVampireChangeScript), and that flag is what shuts the menus. Those scripts never run here,
         // so the menus stayed shut after a revert until a relaunch (Argosh, 2026-09-23).
@@ -319,7 +325,37 @@ export class BeastFormService extends ClientListener {
   private lastSet: number[] = [0, 0, 0];
 
   // The camera is forced once on the change; this keeps it there for as long as the form lasts
+  // The race the server last sent, checked once a second until the character is up and has it (beastRaceCheck.ts)
+  private raceWanted: RaceWanted | null = null;
+  private raceCheckAt = 0;
+
+  private checkRace(): void {
+    if (!this.raceWanted || Date.now() < this.raceCheckAt) return;
+    this.raceCheckAt = Date.now() + 1000;
+    const player = this.sp.Game.getPlayer();
+    let current: Race | null = null;
+    let state: { dead: boolean; bleeding: boolean; raceId: number } | null = null;
+    try {
+      current = player ? player.getRace() : null;
+      state = player ? { dead: player.isDead(), bleeding: player.isBleedingOut(), raceId: current ? current.getFormID() >>> 0 : 0 } : null;
+    } catch (e) { logError(this, "race check failed", e); this.raceWanted = null; return; }
+    const step = raceCheckStep(this.raceWanted, Date.now(), state);
+    const w = this.raceWanted;
+    this.raceWanted = step.next;
+    if (!step.retry || !player) return;
+    const race = Race.from(this.sp.Game.getFormEx(w.raceId));
+    if (!race) { this.raceWanted = null; return; }
+    try {
+      player.setRace(race);
+      try { this.sp.Game.setBeastForm(w.beast); } catch (e) { logError(this, "setBeastForm failed", e); }
+      if (!w.beast) { this.beastRace = 0; this.abilities = null; }
+      this.restoreControls();
+      logTrace(this, "Race did not hold, set again", w.raceId.toString(16), current ? (current.getFormID() >>> 0).toString(16) : "none");
+    } catch (e) { logError(this, "setRace retry failed", e); }
+  }
+
   private onCameraCheck(): void {
+    this.checkRace();
     if (!this.beastRace) return;
     if (this.reapplyAt.length && Date.now() >= this.reapplyAt[0]) { this.reapplyAt.shift(); this.applyHands(); }
     // Something in the engine empties the Vampire Lord's hands a few seconds into the form (Argosh, 20:38); put back
