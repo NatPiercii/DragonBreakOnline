@@ -19,10 +19,12 @@
 #include "formulas/TES5DamageFormula.h"
 #include "script_objects/EspmGameObject.h"
 #include "libespm/RecordHeaderAccess.h"
+#include <chrono>
 #include <cstring>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "CustomPacketMessage.h"
@@ -1885,6 +1887,27 @@ void ActionListener::OnHit(const RawMessageData& rawMsgData,
     spdlog::error("ActionListener::OnHit - MpObjectReference not found for "
                   "hitData.target {:x}",
                   hitData.target);
+    return;
+  }
+
+  // A disabled reference is out of the world for everyone: a logged-out
+  // body after its grace (spawn.ts), a despawned NPC. A client that still
+  // shows one (LHF/Tarhiel, 10 Oct: his old character's body, orphaned on his
+  // own screen by a character switch, took his blows for two hours after it
+  // was disabled) must not land hits on it, nor a disabled actor on anyone.
+  // Logged at most once per aggressor every 10 s: such a client keeps swinging.
+  if (targetRef->IsDisabled() || aggressor->IsDisabled()) {
+    static std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
+      lastDisabledHitLog;
+    const auto now = std::chrono::steady_clock::now();
+    auto& last = lastDisabledHitLog[aggressor->GetFormId()];
+    if (now - last > std::chrono::seconds(10)) {
+      last = now;
+      spdlog::info("ActionListener::OnHit - {:x} -> {:x} refused: {} is "
+                   "disabled",
+                   aggressor->GetFormId(), targetRef->GetFormId(),
+                   targetRef->IsDisabled() ? "the target" : "the aggressor");
+    }
     return;
   }
 

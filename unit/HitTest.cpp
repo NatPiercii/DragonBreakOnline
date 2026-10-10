@@ -60,6 +60,51 @@ TEST_CASE("OnHit damages target actor based on damage formula", "[Hit]")
   DoDisconnect(p, 0);
 }
 
+TEST_CASE("A disabled actor cannot be hit (LHF/Tarhiel, 10 Oct: an orphaned "
+          "body took a client's blows after its despawn)",
+          "[Hit]")
+{
+  PartOne& p = GetPartOne();
+  DoConnect(p, 0);
+  RawMessageData rawMsgData;
+  rawMsgData.userId = 0;
+
+  const uint32_t aggressor = 0xff000000;
+  const uint32_t target = 0xff000001;
+  p.CreateActor(aggressor, { 0, 0, 0 }, 0, 0x3c);
+  p.SetUserActor(0, aggressor);
+  auto& acAggressor = p.worldState.GetFormAt<MpActor>(aggressor);
+  p.CreateActor(target, { 10, 0, 0 }, 0, 0x3c);
+  auto& acTarget = p.worldState.GetFormAt<MpActor>(target);
+
+  HitMessage hitMsg;
+  hitMsg.data.target = target;
+  hitMsg.data.aggressor = 0x14;
+  hitMsg.data.source = 0x0001397E; // iron dagger
+  acAggressor.AddItem(hitMsg.data.source, 1);
+  Equipment eq;
+  eq.inv.entries.push_back(Inventory::Entry(80254, 1, kExtraWornTrue));
+  acAggressor.SetEquipment(eq);
+
+  const auto past = std::chrono::steady_clock::now() - 10s;
+
+  // The target despawned (a logged-out body after its grace): refused
+  p.SetEnabled(target, false);
+  acAggressor.SetLastHitTime(target, past);
+  p.GetActionListener().OnHit(rawMsgData, hitMsg);
+  REQUIRE(acTarget.GetChangeForm().actorValues.healthPercentage == 1.f);
+
+  // The same blow on it enabled lands, so it was the disable that refused it
+  p.SetEnabled(target, true);
+  acAggressor.SetLastHitTime(target, past);
+  p.GetActionListener().OnHit(rawMsgData, hitMsg);
+  REQUIRE(acTarget.GetChangeForm().actorValues.healthPercentage < 1.f);
+
+  p.DestroyActor(aggressor);
+  p.DestroyActor(target);
+  DoDisconnect(p, 0);
+}
+
 TEST_CASE("OnHit function sends ChangeValues message with coorect percentages",
           "[TES5DamageFormula]")
 {
