@@ -1,5 +1,19 @@
 [
   {
+    "title": "Study Magic tells you when it cannot pay",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Before your first spell, Study Magic trains Arcane Arts within your skill limits for the hour and the day. If you have reached a limit, the shelf now tells you before you sit down and says when study pays again. If you reach a limit while you are studying, the sitting ends and tells you why. Before, you could study for twenty minutes and gain nothing."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Lock spells at their proper rank",
     "date": "2026-10-10",
     "version": "Server update",

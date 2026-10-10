@@ -3395,33 +3395,47 @@ const CYRODIIL_PLUGINS = new Set(['bsheartland.esm', 'bsassets.esm']);
 const readSessions = globalThis.__dboReadSessions instanceof Map ? globalThis.__dboReadSessions : (globalThis.__dboReadSessions = new Map()); // actorId -> { nonce, refId, baseId, title, original, shuffled, startedAt, tier }
 const readDeny = new Map();
 // Nate, 9 Oct: a Scholar whose skill can earn nothing right now is not let into a reading round ("people are wasting
-// their time"). The same four limits skillPoints.applyGain applies, read from private.mastery: a skill marked to fall,
-// the hourly bucket, the skill's and the character's daily caps (UTC day), and the structural cap (one Seat above
-// seatAbove, expertCount above expertAbove). null = room to earn; otherwise the line to tell the reader.
+// their time"). The words for the reader; the limits are wheelRoom's, below.
 const scholarNoRoom = (a, now = Date.now()) => {
+  const f = wheelRoom(a, 'scholar', now);
+  if (!f) return null;
+  if (f.why === 'lower') return 'Scholar is marked to fall on your Wheel (K), so reading cannot raise it. Set it to rise or hold first.';
+  if (f.why === 'bucket') return `You have studied all you can take in for now. Rest your eyes: you can read again in about ${f.minutes} minutes.`;
+  if (f.why === 'daily') return 'You have learned all you can from books today. Your Scholar rises again after midnight (UTC).';
+  if (f.why === 'character') return 'You have trained as much as one day allows. Come back to your books after midnight (UTC).';
+  return f.why === 'peak' ? 'Your Scholar is at its peak; books have nothing more to teach you.' : `Your Scholar can rise no further than ${f.cap} while your other skills hold the higher places on the Wheel.`;
+};
+// Whether one held skill can earn anything on the Wheel right now: the same limits skillPoints.applyGain applies, read
+// from private.mastery: a skill marked to fall, the hourly bucket, the skill's and the character's daily caps (UTC day),
+// and the structural cap (one Seat above seatAbove, expertCount above expertAbove). null = room to earn, or the skill is
+// not held (its work is banked); otherwise { why: 'lower'|'bucket'|'daily'|'character'|'cap'|'peak', minutes, cap }.
+// schools.js asks it for Arcane Arts before the first spell (Study Magic pays through the Wheel's award; #QYPM, 9 Oct:
+// three sittings at +0).
+const wheelRoom = (a, skill, now = Date.now()) => {
   const r = (() => { try { const v = mp.get(a, 'private.mastery'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } })();
-  if (!r || !Array.isArray(r.order) || !r.order.includes('scholar')) return null;
-  const s = r.skills && r.skills.scholar; if (!s) return null;
+  if (!r || !Array.isArray(r.order) || !r.order.includes(skill)) return null;
+  const s = r.skills && r.skills[skill]; if (!s) return null;
   const ps = (SKILLS_DEF && SKILLS_DEF.pointSystem) || {}; if (ps.enabled === false) return null;
   const lvl = Number(s.level != null ? s.level : s.points) || 0;
-  if (s.lock === 'lower') return 'Scholar is marked to fall on your Wheel (K), so reading cannot raise it. Set it to rise or hold first.';
+  if (s.lock === 'lower') return { why: 'lower' };
   const perHour = Number(ps.bucketPerHour) || 20, burst = Number(ps.bucketBurst) || 13;
   const b = s.bucket && Number.isFinite(Number(s.bucket.tokens)) ? s.bucket : null;
   const tokens = b ? Math.min(burst, Number(b.tokens) + ((now - Number(b.at)) / 3600000) * perHour) : burst;
-  if (tokens < 0.25) return `You have studied all you can take in for now. Rest your eyes: you can read again in about ${Math.max(1, Math.ceil(((1 - tokens) / perHour) * 60))} minutes.`;
+  if (tokens < 0.25) return { why: 'bucket', minutes: Math.max(1, Math.ceil(((1 - tokens) / perHour) * 60)) };
   const today = new Date(now).toISOString().slice(0, 10);
   const caps = ps.dailyCaps || {};
   const capToday = lvl >= 90 ? Number(caps.master) || 40 : lvl >= 75 ? Number(caps.expert) || 120 : Number(caps.low) || 240;
-  if ((s.day === today ? Number(s.spentToday) || 0 : 0) >= capToday) return 'You have learned all you can from books today. Your Scholar rises again after midnight (UTC).';
-  if ((r.day === today ? Number(r.spentToday) || 0 : 0) >= (Number(ps.characterDaily) || 720)) return 'You have trained as much as one day allows. Come back to your books after midnight (UTC).';
-  const levels = Object.entries(r.skills || {}).filter(([k]) => k !== 'scholar').map(([, v]) => Number(v && (v.level != null ? v.level : v.points)) || 0);
+  if ((s.day === today ? Number(s.spentToday) || 0 : 0) >= capToday) return { why: 'daily' };
+  if ((r.day === today ? Number(r.spentToday) || 0 : 0) >= (Number(ps.characterDaily) || 720)) return { why: 'character' };
+  const levels = Object.entries(r.skills || {}).filter(([k]) => k !== skill).map(([, v]) => Number(v && (v.level != null ? v.level : v.points)) || 0);
   const capPer = Number(ps.capPerSkill) || 100, seatAbove = Number(ps.seatAbove) || 90, expertAbove = Number(ps.expertAbove) || 75;
   let cap = capPer;
   if (lvl <= seatAbove && levels.filter((v) => v > seatAbove).length >= (Number(ps.seatCount) || 1)) cap = Math.min(cap, seatAbove);
   if (lvl <= expertAbove && levels.filter((v) => v > expertAbove).length >= (Number(ps.expertCount) || 3)) cap = Math.min(cap, expertAbove);
-  if (lvl >= cap) return lvl >= capPer ? 'Your Scholar is at its peak; books have nothing more to teach you.' : `Your Scholar can rise no further than ${cap} while your other skills hold the higher places on the Wheel.`;
+  if (lvl >= cap) return lvl >= capPer ? { why: 'peak', cap } : { why: 'cap', cap };
   return null;
 };
+globalThis.__dboWheelRoom = wheelRoom;
 globalThis.__dboScholarNoRoom = scholarNoRoom;
 // The tome a reading presses between the pages (Nate, 10 Oct, #suggestions: "5 courage tomes", "10 lesser wards"):
 // - ranks by Scholar tier: Novice to Apprentice readers Novice tomes, Adept and Expert up to Apprentice, Master up to

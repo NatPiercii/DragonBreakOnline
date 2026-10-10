@@ -806,6 +806,21 @@ module.exports = (api) => {
   // With a school given, only a spell of that school: the shelves pay the primary, so a mage who changed school studies
   // the new one until a spell of it is in the book (Z63J, 4 Oct: "You have learned Bound Sword" refused Destruction)
   const firstSpell = (a, school) => bookOf(a).find((sp) => sp && SCHOOLS.includes(sp.school) && (!school || sp.school === school) && (!sp.book || sp.book === C.arcaneSkill)) || null;
+  // Before the first spell a sitting pays Arcane Arts through the Wheel's award, so a Wheel with no room for it pays +0
+  // (Masked Person #QYPM, 9 Oct 23:11-23:32Z: three sittings, 12 minutes and more, nothing). gamemode.js wheelRoom reads the
+  // limits the award meets (the Scholar check of aa387026). null = room, or { why, line }
+  const arcaneNoRoom = (a, now = Date.now()) => {
+    let f = null;
+    try { f = typeof globalThis.__dboWheelRoom === 'function' ? globalThis.__dboWheelRoom(a, C.arcaneSkill, now) : null; } catch (e) { log('schools: wheel room failed', e.message); }
+    if (!f || !f.why) return null;
+    const line = f.why === 'lower' ? 'Arcane Arts is marked to fall on your Wheel (K), so study cannot raise it. Set it to rise or hold first.'
+      : f.why === 'bucket' ? `You have studied all you can take in for now. Rest your mind: you can study again in about ${f.minutes || 1} minutes.`
+      : f.why === 'daily' ? 'You have learned all you can of Arcane Arts today. Study pays again after midnight (UTC).'
+      : f.why === 'character' ? 'You have trained as much as one day allows. Come back to the books after midnight (UTC).'
+      : f.why === 'peak' ? 'Your Arcane Arts is at its peak; the books have nothing more to teach you.'
+      : `Your Arcane Arts can rise no further than ${f.cap} while your other skills hold the higher places on the Wheel.`;
+    return { why: f.why, line };
+  };
   // Why `a` cannot study now, or ''
   const studyRefusal = (a, s) => {
     if (!C.enabled || !C.study.enabled) return 'Study is closed.';
@@ -815,6 +830,8 @@ module.exports = (api) => {
     if (first && (!(s && s.primary) || levelOf(s, s.primary) >= PICK_AT)) return `You have learned ${first.name}; the shelves have nothing more to teach you. Your schools grow now by casting and in class.`;
     const b = studyBudget(s);
     if (b.leftMs <= 0) return `You've done enough studying for the day. Come back in ${inWords(b.resetsIn || windowMs())}.`;
+    // Arcane Arts not taken up yet: its first sitting takes it up, and a fresh skill has room
+    if (beforeFirst(a, s) && arcaneOf(a).held) { const full = arcaneNoRoom(a); if (full) return full.line; }
     return '';
   };
   // A panel takes focus only when the player opened it or clicked in it; the server's own refreshes (the study tick, the
@@ -875,7 +892,7 @@ module.exports = (api) => {
     audit(`SCHOOLS ${who(a)} began studying ${s.primary || 'Arcane Arts'} at ${descOf(ref)}`);
     openStudy(a, ref, `You open the books on ${s.primary || 'the magical arts'}.`, 'ok');
   };
-  const stopStudy = (a, why) => {
+  const stopStudy = (a, why, line) => {
     const ses = S.studying.get(a >>> 0);
     if (!ses) return;
     S.studying.delete(a >>> 0);
@@ -885,7 +902,8 @@ module.exports = (api) => {
     save(a, s);
     const what = s.primary || 'Arcane Arts';
     audit(`SCHOOLS ${who(a)} stopped studying (${why}): +${Math.round(ses.gained * 10) / 10} units of ${what}`);
-    if (why !== 'offline' && why !== 'closed' && why !== 'reached') personal(a, why === 'budget' ? `You've done enough studying for the day. Come back in ${inWords(studyBudget(s).resetsIn || windowMs())}.` : `You close the books.${ses.gained > 0 ? ` Your ${s.primary ? `study of ${what}` : what} stands at ${s.primary ? levelOf(s, s.primary) : arcaneOf(a).level}.` : ''}`);
+    if (line) personal(a, line);
+    else if (why !== 'offline' && why !== 'closed' && why !== 'reached') personal(a, why === 'budget' ? `You've done enough studying for the day. Come back in ${inWords(studyBudget(s).resetsIn || windowMs())}.` : `You close the books.${ses.gained > 0 ? ` Your ${s.primary ? `study of ${what}` : what} stands at ${s.primary ? levelOf(s, s.primary) : arcaneOf(a).level}.` : ''}`);
   };
   // A sitting before the first spell pays Arcane Arts through the Wheel's award, inside its limits; the units it gave
   const studyArcane = (a, ref) => {
@@ -924,7 +942,18 @@ module.exports = (api) => {
       if (C.study.wheelEverySeconds > 0 && now - ses.lastWheel >= C.study.wheelEverySeconds * 1000) {
         ses.lastWheel = now;
         if (s.primary) wheel(a, idOf(SCHOOL_SPELL[s.primary] || ''), C.study.wheelValue, 1);
-        else ses.gained += studyArcane(a, ses.ref);
+        else {
+          const got = studyArcane(a, ses.ref);
+          ses.gained += got;
+          // The Wheel has no room left: the sitting ends, saying when it pays again. An empty hourly bucket that still paid
+          // this minute keeps going, since it refills a little each minute
+          const full = arcaneNoRoom(a, now);
+          if (full && (got <= 0 || full.why !== 'bucket') && !(FIRST_AT && arcaneOf(a).level >= FIRST_AT)) {
+            stopStudy(a, 'wheel', full.line);
+            if (studyAt.get(a) === ses.ref) openStudy(a, ses.ref, full.line, 'refused', false);
+            continue;
+          }
+        }
       }
       // Arcane Arts has reached the first spell: the books close and the choice opens here
       if (!s.primary && FIRST_AT && arcaneOf(a).level >= FIRST_AT) { stopStudy(a, 'reached'); firstCheck(a, 'study'); continue; }
