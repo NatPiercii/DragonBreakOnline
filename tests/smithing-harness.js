@@ -64,7 +64,8 @@ const mp = {
 const given = [];
 const load = (smithing) => {
   for (const k of Object.keys(globalThis)) if (/^__dbo(Smith|Manuals|TemperCap|TechniqueDrop)/.test(k)) delete globalThis[k];
-  const cfg = { smithing, manuals: { shop: { cells: ['cell'] } } };
+  // The Synod's shop is off by default since 10 Oct (Nate); switched on here so the legacy shop path stays tested
+  const cfg = { smithing, manuals: { shop: { enabled: true, cells: ['cell'] } } };
   const common = { mp, log: () => {}, personal: (a, t) => told.push([a, t]), audit: (t) => audits.push(t), who: (a) => `#${(a >>> 0).toString(16)}`, display: (a) => `#${(a >>> 0).toString(16)}`, cfg,
     registerChatCommand: (n, fn) => cmds.set(n, fn), onlineActors: () => [A, SUP, ORCSMITH, STAFF], findByName: (q) => ({ a: A, sup: SUP }[q] || 0), isAdmin: (a) => a === STAFF,
     sendPacket: () => true, itemName: (d) => ({ '13989:Skyrim.esm': 'Steel Sword', '12eb7:Skyrim.esm': 'Iron Sword', '13991:Skyrim.esm': 'Orcish Sword', '139b4:Skyrim.esm': 'Dwarven Sword', '7a2:Skyrim.esm': 'Ancient Imperial Shield', '7a3:Skyrim.esm': 'Imperial Helmet' }[d] || ''), every: (n, ms, fn) => timers.set(n, fn), giveItem: (a, id, n) => { given.push([a, id, n]); return true; }, takeGold: () => true, depositToTreasury: () => 0, notify: () => {} };

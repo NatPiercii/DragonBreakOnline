@@ -12,8 +12,11 @@
 // who sets Blacksmith aside cannot forge with it and needs no second reading on taking it up again. A marker missing at
 // login is put back from the record.
 // Where manuals come from:
-//   the Synod sells those up to shop.maxTier (T2) at the Scholars' Ledger in the Conclave, for shop.priceMultiplier x
-//     the book's value, paid into the Bruma treasury;
+//   a blacksmith's ledger (DragonBreak Online Edits.esp ACTI BlacksmithLedger, found by editor id; salvage.js opens it) sells
+//     the basic schematics (smithShop.families: Steel) for smithShop.priceMultiplier x the book's
+//     value, the gold split by ledgersale.js between the building's owner, the hold's tax and a sink (Nate, 10 Oct);
+//   the Synod no longer sells schematics at the Scholars' Ledger (Nate, 10 Oct: "stop selling schematics at the synod"):
+//     shop.enabled is off; on, it sells those up to shop.maxTier in shop.cells into shop.treasury as before;
 //   boss chests (dungeons.js bossLoot), by the lease's difficulty; T4 only in hard and nightmare leases and rarely; never
 //     T5 (Daedric, dragon: staff-granted with /manual grant, audit-logged, like artifacts); never outside the provinces
 //     its material belongs to (provinces, from regions-overrides.json's families);
@@ -35,13 +38,17 @@ module.exports = (api) => {
 
   const D = {
     enabled: true, skill: 'blacksmith', scholarSkill: 'scholar', consume: true,
-    shop: { enabled: true, maxTier: 2, priceMultiplier: 3, cells: ['20ff:BSHeartland.esm'], treasury: 'bruma' },
+    shop: { enabled: false, maxTier: 2, priceMultiplier: 3, cells: ['20ff:BSHeartland.esm'], treasury: 'bruma' },
     loot: { enabled: true, chance: { story: 0.03, normal: 0.05, hard: 0.08, nightmare: 0.1 },
       maxTier: { story: 2, normal: 3, hard: 4, nightmare: 4 }, rareTier: 4, rareWeight: 0.2, staffTier: 5,
       capManuals: { steel: ['steel', 'silver', 'chainmail'], iron: [] } },
     provinces: {},
     copy: { enabled: true, paperId: '7cba1:BSHeartland.esm', paper: 1 },
     skillBooks: { enabled: true, av: 10, weight: 3 },
+    // The basic schematics (Nate, 10 Oct: "bronze, iron, steel, etc."): tier 1 needs no book, so the tier 2 books not tied to
+    // a place of loot; Ancient Imperial (forts: "should be found in dungeons"), Ancient Nord and Nordic (barrows), Goblin
+    // (camps) and Falmer (hives) are not sold
+    smithShop: { enabled: true, families: ['steel'], priceMultiplier: 3 },
   };
   const raw = cfg.manuals || {};
   const C = Object.assign({}, D, raw, {
@@ -49,6 +56,7 @@ module.exports = (api) => {
     loot: Object.assign({}, D.loot, raw.loot || {}),
     copy: Object.assign({}, D.copy, raw.copy || {}),
     skillBooks: Object.assign({}, D.skillBooks, raw.skillBooks || {}),
+    smithShop: Object.assign({}, D.smithShop, raw.smithShop || {}),
     provinces: Object.assign({}, D.provinces, raw.provinces || {}),
   });
   const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
@@ -331,6 +339,32 @@ module.exports = (api) => {
     try { if (typeof notify === 'function') notify(a, `${m.title} added`); } catch (e) { /* offline */ }
     return { ok: true, text: `You buy ${m.title} for ${price} gold. Read it to learn it; the book is used up as you learn.` };
   };
+  // ---- a blacksmith's ledger (salvage.js opens it): the basic schematics, the gold split by ledgersale.js ----------------
+  const SMITH_FAMILIES = new Set((Array.isArray(C.smithShop.families) ? C.smithShop.families : []).map((k) => String(k).toLowerCase()));
+  const smithStock = () => READY.filter((m) => SMITH_FAMILIES.has(String(m.key).toLowerCase()) && !m.staffOnly && !m.withheld)
+    .sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name));
+  const smithPrice = (m) => Math.max(1, Math.round((m.value || 0) * (Number(C.smithShop.priceMultiplier) || 1)));
+  const smithOpen = () => C.enabled && C.smithShop.enabled && typeof globalThis.__dboLedgerSale === 'function';
+  // The ledger's stock for this buyer, each { bookId, label }; [] when it sells none
+  globalThis.__dboManualsSmithShop = (a) => {
+    if (!smithOpen()) return [];
+    const gold = goldOf(a);
+    return smithStock().map((m) => ({ bookId: m.bookId, label: `${m.title}, ${smithPrice(m)} gold${gold < smithPrice(m) ? ': more than you carry' : ''}` }));
+  };
+  // { ok, text }. ledger: the ledger's ref, whose building is paid
+  globalThis.__dboManualsSmithBuy = (a, bookId, ledger) => {
+    const m = BY_BOOK.get(bookId >>> 0);
+    if (!smithOpen()) return { ok: false, text: 'This ledger sells nothing just now.' };
+    if (!m || !smithStock().includes(m)) return { ok: false, text: 'That schematic is not sold here.' };
+    const price = smithPrice(m);
+    if (!takeGold(a, price)) return { ok: false, text: `${m.title} costs ${price} gold, and you do not have it.` };
+    if (!giveItem(a, m.bookId, 1)) { giveItem(a, 0xf, price); return { ok: false, text: 'The book could not be handed over. Your gold is returned.' }; }
+    let sale = null;
+    try { sale = globalThis.__dboLedgerSale({ buyer: a, place: ledger || a, price, what: m.title }); } catch (e) { log('manuals: ledger sale payout failed', e.message); }
+    audit(`MANUAL ${who(a)} bought ${m.name} (craft tier ${m.tier}) at a blacksmith's ledger ${(Number(ledger) >>> 0).toString(16)} for ${price} gold${sale ? '' : ' (the payout failed; see the log)'}`);
+    try { if (typeof notify === 'function') notify(a, `${m.title} added`); } catch (e) { /* offline */ }
+    return { ok: true, text: `You buy ${m.title} for ${price} gold. Read it to learn it; the book is used up as you learn.` };
+  };
   const dayCap = () => Math.max(0, Number(((cfg.reading || {}).bookDailyCap)) || 6);
   const today = () => new Date(Date.now()).toISOString().slice(0, 10);
   const copiesToday = (a) => { const c = get(a, COPIES, null); return c && c.day === today() ? Number(c.n) || 0 : 0; };
@@ -417,5 +451,5 @@ module.exports = (api) => {
     return personal(a, 'Usage: /manual list | known <player> | grant <material> <player>');
   }, { admin: true, help: 'smithing manuals: list, who knows what, and grant one in roleplay (T5 are staff-given)' });
 
-  log(`manuals ${C.enabled ? 'on' : 'off'}: ${READY.length} of ${MANUALS.length} manuals in the load order${READY.length < MANUALS.length ? ` (waiting: ${MANUALS.filter((m) => !m.ready).map((m) => m.key).join(', ')})` : ''}; Synod up to T${C.shop.maxTier}, x${C.shop.priceMultiplier}; boss chests ${C.loot.enabled ? 'on' : 'off'}, T${C.loot.staffTier} staff-given; copies ${C.copy.enabled ? 'on' : 'off'}; smithing skill books ${C.skillBooks.enabled ? `on (${typeof globalThis.__alduinakMasteryAward === 'function' ? 'award ready' : 'waiting for the award'})` : 'off'}`);
+  log(`manuals ${C.enabled ? 'on' : 'off'}: ${READY.length} of ${MANUALS.length} manuals in the load order${READY.length < MANUALS.length ? ` (waiting: ${MANUALS.filter((m) => !m.ready).map((m) => m.key).join(', ')})` : ''}; Synod ${C.shop.enabled ? `up to T${C.shop.maxTier}, x${C.shop.priceMultiplier}` : 'off'}; blacksmith's ledger ${C.smithShop.enabled ? `${smithStock().map((m) => m.key).join('+') || 'nothing ready'}, x${C.smithShop.priceMultiplier}` : 'off'}; boss chests ${C.loot.enabled ? 'on' : 'off'}, T${C.loot.staffTier} staff-given; copies ${C.copy.enabled ? 'on' : 'off'}; smithing skill books ${C.skillBooks.enabled ? `on (${typeof globalThis.__alduinakMasteryAward === 'function' ? 'award ready' : 'waiting for the award'})` : 'off'}`);
 };

@@ -12,7 +12,10 @@
 // college (prepareCells: the Synod Conclave, the College of Winterhold) or beside a Scholars' Ledger. The College of
 // Whispers' hall, Frostcrag Spire, is not a prepareCells college: its mages change them at its ledger (Nate, 4 Oct).
 // Spells the engine holds outside the book (granted outright, never studied) take no place. /forget is retired.
-// /teach passes a spell to a nearby player, /tomes is the college shop inside the Synod enclave. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
+// /teach passes a spell to a nearby player. The college tome shop inside the Synod enclave opens from a button on the
+// Scholars' Ledger there (salvage.js; Nate, 10 Oct: "replace /Tomes with a button in Scholar ledger"); /tomes still opens
+// it for now and says to use the ledger (tomesCommand). A tome's price is split by ledgersale.js between the building's
+// owner, the hold's tax and a sink (shopSplit), not paid whole into shopTreasury. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
 // tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
 // shopProvince; /teach carries a spell anywhere.
 //
@@ -53,6 +56,11 @@ module.exports = (api) => {
     // worth it")
     shopStock: 4,
     shopTreasury: 'bruma',
+    // ledgersale.js splits each tome's price (owner, tax, sink); off, or without ledgersale.js, it all goes to shopTreasury
+    shopSplit: true,
+    // The Scholars' Ledger in shopCells shows a "Buy spell tomes" button (salvage.js); /tomes keeps working and points to it
+    shopAtLedger: true,
+    tomesCommand: true,
     shopPreferPlugins: ['BSHeartland.esm', 'BSAssets.esm'],
     shopExcludePlugins: ['Gray Fox Cowl.esm', 'SurWR.esp'],
     // WillotheWisp: the summon crashes the game (gamemode.js castBlocks)
@@ -664,6 +672,10 @@ module.exports = (api) => {
   };
 
   const shopNonces = globalThis.__dboTomeNonces instanceof Map ? globalThis.__dboTomeNonces : (globalThis.__dboTomeNonces = new Map());
+  // The ledger each open shop came from (its building is paid for the sale); outlives a reload like the nonces
+  const shopLedger = globalThis.__dboTomeLedger instanceof Map ? globalThis.__dboTomeLedger : (globalThis.__dboTomeLedger = new Map());
+  // The name players read for the seller: the faction whose hall this is (guilds.js), else the Synod as before
+  const sellerName = (a) => { try { const n = typeof globalThis.__dboLedgerPlaceName === 'function' ? globalThis.__dboLedgerPlaceName(shopLedger.get(a >>> 0) || a) : ''; return n || 'The Synod'; } catch (e) { return 'The Synod'; } };
   const openShop = (a, result, resultKind) => {
     const nonce = `${(a >>> 0).toString(16)}-${Date.now().toString(36)}`;
     shopNonces.set(a >>> 0, nonce);
@@ -675,7 +687,7 @@ module.exports = (api) => {
     const admin = !!R && R.bypass(a);
     const shelfLine = `The shelf changes each Monday. This week ${stockFor(a, R, admin).length ? 'it holds tomes chosen for your study' : 'it holds no tome your study can take'}.`;
     openWidget(a, {
-      type: 'tomeShop', id: SHOP_ID, nonce, title: R ? `The Synod: Spell Tomes of ${R.provinceName(CFG.shopProvince)}` : 'The Synod: Spell Tomes', gold,
+      type: 'tomeShop', id: SHOP_ID, nonce, title: R ? `${sellerName(a)}: Spell Tomes of ${R.provinceName(CFG.shopProvince)}` : `${sellerName(a)}: Spell Tomes`, gold,
       canBuy: !whyNot, nextPurchaseAt: nextBuyAt(a), whyNot,
       skills: held.map((x) => ({ id: x.s.id, label: x.s.label, tier: x.tier, tierName: TIER_NAMES[x.tier], schools: (x.s.vanillaSkills || []).slice() })),
       tomes: stockFor(a, R, admin).filter((t) => schools.has(t.school)).map((t) => {
@@ -688,11 +700,31 @@ module.exports = (api) => {
       result: result || shelfLine, resultKind: result ? (resultKind || '') : '',
     }, true);
   };
+  // The Scholars' Ledger's "Buy spell tomes" button (salvage.js): shown where the shop is; opens it for that ledger
+  globalThis.__dboTomeShopHere = (a) => !!(CFG.enabled && CFG.shopAtLedger && inShop(a));
+  globalThis.__dboTomeShopOpen = (a, ledger) => {
+    if (!globalThis.__dboTomeShopHere(a)) return false;
+    if (ledger) shopLedger.set(a >>> 0, ledger >>> 0); else shopLedger.delete(a >>> 0);
+    openShop(a);
+    return true;
+  };
+  const LEDGER_HINT = "Spell tomes are bought at the Scholars' Ledger now: use the ledger and choose Buy spell tomes.";
   registerChatCommand('tomes', (a) => {
     if (!CFG.enabled) return personal(a, 'The tome shop is closed.');
-    if (!inShop(a)) return personal(a, 'The court mage sells spell tomes inside the Synod Conclave in Bruma.');
+    if (!inShop(a)) return personal(a, CFG.shopAtLedger ? LEDGER_HINT : 'The court mage sells spell tomes inside the Synod Conclave in Bruma.');
+    if (!CFG.tomesCommand) return personal(a, LEDGER_HINT);
+    if (CFG.shopAtLedger) personal(a, `${LEDGER_HINT} /tomes still opens the shop for a while.`);
+    shopLedger.delete(a >>> 0);
     openShop(a);
-  }, { help: 'The Synod tome shop (inside the Synod Conclave; college members, one tome a week)' });
+  }, { help: "The tome shop (now a button on the Scholars' Ledger in the Synod Conclave; college members, one tome a week)" });
+  // The tome's price: split by ledgersale.js (the building's owner, the hold's tax, a sink), else all to shopTreasury
+  const payForTome = (a, t, price) => {
+    if (CFG.shopSplit && typeof globalThis.__dboLedgerSale === 'function') {
+      try { const r = globalThis.__dboLedgerSale({ buyer: a, place: shopLedger.get(a >>> 0) || a, price, what: t.title }); return `split: ${r.text}`; }
+      catch (e) { log('spells: tome sale payout failed', e.message); return 'the payout failed'; }
+    }
+    return `${depositToTreasury(CFG.shopTreasury, price)} to ${CFG.shopTreasury} treasury`;
+  };
 
   // { ok, text } of a purchase
   const buy = (a, bookId) => {
@@ -709,9 +741,9 @@ module.exports = (api) => {
     const price = priceOf(t);
     if (!takeGold(a, price)) return { ok: false, text: `${t.title} costs ${price} gold, and you do not have it.` };
     if (!giveItem(a, t.bookId, 1)) { giveItem(a, GOLD, price); return { ok: false, text: 'The court mage could not hand you the tome. Your gold is returned.' }; }
-    const paid = depositToTreasury(CFG.shopTreasury, price);
+    const paid = payForTome(a, t, price);
     set(a, BOUGHT, Date.now());
-    audit(`SPELL ${who(a)} bought tome ${descOf(t.bookId)} ${t.title} for ${price} gold (${paid} to ${CFG.shopTreasury} treasury)`);
+    audit(`SPELL ${who(a)} bought tome ${descOf(t.bookId)} ${t.title} for ${price} gold (${paid})`);
     return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. Your next tome is a week away.` };
   };
   const freshShop = (a, args) => shopNonces.get(a >>> 0) === String(args[0] || '');
@@ -720,7 +752,7 @@ module.exports = (api) => {
     const r = buy(a, idOf(String(args[1] || '')));
     openShop(a, r.text, r.ok ? 'ok' : 'refused');
   });
-  onUi('tomeClose', (a) => { shopNonces.delete(a >>> 0); closeWidget(a, SHOP_ID); });
+  onUi('tomeClose', (a) => { shopNonces.delete(a >>> 0); shopLedger.delete(a >>> 0); closeWidget(a, SHOP_ID); });
 
   // ---- menu answers ----------------------------------------------------------------------------------
   onUi('spellsChoose', (a, args) => {
@@ -741,7 +773,7 @@ module.exports = (api) => {
     }
   });
   onUi('spellsClose', (a) => closeMenu(a));
-  onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) shopNonces.delete(a >>> 0); if (widgetId === BOOK_ID) { bookNonces.delete(a >>> 0); bookLedger.delete(a >>> 0); } });
+  onUi('close', (a, args, widgetId) => { if (widgetId === MENU_ID) { pending.delete(a >>> 0); offers.delete(a >>> 0); } if (widgetId === SHOP_ID) { shopNonces.delete(a >>> 0); shopLedger.delete(a >>> 0); } if (widgetId === BOOK_ID) { bookNonces.delete(a >>> 0); bookLedger.delete(a >>> 0); } });
 
   // For the F3 Magic tab (schools.js __dboMagicTab): the book, the prepared spells and the spells held outside the book
   // (granted outright, never studied: they take no prepared place), and whether they may be changed where `a` stands

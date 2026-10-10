@@ -1,5 +1,35 @@
 [
   {
+    "title": "Schematics move to the forge, tomes to the ledger",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Schematics",
+        "items": [
+          "The Scholars' Ledger in the Synod Conclave no longer sells smithing schematics. A Scholar can still copy out a schematic they have learned there.",
+          "A blacksmith's ledger sells the basic schematics, starting with Steel. The first one arrives with the next plugin update. Ancient Imperial schematics are found in Cyrodiil's forts.",
+          "Your Blacksmithing page in the F3 journal says where each schematic comes from now."
+        ]
+      },
+      {
+        "heading": "Spell tomes",
+        "items": [
+          "Spell tomes are now bought from a button on the Scholars' Ledger in the Synod Conclave: use the ledger and choose Buy spell tomes. The shelf, prices and the one tome a week are unchanged.",
+          "The /tomes command still opens the shop for a while, and reminds you to use the ledger."
+        ]
+      },
+      {
+        "heading": "Where the gold goes",
+        "items": [
+          "When a ledger sells a schematic or a tome, the hold takes its tax, a tenth of the price leaves the world to keep gold from piling up, and the rest goes to the treasury of the faction whose hall the ledger stands in: tomes bought at the Synod's ledger pay the Synod.",
+          "A ledger in any other building pays the building's owner into their bank account, even when they are offline. A building nobody owns pays the hold."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Schematics in ruins and boss chests",
     "date": "2026-10-10",
     "version": "Server update",

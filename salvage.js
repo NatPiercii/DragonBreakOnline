@@ -7,7 +7,10 @@
 // gives back. The first row works the station as usual: it arms one pass, and the next use goes to the engine, the way
 // rest.js's "Lie down" does. A player without the skill, or with nothing to break down, never sees the panel.
 // Nate's book breakdown ledger (BookBreakdown, config bookBreakdownBases) first asks: "Your spellbook" (anyone; spells.js
-// lets spells be prepared beside a ledger) or "Break down books" (a Scholar, told why when nothing can be done).
+// lets spells be prepared beside a ledger) or "Break down books" (a Scholar, told why when nothing can be done). Where
+// spells.js keeps its tome shop (the Synod Conclave) it also offers "Buy spell tomes" (Nate, 10 Oct, in place of /tomes).
+// A blacksmith's ledger (DragonBreak Online Edits.esp ACTI BlacksmithLedger, config smithLedgerBases; Nate, 10 Oct) opens
+// a list of the basic schematics manuals.js sells there; nothing happens where the plugin does not carry it.
 //
 // What comes back (salvage.json, from tooling/make_salvage.py): a share of the materials of the recipe that makes the
 // item, by the player's tier in the station's skill (shareByTier, Novice 25 % .. Master 75 %), each rounded down, with
@@ -27,6 +30,7 @@ module.exports = (api) => {
     shareByTier: [0.25, 0.35, 0.5, 0.6, 0.75],
     pageSize: 7, useWindowSeconds: 20, reachMeters: 6.5,
     bookBreakdownBases: ['BookBreakdown'],
+    smithLedgerBases: ['BlacksmithLedger'],
     paper: '7cba1:BSHeartland.esm', leatherStrips: '800e4:Skyrim.esm', bookPaper: 2, bookStrips: 1, notePaper: 1,
   }, cfg.salvage || {});
   // A number: the client relay drops a widget whose id is not a positive number (dboRelayService.ts:202), so the
@@ -41,6 +45,8 @@ module.exports = (api) => {
     // A station made for it (DragonBreak Online Edits.esp BookBreakdown, the ledger in the Synod Conclave, 2026-09-28): its
     // script blocks the game's own activation, so it has no "use it again" row and always answers
     { id: 'ledger', skill: 'scholar', label: "Scholars' Ledger", books: true, dedicated: true, keywords: [], bases: CFG.bookBreakdownBases || [] },
+    // A blacksmith's ledger: it sells schematics (manuals.js), it takes nothing apart
+    { id: 'smithLedger', skill: 'blacksmith', label: "blacksmith's ledger", dedicated: true, shop: true, keywords: [], bases: CFG.smithLedgerBases || [] },
   ];
   const TIER_NAMES = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
 
@@ -242,11 +248,12 @@ module.exports = (api) => {
   // The ledger's first menu: the spellbook (anyone; spells.js lets spells be prepared beside a ledger) or the books
   // A refusal reopens this menu with the reason as its title, so the cursor never drops between panels.
   const openLedgerMenu = (a, target, station, note) => {
+    if (station.shop) return openSmithLedger(a, target, station, note);
     S.pending.set(a >>> 0, { target: target >>> 0, station: station.id, page: 0, menu: true });
     log(`salvage: ${who(a)} opened the ${station.label} menu at ${descOf(target)}${note ? ` (${note})` : ''}`);
     openWidget(a, {
       type: 'contextMenu', id: WIDGET_ID, mode: 'menu', targetName: note || station.label,
-      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }].concat(schoolActions(a), [{ id: 'books', label: 'Break down old books' }], manualActions(a)),
+      actions: [{ id: 'spellbook', label: 'Open your Spell Book' }].concat(schoolActions(a), [{ id: 'books', label: 'Break down old books' }], manualActions(a), tomeActions(a)),
       events: { action: 'dbo:salvageChoose', close: 'dbo:salvageClose' },
     }, true);
   };
@@ -259,6 +266,23 @@ module.exports = (api) => {
     // Only to a Scholar who has a manual to copy, as the buy row: shown to everyone, it could only refuse (Worker B's review)
     try { if (typeof globalThis.__dboManualsCopyList === 'function' && globalThis.__dboManualsCopyList(a).length) out.push({ id: 'manualsCopy', label: 'Copy a smithing manual' }); } catch (e) { /* manuals.js not loaded */ }
     return out;
+  };
+  // The tome shop (spells.js) where it stands: a button in place of /tomes
+  const tomeActions = (a) => { try { return typeof globalThis.__dboTomeShopHere === 'function' && globalThis.__dboTomeShopHere(a) ? [{ id: 'tomes', label: 'Buy spell tomes' }] : []; } catch (e) { return []; } };
+  // A blacksmith's ledger: the schematics it sells, each row sb:<book id>. Its title names the hall's faction where known
+  const openSmithLedger = (a, target, station, note) => {
+    let rows = [];
+    try { rows = typeof globalThis.__dboManualsSmithShop === 'function' ? globalThis.__dboManualsSmithShop(a) || [] : []; } catch (e) { rows = []; }
+    let place = '';
+    try { place = typeof globalThis.__dboLedgerPlaceName === 'function' ? globalThis.__dboLedgerPlaceName(target) || '' : ''; } catch (e) { place = ''; }
+    S.pending.set(a >>> 0, { target: target >>> 0, station: station.id, page: 0, menu: true });
+    log(`salvage: ${who(a)} opened a ${station.label} at ${descOf(target)} (${rows.length} for sale)${note ? ` (${note})` : ''}`);
+    openWidget(a, {
+      type: 'contextMenu', id: WIDGET_ID, mode: 'menu',
+      targetName: note || (rows.length ? `${place ? `${place}: s` : 'S'}chematics for sale` : 'This ledger has nothing for sale just now.'),
+      actions: rows.map((r) => ({ id: `sb:${r.bookId}`, label: r.label })),
+      events: { action: 'dbo:salvageChoose', close: 'dbo:salvageClose' },
+    }, true);
   };
   // A list of manuals to buy or copy, in the same widget; each row is <prefix><book id>
   const openManualList = (a, target, station, kind, note) => {
@@ -307,6 +331,23 @@ module.exports = (api) => {
       return;
     }
     if (id === 'more') { openPanel(a, p.target, station, p.page + 1); return; }
+    if (station.shop) {
+      if (!id.startsWith('sb:')) return;
+      try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
+      const r = typeof globalThis.__dboManualsSmithBuy === 'function' ? globalThis.__dboManualsSmithBuy(a, Number(id.slice(3)) >>> 0, p.target) : { ok: false, text: 'This ledger sells nothing just now.' };
+      log(`salvage: ${who(a)} bought at the ${station.label}: ${r.text}`);
+      return openSmithLedger(a, p.target, station, r.text);
+    }
+    if (station.dedicated && id === 'tomes') {
+      try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
+      log(`salvage: ${who(a)} chose tomes at the ${station.label}`);
+      // The shop opens first and takes the cursor; this menu closes after it (panel handoff)
+      const done = typeof globalThis.__dboTomeShopOpen === 'function' && globalThis.__dboTomeShopOpen(a, p.target);
+      if (!done) return openLedgerMenu(a, p.target, station, 'Spell tomes are not sold here.');
+      S.pending.delete(a >>> 0);
+      closeWidget(a, WIDGET_ID);
+      return;
+    }
     if (station.dedicated && (id === 'ledger' || id === 'manualsBuy' || id === 'manualsCopy' || id.startsWith('mb:') || id.startsWith('mc:'))) {
       try { if (distanceMeters(a, p.target) > CFG.reachMeters) { closePanel(a); personal(a, `You walked away from the ${station.label}.`); return; } } catch (e) { /* no position */ }
       if (id === 'ledger') return openLedgerMenu(a, p.target, station);

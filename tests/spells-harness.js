@@ -332,7 +332,7 @@ at(OTHER, BRUMA, [0, 0, 0]);
 mastery(OTHER, { arcane: 1 });
 gold(OTHER, 1000);
 cmd('tomes', OTHER);
-check('outside the Synod /tomes says where the shop is', /inside the Synod Conclave in Bruma/.test(said(OTHER)) && out.widgets.length === W0);
+check('outside the Synod /tomes says where the shop is: the Scholars\' Ledger (10 Oct)', /Scholars' Ledger/.test(said(OTHER)) && out.widgets.length === W0, said(OTHER));
 at(OTHER, SYNOD, [0, 0, 0]);
 cmd('tomes', OTHER);
 check('a non-member sees the panel but cannot buy', shop(OTHER) && shop(OTHER).id === 44 && shop(OTHER).canBuy === false && /only to members of the Synod or a College/.test(shop(OTHER).whyNot), shop(OTHER) && shop(OTHER).whyNot);

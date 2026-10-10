@@ -6246,6 +6246,13 @@ try {
     profileOf, findByName, takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, zoneOfActor, zoneById,
     ranksOf, distanceMeters, isAdmin });
 } catch (e) { log('business.js failed to load:', e.stack || e.message); globalThis.__dboBusinessActivate = businessFailClosed; globalThis.__dboBusinessLogin = null; globalThis.__dboBusinessRent = null; globalThis.__dboHoldTax = null; globalThis.__dboBusinessLog = null; }
+// ---- where a ledger sale's gold goes: the building's owner, the hold's tax, a sink (server\ledgersale.js, config "ledgerSale");
+// manuals.js's blacksmith's ledger and spells.js's tome shop call it at runtime ----
+try {
+  const LEDGERSALE_JS = path.resolve('ledgersale.js');
+  delete require.cache[LEDGERSALE_JS];
+  require(LEDGERSALE_JS)({ mp, log, audit, who, cfg, personal, onlineActors, depositToTreasury, zoneOfActor });
+} catch (e) { log('ledgersale.js failed to load:', e.stack || e.message); globalThis.__dboLedgerSale = null; globalThis.__dboLedgerPlaceName = null; }
 
 // ---- what a skill's metered work is worth, per skill and per activity (server\skillrates.js, config "skillRates"): masterySystem asks it ----
 try {
@@ -6639,14 +6646,14 @@ try {
   const SPELLS_JS = path.resolve('spells.js');
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
-} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop', '__dboSpellsGrant', '__dboSpellsTab', '__dboSpellsRankCap', '__dboSpellsChangePrepared', '__dboSpellsTomesFor']) globalThis[k] = null; }
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop', '__dboSpellsGrant', '__dboSpellsTab', '__dboSpellsRankCap', '__dboSpellsChangePrepared', '__dboSpellsTomesFor', '__dboTomeShopHere', '__dboTomeShopOpen']) globalThis[k] = null; }
 // ---- smithing manuals and smithing skill books (server\manuals.js, manuals.json, config "manuals"): spells.js's read hook,
 // the Scholar's reading, dungeons.js's boss chests and salvage.js's Scholars' Ledger ask it at runtime ----
 try {
   const MANUALS_JS = path.resolve('manuals.js');
   delete require.cache[MANUALS_JS];
   require(MANUALS_JS)({ mp, log, personal, audit, who, display, cfg, giveItem, takeGold, depositToTreasury, registerChatCommand, onlineActors, every, findByName, notify });
-} catch (e) { log('manuals.js failed to load:', e.stack || e.message); for (const k of ['__dboManualsRead', '__dboManualsReadWon', '__dboManualsIsManual', '__dboManualsBossLoot', '__dboManualsShop', '__dboManualsBuy', '__dboManualsCopyList', '__dboManualsCopyRefusal', '__dboManualsCopy', '__dboManualsLeave']) globalThis[k] = null; }
+} catch (e) { log('manuals.js failed to load:', e.stack || e.message); for (const k of ['__dboManualsRead', '__dboManualsReadWon', '__dboManualsIsManual', '__dboManualsBossLoot', '__dboManualsShop', '__dboManualsBuy', '__dboManualsCopyList', '__dboManualsCopyRefusal', '__dboManualsCopy', '__dboManualsLeave', '__dboManualsSmithShop', '__dboManualsSmithBuy']) globalThis[k] = null; }
 // ---- the Blacksmith's craft tiers, techniques and upgrade caps (server\smithing.js, smithing.json, config "smithing"): after manuals.js ----
 try {
   const SMITHING_JS = path.resolve('smithing.js');

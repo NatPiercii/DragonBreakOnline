@@ -91,7 +91,9 @@ globalThis.__alduinakMasteryFirstTouch = () => 'held';
 const out = { said: [], audits: [], logs: [], widgets: [], notices: [], treasury: [] };
 const handlers = new Map(), commands = new Map(), timers = new Map();
 const api = (extra) => Object.assign({
-  mp, cfg: { manuals: Object.assign({}, CONFIG.manuals, { consumeDelayMs: 600000 }), spells: CONFIG.spells, salvage: CONFIG.salvage, reading: { bookDailyCap: 2 } },
+  // The Synod's manuals are off by default since 10 Oct (Nate: "stop selling schematics at the synod"); switched on here, and
+  // the ledger's tome button off, so the legacy shop path stays tested (ledger-shops-harness.js tests the defaults)
+  mp, cfg: { manuals: Object.assign({}, CONFIG.manuals, { consumeDelayMs: 600000, shop: Object.assign({}, CONFIG.manuals.shop, { enabled: true }) }), spells: Object.assign({}, CONFIG.spells, { shopAtLedger: false }), salvage: CONFIG.salvage, reading: { bookDailyCap: 2 } },
   log: (...a) => out.logs.push(a.join(' ')), personal: (a, t) => out.said.push([a, t]), system: (a, t) => out.said.push([a, t]),
   audit: (t) => out.audits.push(t), who: (a) => `P${a.toString(16)}`, display: (a) => NAMES[a] || 'P',
   giveItem: (a, baseId, n) => { const e = (getp(a, 'inventory') || { entries: [] }).entries; const h = e.find((x) => x.baseId === baseId); if (h) h.count += n; else e.push({ baseId, count: n }); put(a, 'inventory', { entries: e }); return true; },
@@ -130,7 +132,7 @@ const B = (k) => idOf(M[k].book), K = (k) => idOf(M[k].marker);
 
 (async () => {
 // ---- boot ----
-check('boot line: five manuals ready, Glass waiting for the plugin, the award ready', out.logs.some((l) => /manuals on: 5 of 6 manuals in the load order \(waiting: glass\); Synod up to T2, x3; boss chests on, T5 staff-given; copies on; smithing skill books on \(award ready\)/.test(l)), out.logs.filter((l) => /manuals/.test(l)));
+check('boot line: five manuals ready, Glass waiting for the plugin, the award ready', out.logs.some((l) => /manuals on: 5 of 6 manuals in the load order \(waiting: glass\); Synod up to T2, x3; blacksmith's ledger [^;]*; boss chests on, T5 staff-given; copies on; smithing skill books on \(award ready\)/.test(l)), out.logs.filter((l) => /manuals/.test(l)));
 
 // ---- reading a manual ----
 skills(NOVICE, { blacksmith: 0 }); inv(NOVICE, [[B('orcish'), 1], [B('steel'), 1]]);
