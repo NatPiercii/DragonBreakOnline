@@ -475,6 +475,8 @@ module.exports = (api) => {
         S.looks.delete(caster);
         continue;
       }
+      // A watcher who logged out lost the glow with their game; told again when back
+      for (const p of l.seen) if (!online.includes(p)) l.seen.delete(p);
       for (const p of online) if (p !== caster && !l.seen.has(p) && near(p, caster)) { l.seen.add(p); glow(p, caster, l.shader, true); }
     }
   };

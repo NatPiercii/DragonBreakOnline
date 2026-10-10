@@ -256,6 +256,8 @@ check('the hooks are published', ['__dboRaceSkillRate', '__dboRaceDiseaseResist'
   check('someone who comes near while it lasts sees it then, once', glows().length === 1 && glows()[0][0] === ORC && glows()[0][1].on === true, glows());
   pk.length = 0; RC.powerTick();
   check('...and is not told again', glows().length === 0, glows());
+  const keepOrc = state[ORC]; delete state[ORC]; RC.powerTick(); state[ORC] = keepOrc; pk.length = 0; RC.powerTick();
+  check('a watcher who relogs while it lasts is told again', glows().length === 1 && glows()[0][0] === ORC && glows()[0][1].on === true, glows());
   globalThis.__dboRacialState.looks.get(MAORMER).until = Date.now() - 1; pk.length = 0; RC.powerTick();
   const off = glows().filter(([, p]) => p.on === false).map(([to]) => to);
   check('when it fades, everyone told sees it go, and only they', off.length === toldOn.size && off.every((to) => toldOn.has(to)) && toldOn.has(ORC), [...toldOn]);
