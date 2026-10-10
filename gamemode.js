@@ -3182,8 +3182,12 @@ const READ = Object.assign({
   scrollChanceByTier: [0.04, 0.05, 0.06, 0.07, 0.08],
   scrollMaxValueByTier: [50, 100, 250, 500, 0],
   scrollDailyCap: 6,
-  tomeDailyCap: 2,
-  // A guaranteed tome after this many won readings without one (0 = off; Nate, 10 Oct)
+  // No day's cap on tomes (Nate, 11 Oct: "a rare percentage, not a cap on two a day"); 0 = none. Each tome found today
+  // multiplies the next one's chance by tomeChanceAfterFind instead, so a long day of reading levels off (a Master at 5%:
+  // about 3 tomes in 190 readings, 5 in 800, the busiest reader's day in the log)
+  tomeDailyCap: 0,
+  tomeChanceAfterFind: 0.5,
+  // A guaranteed tome after this many won readings without one, on a day with none found yet (0 = off; Nate, 10 Oct)
   tomePityReads: 100,
   // Copies of the book read, a day. A spell tome, a skill book or a note that cannot be taken is never copied: reading
   // a placed tome every 30 minutes on each character got round the Synod's one a week (loot review, 2026-09-29)
@@ -3675,20 +3679,24 @@ onUi('reading', (a, args) => {
     // Pity (Nate, 10 Oct): after READ.tomePityReads won readings with no tome the next one brings a tome, still within the
     // day's tomeDailyCap; the count is per character and resets with every tome found
     let dry = 0; try { dry = Number(mp.get(a, 'private.scholarTomeDry')) || 0; } catch (e) { dry = 0; }
-    const pity = Number(READ.tomePityReads) > 0 && dry + 1 >= Number(READ.tomePityReads);
+    const tomeCap = Number(READ.tomeDailyCap) || 0;
+    const underCap = tomeCap <= 0 || tomesToday < tomeCap;
+    const pity = tomesToday === 0 && Number(READ.tomePityReads) > 0 && dry + 1 >= Number(READ.tomePityReads);
+    const after = Math.max(0, Math.min(1, READ.tomeChanceAfterFind === undefined ? 1 : Number(READ.tomeChanceAfterFind)));
     let tomeGiven = false;
-    if (tomesToday < (Number(READ.tomeDailyCap) || 0) && (pity || Math.random() < tomeChance)) {
+    if (underCap && (pity || Math.random() < tomeChance * Math.pow(after, tomesToday))) {
       const pick = scholarTomePick(a, tier);
       if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); tomeGiven = true; mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
     }
     // Below the day's cap only: a reader at the cap is not owed a tome, so the count waits for the new day
-    if (tomesToday < (Number(READ.tomeDailyCap) || 0)) { try { mp.set(a, 'private.scholarTomeDry', tomeGiven ? 0 : dry + 1); } catch (e) { /* uncounted */ } }
+    if (underCap) { try { mp.set(a, 'private.scholarTomeDry', tomeGiven ? 0 : dry + 1); } catch (e) { /* uncounted */ } }
     // The day's caps are silent rolls, so a reader who reached one is told once that day (#bugs 1556458497909194802)
     const dayCount = (k) => { try { const v = mp.get(a, k); return v && v.day === today ? Number(v.n) || 0 : 0; } catch (e) { return 0; } };
     let told = null; try { told = mp.get(a, 'private.scholarCapTold'); } catch (e) { told = null; }
     const toldKinds = told && told.day === today && Array.isArray(told.kinds) ? told.kinds : [];
     const reached = [['copies', 'private.scholarCopies', READ.bookDailyCap, 'books copied'], ['scrolls', 'private.scholarScrolls', READ.scrollDailyCap, 'scrolls'], ['tomes', 'private.scholarTomes', READ.tomeDailyCap, 'spell tomes']]
-      .filter(([kind, k, cap]) => !toldKinds.includes(kind) && dayCount(k) >= (Number(cap) || 0));
+      // A cap of 0 is no cap (tomes, from 11 Oct): never reached
+      .filter(([kind, k, cap]) => Number(cap) > 0 && !toldKinds.includes(kind) && dayCount(k) >= Number(cap));
     if (reached.length) {
       try { mp.set(a, 'private.scholarCapTold', { day: today, kinds: toldKinds.concat(reached.map(([kind]) => kind)) }); } catch (e) { /* told again next read */ }
       // Players read the old line as "2 tomes a day" (Nate, 10 Oct): say it is a chance, and that the day's most is reached

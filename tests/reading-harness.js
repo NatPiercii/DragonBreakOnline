@@ -216,7 +216,9 @@ check('an abandoned round expires and the book opens again', out.widgets.length 
   const copies = out.given.filter((id) => id === 0xf).length;
   check('an ordinary book is copied at most 6 times a day', copies === 6, copies);
   const capLines = out.personals.filter((x) => /after midnight UTC/.test(x));
-  check('a reader who reached the day\'s caps is told, each cap once', capLines.length >= 1 && ['books copied', 'scrolls', 'spell tomes'].every((k) => capLines.filter((x) => x.includes(k)).length === 1), capLines);
+  check('a reader who reached the day\'s caps is told, each cap once', capLines.length >= 1 && ['books copied', 'scrolls'].every((k) => capLines.filter((x) => x.includes(k)).length === 1), capLines);
+  // Tomes have no day's cap from 11 Oct (Nate: a rare percentage that halves after each find), so nobody is told of one
+  check('...and never of a tome cap, which is gone', !capLines.some((x) => /spell tomes/.test(x)), capLines);
   check('...in the round\'s result text too', out.results.some((x) => /You read it through\..*after midnight UTC/.test(x)), out.results.slice(-1));
   const before = capLines.length;
   readThrough(SKYRIM_BOOK);
@@ -461,6 +463,40 @@ console.log('client-judged:');
   pickUi = false;
   Math.random = realRandom;
   for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads']) props.delete(READER + '|private.' + k);
+}
+// Tomes (Nate, 11 Oct): no day's cap; each tome found today halves the next one's chance; the 100-reading guarantee only
+// on a day with no tome yet. The reader is a Novice Scholar (1%).
+{
+  READ.clientJudged = true;
+  const realRandom = Math.random;
+  const readOnce = () => {
+    wallClock += 31 * 60000; let r = open(SKYRIM_BOOK);
+    wallClock += r.endsInMs + 3000; ui('reading', [r.nonce, '[]']);
+    const answer = last().answer.split(' ');
+    wallClock += 31 * 60000; r = open(SKYRIM_BOOK); wallClock += 1000;
+    ui('reading', [r.nonce, JSON.stringify(solve(r, answer))]);
+  };
+  const tomes = () => { const v = props.get(READER + '|private.scholarTomes'); return v ? Number(v.n) || 0 : 0; };
+  props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 0 } } });
+  for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads', 'scholarTomeDry']) props.delete(READER + '|private.' + k);
+  Math.random = () => 0.007;                                    // under 1%, over half of it
+  readOnce();
+  check('tomes: the first of the day comes at the tier\'s chance', tomes() === 1, tomes());
+  readOnce();
+  check('tomes: the next one\'s chance is halved (0.7% is no longer enough)', tomes() === 1, tomes());
+  Math.random = () => 0;
+  for (let i = 0; i < 3; i++) readOnce();
+  check('tomes: no day\'s cap: more keep coming at the halved chances', tomes() >= 3, tomes());
+  Math.random = () => 0.99;
+  props.set(READER + '|private.scholarTomeDry', 99);
+  readOnce();
+  check('tomes: the guarantee waits on a day that already brought a tome', props.get(READER + '|private.scholarTomeDry') === 100, props.get(READER + '|private.scholarTomeDry'));
+  const before = tomes();
+  props.delete(READER + '|private.scholarTomes'); props.set(READER + '|private.scholarTomeDry', 99);
+  readOnce();
+  check('tomes: on a tomeless day the 100th dry reading brings one', tomes() === 1 && props.get(READER + '|private.scholarTomeDry') === 0, [before, tomes(), props.get(READER + '|private.scholarTomeDry')]);
+  Math.random = realRandom;
+  for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads', 'scholarTomeDry']) props.delete(READER + '|private.' + k);
 }
 console.log(`\n${checks - failures}/${checks} passed`);
 process.exit(failures ? 1 : 0);
