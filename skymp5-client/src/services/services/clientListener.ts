@@ -1,5 +1,6 @@
 import * as sp from "skyrimPlatform";
 import { EventEmitterType } from "../events/events";
+import { updateTiming } from "./perfDiag";
 
 export interface ClientListenerEvents {
     on: typeof sp.on,
@@ -24,6 +25,11 @@ declare module "skyrimPlatform" {
 export type Sp = Omit<typeof sp, "on" | "once">;
 
 export abstract class ClientListener {
+    // Update handlers registered while a listener is constructed are timed under its class name
+    constructor() {
+        updateTiming.setLabel(this.constructor.name);
+    }
+
     // Don't let TypeScript treat this class as empty
     private _nonEmptyClassMark = '';
 }

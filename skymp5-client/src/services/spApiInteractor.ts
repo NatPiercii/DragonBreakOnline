@@ -1,10 +1,12 @@
 import { EventEmitterFactory } from "./events/events";
 import { ClientListener, ClientListenerConstructor, CombinedController } from "./services/clientListener";
 import * as sp from "skyrimPlatform";
+import { LATE_LABEL, perfDiagEnabled, updateTiming } from "./services/perfDiag";
 
 export class SpApiInteractor {
     static setup(listeners: ClientListener[]) {
         listeners.forEach(listener => SpApiInteractor.registerListenerForLookup(listener.constructor, listener));
+        updateTiming.setLabel(LATE_LABEL);
     }
 
     static getControllerInstance(): CombinedController {
@@ -13,7 +15,7 @@ export class SpApiInteractor {
         }
         SpApiInteractor.controller = {
             // TODO: handle errors in event handlers. will output to game console by default
-            on: sp.on,
+            on: perfDiagEnabled(sp.settings["skymp5-client"] as Record<string, unknown>) ? SpApiInteractor.timedOn : sp.on,
             once: sp.once,
             emitter: EventEmitterFactory.makeEventEmitter(),
             lookupListener<T extends ClientListener>(constructor: ClientListenerConstructor<T>): T {
@@ -29,6 +31,10 @@ export class SpApiInteractor {
         }
         return SpApiInteractor.controller;
     }
+
+    // Every update handler goes through one timing wrapper (perfDiag.ts); other events pass straight through
+    private static timedOn = ((eventName: string, callback: (...args: any[]) => any) =>
+        (sp.on as any)(eventName, eventName === "update" ? updateTiming.wrap(callback) : callback)) as typeof sp.on;
 
     private static registerListenerForLookup(constructor: Function, listener: ClientListener): void {
         if (SpApiInteractor.listenersForLookupByName.has(constructor)) {
