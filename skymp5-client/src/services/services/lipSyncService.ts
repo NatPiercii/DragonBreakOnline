@@ -4,6 +4,7 @@ import { RemoteServer } from "./remoteServer";
 import { remoteIdToLocalId } from "../../view/worldViewMisc";
 import { logError, logTrace } from "../../logging";
 import { setSpeaking } from "./voiceSpeaking";
+import { MouthState, RACE_FLAG_FACEGEN_HEAD, createSkipNotes, mouthSkipReason } from "./lipSyncGuard";
 
 // Drives Actor.setExpressionPhoneme from the front's voice::speaking reports, contract in docs/dragonbreak_voice_chat.md
 
@@ -35,6 +36,7 @@ export class LipSyncService extends ClientListener {
   private pending: Map<number, number> | undefined;
   private lastReportAt = 0;
   private nextTickAt = 0;
+  private skipNotes = createSkipNotes();
 
   private onBrowserMessage(e: BrowserMessageEvent): void {
     if (e.arguments[0] !== "voice::speaking") return;
@@ -85,6 +87,7 @@ export class LipSyncService extends ClientListener {
       if (report.has(remoteId)) return;
       this.closeMouth(mouth);
       this.mouths.delete(remoteId);
+      this.skipNotes.forget(remoteId);
     });
     report.forEach((level, remoteId) => {
       const existing = this.mouths.get(remoteId);
@@ -109,11 +112,36 @@ export class LipSyncService extends ClientListener {
     return Actor.from(Game.getFormEx(mouth.localId));
   }
 
+  // A dead, unloaded or disabled body, or a race with no FaceGen head (werewolf, Vampire Lord), gets no phoneme (lipSyncGuard.ts)
+  private mouthState(actor: Actor): MouthState {
+    const read = <T>(f: () => T): T | null => { try { return f(); } catch { return null; } };
+    return {
+      loaded: read(() => actor.is3DLoaded()),
+      disabled: read(() => actor.isDisabled()),
+      dead: read(() => actor.isDead()),
+      faceGenHead: read(() => {
+        const race = actor.getRace();
+        return race ? race.isRaceFlagSet(RACE_FLAG_FACEGEN_HEAD) : null;
+      }),
+    };
+  }
+
   private animate(remoteId: number, mouth: Mouth): void {
     const actor = this.actorOf(mouth);
     if (!actor) {
       // Clone despawned mid-sentence; the next report re-adds it if it comes back
       this.mouths.delete(remoteId);
+      this.skipNotes.forget(remoteId);
+      return;
+    }
+    // Held, not dropped: a revived player's copy respawns under a new local id and speaks again (localIdFor below)
+    const skip = mouthSkipReason(this.mouthState(actor));
+    const line = this.skipNotes.note(remoteId, skip);
+    if (line) logTrace(this, line);
+    if (skip) {
+      const localId = this.localIdFor(remoteId);
+      if (localId) mouth.localId = localId;
+      mouth.phoneme = -1;
       return;
     }
     if (mouth.phoneme >= 0) actor.setExpressionPhoneme(mouth.phoneme, 0);
@@ -143,7 +171,8 @@ export class LipSyncService extends ClientListener {
   private closeMouth(mouth: Mouth): void {
     if (mouth.phoneme < 0) return;
     try {
-      this.actorOf(mouth)?.setExpressionPhoneme(mouth.phoneme, 0);
+      const actor = this.actorOf(mouth);
+      if (actor && !mouthSkipReason(this.mouthState(actor))) actor.setExpressionPhoneme(mouth.phoneme, 0);
     } catch (err) {
       logTrace(this, `closeMouth failed: ${err}`);
     }
