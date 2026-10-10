@@ -395,8 +395,8 @@
   "creditShare": 0.1
  },
  "glow": {
-  "_comment": "Which shader lights a glowing chest, barrel or salt deposit (server\\glowshader.js). The client's defaults for loot and locked (LifeDetected 146, LifeDetectedUndead AAEB3) are particle-only and draw nothing on a container or an activator (GroundedPasta, 30 Sep). membrane true names these membrane shaders in every dboGlow packet instead; a 0.3.73+ client plays them, an older one ignores the field. On since 7 Oct (Nate: outlines on lootable containers in dungeons). Hot reload.",
-  "membrane": true,
+  "_comment": "Which shader lights a glowing chest, barrel or salt deposit (server\\glowshader.js). The client's defaults for loot and locked (LifeDetected 146, LifeDetectedUndead AAEB3) are particle-only and draw nothing on a container or an activator (GroundedPasta, 30 Sep). membrane true names these membrane shaders in every dboGlow packet instead; a 0.3.73+ client plays them, an older one ignores the field. On since 7 Oct (Nate: outlines on lootable containers in dungeons); off from 10 Oct as a dungeon FPS test (Nate). Read at gamemode load.",
+  "membrane": false,
   "shaders": {
    "loot": "10272e:Skyrim.esm",
    "locked": "4c6d8:Skyrim.esm"
@@ -939,7 +939,7 @@
  },
  "housingPlaces": {
   "_comment": "Places (N3, fork housingSystem.ts): staff profiles whose claims the place migration leaves exactly as they are and the one-place cap never counts (Nate, 3 Oct: storage lent to players). Read when the migration plan runs; no restart needed.",
-  "staffProfiles": [4],
+  "staffProfiles": [4, 49],
   "_grants": "Buildings the place migration gives whole (fork housingSystem.ts placeGrants, Nate 4 Oct): a way in nobody holds becomes the profile's and their claims inside join it; cells, when given, are all the building's interior cells (more rooms than the walk takes). Refused and listed for a door someone else holds or a staff profile. Read when the migration plan runs.",
   "grants": [
    { "door": "7a817:BSHeartland.esm", "profile": 52, "note": "Sylvia Dawnveil: the Cathedral of St Martin (cell 12cb) her 8 claims stand in" },

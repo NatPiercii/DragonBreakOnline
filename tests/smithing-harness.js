@@ -217,6 +217,21 @@ const rv = globalThis.__dboSmithView(SUP).families;
 ok(rv.find((f) => f.id === 'brass').learnHint === '' && /Worked with the Steel Plate technique/.test(rv.find((f) => f.id === 'adamantium').learnHint), 'the view: Brass needs nothing, Adamantium points at Steel Plate', rv.filter((f) => /brass|adamantium/.test(f.id)));
 ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label)), 'neither has a book of its own');
 
+// Carry-over: a smith from before the techniques learns, once, every family up to their craft tier
+{
+  const OLD = 0xff000111, ORCOLD = 0xff000112, NEW = 0xff000113;
+  for (const a of [OLD, ORCOLD, NEW]) { put(a, 'appearance', { raceId: NORD_RACE }); put(a, 'inventory', { entries: [] }); }
+  put(ORCOLD, 'appearance', { raceId: ORC_RACE });
+  smith(OLD, 47); smith(ORCOLD, 31);
+  const carry = globalThis.__dboSmithCarryOver;
+  const n = carry(OLD), r = props.get(`${OLD}|private.dboManuals`) || {};
+  ok(n > 0 && r.steel && r.dwarven && r.elven && r.nordic && !r.glass && !r.orcish && !r.brass && !r.imperial && !r.artifact, 'craft tier 4: every T2-T4 technique, none above, no Orcish for a Nord, none for free or shared families', Object.keys(r));
+  ok(r.steel.how === 'staff' && r.steel.from === 'carry-over' && props.get(`${OLD}|private.dboSmithCarried`).tier === 4 && audits.some((t) => /carried over/.test(t)), 'recorded as carried over, marked, audited');
+  ok(carry(OLD) === 0, 'once only');
+  ok(carry(ORCOLD) > 0 && props.get(`${ORCOLD}|private.dboManuals`).orcish && !props.get(`${ORCOLD}|private.dboManuals`).dwarven, 'an Orc at tier 3 keeps Orcish, nothing of tier 4');
+  ok(carry(NEW) === 0 && !props.get(`${NEW}|private.dboSmithCarried`), 'no Blacksmith skill: nothing, not marked (they get it if they take it up)');
+}
+
 // Staff
 cmds.get('smithing')(STAFF, 'teach sup dwarven');
 ok(props.get(`${SUP}|private.dboManuals`).dwarven.how === 'staff', '/smithing teach');

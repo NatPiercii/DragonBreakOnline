@@ -180,6 +180,33 @@ module.exports = (api) => {
   globalThis.__dboSmithScholarTier = scholarTier;
   globalThis.__dboSmithCraftTier = craftTier;
 
+  // ---- carry-over (Nate, 10 Oct): smiths from before the techniques keep what their tier allows --------------------------
+  // Nobody's crafts were recorded before smithing went on, so a character with the Blacksmith skill learns, once, every
+  // technique of a family up to their craft tier (not Orcish unless they are of the supervisor race, never artifacts);
+  // CARRIED marks it done. Run on a timer over who is online, so offline smiths get it at their next login.
+  const CARRIED = 'private.dboSmithCarried';
+  const carryOver = (a) => {
+    if (!C.enabled || C.carryOver === false || get(a, CARRIED, null) || !blacksmith(a)) return 0;
+    const tier = craftTier(a), rec = Object.assign({}, known(a)), race = raceEdid(a), got = [];
+    for (const f of FAMILIES) {
+      if (f.tier < 2 || f.tier > tier || f.free || f.technique || f.id === 'artifact' || rec[f.id]) continue;
+      if (f.supervisorRace && !race.startsWith(f.supervisorRace)) continue;
+      rec[f.id] = { at: Date.now(), how: 'staff', from: 'carry-over' }; got.push(f.name);
+    }
+    if (got.length) set(a, REC, rec);
+    set(a, CARRIED, { at: Date.now(), tier, families: got.length });
+    if (got.length) {
+      audit(`SMITH ${who(a)} carried over ${got.length} technique(s) at craft tier ${tier}: ${got.join(', ')}`);
+      tell(a, `Your smithing experience carries over: you know the techniques up to craft tier ${tier} (${got.join(', ')}).`);
+    }
+    return got.length;
+  };
+  globalThis.__dboSmithCarryOver = carryOver;
+  if (globalThis.__dboSmithCarryTimer) clearInterval(globalThis.__dboSmithCarryTimer);
+  globalThis.__dboSmithCarryTimer = setInterval(() => {
+    try { for (const a of onlineActors()) { try { carryOver(a); } catch (e) { /* next one */ } } } catch (e) { log('smithing: carry-over pass failed', e.message); }
+  }, 30000);
+
   // ---- staff --------------------------------------------------------------------------------------------------------
   const famArg = (q) => { const k = String(q || '').toLowerCase().replace(/[^a-z0-9]/g, ''); return FAMILIES.find((f) => f.id.toLowerCase().replace(/[^a-z0-9]/g, '') === k || f.name.toLowerCase().replace(/[^a-z0-9]/g, '') === k) || null; };
   registerChatCommand('smithing', (a, args) => {
