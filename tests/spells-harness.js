@@ -346,6 +346,21 @@ mastery(OTHER, { arcane: 1 });
 cmd('tomes', OTHER);
 const p = shop(OTHER);
 check('an Apprentice member can buy', p.canBuy === true && p.whyNot === '' && p.nextPurchaseAt === 0 && p.gold === 1000 && p.title === 'The Synod: Spell Tomes');
+// Above Initiate only (Nate, 10 Oct): guilds.js's rank list decides; the joining rank and the crafting posts buy none
+{
+  const RANKS = [{ title: 'Chancellor of the Synod' }, { title: 'Magister' }, { title: 'Senior Magister' }, { title: 'Mage of the Synod' }, { title: 'Synod Artificer' }, { title: 'Synod Robe-Maker' }, { title: 'Associate' }, { title: 'Initiate' }];
+  globalThis.__dboGuildRankList = (id) => (id === 'synod' ? RANKS : []);
+  globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Initiate', role: 'member' }];
+  cmd('tomes', OTHER);
+  check('an Initiate of the Synod cannot buy tomes', shop(OTHER).canBuy === false && /above Initiate/.test(shop(OTHER).whyNot), shop(OTHER).whyNot);
+  globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Synod Artificer', role: 'blacksmith' }];
+  cmd('tomes', OTHER);
+  check('...nor its Artificer (a smith, not a mage)', shop(OTHER).canBuy === false && /above Initiate/.test(shop(OTHER).whyNot), shop(OTHER).whyNot);
+  globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Associate', role: 'member' }];
+  cmd('tomes', OTHER);
+  check('...but an Associate, the rank above, can', shop(OTHER).canBuy === true, shop(OTHER).whyNot);
+  delete globalThis.__dboGuildsOf; delete globalThis.__dboGuildRankList;
+}
 check('...skills list only what they hold', p.skills.length === 1 && p.skills[0].id === 'arcane' && p.skills[0].tierName === 'Apprentice' && p.skills[0].schools.join() === 'Destruction,Conjuration,Illusion', p.skills);
 check('...tomes only of their schools', p.tomes.length > 0 && p.tomes.every((t) => ['Destruction', 'Conjuration', 'Illusion'].includes(t.school)));
 check('...never above shopMaxRank (no Master tomes)', p.tomes.every((t) => t.rank <= 3) && !p.tomes.some((t) => t.id === T.fireStorm[0]));

@@ -344,6 +344,10 @@
         {
           "title": "Apprentice",
           "role": "member"
+        },
+        {
+          "title": "Initiate",
+          "role": "member"
         }
       ]
     },
@@ -429,6 +433,10 @@
         },
         {
           "title": "Novice",
+          "role": "member"
+        },
+        {
+          "title": "Initiate",
           "role": "member"
         }
       ],

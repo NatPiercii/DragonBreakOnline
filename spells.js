@@ -604,6 +604,20 @@ module.exports = (api) => {
   const soldIn = (R, t) => { const w = R ? R.tomeWhere(t.bookId) : null; return w && w.length ? R.listNames(w) : ''; };
   const inShop = (a) => SHOP_CELLS.has(norm(get(a, 'worldOrCellDesc', '')));
   const isMember = (a) => { const g = get(a, 'private.dboGuilds', []); return Array.isArray(g) && g.some((m) => m && (CFG.shopFactions || []).includes(String(m.id))); };
+  // A mage of a college above its joining rank (Nate, 10 Oct: buying tomes is earned by roleplay, from the second rank up; the
+  // lowest rank, Initiate, and the crafting posts buy none). guilds.js: the member's title, its index in the rank list
+  const CRAFT_ROLES = new Set(['blacksmith', 'tailor']);
+  const aboveInitiate = (a) => {
+    let mine = null;
+    try { mine = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) : null; } catch (e) { mine = null; }
+    if (!Array.isArray(mine)) return isMember(a);
+    return mine.some((m) => {
+      if (!m || !(CFG.shopFactions || []).includes(String(m.id)) || CRAFT_ROLES.has(String(m.role || ''))) return false;
+      let list = []; try { list = typeof globalThis.__dboGuildRankList === 'function' ? globalThis.__dboGuildRankList(m.id) || [] : []; } catch (e) { list = []; }
+      const at = list.findIndex((r) => r && r.title === m.title);
+      return at >= 0 && at < list.length - 1;
+    });
+  };
   // The Synod Conclave's enchanting table is the Synod's (its CYRBlockedFactionWorkshop script, whose faction is the Synod,
   // never runs on the server): only members of the Synod or a College use it, as with the tome shop (Nate, 2026-09-30).
   // gamemode.js asks before the skills' own station gate, so a refused touch takes up nothing.
@@ -665,6 +679,7 @@ module.exports = (api) => {
     if (!CFG.enabled) return 'The tome shop is closed.';
     if (!inShop(a)) return 'Tomes are sold inside the Synod Conclave in Bruma.';
     if (!isMember(a)) return 'The court mage sells tomes only to members of the Synod or a College.';
+    if (CFG.shopAboveInitiate !== false && !aboveInitiate(a)) return 'The court mage sells tomes to mages of the Synod or a College above Initiate, and not to its smiths or robe-makers. Ask your college\'s leaders about promotion.';
     if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= CFG.shopMinTier)) return `Tomes are sold to those with ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[CFG.shopMinTier]} or higher.`;
     const next = nextBuyAt(a);
     if (next) return `You bought a tome this week. The next is yours in ${waitText(next - Date.now())}.`;

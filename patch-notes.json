@@ -1,5 +1,20 @@
 [
   {
+    "title": "Initiates of the colleges",
+    "date": "2026-10-10",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Magic colleges",
+        "items": [
+          "The College of Whispers and the College of Winterhold have a new first rank, Initiate, below their others; the Synod already had one. New members join as Initiates. Nobody's current rank changes.",
+          "Buying spell tomes is now earned: the court mage sells them to mages above Initiate, so ask your college's leaders about promotion. Smiths and robe-makers of a college buy none. Tomes found by reading are unchanged."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Schematics move to the forge, tomes to the ledger",
     "date": "2026-10-10",
     "version": "Server update",
