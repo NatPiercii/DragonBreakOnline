@@ -241,6 +241,8 @@ private:
   struct
   {
     uint64_t power = 0, powerUnmatched = 0, bash = 0, bashUnmatched = 0;
+    uint64_t sinceLog = 0;
+    std::chrono::steady_clock::time_point loggedAt;
   } forcefulFlagCounts;
   void NoteForcefulAnim(uint32_t actorId, const std::string& animEventName);
   void CountUnmatchedForcefulFlag(uint32_t aggressorId, bool power, bool bash,

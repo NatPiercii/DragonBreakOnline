@@ -3080,11 +3080,19 @@ void ActionListener::CountUnmatchedForcefulFlag(
       ++forcefulFlagCounts.bashUnmatched;
     }
   }
+  // One line a minute, not one per hit: a hosted NPC's animation events never reach the server, so its power hits
+  // never match and logged 22000 lines a day (10 Oct)
   if ((power && !powerMatched) || (bash && !bashMatched)) {
-    spdlog::info("OnWeaponHit - {:x} sent a {} flag with no matching "
-                 "animation in 2 s (power {}/{} unmatched, bash {}/{})",
-                 aggressorId, power ? "power" : "bash",
-                 forcefulFlagCounts.powerUnmatched, forcefulFlagCounts.power,
-                 forcefulFlagCounts.bashUnmatched, forcefulFlagCounts.bash);
+    ++forcefulFlagCounts.sinceLog;
+    if (now - forcefulFlagCounts.loggedAt >= std::chrono::seconds(60)) {
+      spdlog::info("OnWeaponHit - {} hits with a forceful flag and no matching "
+                   "animation in 2 s in the last minute, latest {:x} (power {}/{} "
+                   "unmatched, bash {}/{})",
+                   forcefulFlagCounts.sinceLog, aggressorId,
+                   forcefulFlagCounts.powerUnmatched, forcefulFlagCounts.power,
+                   forcefulFlagCounts.bashUnmatched, forcefulFlagCounts.bash);
+      forcefulFlagCounts.sinceLog = 0;
+      forcefulFlagCounts.loggedAt = now;
+    }
   }
 }
