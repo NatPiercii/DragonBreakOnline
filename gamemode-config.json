@@ -1149,5 +1149,6 @@
      }
     ]
    }
-  }
+  },
+ "smithing": { "_comment": "Nate, 10 Oct: smithing rework ON at launch (craft tiers, techniques, upgrade caps; smithing.json). false turns it all off.", "enabled": true }
 }
