@@ -139,6 +139,23 @@ const units = sys.award(ctx, PLAYER, 'miner', 1, 0x77);
 ok('award at x2: 1 unit metered, 2 gained', near(units, 1) && near(gained(PLAYER), 2), [units, gained(PLAYER)]);
 ok('...asked as kind "award" with its key', calls.length === 1 && calls[0][2] === 'award' && calls[0][3].key === 0x77, calls);
 
+// 9. after the meter the gameplay is told what one act really credited (fork mastery-credited-hook; skillrates.js marks an
+// item made for its first-time bonus only when this is above 0)
+if (fs.readFileSync(path.resolve(bundle), 'utf8').includes('__dboSkillRateCredited')) {
+  const got = [];
+  globalThis.__dboSkillRateCredited = (actorId, skillId, kind, detail, u) => got.push([actorId, skillId, kind, detail, u]);
+  hook(() => 3);
+  start(PLAYER); mineN(PLAYER, 1);
+  ok('credited: told the actor, skill, kind, detail and the units the meter kept (one vein, before the x3)', got.length === 1 && got[0][0] === PLAYER && got[0][1] === 'miner' && got[0][2] === 'mine' && got[0][3].refrId > 0 && near(got[0][4], 1), got);
+  start(PLAYER, { bucket: { tokens: 0, at: clock } }); got.length = 0; mineN(PLAYER, 1);
+  ok('...at a spent bucket: told 0', got.length === 1 && got[0][4] === 0, got);
+  globalThis.__dboSkillRateCredited = () => { throw new Error('boom'); };
+  start(PLAYER); mineN(PLAYER, 1);
+  ok('...a hook that throws changes nothing', near(gained(PLAYER), 3), gained(PLAYER));
+  delete globalThis.__dboSkillRateCredited;
+  ok('the server says it reports credits (__dboMasteryCreditsHook, set in initAsync)', fs.readFileSync(path.resolve(bundle), 'utf8').includes('__dboMasteryCreditsHook'));
+} else console.log('  ok   skipped the credit report: this fork\'s masterySystem has none (fork mastery-credited-hook)');
+
 delete globalThis.__dboSkillRate;
 Date.now = realNow;
 console.log(`${checks - fails}/${checks} checks passed`);

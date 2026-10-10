@@ -14,7 +14,9 @@
 // full for the first `fullFor` different items, then less and less (1 + (rate - 1) x fullFor / (n + 1) for the n-th
 // different item, never below 1). It multiplies after the meter like every rate here, so it speeds a skill along and
 // never lets more work through the bucket or the day's caps. Tempering makes nothing new and earns none. The items made are
-// kept on the character (private.dboCraftedKinds: { <skill>: [desc...] }), so a relog resets nothing.
+// kept on the character (private.dboCraftedKinds: { <skill>: [desc...] }), so a relog resets nothing. With masterySystem's
+// credit report (__dboSkillRateCredited) an item is marked only when its craft credited something, so a craft at a spent
+// hourly bucket or day's cap keeps the bonus for next time.
 // craftByTier rates a craft by the recipe's tier: the recipe's own DBO_Skill_<skill>_T<n> gate when it carries one,
 // otherwise the highest materialTiers entry among its ingredients (editor ids; anything not listed is tier 1: iron,
 // copper, bronze, leather, hide, wood). salvageLoop rates a craft of a product the same character broke down at a
@@ -33,6 +35,7 @@ module.exports = (api) => {
 
   // Survive a gamemode reload; a restart forgets them, which only forgives a loop in progress
   const S = globalThis.__dboSkillRates = globalThis.__dboSkillRates || { brokeDown: new Map(), told: new Map() };
+  if (!(S.firstPending instanceof Map)) S.firstPending = new Map();   // actor|skill -> the first-time craft waiting for its credit
   const recipeCache = new Map();   // recipe id -> { product, tier }
 
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
@@ -120,11 +123,29 @@ module.exports = (api) => {
     const n = made.length;   // different items made before this one
     const full = Math.max(1, Number(FIRST.fullFor) || 25), r = Math.max(1, Number(FIRST.rate) || 1);
     const mult = n < full ? r : 1 + (r - 1) * full / (n + 1);
-    if (n < (Number(FIRST.maxKept) || 3000)) {
-      try { mp.set(actorId >>> 0, KINDS, Object.assign({}, all, { [skillId]: made.concat([desc]) })); } catch (e) { return 1; }
+    // A server whose masterySystem reports what it credited (globalThis.__dboMasteryCreditsHook) marks the item only when the
+    // craft really earned something: at a spent bucket or cap the bonus waits for the next time. An older one marks it now
+    if (globalThis.__dboMasteryCreditsHook) S.firstPending.set(`${actorId >>> 0}|${skillId}`, { desc, mult });
+    else markMade(actorId, skillId, desc, mult);
+    return mult;
+  };
+  const markMade = (actorId, skillId, desc, mult) => {
+    let all = null; try { all = mp.get(actorId >>> 0, KINDS); } catch (e) { return; }
+    all = all && typeof all === 'object' ? all : {};
+    const made = Array.isArray(all[skillId]) ? all[skillId] : [];
+    if (made.includes(desc)) return;
+    if (made.length < (Number(FIRST.maxKept) || 3000)) {
+      try { mp.set(actorId >>> 0, KINDS, Object.assign({}, all, { [skillId]: made.concat([desc]) })); } catch (e) { return; }
     }
     try { if (typeof personal === 'function') personal(actorId >>> 0, mult >= 1.5 ? 'Something new: you learn more making it the first time.' : 'Something new, though by now you learn little more from it.'); } catch (e) { /* the message is optional */ }
-    return mult;
+  };
+  // masterySystem, after the meter: the units this act credited to this skill (fork mastery-credited-hook)
+  const credited = (actorId, skillId, kind, detail, units) => {
+    const key = `${actorId >>> 0}|${skillId}`;
+    const p = S.firstPending.get(key);
+    if (!p) return;
+    S.firstPending.delete(key);
+    if (kind === 'craft' && Number(units) > 0) markMade(actorId, skillId, p.desc, p.mult);
   };
 
   const noteBreakdown = (actorId, baseId) => {
@@ -138,6 +159,7 @@ module.exports = (api) => {
   };
 
   globalThis.__dboSkillRate = rateFor;
+  globalThis.__dboSkillRateCredited = credited;
   globalThis.__dboSkillRateBrokeDown = noteBreakdown;
 
   const plain = (v) => Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('_')));

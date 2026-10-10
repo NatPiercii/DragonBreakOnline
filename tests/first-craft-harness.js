@@ -63,5 +63,21 @@ rate = load({ enabled: true, rates: {}, firstCraft: { enabled: true, rate: 3, fu
 ok('after a reload the dishes made are remembered', craft(rate, 'cook', 0x100) === 1 && near(craft(rate, 'cook', 0x100 + 50), 1 + 2 * 25 / 51));
 ok('a recipe the server cannot read gets nothing', craft(rate, 'cook', 0x7777) === 1);
 
+// ---- with masterySystem's credit report (fork mastery-credited-hook): marked only when the craft credited something ----
+globalThis.__dboMasteryCreditsHook = 1;
+props.delete(`${A}|private.dboCraftedKinds`);
+rate = load({ enabled: true, rates: {}, firstCraft: { enabled: true, rate: 3, fullFor: 25, skills: ['cook'] } });
+told.length = 0;
+ok('a new dish at a spent bucket: x3 offered, not yet marked, nobody told', craft(rate, 'cook', 0x100) === 3 && !props.get(`${A}|private.dboCraftedKinds`) && told.length === 0);
+globalThis.__dboSkillRateCredited(A, 'cook', 'craft', { recipeId: 0x100 }, 0);
+ok('...the meter kept nothing: still not marked', !props.get(`${A}|private.dboCraftedKinds`));
+ok('so the next time it is still new: x3', craft(rate, 'cook', 0x100) === 3);
+globalThis.__dboSkillRateCredited(A, 'cook', 'craft', { recipeId: 0x100 }, 1.5);
+ok('...credited this time: marked, and the player told', JSON.stringify(props.get(`${A}|private.dboCraftedKinds`)) === '{"cook":["5000:skyrim.esm"]}' && told.length === 1);
+ok('...and from then on x1', craft(rate, 'cook', 0x100) === 1);
+globalThis.__dboSkillRateCredited(A, 'cook', 'craft', { recipeId: 0x100 }, 1);
+ok('a credit with nothing pending changes nothing', props.get(`${A}|private.dboCraftedKinds`).cook.length === 1 && told.length === 1);
+delete globalThis.__dboMasteryCreditsHook;
+
 console.log(fails ? `${fails} failed` : 'all passed');
 process.exit(fails ? 1 : 0);
