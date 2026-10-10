@@ -15,13 +15,18 @@ module.exports = (api) => {
   const OPS = new Set(['choose', 'drop', 'lock', 'takeUp']);
   const menuOf = (a) => (typeof globalThis.__alduinakMasteryMenu === 'function' ? globalThis.__alduinakMasteryMenu(a >>> 0) : null);
   const sections = globalThis.__dboJournalSections || (globalThis.__dboJournalSections = {});
+  const smithOf = (a) => { try { return typeof globalThis.__dboSmithView === 'function' ? globalThis.__dboSmithView(a >>> 0) || null : null; } catch (e) { return null; } };
   // Shown once the fork has the hook (server-f3-skills); before that K keeps opening widget 25. A link from elsewhere (Profile's meters) arrives as opts.focus { skill } and names the page to show
   sections.skills = {
     visible: () => typeof globalThis.__alduinakMasteryMenu === 'function',
     view: (a, opts) => {
       const m = menuOf(a);
       const want = opts && opts.focus && typeof opts.focus === 'object' ? String(opts.focus.skill || '') : '';
-      return m && want ? Object.assign({}, m, { focus: want.slice(0, 40) }) : m;
+      const out = m && want ? Object.assign({}, m, { focus: want.slice(0, 40) }) : m;
+      // Blacksmithing's page shows the craft tiers and recipes (smithing.js __dboSmithView; null without the skill or with
+      // smithing off, and then the page keeps its usual tier cards)
+      const smith = smithOf(a);
+      return out && smith ? Object.assign({}, out, { smith }) : out;
     },
   };
 
