@@ -322,7 +322,8 @@ module.exports = (api) => {
     if (S.writing) { S.waiters.push(resolve); return; }     // the batch under way finishes first; new dirt waits
     S.queue = [...new Set([...S.queue, ...S.dirty])]; S.dirty.clear();
     if (!S.queue.length) { evict(); return resolve(0); }
-    try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { log('journal stats: cannot make', DIR, e.message); for (const x of S.queue) S.dirty.add(x); S.queue = []; return resolve(0); }
+    // Made once: a synchronous call on every flush stalls the server when the disk does
+    if (!S.dirMade) try { fs.mkdirSync(DIR, { recursive: true }); S.dirMade = true; } catch (e) { log('journal stats: cannot make', DIR, e.message); for (const x of S.queue) S.dirty.add(x); S.queue = []; return resolve(0); }
     S.waiters.push(resolve);
     pump();
   });

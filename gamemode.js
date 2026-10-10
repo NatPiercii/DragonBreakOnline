@@ -406,7 +406,16 @@ const staffLog = (whoName, tier, what, detail, tally = true) => {
 // GM; counted in the week's summary only when that is staff
 const staffNote = (a, what, detail) => staffLog(display(a), tierOf(a), what, `${staffWho(a)}: ${detail}`, isAdmin(a));
 const flushStaff = async () => {
-  if (staffState.dirty) { staffState.dirty = false; try { fs.writeFileSync(STAFF_FILE + '.tmp', JSON.stringify(staffList())); fs.renameSync(STAFF_FILE + '.tmp', STAFF_FILE); } catch (e) { log('staff-actions.json write failed', e.message); } }
+  // Written off the main thread, one write at a time: a synchronous write here froze the server up to 5.4 s when the disk
+  // stalled (ticks report, 9 Oct). A change made during a write marks it dirty again for the next tick.
+  if (staffState.dirty && !staffState.writing) {
+    staffState.dirty = false; staffState.writing = true;
+    const tmp = STAFF_FILE + '.tmp';
+    fs.writeFile(tmp, JSON.stringify(staffList()), (e) => {
+      if (e) { staffState.writing = false; staffState.dirty = true; return log('staff-actions.json write failed', e.message); }
+      fs.rename(tmp, STAFF_FILE, (e2) => { staffState.writing = false; if (e2) { staffState.dirty = true; log('staff-actions.json write failed', e2.message); } });
+    });
+  }
   if (staffState.busy || !staffState.queue.length || Date.now() < staffState.pauseUntil || !discordTarget || discordTarget.kind !== 'bot') return;
   staffState.busy = true;
   const lines = []; let size = 0;
@@ -5985,10 +5994,15 @@ const statItemsFor = (a) => {
   return out;
 };
 const statSent = globalThis.__dboStatSent instanceof Map ? globalThis.__dboStatSent : (globalThis.__dboStatSent = new Map());
+// A fifth of the players each turn, every fifth of the interval: all of them at once took 20-40 ms (ticks report, 9 Oct)
+const STAT_SLICES = 5;
+let statTurn = 0;
 const pushStats = () => {
   if (!STAT_DISPLAY.enabled) return;
   const now = Date.now();
+  const turn = statTurn = (statTurn + 1) % STAT_SLICES;
   for (const a of onlineActors()) {
+    if ((a >>> 0) % STAT_SLICES !== turn) continue;
     if (!(profileOf(a) >= 0)) continue;
     let items; try { items = statItemsFor(a); } catch (e) { log('stat display failed', e.message); continue; }
     const key = JSON.stringify(items), last = statSent.get(a);
@@ -5998,7 +6012,7 @@ const pushStats = () => {
   }
   if (statSent.size > 512) for (const [k, v] of statSent) if (now - v.at > 3600000) statSent.delete(k);
 };
-every('statDisplay', Math.max(2, Number(STAT_DISPLAY.everySeconds) || 10) * 1000, pushStats);
+every('statDisplay', Math.max(2, Number(STAT_DISPLAY.everySeconds) || 10) * 1000 / STAT_SLICES, pushStats);
 globalThis.__dboStatItemsFor = statItemsFor;
 
 // ---- party panel: names and health of your party, owner-side widget fed by ff_party --------------
