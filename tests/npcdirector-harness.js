@@ -80,10 +80,18 @@ check('...and one 6000 units away (beyond 4000)', hosters.get(FAR) === 0, sets);
 check('...but keeps one 300 units away', hosters.get(WOLF) === P1, sets);
 check('a client asking to drive the released dead NPC is refused', globalThis.__dboNpcDirectorRefuses(P1, BODY) === true);
 const FIGHT = 0xff000105; npcs[FIGHT] = {}; pos[FIGHT] = [7000, 0, 0]; hosters.set(FIGHT, P1);
-globalThis.__dboHostCooldown = { holds: (h, n) => n === FIGHT, noteHandover: () => {} };
+// As gamemode.js hostHold: no hold when the requester is the NPC's current host
+globalThis.__dboHostCooldown = { holds: (h, n) => ((h >>> 0) !== (hosters.get(n) || 0) && n === FIGHT) ? 'in a fight' : null, noteHandover: () => {} };
 now += 4000; sight(P1, [[FIGHT, 7000]]); tick();
 check('a far NPC still fighting stays with its host', hosters.get(FIGHT) === P1);
 delete globalThis.__dboHostCooldown;
+// No cycle (claude-jake, 10 Oct: 19,975 re-grants in 7 h): a released far NPC is not handed back to the same player
+now += 4000; sight(P1, [[FAR, 6000]]); tick();
+check('a released far NPC is not given back while it is still beyond releaseUnits', hosters.get(FAR) === 0, sets);
+const EDGE = 0xff000106, NEAR = 0xff000107; npcs[EDGE] = {}; npcs[NEAR] = {}; pos[EDGE] = [3800, 0, 0]; pos[NEAR] = [3000, 0, 0];
+now += 4000; sight(P1, [[EDGE, 3800], [NEAR, 3000]]); tick();
+check('one just inside releaseUnits but beyond 0.9 of it is not given (no flapping at the edge)', !hosters.get(EDGE), sets);
+check('one well inside it is given', hosters.get(NEAR) === P1, sets);
 Date.now = realNow; delete globalThis.__dboHostPolicy;
 console.log('');
 console.log(failures ? `${failures} FAILURES` : 'all checks passed');

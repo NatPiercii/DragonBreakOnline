@@ -23,7 +23,7 @@ module.exports = (api) => {
   // releaseDead / releaseUnits: a host gives up a dead NPC, or one farther than releaseUnits from it (0 keeps it). A player's
   // game kept hosting dungeon dead and far-off enemies, which it then fought the server over (Red Ruby, 9 Oct /bug)
   const C = Object.assign({ mode: 'on', freshMs: 3000, holdFactor: 1.5, holdUnits: 512, changeEveryMs: 3000, logEveryMs: 60000,
-    releaseDead: true, releaseUnits: 4000 },
+    releaseDead: true, releaseUnits: 4000, grantFactor: 0.9 },
     cfg.npcDirector || {});
   // sight: player actorId -> { at, dist: Map<npcId, distance> }; changedAt: npcId -> ms; told: rate-limited logs
   const S = globalThis.__dboNpcDirector || (globalThis.__dboNpcDirector = { sight: new Map(), changedAt: new Map(), told: new Map() });
@@ -100,7 +100,9 @@ module.exports = (api) => {
         const dead = C.releaseDead && isDead(npc);
         if (!dead && !(C.releaseUnits > 0 && apart(p, npc) > C.releaseUnits)) continue;
         if (!dead && !managed(npc)) continue;                  // companions, summons and raiders keep their own rules
-        if (!dead && hc && hc.holds(p, npc)) continue;
+        // Asked as for a hand-over to nobody: hostHold returns null when the requester is the current host, so asking
+        // for p itself never held a fighting NPC (claude-jake, 10 Oct)
+        if (!dead && hc && hc.holds(0, npc)) continue;
         out.push({ npc, from: p, to: 0, why: dead ? 'dead' : 'far' });
         if (C.mode !== 'on') continue;
         try { mp.setHoster(npc, 0); S.changedAt.set(npc, now); }
@@ -125,6 +127,9 @@ module.exports = (api) => {
         if (typeof globalThis.__dboFormExists === 'function' && !globalThis.__dboFormExists(npc)) continue;
         const v = policy(p, npc);
         if (!v.ok) continue;
+        // Nobody is given an NPC release() would take back: only within grantFactor x releaseUnits of it (0.9, so one at
+        // the edge is not released and re-granted every 3 s; 10 Oct, 19,975 re-grants in 7 h)
+        if (C.releaseUnits > 0 && (Number(v.dist) || 0) > C.releaseUnits * C.grantFactor) continue;
         let l = seenBy.get(npc); if (!l) seenBy.set(npc, l = []); l.push([p, Number(v.dist) || 0]);
       }
     }

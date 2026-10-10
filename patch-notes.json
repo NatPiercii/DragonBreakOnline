@@ -65,7 +65,8 @@
         "items": [
           "163 dungeon lights in the 14 heaviest dungeons no longer cast shadows, for better frame rates.",
           "Your game no longer runs enemies that are dead or far away.",
-          "Several server freezes of up to 5 seconds are gone."
+          "Several server freezes of up to 5 seconds are gone.",
+          "Enemies no longer switch back and forth between players every few seconds when you walk away from them, which cut a steady stream of server work and could make them twitch."
         ]
       }
     ]
