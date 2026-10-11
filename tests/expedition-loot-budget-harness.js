@@ -210,12 +210,13 @@ for (const diff of DIFFS) {
   const total = (diff) => ORD.reduce((n, d) => n + rows.find((r) => r.d === d && r.diff === diff).m.value, 0);
   check(`ordinary dungeons: Novice gives the least (${DIFFS.map((x) => f0(total(x))).join(', ')})`, DIFFS.slice(1).every((x) => total('story') < total(x)));
   const avgOf = (list, f) => list.reduce((n, m) => n + f(m), 0) / Math.max(1, list.length);
-  // Torches were the most common chest find (groundedpasta, 2026-09-29); a bandit hands over its weapon now and then
+  // Torches were the most common chest find (groundedpasta, 2026-09-29), and a rare one since Nate's 10 Oct nerf (3% of
+  // ordinary big chests, was 12%; 8% times the trim in the ruins, was 35%); a bandit hands over its weapon now and then
   const ordAt = (diff, f) => avgOf(rows.filter((r) => !r.d.expedition && r.diff === diff && (r.d.raw.chests || []).some((c) => c.big)).map((r) => r.m), f);
   const expAt = (diff, f) => avgOf(rows.filter((r) => r.d.expedition && r.diff === diff).map((r) => r.m), f);
   for (const diff of DIFFS) {
     const t = ordAt(diff, (m) => m.torch), te = expAt(diff, (m) => m.torch);
-    check(`${diff}: a torch in ${f0(100 * t)}% of ordinary big chests (12% aimed), ${f0(100 * te)}% in the dark ruins`, t > 0.07 && t < 0.18 && te > t);
+    check(`${diff}: a torch in ${f0(100 * t)}% of ordinary big chests (3% aimed), ${f0(100 * te)}% in the dark ruins (8% x the trim)`, t > 0.01 && t < 0.06 && te > 0.01 && te < 0.07);
     const g = avgOf(rows.filter((r) => !r.d.expedition && r.diff === diff && r.m.body > 0).map((r) => r.m), (m) => m.bodyGear);
     check(`${diff}: ${f0(100 * g)}% of ordinary humanoid bodies hand over their weapon (25% aimed)`, g > 0.18 && g < 0.32);
   }

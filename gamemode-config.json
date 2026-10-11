@@ -796,9 +796,9 @@
    "ordinary": false
   },
   "_lootCap": "lootTiers.cap (default 'steel'; 'iron'; 'none'): the ceiling over weapons, armour and arrows in every loot path (loottiers.js), a stopgap until rarity is designed. The ingots and ores above steel (gear-swap.json metals: Dwarven, Adamantium, Stalhrim; loottiers.js LOOT_ONLY_METALS: the ores players mine and their ingots, quicksilver, orichalcum, moonstone, malachite, ebony, meteoric iron) are never loot at any cap, 'none' too (Nate, 2026-10-04: \"people should have to craft higher tiers and grind for it\"): mine and craft, never loot. Mined metals are never swapped (Nate, 4 Oct: \"Keep mined ores, swap only gear\"), only kept out of loot (more as descs in lootTiers.lootOnlyMetals); dragon bone and scales come only from a slain dragon's body. linen: the Linen Wrap rolls (chest, boss, container chances; stack, containerStack; nordic multiplier).",
-  "_lootExtras": "torchChance: a chest's torch roll in ordinary dungeons, expeditionTorchChance in the dark Ayleid ruins (both times the trim). bodyGearChance (expeditionBodyGearChance in the ruins, which keep their trim): a humanoid body hands over one plain piece of the weapon or armor it carried, times the trim (groundedpasta, 2026-09-29: bandits dropped nothing).",
-  "torchChance": 0.12,
-  "expeditionTorchChance": 0.35,
+  "_lootExtras": "torchChance: a chest's torch roll in ordinary dungeons, expeditionTorchChance in the dark Ayleid ruins (both times the trim), one torch a chest at most. Nate, 10 Oct 2026: \"nerf the torches in the loot pool\": 0.12 -> 0.03 and 0.35 -> 0.08 (one torch, was 1 or 2). bodyGearChance (expeditionBodyGearChance in the ruins, which keep their trim): a humanoid body hands over one plain piece of the weapon or armor it carried, times the trim (groundedpasta, 2026-09-29: bandits dropped nothing).",
+  "torchChance": 0.03,
+  "expeditionTorchChance": 0.08,
   "bodyGearChance": 0.25,
   "expeditionBodyGearChance": 0.12,
   "raid": {

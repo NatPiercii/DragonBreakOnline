@@ -590,8 +590,11 @@ module.exports = (api) => {
   const EXPL = Object.assign({ gearScale: { boss: { story: 0.5, normal: 0.5, hard: 0.5, nightmare: 0.5 }, raid: { story: 0.5, normal: 0.5, hard: 0.5, nightmare: 0.5 } }, scale: { story: 0.4, normal: 0.45, hard: 0.5, nightmare: 0.5 }, bossScale: { story: 0.7, normal: 0.8, hard: 0.85, nightmare: 0.9 }, containerScale: 0.6, arrows: [1, 4], containerArrows: [1, 3], enchScale: 0.6, ayleidScale: 0.67, ordinary: true }, C.expeditionLoot || {});
   const NO_TRIM = { x: 1, xb: 1, xs: 1, arrows: stackOr(C.arrowStack, [2, 5]), containerArrows: stackOr(C.containerArrowStack, [1, 3]), ench: 1, ayleid: 1, single: false, gear: 1 };
   const chanceOr = (v, dflt) => (Number.isFinite(Number(v)) && v !== null && v !== '' ? Math.max(0, Math.min(1, Number(v))) : dflt);
-  const ORDINARY_TORCH = chanceOr(C.torchChance, 0.12);
-  const EXPEDITION_TORCH = chanceOr(C.expeditionTorchChance, 0.35);
+  // Torches are rare finds (Nate, 10 Oct: "nerf the torches in the loot pool"): 0.12 -> 0.03 and 0.35 -> 0.08 in the config,
+  // and one torch a chest at most (was 1 or 2, and a raid boss chest's second roll could add more)
+  const ORDINARY_TORCH = chanceOr(C.torchChance, 0.03);
+  const EXPEDITION_TORCH = chanceOr(C.expeditionTorchChance, 0.08);
+  const isTorch = (baseId) => (LOOT.lights || []).some((it) => idOf(it.id) === baseId);
   // A humanoid body hands over a plain piece of what it carried; expeditions keep their trim, so less there
   const BODY_GEAR = chanceOr(C.bodyGearChance, 0.25);
   const EXPEDITION_BODY_GEAR = chanceOr(C.expeditionBodyGearChance, 0.12);
@@ -631,9 +634,9 @@ module.exports = (api) => {
     if (p(0.3 * ARROW_CHANCE)) addEntry(entries, pickFrom(pool('arrows', 0, ok)), rnd(k.arrows[0], k.arrows[1]));
     if (p(0.2)) addEntry(entries, pickFrom(pool('lockpicks', 0, ok)), rnd(1, k.single ? 2 : 3));
     if (LINEN.item && p(chanceOr(boss ? LINEN.boss : LINEN.chest, 0) * (Number.isFinite(k.linen) ? k.linen : 1))) addEntry(entries, { id: String(LINEN.item) }, rnd(LINEN_STACK[0], LINEN_STACK[1]));
-    // Torches: common in the dark Ayleid ruins (Nate, 2026-09-28), rarer elsewhere, where they crowded out the rest
-    // (groundedpasta, 2026-09-29: "4 torches in one cave"). Config dungeons.torchChance / expeditionTorchChance
-    if (p(Number.isFinite(k.torch) ? k.torch : ORDINARY_TORCH)) addEntry(entries, pickFrom(pool('lights', 0, ok)), rnd(1, 2));
+    // Torches: once common in the dark Ayleid ruins (Nate, 2026-09-28), they crowded out the rest (groundedpasta, 2026-09-29:
+    // "4 torches in one cave"); a rare find now, one at most (Nate, 10 Oct). Config dungeons.torchChance / expeditionTorchChance
+    if (p(Number.isFinite(k.torch) ? k.torch : ORDINARY_TORCH)) addEntry(entries, pickFrom(pool('lights', 0, ok)), 1);
     if (diff.soulgem > 0 && p(diff.soulgem * (boss ? 2 : 1))) addEntry(entries, pickFrom(soulPool(diff.soulTier, ok)), 1);
     // Recipe notes (the Draught of Revival): a rare find in a boss chest
     if (boss && p(0.05)) addEntry(entries, pickFrom(pool('recipes', 0, ok)), 1);
@@ -658,7 +661,7 @@ module.exports = (api) => {
     const entries = chestLoot(diff, true, ok, ayleid, raid, k);
     const rolls = raid ? Math.max(1, Number(RAID.bossRolls) || 1) : 1;
     const extra = Math.floor(rolls - 1) + (Math.random() < (rolls - 1) % 1 ? 1 : 0);
-    for (let i = 0; i < extra; i++) for (const e of chestLoot(diff, true, ok, false, false, k, TIERS.rowFor(diff.id, raid ? 'raidBoss' : 'boss'))) { const hit = entries.find((x) => x.baseId === e.baseId); if (hit) hit.count += e.count; else entries.push(e); }
+    for (let i = 0; i < extra; i++) for (const e of chestLoot(diff, true, ok, false, false, k, TIERS.rowFor(diff.id, raid ? 'raidBoss' : 'boss'))) { const hit = entries.find((x) => x.baseId === e.baseId); if (hit) { if (!isTorch(e.baseId)) hit.count += e.count; } else entries.push(e); }
     // A smithing manual now and then (manuals.js): its own pool, by the difficulty and the dungeon's province, once a chest.
     // Not through `ok`, whose name filter would drop the Ebony manual with the Ebony gear.
     try { if (typeof globalThis.__dboManualsBossLoot === 'function') addEntry(entries, globalThis.__dboManualsBossLoot(diff.id, province), 1); } catch (e) { log('manual loot failed', e.message); }
