@@ -348,6 +348,25 @@ const refusedCook = cookable.filter(([k, e]) => { const [h, pl] = k.split(':'); 
 check(`every regional cooking recipe in regions.json passes in Bruma (${cookable.length} of ${cookRegional.length}${cookable.length < cookRegional.length ? ', the rest from plugins this harness does not map' : ''})`,
   cookable.length >= 20 && refusedCook.length === 0, refusedCook.map(([, e]) => e.edid));
 
+// Banish Daedra is a Skyrim tome, sold at the Synod to a college's Senior ranks only (Elion and Aldemar's proposal, 11 Oct)
+{
+  writeOverrides(OVR_BASE);
+  const BANISH_BOOK = 'a26ee:Skyrim.esm';
+  spellsCfg = { shopStock: 999 }; load();
+  const ranks = ['Chancellor of the Synod', 'Magister', 'Senior Magister', 'Mage of the Synod', 'Synod Artificer', 'Synod Robe-Maker', 'Associate', 'Initiate'];
+  const had = [globalThis.__dboGuildsOf, globalThis.__dboGuildRankList];
+  globalThis.__dboGuildRankList = () => ranks.map((title) => ({ title }));
+  globalThis.__dboGuildsOf = () => [{ id: 'synod', role: 'officer', title: 'Magister', name: 'The Synod' }];
+  cmd('tomes', MAGE);
+  check('a Synod officer finds Banish Daedra on the shelf, though it is a Skyrim tome', !!row(MAGE, BANISH_BOOK), shop(MAGE).tomes.length);
+  globalThis.__dboGuildsOf = () => [{ id: 'synod', role: 'mage', title: 'Mage of the Synod', name: 'The Synod' }];
+  cmd('tomes', MAGE);
+  check('...a Mage of the Synod does not', !row(MAGE, BANISH_BOOK));
+  ui('tomeBuy', MAGE, [shop(MAGE).nonce, BANISH_BOOK]);
+  check('...and a forged buy of it is refused', shop(MAGE).resultKind === 'refused', shop(MAGE).result);
+  [globalThis.__dboGuildsOf, globalThis.__dboGuildRankList] = had;
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });

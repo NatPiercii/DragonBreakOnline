@@ -93,6 +93,9 @@ module.exports = (api) => {
     // within radiusMeters of it. The student learns as a lesson does; a member is taught up to the rank they may buy, and
     // never below studentMinCap (Apprentice), so an Initiate or a smith can still be taught their first spells.
     collegeTeach: { enabled: true, radiusMeters: 15, studentMinCap: 1 },
+    // Tomes the Synod sells to Senior ranks although the province does not stock them (Elion and Aldemar: Banish Daedra
+    // is a Skyrim tome, so the conjuration teacher could never buy it). Tome editor ids.
+    shopSeniorTomes: ['SpellTomeBanishDaedra'],
     // The shelf: shopStock tomes the buyer can learn now, chosen by a seed of the UTC week (Monday 00:00) and the shop, so
     // everyone at the shop sees the same rotation that week (Nate, 2026-10-06: "only 3-4 at a time ... so Scholar is still
     // worth it")
@@ -673,6 +676,8 @@ module.exports = (api) => {
   const isSeniorIn = (m) => !!m && SENIOR_ROLES.has(String(m.role || ''));
   // A Senior rank or above in a college (Senior Magister, Senior Whisperer, Senior Wizard and up)
   const isSenior = (a) => { const mine = collegesOf(a); return !!mine && mine.some(isSeniorIn); };
+  const SENIOR_TOMES = new Set((CFG.shopSeniorTomes || []).map((e) => String(e).toLowerCase()));
+  const soldFor = (a, R, t) => soldHere(R, t) || (SENIOR_TOMES.has(String(t.edid || '').toLowerCase()) && isSenior(a));
   // The highest tome rank one place in a college buys: -1 for the crafting posts and the joining rank (shopRankByRole)
   const rankCapIn = (m) => {
     if (!m || CRAFT_ROLES.has(String(m.role || '')) || isInitiate(m)) return -1;
@@ -757,7 +762,7 @@ module.exports = (api) => {
     const learned = new Set(learnedIds(a) || []), book = new Set(knownIds(a));
     const mine = schoolsOf(a);
     const rankOf = (t) => (mine && t.school === mine.primary ? 0 : mine && t.school === mine.secondary ? 1 : 2);
-    const open = shelfOrder(weekNo(Date.now())).filter((t) => (soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t) && !rankBlock(a, t));
+    const open = shelfOrder(weekNo(Date.now())).filter((t) => (soldFor(a, R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t) && !rankBlock(a, t));
     const sorted = open.map((t, i) => [t, i]).sort((x, y) => rankOf(x[0]) - rankOf(y[0]) || x[1] - y[1]).map(([t]) => t);
     const size = stockSize(a);
     const first = sorted.filter((t) => rankOf(t) === 0), rest = sorted.filter((t) => rankOf(t) !== 0);
@@ -816,7 +821,7 @@ module.exports = (api) => {
       canBuy: !whyNot, nextPurchaseAt: nextBuyAt(a), whyNot,
       skills: held.map((x) => ({ id: x.s.id, label: x.s.label, tier: x.tier, tierName: TIER_NAMES[x.tier], schools: (x.s.vanillaSkills || []).slice() })),
       tomes: stockFor(a, R, admin).filter((t) => schools.has(t.school)).map((t) => {
-        const foreign = !soldHere(R, t);
+        const foreign = !soldFor(a, R, t);
         return {
           id: descOf(t.bookId), name: foreign && admin ? `${t.title} (${soldIn(R, t) || 'sold nowhere'})` : t.title, spell: t.name, school: t.school, rank: t.rank, rankName: RANKS[t.rank],
           price: priceOf(t), canAfford: gold >= priceOf(t), blocked: foreign && !admin ? (soldIn(R, t) ? `Sold in ${soldIn(R, t)}` : 'Not sold anywhere') : tomeBlock(a, t),
@@ -858,7 +863,7 @@ module.exports = (api) => {
     const t = SHOP.find((x) => x.bookId === bookId);
     if (!t || !pathsOf(a, t.school).some((skill) => tierOf(a, skill.id) >= 0)) return { ok: false, text: 'The court mage will not sell you that tome.' };
     const R = regions();
-    if (!soldHere(R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
+    if (!soldFor(a, R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
     const block = tomeBlock(a, t) || rankBlock(a, t);
     if (block) return { ok: false, text: `${t.title}: ${block}.` };
     if (knows(a, t.spellId) || inBook(a, t.spellId)) return { ok: false, text: `You already know ${t.name}.` };
