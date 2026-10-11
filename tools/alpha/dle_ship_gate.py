@@ -46,7 +46,7 @@ ANCHORS = [
     (0x125BFB, 'DBO_ShrineOfBoethiah', 'Boethiah'), (0x125BCB, 'DBO_ShrineOfMephala', 'Mephala'),
     (0x125BE2, 'DBO_ShrineOfMehrunesDagon', 'Mehrunes Dagon'), (0x125BCC, 'DBO_ShrineOfMolagBal', 'Molag Bal'),
     (0x125BD2, 'DBO_ShrineOfNocturnal', 'Nocturnal'), (0x125BCA, 'DBO_ShrineOfHircine', 'Hircine'),
-    (0x125BF8, 'DA09MeridiaStatue', 'Meridia'), (0x125BD4, 'DBO_ShrineOfSanguine', 'Sanguine'),
+    (0x125BF8, 'DBO_ShrineOfMeridia', 'Meridia'), (0x125BD4, 'DBO_ShrineOfSanguine', 'Sanguine'),
     (0x125BD5, 'DBO_ShrineOfSheogorath', 'Sheogorath'), (0x125BF9, 'DA03ClavicusVileShrine', 'Clavicus Vile'),
     (0x125BCD, 'DBO_ShrineOfHermaeusMora', 'Hermaeus Mora'), (0x125BCF, 'DBO_ShrineOfNamira', 'Namira'),
     (0x125BD3, 'DBO_ShrineOfPeryite', 'Peryite'), (0x125BD6, 'DBO_ShrineOfVaermina', 'Vaermina')]]
