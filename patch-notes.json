@@ -9,15 +9,15 @@
         "heading": "Spell tomes",
         "items": [
           "What a college sells you now depends on your rank. Members above Initiate (Mage of the Synod, Whisperer, Wizard, Associate, Scholar, Novice, Apprentice) can buy Novice and Apprentice tomes. Senior ranks and above (Senior Magister, Senior Whisperer, Senior Wizard and up) can buy up to Expert. Master tomes are still not sold, and Initiates and the colleges' smiths and robe-makers still buy none.",
-          "Senior ranks and above can buy one tome a day. Everyone else can still buy one a week.",
-          "Raising the dead (Raise Zombie, Reanimate Corpse, Revenant, Dread Zombie, Dead Thrall and Cyrodiil's zombie spells) and calling the Daedra lords (Conjure Dremora Lord, the Golden Saints and Dark Seducers, Staada) are restricted arts, along with Banish, Expel and Command Daedra. Only Senior ranks and above can buy or be taught them."
+          "Senior ranks and above can now buy two tomes a week. Everyone else can still buy one a week.",
+          "Raising the dead (Raise Zombie, Reanimate Corpse, Revenant, Dread Zombie, Dead Thrall, Cyrodiil's zombie spells, and Conjure Boneman, Mistman and Wrathman from the Soul Cairn) and calling the Daedra lords (Conjure Dremora Lord, the Golden Saints and Dark Seducers, Staada) are restricted arts, along with Banish, Expel and Command Daedra. Only Senior ranks and above can buy or be taught them."
         ]
       },
       {
         "heading": "Teaching a spell",
         "items": [
           "A Senior rank or above can now teach a spell straight to a member of their own college, with no book needed. Use your college's Scholars' Ledger (in the Synod Conclave, or in Frostcrag Spire for the College of Whispers) or its Class Lectern, choose \"Teach a spell to a student\", then pick the student and the spell. The student has to be standing nearby (within 15 m) and accept.",
-          "Each lesson uses up a tome of that spell if you carry one. If you don't, it uses your tome purchase for the day. The student still needs the skill and the school of magic for the spell, and is taught spells up to the rank they could buy (Apprentice at least, so Initiates can be taught their first spells too)."
+          "Each lesson uses up a tome of that spell if you carry one. If you don't, it counts as one of your two tome purchases for the week. The student still needs the skill and the school of magic for the spell, and is taught spells up to the rank they could buy (Apprentice at least, so Initiates can be taught their first spells too)."
         ]
       },
       {
@@ -25,6 +25,20 @@
         "items": [
           "A mage can now hold classes at a Class Lectern with Arcane Arts at 75, as well as with Expert study in a school.",
           "Students who have not reached their first spell yet (Arcane Arts below 25, no school chosen) can now join a Novice or Apprentice class. They learn Arcane Arts while they stay in the classroom, at about twice the pace of studying alone. The usual hourly and daily skill limits still apply."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "The tome shelf favours your school",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "The weekly spell tome shelf at the Scholars' Ledger now puts tomes of your primary school of magic first. Three of its four places go to your primary school, and the last goes to your secondary school or Restoration when the shelf has one you can learn."
         ]
       }
     ]

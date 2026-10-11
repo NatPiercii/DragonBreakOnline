@@ -19,10 +19,10 @@
 // tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
 // shopProvince; /teach carries a spell anywhere.
 // By college rank (Elion and Aldemar's proposal, Nate 11 Oct): plain members above Initiate buy up to Apprentice tomes,
-// Senior ranks and above up to Expert (shopRankByRole), one a day for a Senior, a week for the rest; the restricted arts
+// Senior ranks and above up to Expert (shopRankByRole), two a week for a Senior, one for the rest; the restricted arts
 // (seniorOnlyTomes: raising the dead, the Daedra lords, banishing Daedra) only from Senior up. A Senior at their own
 // college's Scholars' Ledger or Class Lectern teaches a spell to a member standing by (collegeTeach), spending a tome of
-// it they carry or today's tome; audited TEACH.
+// it they carry or one of their two purchases of the week; audited TEACH.
 //
 // State, on the character:
 //   private.dboStudied       { arcane: [spell desc...], priest: [...] }  the spellbook: every spell learned through this system
@@ -63,8 +63,9 @@ module.exports = (api) => {
     // as `member`.
     shopRankByRole: { leader: 3, officer: 3, sergeant: 3, mage: 1, member: 1 },
     seniorRoles: ['sergeant', 'officer', 'leader'],
-    // A Senior rank or above buys one tome a day (or teaches with it, below); everyone else one a week (shopCooldownDays)
-    shopCooldownDaysSenior: 1,
+    // A Senior rank or above has shopSeniorPerWeek (2) tomes in any rolling shopCooldownDays (7) days, bought or taught with
+    // (below); everyone else one (Nate, 11 Oct: "two a week", not one a day, now that the Scholar was revamped)
+    shopSeniorPerWeek: 2,
     // Restricted arts, sold (and taught) only to Senior ranks and above: raising the dead and calling the Daedra lords, and
     // the spells that banish or command Daedra. Tome editor ids from spell-tomes.json; the shop's own filters (shopMaxRank,
     // the province, shopExcludePattern) still apply on top, so some are listed only so that they stay restricted.
@@ -72,6 +73,8 @@ module.exports = (api) => {
       // raising the dead
       'SpellTomeRaiseZombie', 'SpellTomeReanimateCorpse', 'SpellTomeRevenant', 'SpellTomeDreadZombie', 'SpellTomeDeadThrall',
       'CYRSpellTomeSummonZombie', 'CYRBrumaFF03SpellTome',
+      // the dead of the Soul Cairn (Nate, 11 Oct: necromancy)
+      'DLC1SpellTomeConjureBoneman', 'DLC1SpellTomeConjureMistman', 'DLC1SpellTomeConjureWrathman',
       // intelligent Daedra: the Dremora lord, Golden Saints and Dark Seducers, Staada
       'SpellTomeConjureDremoraLord', 'ccBGSSSE025_SpellTomeConjureGoldenSaintArcher', 'ccBGSSSE025_SpellTomeConjureGoldenSaintWarrior',
       'ccBGSSSE025_SpellTomeConjureDarkSeducerArcher', 'ccBGSSSE025_SpellTomeConjureDarkSeducerWarrior', 'ccBGSSSE025_SpellTomeConjureStaada',
@@ -79,7 +82,7 @@ module.exports = (api) => {
       'SpellTomeBanishDaedra', 'SpellTomeExpelDaedra', 'SpellTomeCommandDaedra',
     ],
     // Teaching at a college (Nate, 11 Oct): a Senior rank or above, at their own college's Scholars' Ledger or Class
-    // Lectern, spends today's tome (or a tome of the spell they carry) to teach a spell to a member of the same college
+    // Lectern, spends one of their tome purchases (or a tome of the spell they carry) to teach a spell to a member of the same college
     // within radiusMeters of it. The student learns as a lesson does; a member is taught up to the rank they may buy, and
     // never below studentMinCap (Apprentice), so an Initiate or a smith can still be taught their first spells.
     collegeTeach: { enabled: true, radiusMeters: 15, studentMinCap: 1 },
@@ -113,6 +116,7 @@ module.exports = (api) => {
   const STUDIED = 'private.dboStudied';
   const PREPARED = 'private.dboPrepared';
   const BOUGHT = 'private.dboTomeBoughtAt';
+  const BUYS = 'private.dboTomeBuys'; // ms of each purchase (or lesson taught with one) within the window, newest last
 
   const readJson = (file) => { try { return JSON.parse(fs.readFileSync(path.resolve(file), 'utf8')); } catch (e) { log(`spells: ${file} unreadable`, e.message); return null; } };
   const get = (id, prop, dflt) => { try { const v = mp.get(id, prop); return v === undefined || v === null ? dflt : v; } catch (e) { return dflt; } };
@@ -738,18 +742,36 @@ module.exports = (api) => {
   const stockSize = (a) => Math.max(1, Math.round(Number(CFG.shopStock) || 4)) + (a && leadsACollege(a) ? Math.max(0, Math.round(Number(CFG.shopLeaderExtra === undefined ? 1 : CFG.shopLeaderExtra) || 0)) : 0);
   // The tomes on the shelf for this buyer this week: the first shopStock of the week's order that are sold here (or any,
   // for an admin) and that the buyer can learn now (tomeBlock, as at reading, and not a spell they hold). Listed in SHOP order.
+  // The buyer's own schools come first (Nate, 11 Oct): primary, then secondary, then the rest, each in the week's order;
+  // the primary takes at most all but one place while anything else they can learn is in stock
+  const schoolsOf = (a) => { try { return typeof globalThis.__dboSchoolsActive === 'function' ? globalThis.__dboSchoolsActive(a) : null; } catch (e) { return null; } };
   const stockFor = (a, R, admin) => {
     const learned = new Set(learnedIds(a) || []), book = new Set(knownIds(a));
-    const picked = [];
-    for (const t of shelfOrder(weekNo(Date.now()))) {
-      if (picked.length >= stockSize(a)) break;
-      if ((soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t) && !rankBlock(a, t)) picked.push(t);
-    }
-    return SHOP.filter((t) => picked.includes(t));
+    const mine = schoolsOf(a);
+    const rankOf = (t) => (mine && t.school === mine.primary ? 0 : mine && t.school === mine.secondary ? 1 : 2);
+    const open = shelfOrder(weekNo(Date.now())).filter((t) => (soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t) && !rankBlock(a, t));
+    const sorted = open.map((t, i) => [t, i]).sort((x, y) => rankOf(x[0]) - rankOf(y[0]) || x[1] - y[1]).map(([t]) => t);
+    const size = stockSize(a);
+    const first = sorted.filter((t) => rankOf(t) === 0), rest = sorted.filter((t) => rankOf(t) !== 0);
+    const lead = first.slice(0, rest.length ? Math.max(1, size - 1) : size);
+    return lead.concat(rest, first.slice(lead.length)).slice(0, size);
   };
-  // One tome a week, or a day for a Senior rank or above (shopCooldownDaysSenior); a lesson taught at a college spends it too
-  const cooldownDaysOf = (a) => (isSenior(a) ? Number(CFG.shopCooldownDaysSenior) : Number(CFG.shopCooldownDays)) || 0;
-  const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + cooldownDaysOf(a) * DAY; return at > Date.now() ? at : 0; };
+  // One tome in any rolling shopCooldownDays, or shopSeniorPerWeek for a Senior rank or above; a lesson taught at a college
+  // with a purchase counts as one. BOUGHT stays the latest purchase: 0 (or none) clears the record, and an older character
+  // with only BOUGHT counts that one.
+  const windowMs = () => (Number(CFG.shopCooldownDays) || 0) * DAY;
+  const quotaOf = (a) => Math.max(1, Math.floor(isSenior(a) ? Number(CFG.shopSeniorPerWeek) || 1 : 1));
+  const buysOf = (a) => {
+    const last = Number(get(a, BOUGHT, 0)) || 0;
+    if (!last) return [];
+    const list = (Array.isArray(get(a, BUYS, null)) ? get(a, BUYS, []) : []).map(Number).filter((t) => t > 0 && t <= last);
+    if (!list.includes(last)) list.push(last);
+    return list.filter((t) => t > Date.now() - windowMs()).sort((x, y) => x - y);
+  };
+  const recordBuy = (a) => { const now = Date.now(); set(a, BUYS, buysOf(a).concat([now]).slice(-8)); set(a, BOUGHT, now); };
+  const buysLeft = (a) => Math.max(0, quotaOf(a) - buysOf(a).length);
+  const nextBuyAt = (a) => { const b = buysOf(a), q = quotaOf(a); if (b.length < q) return 0; const at = b[b.length - q] + windowMs(); return at > Date.now() ? at : 0; };
+  const usedLine = (a) => (quotaOf(a) > 1 ? `You have had your ${quotaOf(a)} tomes this week (bought, or taught with).` : 'You bought a tome this week.');
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };
   // Why this actor cannot buy now, or ''
   const shopRefusal = (a) => {
@@ -759,7 +781,7 @@ module.exports = (api) => {
     if (CFG.shopAboveInitiate !== false && !aboveInitiate(a)) return 'The court mage sells tomes to mages of the Synod or a College above Initiate, and not to its smiths or robe-makers. Ask your college\'s leaders about promotion.';
     if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= CFG.shopMinTier)) return `Tomes are sold to those with ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[CFG.shopMinTier]} or higher.`;
     const next = nextBuyAt(a);
-    if (next) return `${cooldownDaysOf(a) <= 1 ? 'You have had your tome for today (bought, or taught with).' : 'You bought a tome this week.'} The next is yours in ${waitText(next - Date.now())}.`;
+    if (next) return `${usedLine(a)} The next is yours in ${waitText(next - Date.now())}.`;
     return '';
   };
 
@@ -834,9 +856,9 @@ module.exports = (api) => {
     if (!takeGold(a, price)) return { ok: false, text: `${t.title} costs ${price} gold, and you do not have it.` };
     if (!giveItem(a, t.bookId, 1)) { giveItem(a, GOLD, price); return { ok: false, text: 'The court mage could not hand you the tome. Your gold is returned.' }; }
     const paid = payForTome(a, t, price);
-    set(a, BOUGHT, Date.now());
+    recordBuy(a);
     audit(`SPELL ${who(a)} bought tome ${descOf(t.bookId)} ${t.title} for ${price} gold (${paid})`);
-    return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. ${cooldownDaysOf(a) <= 1 ? 'Your next tome, or a lesson taught at your college, is a day away.' : 'Your next tome is a week away.'}` };
+    return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. ${buysLeft(a) > 0 ? `You may have ${plural(buysLeft(a), 'more tome')} this week, bought or taught with.` : nextBuyAt(a) ? `Your next tome is ${waitText(nextBuyAt(a) - Date.now())} away.` : 'Your next tome is a week away.'}` };
   };
   const freshShop = (a, args) => shopNonces.get(a >>> 0) === String(args[0] || '');
   onUi('tomeBuy', (a, args) => {
@@ -849,7 +871,7 @@ module.exports = (api) => {
   // ---- teaching at a college (Elion and Aldemar's proposal, Nate 11 Oct) ---------------------------------------------
   // A Senior rank or above, at their own college's Scholars' Ledger or Class Lectern (the hall guilds.js names for its
   // cell), teaches a spell they know to a member of the same college within radiusMeters of it. One credit per lesson:
-  // a tome of the spell the teacher carries (it is used up), else today's tome purchase (the shop's cooldown is spent, as
+  // a tome of the spell the teacher carries (it is used up), else one of the teacher's tome purchases (it counts against the shop's quota, as
   // a purchase spends it). The student is asked first; the lesson is checked again when they accept. No book changes hands.
   const TEACH = Object.assign({ enabled: true, radiusMeters: 15, studentMinCap: 1 }, CFG.collegeTeach || {});
   // The faction whose hall `place` stands in: { id, name }, null for none, undefined when guilds.js cannot say
@@ -897,7 +919,7 @@ module.exports = (api) => {
     const tome = heldTomeOf(a, spellId);
     if (tome) return { tome };
     const next = nextBuyAt(a);
-    if (next) return { why: `You have had your tome for today (bought, or taught with). The next lesson is yours in ${waitText(next - Date.now())}, or teach from a tome of the spell you carry.` };
+    if (next) return { why: `${usedLine(a)} The next lesson is yours in ${waitText(next - Date.now())}, or teach from a tome of the spell you carry.` };
     return { day: true };
   };
   const inRoomOf = (place, b) => { try { return onlineActors().includes(b >>> 0) && distanceMeters(b, place) <= Number(TEACH.radiusMeters); } catch (e) { return false; } };
@@ -951,7 +973,7 @@ module.exports = (api) => {
       const tome = heldTomeOf(a, sp.id);
       return { id: `clesson:${student.toString(16)}:${descOf(sp.id)}`, label: `${spellLabel(sp)}${tome ? ' (uses your tome of it)' : ''}` };
     });
-    menu(a, MENU_ID, note || `Teach ${display(student)} which spell? A lesson uses a tome of the spell you carry, or today's tome.`, rows.slice(0, MAX_ROWS - 1).concat([{ id: 'cback', label: 'Back' }]), Object.assign({}, p, { student }));
+    menu(a, MENU_ID, note || `Teach ${display(student)} which spell? A lesson uses a tome of the spell you carry, or one of your tome purchases this week.`, rows.slice(0, MAX_ROWS - 1).concat([{ id: 'cback', label: 'Back' }]), Object.assign({}, p, { student }));
   };
   const offerCollege = (a, student, spellId, p) => {
     const sp = classifySpell(spellId);
@@ -965,7 +987,7 @@ module.exports = (api) => {
     openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(a)} offers to teach you ${spellLabel(sp)}`,
       actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
       events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
-    personal(a, `You offer to teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used when they accept.' : "Today's tome is spent when they accept."}`);
+    personal(a, `You offer to teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used when they accept.' : 'One of your tome purchases this week is used when they accept.'}`);
   };
   // The student's answer to a college lesson: everything is checked again, then the credit is spent and the spell learned
   const answerCollege = (student, o) => {
@@ -976,14 +998,14 @@ module.exports = (api) => {
     const credit = creditFor(teacher, sp.id);
     if (credit.why) { personal(student, `${display(teacher)} cannot teach another lesson today.`); personal(teacher, credit.why); return; }
     if (credit.tome && !takeOneItem(teacher, credit.tome)) { personal(teacher, 'Your tome could not be used. Try again.'); return; }
-    if (credit.day) set(teacher, BOUGHT, Date.now());
+    if (credit.day) recordBuy(teacher);
     const skill = bookSkillFor(student, sp);
     migrate(student);
     writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
     const line = settleNew(student, sp, false);
     personal(student, `${display(teacher)} teaches you ${spellLabel(sp)}. ${line}`);
-    personal(teacher, `You teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used up.' : `That was today's tome; the next is yours in ${waitText(nextBuyAt(teacher) - Date.now())}.`}`);
-    audit(`TEACH ${who(teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at ${descOf(o.college.place)} for ${o.college.fid} (${credit.tome ? `tome ${descOf(credit.tome)}` : "today's tome"}; book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
+    personal(teacher, `You teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used up.' : (buysLeft(teacher) > 0 ? `That used one of your tome purchases; ${buysLeft(teacher)} left this week.` : `That used your last tome purchase this week; the next is yours in ${waitText(nextBuyAt(teacher) - Date.now())}.`)}`);
+    audit(`TEACH ${who(teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at ${descOf(o.college.place)} for ${o.college.fid} (${credit.tome ? `tome ${descOf(credit.tome)}` : 'a tome purchase'}; book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
   };
 
   // ---- menu answers ----------------------------------------------------------------------------------

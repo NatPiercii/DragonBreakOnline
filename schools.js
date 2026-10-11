@@ -610,6 +610,9 @@ module.exports = (api) => {
     return null;
   };
 
+  // The shop's shelf puts these schools' tomes first (spells.js stockFor); null for a player the schools do not apply to yet
+  globalThis.__dboSchoolsActive = (a) => { if (!ready(a)) return null; try { const s = stateOf(a); return { primary: s.primary || null, secondary: s.secondary || null }; } catch (e) { return null; } };
+
   // ---- Alteration, both Priest's and Arcane Arts' ------------------------------------------------------------------
   // spells.js asks which rule holds for this character: an old client keeps Priest's alone, as before the schools
   globalThis.__dboSchoolsAlteration = (a) => (ready(a) ? ALTERATION : 'priest');
