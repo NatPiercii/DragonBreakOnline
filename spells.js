@@ -42,6 +42,11 @@ module.exports = (api) => {
     // the spell now by the checks a tome read applies (slotRefusal: the tier for the rank, the study of the school)
     teacherMinTier: 4,
     teachMinRank: 2,
+    // A college's senior ranks teach at Expert, any rank of spell (Nate, 11 Oct: Elion and Aldemar teach, and the
+    // senior-only Novice and Apprentice tomes reach students only this way); a class's spell is offered to its students
+    seniorTeacherMinTier: 3,
+    seniorTeachMinRank: 0,
+    classOfferSeconds: 180,
     studentMinTier: 1,
     teachAtStudyPoint: false,
     offerSeconds: 60,
@@ -530,24 +535,35 @@ module.exports = (api) => {
 
   // ---- /teach ----------------------------------------------------------------------------------------
   // Spells this teacher may pass on: school spells the server has learned for them (studied or known before) in skills at teacher tier
+  const minTier = (a) => (leadsACollege(a) ? Number(CFG.seniorTeacherMinTier) : CFG.teacherMinTier);
+  const minRank = (a) => (leadsACollege(a) ? Number(CFG.seniorTeachMinRank) : CFG.teachMinRank);
   const teachable = (a) => {
-    const skills = SPELL_SKILLS.filter((s) => tierOf(a, s.id) >= CFG.teacherMinTier);
+    const skills = SPELL_SKILLS.filter((s) => tierOf(a, s.id) >= minTier(a));
     if (!skills.length) return [];
     const ids = new Set(learnedIds(a) || []);
     for (const s of skills) for (const id of studiedIds(a, s.id)) ids.add(id);
-    return [...ids].map(classifySpell).filter((sp) => sp && Number(sp.rank) >= CFG.teachMinRank && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
+    return [...ids].map(classifySpell).filter((sp) => sp && Number(sp.rank) >= minRank(a) && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
   };
+  // A class's spell: one the teacher knows (the lectern has judged the teacher already)
+  const classSpell = (teacher, spellId) => { const sp = classifySpell(spellId >>> 0); return sp && (knows(teacher, sp.id) || inBook(teacher, sp.id)) ? sp : null; };
   const near = (a, b) => distanceMeters(a, b) <= CFG.teachMeters;
   const rankWord = (r) => RANKS[Math.max(0, Math.min(RANKS.length - 1, Number(r) || 0))];
   // Why the student cannot take this spell from this teacher now, or null. The student's checks are a tome read's
   // (slotRefusal: the tier for the rank, the study of the school), without the study point: the teacher stands in for it.
-  const teachRefusal = (teacher, student, sp) => {
-    if (Number(sp.rank) < CFG.teachMinRank) return `Only spells of ${rankWord(CFG.teachMinRank)} rank and above may be taught; ${sp.name} is ${/^[AEIOU]/.test(rankWord(sp.rank)) ? 'an' : 'a'} ${rankWord(sp.rank)} spell.`;
+  const teachRefusal = (teacher, student, sp, cls) => {
+    if (!onlineActors().includes(student)) return `${display(student)} is not here.`;
+    if (cls) return studentRefusal(student, sp);
+    if (Number(sp.rank) < minRank(teacher)) return `Only spells of ${rankWord(CFG.teachMinRank)} rank and above may be taught; ${sp.name} is ${/^[AEIOU]/.test(rankWord(sp.rank)) ? 'an' : 'a'} ${rankWord(sp.rank)} spell.`;
     if (!onlineActors().includes(student)) return `${display(student)} is not here.`;
     if (!near(teacher, student)) return `${display(student)} must stand within ${CFG.teachMeters} m.`;
     if (CFG.teachAtStudyPoint && !(studyPointAt(teacher, sp.school) && studyPointAt(student, sp.school))) return 'Teaching happens at a spell study point.';
     const taught = pathsOf(teacher, sp.school), learning = pathsOf(student, sp.school);
-    if (!taught.some((skill) => tierOf(teacher, skill.id) >= CFG.teacherMinTier)) return `Teaching ${sp.school} takes ${taught.map((skill) => skill.label).join(' or ')} at ${TIER_NAMES[CFG.teacherMinTier]}.`;
+    if (!taught.some((skill) => tierOf(teacher, skill.id) >= minTier(teacher))) return `Teaching ${sp.school} takes ${taught.map((skill) => skill.label).join(' or ')} at ${TIER_NAMES[minTier(teacher)]}.`;
+    return studentRefusal(student, sp);
+  };
+  // The student's side of a lesson, from /teach or a class: as a tome read, without the study point
+  const studentRefusal = (student, sp) => {
+    const learning = pathsOf(student, sp.school);
     if (!learning.some((skill) => tierOf(student, skill.id) >= CFG.studentMinTier)) return `${display(student)} needs ${learning.map((skill) => skill.label).join(' or ')} at ${TIER_NAMES[CFG.studentMinTier]} or higher to be taught.`;
     if (knows(student, sp.id) || inBook(student, sp.id)) return `${display(student)} already knows ${sp.name}.`;
     return slotRefusal(student, sp, `${display(student)} has`);
@@ -555,34 +571,37 @@ module.exports = (api) => {
   const offers = globalThis.__dboSpellOffers instanceof Map ? globalThis.__dboSpellOffers : (globalThis.__dboSpellOffers = new Map()); // student -> offer
   registerChatCommand('teach', (a) => {
     if (!CFG.enabled) return personal(a, 'Spell teaching is closed.');
-    if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= CFG.teacherMinTier)) return personal(a, `Teaching takes ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[CFG.teacherMinTier]} or higher.`);
-    if (!teachable(a).length) return personal(a, `You know no spell of ${rankWord(CFG.teachMinRank)} rank or higher in your schools to teach. Only spells of ${rankWord(CFG.teachMinRank)} rank and above may be taught.`);
+    if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= minTier(a))) return personal(a, `Teaching takes ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[minTier(a)]} or higher${leadsACollege(a) ? '' : ` (${TIER_NAMES[CFG.seniorTeacherMinTier]} for a college's senior members)`}.`);
+    if (!teachable(a).length) return personal(a, `You know no spell of ${rankWord(minRank(a))} rank or higher in your schools to teach. Only spells of ${rankWord(minRank(a))} rank and above may be taught.`);
     const students = onlineActors().filter((p) => p !== (a >>> 0) && near(a, p)).slice(0, MAX_ROWS);
     if (!students.length) return personal(a, `Nobody stands within ${CFG.teachMeters} m to teach.`);
     menu(a, MENU_ID, 'Teach whom?', students.map((p) => ({ id: `student:${p.toString(16)}`, label: display(p) })), { kind: 'teach' });
   }, { help: `Teach a spell of ${rankWord(CFG.teachMinRank)} rank or higher to a player beside you (Arcane Arts or Priest at ${TIER_NAMES[CFG.teacherMinTier]})` });
 
-  const offerTeach = (teacher, student, spellId) => {
-    const sp = teachable(teacher).find((x) => x.id === spellId);
-    if (!sp) return personal(teacher, 'You cannot teach that spell.');
-    const why = teachRefusal(teacher, student, sp);
-    if (why) return personal(teacher, why);
-    offers.set(student >>> 0, { teacher: teacher >>> 0, spellId, at: Date.now() });
+  const offerTeach = (teacher, student, spellId, cls) => {
+    const sp = cls ? classSpell(teacher, spellId) : teachable(teacher).find((x) => x.id === spellId);
+    if (!sp) return cls ? false : personal(teacher, 'You cannot teach that spell.');
+    const why = teachRefusal(teacher, student, sp, cls);
+    if (why) { if (cls) { if (!/already knows/.test(why)) personal(student, `${display(teacher)} would teach you ${sp.name}, but ${why.charAt(0).toLowerCase()}${why.slice(1)}`); return false; } return personal(teacher, why); }
+    offers.set(student >>> 0, { teacher: teacher >>> 0, spellId, at: Date.now(), cls: !!cls });
     openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(teacher)} offers to teach you ${spellLabel(sp)}`,
       actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
       events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
-    personal(teacher, `You offer to teach ${display(student)} ${sp.name}.`);
+    if (!cls) personal(teacher, `You offer to teach ${display(student)} ${sp.name}.`);
+    return true;
   };
+  // schools.js, when a class ends: its spell is offered to each student who stayed (Nate, 11 Oct)
+  globalThis.__dboSpellsClassOffer = (teacher, student, spellId) => { try { return !!CFG.enabled && offerTeach(teacher >>> 0, student >>> 0, spellId >>> 0, true) === true; } catch (e) { log('spells: class offer failed', e.message); return false; } };
   const answerOffer = (student, accept) => {
     const o = offers.get(student >>> 0);
     offers.delete(student >>> 0);
     closeWidget(student, MENU_ID);
     if (!o) return;
-    if (Date.now() - o.at > CFG.offerSeconds * 1000) return personal(student, 'The offer has lapsed.');
+    if (Date.now() - o.at > (o.cls ? CFG.classOfferSeconds : CFG.offerSeconds) * 1000) return personal(student, 'The offer has lapsed.');
     if (!accept) { personal(o.teacher, `${display(student)} declines the lesson.`); return; }
-    const sp = teachable(o.teacher).find((x) => x.id === o.spellId);
+    const sp = o.cls ? classSpell(o.teacher, o.spellId) : teachable(o.teacher).find((x) => x.id === o.spellId);
     if (!sp) { personal(student, 'Your teacher can no longer teach that spell.'); return; }
-    const why = teachRefusal(o.teacher, student, sp);
+    const why = teachRefusal(o.teacher, student, sp, o.cls);
     if (why) { personal(student, why); personal(o.teacher, why); return; }
     const skill = bookSkillFor(student, sp);
     migrate(student);
@@ -590,7 +609,7 @@ module.exports = (api) => {
     const line = settleNew(student, sp, false);
     personal(student, `${display(o.teacher)} teaches you ${spellLabel(sp)}. ${line}`);
     personal(o.teacher, `You teach ${display(student)} ${sp.name}.`);
-    audit(`SPELL ${who(o.teacher)} taught ${who(student)} ${descOf(sp.id)} ${sp.name} (book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
+    audit(`SPELL ${who(o.teacher)} taught ${who(student)} ${descOf(sp.id)} ${sp.name}${o.cls ? ' at a class' : ''} (book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
   };
   onUi('spellsOffer', (a, args) => answerOffer(a, String(args[0] || '') === 'accept'));
   onUi('spellsOfferClose', (a) => answerOffer(a, false));

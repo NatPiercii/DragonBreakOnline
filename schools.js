@@ -1576,6 +1576,8 @@ module.exports = (api) => {
       save(st, s);
       const w = wheel(st, idOf(k.spell.desc), C.classes.wheelValue, Math.max(1, Math.round(C.classes.wheelEvents * f)));
       personal(st, `${display(k.teacher)}'s class on ${k.spell.name} is over. You took ${classWords.gainWords(f)}: your study of ${k.spell.school} stands at ${levelOf(s, k.spell.school)}.`);
+      // The class's spell itself, offered to each student who stayed (Nate, 11 Oct; spells.js runs the student's checks)
+      if (C.classes.offerSpell !== false && typeof globalThis.__dboSpellsClassOffer === 'function') { try { globalThis.__dboSpellsClassOffer(k.teacher, st, idOf(k.spell.desc)); } catch (e) { log('schools: class spell offer failed', e.message); } }
       tellGain(st, k.spell.school, before, s);
       return `${who(st)} x${f} (${before}->${levelOf(s, k.spell.school)}, wheel ${w})`;
     },

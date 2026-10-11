@@ -322,6 +322,24 @@ delete globalThis.__dboSchoolsRefusal;
 cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']); ui('spellsChoose', MAGE, [`lesson:16:${T.fireball[1]}`]);
 ui('spellsOffer', STUDENT, ['accept']);
 check('...a student who can learn it is taught an Adept spell', studied(STUDENT, 'arcane').includes(T.fireball[1]) && /Mage teaches you Fireball \(Destruction, Adept\)/.test(said(STUDENT)), said(STUDENT));
+// Nate, 11 Oct: a college's senior members teach at Expert, any rank; a class's spell is offered to its students
+mastery(MAGE, { arcane: 3 }); mastery(STUDENT, { arcane: 2 });
+known(MAGE).add(idOf(T.frostbite[1])); known(MAGE).add(idOf(T.sparks[1]));
+cmd('teach', MAGE);
+check('11 Oct: an Expert who is not a senior member still may not teach, told seniors teach at Expert', /at Master or higher \(Expert for a college's senior members\)/.test(said(MAGE)), said(MAGE));
+globalThis.__dboGuildsOf = () => [{ id: 'synod', role: 'officer', title: 'Magister' }];
+cmd('teach', MAGE); ui('spellsChoose', MAGE, ['student:16']);
+const seniorLessons = lastWidget(MAGE).actions.map((x) => x.id);
+check('...a senior officer at Expert is offered Novice spells too (Frostbite)', seniorLessons.includes(`lesson:16:${T.frostbite[1]}`), seniorLessons);
+ui('spellsChoose', MAGE, [`lesson:16:${T.frostbite[1]}`]); ui('spellsOffer', STUDENT, ['accept']);
+check('...and teaches it', studied(STUDENT, 'arcane').includes(T.frostbite[1]) && /Mage teaches you Frostbite/.test(said(STUDENT)), said(STUDENT));
+delete globalThis.__dboGuildsOf;
+check('a class offers its spell to a student who can learn it', globalThis.__dboSpellsClassOffer(MAGE, STUDENT, idOf(T.sparks[1])) === true && offerTo(STUDENT) && /Mage offers to teach you Sparks/.test(offerTo(STUDENT).targetName));
+ui('spellsOffer', STUDENT, ['accept']);
+check('...accepted, it goes into the spellbook, audited as a class', studied(STUDENT, 'arcane').includes(T.sparks[1]) && out.audits.some((l) => /taught .*Sparks at a class/.test(l)), out.audits.slice(-2));
+check('...a spell the teacher does not know is never offered', globalThis.__dboSpellsClassOffer(MAGE, STUDENT, idOf(T.fireStorm[1])) === false);
+mastery(STUDENT, { arcane: 0 });
+check('...a student whose tier is too low for it is told why, with no prompt', globalThis.__dboSpellsClassOffer(MAGE, STUDENT, idOf(T.incinerate[1])) === false && /Mage would teach you Incinerate, but/.test(said(STUDENT)), said(STUDENT));
 mastery(MAGE, { arcane: 3 }); mastery(STUDENT, { arcane: 1 });
 load({ shopStock: 999 });
 

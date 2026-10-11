@@ -11,7 +11,9 @@
           "Students of the Synod and the Colleges can buy Novice and Apprentice spell tomes at the Scholars' Ledger. Higher spells come from the colleges' senior members, who teach them.",
           "Necromancy and the summoning of Daedra and atronachs are taught by senior members only. The Scholars' Ledger sells those tomes, and Banish Daedra, to senior members alone.",
           "Senior members (the leader, officers and the rank below them) see every tome they can learn and may buy one a day.",
-          "A mage at Expert in Arcane Arts can now teach a class at a Class Lectern in their own schools of magic, even before those schools reach Expert."
+          "A mage at Expert in Arcane Arts can now teach a class at a Class Lectern in their own schools of magic, even before those schools reach Expert.",
+      "When a class at a Class Lectern ends, every student who stayed is offered the class's spell. Accept it and it goes into your spellbook, if your skill and your study of that school allow it.",
+      "A college's senior members can now use /teach at Expert in Arcane Arts or Priest, and can teach spells of any rank. Everyone else still teaches at Master, Adept spells and above."
         ]
       }
     ]

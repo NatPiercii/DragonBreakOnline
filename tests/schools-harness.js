@@ -407,7 +407,10 @@ check('...and the crosshair says it may be ended', lastPacket(ADEPT, 'refDecor')
 const lvx = (a, school) => { const l = rec(a).levels[school]; return l ? l.level * 1000 + l.xp : 0; };
 const adeptBefore = lvx(ADEPT, 'Destruction');
 const wheelBefore = wheelEvents.length;
+const classOffers = []; globalThis.__dboSpellsClassOffer = (t, st, id) => { classOffers.push([t, st, id]); return true; };
 ui('lecternEnd', TEACHER, [w.nonce]);
+check('ending the class offers its spell (Incinerate) to the student who stayed (Nate, 11 Oct)', classOffers.length === 1 && classOffers[0][0] === TEACHER && classOffers[0][1] === ADEPT && classOffers[0][2] === idOf(T.incinerate[1]), classOffers);
+delete globalThis.__dboSpellsClassOffer;
 check('End Class pays the Adept 70% of 25 units in Destruction (17.5 units, 43.75 xp at Adept)', Math.abs(lvx(ADEPT, 'Destruction') - adeptBefore - 43.75) < 1e-6 && saidAny(ADEPT, /You took 70% of the lesson: your study of Destruction stands at \d+/), [adeptBefore, lvx(ADEPT, 'Destruction'), said(ADEPT)]);
 const paidWheel = wheelEvents.slice(wheelBefore);
 check('...and credits Arcane Arts with 6 casts of Incinerate (8 x 0.7) through the Wheel', paidWheel.length === 6 && paidWheel.every((e) => e.a === ADEPT && e.kind === 'cast' && e.detail.spellId === idOf(T.incinerate[1])), paidWheel);
