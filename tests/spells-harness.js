@@ -551,6 +551,24 @@ check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHE
   check('without the plugin the older points hold again', out.logs.some((l) => /spells on: \d+ tomes known, 2 study point\(s\)/.test(l)), out.logs);
 }
 
+// ---- removed spells (Nate, 11 Oct: Transmute Mineral Ore breaks the economy) ----
+{
+  const TRANSMUTE = ['109112:Skyrim.esm', '109111:Skyrim.esm'];
+  out.logs.length = 0; load({ removedSpells: [] });
+  const shopWith = Number((out.logs.find((l) => /tomes in the Synod shop/.test(l)) || '').match(/(\d+) tomes in the Synod shop/)[1]);
+  out.logs.length = 0; load();
+  const shopWithout = Number((out.logs.find((l) => /tomes in the Synod shop/.test(l)) || '').match(/(\d+) tomes in the Synod shop/)[1]);
+  check(`Transmute leaves the Synod shop (${shopWith} -> ${shopWithout} tomes)`, shopWithout === shopWith - 1, [shopWith, shopWithout]);
+  mastery(PRIEST, { priest: 4 }); at(PRIEST, SYNOD, [0, 0, 0]);
+  check('reading the Transmute tome is refused, and said why', (await read(PRIEST, TRANSMUTE)) === false && /no longer taught anywhere in the realm/.test(said(PRIEST)) && !known(PRIEST).has(idOf(TRANSMUTE[1])), said(PRIEST));
+  const W = 0x31; put(W, 'profileId', W); at(W, SYNOD, [0, 0, 0]); online.push(W);
+  known(W).add(idOf(TRANSMUTE[1]));
+  put(W, 'private.dboStudied', { priest: [TRANSMUTE[1]] }); put(W, 'private.dboPrepared', [TRANSMUTE[1]]);
+  check('a character who knows it loses it at login: engine, spellbook and prepared', globalThis.__dboSpellsStripRemoved(W) === 1 && !known(W).has(idOf(TRANSMUTE[1])) && studied(W, 'priest').length === 0 && prepared(W).length === 0 && /no longer part of the realm's magic/.test(said(W)), [said(W), studied(W, 'priest'), prepared(W)]);
+  check('...and is not told again', globalThis.__dboSpellsStripRemoved(W) === 0);
+  check('a staff grant of it is refused', globalThis.__dboSpellsGrant(W, idOf(TRANSMUTE[1]), 'priest').ok === false);
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });

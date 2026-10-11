@@ -2051,6 +2051,8 @@ const onCharacterReady = (userId, a) => {
     try { if (globalThis.__dboBusinessLogin) globalThis.__dboBusinessLogin(a); } catch (e) { log('business login failed', e.message); }
     try { if (globalThis.__dboJailLogin) globalThis.__dboJailLogin(a); } catch (e) { log('jail login failed', e.message); }
     try { if (globalThis.__dboStaffDiagLogin) globalThis.__dboStaffDiagLogin(a); } catch (e) { log('staff trace on login failed', e.message); }
+    // Spells taken out of the game (spells.js removedSpells: Transmute) leave whoever knows them
+    try { if (globalThis.__dboSpellsStripRemoved) globalThis.__dboSpellsStripRemoved(a); } catch (e) { log('removed spells strip failed', e.message); }
     needsOnConnect(a);
     if (globalThis.__dboPlayerMenuReady) globalThis.__dboPlayerMenuReady(a);
     // A lease that ended while the player was offline never told this client to stop glowing

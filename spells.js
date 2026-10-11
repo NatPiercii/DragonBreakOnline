@@ -35,6 +35,9 @@ module.exports = (api) => {
     enabled: true,
     // How many studied spells are on the character at once, and where they are changed (the magic colleges)
     prepared: 3,
+    // Spells taken out of the game (Nate, 11 Oct: Transmute Mineral Ore "breaks economies", turning iron into silver and gold):
+    // never sold, read, taught or given, and taken from anyone who knows them at their next login
+    removedSpells: ['109111:Skyrim.esm'],
     prepareCells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm',                             // the Synod Conclave, Bruma
       '1380e:Skyrim.esm', '1380f:Skyrim.esm', 'cab91:Skyrim.esm', '13810:Skyrim.esm', 'cab92:Skyrim.esm'], // College of Winterhold halls
     teachMeters: 5,
@@ -245,6 +248,9 @@ module.exports = (api) => {
     catch (e) { log(`spells: ${fn} ${descOf(spellId)} failed`, e.message); return false; }
   };
 
+  const REMOVED = new Set((CFG.removedSpells || []).map(idOf).filter(Boolean));
+  const removed = (spellId) => REMOVED.has(Number(spellId) >>> 0);
+
   // ---- the spellbook (studied spells, per skill) ----------------------------------------------------------------
   const studiedOf = (a) => { const s = get(a, STUDIED, null); return s && typeof s === 'object' ? s : {}; };
   const studiedIds = (a, skillId) => (Array.isArray(studiedOf(a)[skillId]) ? studiedOf(a)[skillId] : []).map(idOf).filter(Boolean);
@@ -338,6 +344,7 @@ module.exports = (api) => {
       return { refuse: true };
     };
     if (tome.unknown) { log(`spells: tome ${descOf(bookId)} ${tome.edid} teaches a spell that could not be classified`); return refuse('this tome belongs to no school we know.'); }
+    if (removed(tome.spellId)) return refuse('this spell is no longer taught anywhere in the realm.');
     if (knows(a, tome.spellId)) return null; // the engine keeps the tome and changes nothing
     if (inBook(a, tome.spellId)) {
       personal(a, `${tome.name} is already in your spellbook. You keep the tome. ${COLLEGE_HINT}`);
@@ -487,10 +494,28 @@ module.exports = (api) => {
   globalThis.__dboSpellsTomeSpell = (bookId) => { try { const t = tomeOf(Number(bookId) >>> 0); return t && t.spellId ? t.spellId >>> 0 : 0; } catch (e) { return 0; } };
   // A spell given outright into one skill's book, as a lesson adds it (schools.js: a new mage's first spell). No tier or
   // school check: the giver has decided. { ok, name, line }, or null when the spell is unknown here.
+  // At login (gamemode.js): a removed spell leaves the engine, the spellbook and the prepared list
+  globalThis.__dboSpellsStripRemoved = (a) => {
+    if (!REMOVED.size) return 0;
+    let n = 0;
+    for (const id of REMOVED) {
+      const inEngine = knows(a, id), book = inBook(a, id);
+      if (!inEngine && !book) continue;
+      if (inEngine) papyrus(a, 'RemoveSpell', id);
+      for (const s of SPELL_SKILLS) { const ids = studiedIds(a, s.id); if (ids.includes(id)) writeStudied(a, s.id, ids.filter((x) => x !== id)); }
+      if (preparedIds(a).includes(id)) writePrepared(a, preparedIds(a).filter((x) => x !== id));
+      const sp = classifySpell(id);
+      personal(a, `${sp ? sp.name : 'A spell you knew'} is no longer part of the realm's magic and has left your spellbook.`);
+      audit(`SPELL ${who(a)} lost removed spell ${descOf(id)}${sp ? ` ${sp.name}` : ''} (engine ${inEngine}, book ${book})`);
+      n++;
+    }
+    return n;
+  };
   globalThis.__dboSpellsGrant = (a, spellId, skillId) => {
     const sp = classifySpell(Number(spellId) >>> 0);
     const skill = skillDef(String(skillId || 'arcane'));
     if (!sp || !skill) return null;
+    if (removed(sp.id)) return { ok: false, name: sp.name, line: `${sp.name} is no longer taught.` };
     if (inBook(a, sp.id)) return { ok: false, name: sp.name, line: `${sp.name} is already in your spellbook.` };
     migrate(a);
     writeStudied(a, skill.id, studiedIds(a, skill.id).concat([sp.id]));
@@ -526,7 +551,7 @@ module.exports = (api) => {
     if (!skills.length) return [];
     const ids = new Set(learnedIds(a) || []);
     for (const s of skills) for (const id of studiedIds(a, s.id)) ids.add(id);
-    return [...ids].map(classifySpell).filter((sp) => sp && Number(sp.rank) >= CFG.teachMinRank && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
+    return [...ids].map(classifySpell).filter((sp) => sp && !removed(sp.id) && Number(sp.rank) >= CFG.teachMinRank && pathsOf(a, sp.school).some((skill) => skills.includes(skill)));
   };
   const near = (a, b) => distanceMeters(a, b) <= CFG.teachMeters;
   const rankWord = (r) => RANKS[Math.max(0, Math.min(RANKS.length - 1, Number(r) || 0))];
@@ -593,7 +618,7 @@ module.exports = (api) => {
     const pref = (t) => { const i = (CFG.shopPreferPlugins || []).indexOf(t.plugin); return i < 0 ? 99 : i; };
     const seen = new Set();
     return [...TOMES.values()]
-      .filter((t) => t.rank <= Number(CFG.shopMaxRank) && !(CFG.shopExcludePlugins || []).includes(t.plugin) && !(excluded && excluded.test(t.edid)))
+      .filter((t) => t.rank <= Number(CFG.shopMaxRank) && !removed(t.spellId) && !(CFG.shopExcludePlugins || []).includes(t.plugin) && !(excluded && excluded.test(t.edid)))
       .sort((x, y) => x.school.localeCompare(y.school) || x.rank - y.rank || pref(x) - pref(y) || x.name.localeCompare(y.name))
       .filter((t) => (seen.has(t.spellId) ? false : seen.add(t.spellId)));
   })();

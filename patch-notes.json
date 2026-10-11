@@ -1,5 +1,19 @@
 [
   {
+    "title": "Transmute is gone",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Transmute Mineral Ore has been taken out of the game, because turning iron into silver and gold broke the economy. Its tome is no longer sold and can no longer be read, and nobody can teach it. Anyone who knew it loses it the next time they log in."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Legion swords join the faction balance",
     "date": "2026-10-11",
     "version": "Server update",
