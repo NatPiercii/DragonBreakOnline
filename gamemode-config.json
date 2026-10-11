@@ -848,7 +848,12 @@
  },
  "npcGround": { "fix": false },
  "npcDirector": { "mode": "on" },
- "itemGuards": { "mode": "on" },
+ "itemGuards": {
+  "_comment": "mode: on refuses a bad drop, put or take (itemguards.js). logMoves: the move trace (every put and its verdict, puts that moved nothing or bounced back, each container activation by a player and the chain's verdict; at most trace.perMinute lines a minute per player and trace.perHour in all). On for one day to find the container bounce (items put in a barrel or chest come back out, nothing refused in the log; Nate approved it 10 Oct 2026). TODO: set logMoves false again one day after hotfix-1011-batch ships, by 13 Oct 2026 at the latest. Hot reload.",
+  "mode": "on",
+  "logMoves": true,
+  "trace": { "perMinute": 20, "perHour": 1500 }
+ },
  "war": {
   "_comment": "War and raids stay off until the holds and factions are set up during the alpha (Nate, 2026-09-26). colours: the Realm map's lore colour per faction (Nate's picks; the cults' and the Vigil's chosen by the Prince's or the order's motif); \"base/stripe\" draws a stripe (the Companions). seats: where a faction that is not a hold musters to declare, { id: { name, world, pos, radius, cells } }.",
   "enabled": false,

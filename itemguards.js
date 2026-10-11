@@ -97,6 +97,33 @@ module.exports = (api) => {
   // are read before the engine moves them and again once it has, and a total that changed is logged (logMoves true: every
   // move too, off by default for its volume)
   const LOG_MOVES = (((api.cfg || {}).itemGuards) || {}).logMoves === true;
+  // The move trace (logMoves true; 10 Oct 2026: items put into a barrel or chest bounce back out and no refusal is logged).
+  // A put the engine refuses before the gamemode is asked ("Actor ... doesn't occupy ref ..." in the server log: the
+  // server does not have that player as the container's occupant) never reaches onPutItem, so the trace has each container
+  // activation with the chain's verdict, each put with its verdict, a put that moved nothing, and a put whose items are
+  // back in the pack BOUNCE_MS later. Bounded: trace.perMinute lines a minute per actor and trace.perHour over everyone,
+  // then one count of the lines left out. Config "itemGuards": { logMoves, trace: { perMinute, perHour } }.
+  const TRACE = Object.assign({ perMinute: 20, perHour: 1500 }, ((((api.cfg || {}).itemGuards) || {}).trace) || {});
+  const BOUNCE_MS = 3000;
+  if (!(S.trace instanceof Map)) S.trace = new Map();
+  if (!S.traceHour) S.traceHour = { since: 0, n: 0, left: 0 };
+  const trace = (actor, text) => {
+    if (!LOG_MOVES) return;
+    const now = Date.now(), a = Number(actor) >>> 0;
+    if (now - S.traceHour.since >= 3600000) {
+      if (S.traceHour.left) log(`ITEMGUARD trace: ${S.traceHour.left} line(s) left out in the last hour (perHour ${TRACE.perHour})`);
+      S.traceHour = { since: now, n: 0, left: 0 };
+    }
+    let b = S.trace.get(a);
+    if (!b || now - b.since >= 60000) {
+      if (b && b.left) log(`ITEMGUARD trace: ${b.left} line(s) for ${nameOf(a)} left out in the last minute (perMinute ${TRACE.perMinute})`);
+      if (S.trace.size > 2000) S.trace.clear();
+      b = { since: now, n: 0, left: 0 }; S.trace.set(a, b);
+    }
+    if (b.n >= Number(TRACE.perMinute) || S.traceHour.n >= Number(TRACE.perHour)) { b.left++; S.traceHour.left++; return; }
+    b.n++; S.traceHour.n++;
+    log(text);
+  };
   if (!(S.touched instanceof Map)) S.touched = new Map();   // actor -> containers it moved items with this session
   const checkMove = (kind, actor, container, baseId, count) => {
     const a = Number(actor) >>> 0, c = Number(container) >>> 0, id = Number(baseId) >>> 0;
@@ -108,18 +135,29 @@ module.exports = (api) => {
       const moved = kind === 'put' ? before[0] - after[0] : after[0] - before[0];
       const line = `${kind} by ${nameOf(a)} at ${c.toString(16)}: ${id.toString(16)} x${count} (pack ${before[0]} -> ${after[0]}, container ${before[1]} -> ${after[1]})`;
       if (made !== 0) log(`ITEMGUARD move changed the total by ${made > 0 ? '+' : ''}${made}: ${line}`);
-      else if (LOG_MOVES && moved !== 0) log(`ITEMGUARD move ${line}`);
+      else if (LOG_MOVES && moved !== 0) trace(a, `ITEMGUARD move ${line}`);
+      else if (LOG_MOVES && kind === 'put') trace(a, `ITEMGUARD trace put moved nothing: ${line}`);
+      // A bounce: the items left the pack and are back in it a moment later
+      if (LOG_MOVES && kind === 'put' && moved > 0) {
+        setTimeout(() => {
+          const later = [owned(a, id), owned(c, id)];
+          if (later[0] >= before[0] && later[1] <= before[1]) trace(a, `ITEMGUARD trace put bounced back: ${line}; ${BOUNCE_MS / 1000} s later pack ${later[0]}, container ${later[1]}`);
+        }, BOUNCE_MS);
+      }
     }, 0);
   };
 
-  const install = (event, guard, passed) => {
+  // onVerdict(args, verdict text): the move trace's view of each call (logMoves)
+  const install = (event, guard, passed, onVerdict) => {
     const prevKey = `__dboPrev_${event}`;
     if (typeof globalThis[prevKey] === 'undefined') globalThis[prevKey] = typeof mp[event] === 'function' && !mp[event].__dboGuard ? mp[event] : null;
+    const told = (args, text) => { if (onVerdict) { try { onVerdict(args, text); } catch (e) { /* the trace only */ } } };
     const hook = (...args) => {
-      if (guard(...args) === false) return false;
+      if (guard(...args) === false) { told(args, 'refused by the guard'); return false; }
       const prev = globalThis[prevKey];
       let verdict;
       if (prev) { try { verdict = prev(...args); } catch (e) { log(`${event} chain failed`, e.message); } }
+      told(args, verdict === false ? 'refused by the chain' : 'allowed');
       if (verdict !== false && passed) { try { passed(...args); } catch (e) { log(`${event} check failed`, e.message); } }
       return verdict;
     };
@@ -147,7 +185,24 @@ module.exports = (api) => {
   };
   install('onDropItem', (actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('drop', actor, baseId, count, why) : undefined; });
   install('onPutItem', (container, actor, baseId, count) => { const why = check(baseId, count, actor) || owedManual(actor, baseId, count); return why ? refuse('put', actor, baseId, count, why) : undefined; },
-    (container, actor, baseId, count) => checkMove('put', actor, container, baseId, count));
+    (container, actor, baseId, count) => checkMove('put', actor, container, baseId, count),
+    LOG_MOVES ? ([container, actor, baseId, count], verdict) => trace(actor, `ITEMGUARD trace put asked by ${nameOf(actor)} at ${(Number(container) >>> 0).toString(16)}: ${(Number(baseId) >>> 0).toString(16)} x${count}, ${verdict}`) : null);
+  // Each container activation by a player, with the activate chain's verdict (logMoves). gamemode.js builds its activate
+  // chain afresh on every reload before it loads this file, so the wrapper never stacks.
+  if (LOG_MOVES && typeof mp.onActivate === 'function') {
+    const inner = mp.onActivate;
+    mp.onActivate = function (targetId, casterId, ...rest) {
+      const verdict = inner.call(this, targetId, casterId, ...rest);
+      try {
+        const t = Number(targetId) >>> 0, a = Number(casterId) >>> 0;
+        if (Number(mp.get(a, 'profileId')) >= 0) {
+          let base = 0; try { base = mp.getIdFromDesc(String(mp.get(t, 'baseDesc'))) >>> 0; } catch (e) { base = 0; }
+          if (base && itemType(base) === 'CONT') trace(a, `ITEMGUARD trace activate ${t.toString(16)} (base ${base.toString(16)}) by ${nameOf(a)}: ${verdict === false ? 'refused by the activate chain' : 'allowed (the engine opens it, or closes it if open for them)'}`);
+        }
+      } catch (e) { /* the trace only */ }
+      return verdict;
+    };
+  }
   // gamemode.js owns mp.onTakeItem (its takeHook); it asks this first
   // gamemode.js may still refuse after this (a dragon part); a take that moves nothing is not logged
   globalThis.__dboTakeGuard = (container, actor, baseId, count) => {
