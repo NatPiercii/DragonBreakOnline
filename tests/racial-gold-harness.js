@@ -37,7 +37,7 @@ require(DUNGEONS)({
     set: (id, p, v) => { if (p === 'inventory') gold.set(id, v.entries.filter((e) => e.baseId === GOLD).reduce((n, e) => n + e.count, 0)); },
     getIdFromDesc: (d) => parseInt(String(d).split(':')[0], 16),
   },
-  log: () => {}, personal: (a, t) => said.push([a, t]), system: () => {}, audit: () => {},
+  log: () => {}, personal: (a, t) => said.push([a, t]), system: () => {}, audit: (t) => audits.push(t),
   registerChatCommand: () => {}, onUi: () => {}, openWidget: () => true, closeWidget: () => true,
   sendPacket: () => true, findByName: () => 0, display: String, who: String,
   profileOf: (a) => (pids.has(a) ? pids.get(a) : -1), nameOf: () => 'Finder', onlineActors: () => [A, B, C],
@@ -47,6 +47,7 @@ require(DUNGEONS)({
 const paid = [];
 globalThis.__dboRaceGold = (a, amount, why) => { paid.push([a, amount, why]); return Math.floor(amount / 10); };
 let failures = 0;
+const audits = [];
 const check = (label, ok, got) => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${got !== undefined && !ok ? '   ' + JSON.stringify(got) : ''}`); if (!ok) failures++; };
 const take = (count, who = A) => globalThis.__dboTakeItem(CHEST, who, GOLD, count);
 const luckOf = (a) => paid.filter((p) => p[0] === a).reduce((n, p) => n + p[1], 0);
@@ -79,6 +80,12 @@ check('a party, own 900 added to a rolled 90: luck only on the rolled 90, 30 eac
 // Another chest of the lease, never rolled: nothing
 reset(90); alone(); gold.set(A, 90); globalThis.__dboTakeItem(OTHER_CHEST, A, GOLD, 90);
 check('a container that is not a lease chest: nothing', paid.length === 0, paid);
+// CHESTGOLD (economy scan, 11 Oct): an audit line counts only the chest's own rolled coin taken, never a player's own pile
+reset(60); alone(); gold.set(A, 1060); audits.length = 0; take(1060); take(1060);
+check('CHESTGOLD: one line for the rolled 60, none for the own pile taken again', audits.length === 1 && /^CHESTGOLD .* took 60 gold from a chest in /.test(audits[0]), audits);
+reset(0); alone(); gold.set(A, 50); audits.length = 0; take(50);
+check('CHESTGOLD: a chest that rolled no coin logs nothing', audits.length === 0, audits);
+
 // fillChests records the roll: the source says so
 const src = fs.readFileSync(DUNGEONS, 'utf8');
 check('fillChests records each chest\'s rolled coin on the lease', /if \(lease\) lease\.rolledGold = new Map\(\);/.test(src) && /lease\.rolledGold\.set\(id >>> 0, g\)/.test(src));

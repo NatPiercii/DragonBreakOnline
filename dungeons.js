@@ -829,7 +829,7 @@ module.exports = (api) => {
         if (entryWait(lease, d, pid) > 0) { queueEntry(a, lease, d, diff, entrance, pid); continue; }
         if (goIn(a, lease, d, diff, entrance)) moved++;
       }
-      audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled, ${lease.locked.size} locked`);
+      audit(`DUNGEON ${who(leaderActor)} claimed ${d.name} on ${diff.label} with ${members.size} member(s), ${zones.length} enemies (${placed >= 0 ? placed + ' placed before entry' : 'placed on entry'}), ${filled} containers filled (${lease.rolledGold instanceof Map ? [...lease.rolledGold.values()].reduce((n, g) => n + g, 0) : 0} gold), ${lease.locked.size} locked`);
       log(`dungeon ${d.id} claimed by ${display(leaderActor)}: ${diff.id}, party level ${lease.partyLevel} x${lease.partySize}, ${moved} moved in, ${zones.length} enemies, ${placed} prespawned, ${filled} containers`);
     };
     // Enemies stand on their spots before anyone arrives; the party waits for that, at most a few seconds
@@ -1892,6 +1892,8 @@ module.exports = (api) => {
     const rolled = lease.rolledGold instanceof Map ? Number(lease.rolledGold.get(sourceId >>> 0)) || 0 : 0;
     const lucky = Math.min(count, rolled);
     if (lease.rolledGold instanceof Map && rolled > 0) { if (rolled - lucky > 0) lease.rolledGold.set(sourceId >>> 0, rolled - lucky); else lease.rolledGold.delete(sourceId >>> 0); }
+    // New coin in the economy: only the chest's own rolled gold is counted, never a pile a player put in (economy scan, 11 Oct)
+    if (lucky > 0) audit(`CHESTGOLD ${who(actorId)} took ${lucky} gold from a chest in ${lease.name} (${lease.difficulty || '?'})`);
     const luck = (m, n, why) => { const share = lucky > 0 ? Math.floor(n * lucky / count) : 0; if (share > 0) raceGold(m, share, why); };
     const others = [...lease.members].map((pid) => actorByProfile(pid)).filter((m) => m && m !== actorId && (dungeonAround(m) || {}).id === lease.id);
     const share = others.length ? Math.floor(count / (others.length + 1)) : 0;
