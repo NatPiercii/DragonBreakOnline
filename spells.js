@@ -18,6 +18,11 @@
 // owner, the hold's tax and a sink (shopSplit), not paid whole into shopTreasury. Tomes are classified from spell-tomes.json (ck-mcp/readables.py), and any
 // tome missing from it is read from its records at runtime. The shop stocks only the tomes regions.js sells in
 // shopProvince; /teach carries a spell anywhere.
+// By college rank (Elion and Aldemar's proposal, Nate 11 Oct): plain members above Initiate buy up to Apprentice tomes,
+// Senior ranks and above up to Expert (shopRankByRole), one a day for a Senior, a week for the rest; the restricted arts
+// (seniorOnlyTomes: raising the dead, the Daedra lords, banishing Daedra) only from Senior up. A Senior at their own
+// college's Scholars' Ledger or Class Lectern teaches a spell to a member standing by (collegeTeach), spending a tome of
+// it they carry or today's tome; audited TEACH.
 //
 // State, on the character:
 //   private.dboStudied       { arcane: [spell desc...], priest: [...] }  the spellbook: every spell learned through this system
@@ -51,6 +56,33 @@ module.exports = (api) => {
     shopMaxRank: 3,
     shopPriceMultiplier: 1,
     shopCooldownDays: 7,
+    // Tomes by college rank (Elion and Aldemar's proposal for the College of Whispers, Nate 11 Oct): the highest tome rank
+    // each guild role buys (guild-defs.json roles; the crafting posts and the joining rank, Initiate, buy none). Plain
+    // members above Initiate (Mage of the Synod, Whisperer, Wizard, Associate, Scholar, Novice, Apprentice) buy up to
+    // Apprentice (1); Senior ranks (sergeant) and above up to Expert (3, never above shopMaxRank). A role not listed buys
+    // as `member`.
+    shopRankByRole: { leader: 3, officer: 3, sergeant: 3, mage: 1, member: 1 },
+    seniorRoles: ['sergeant', 'officer', 'leader'],
+    // A Senior rank or above buys one tome a day (or teaches with it, below); everyone else one a week (shopCooldownDays)
+    shopCooldownDaysSenior: 1,
+    // Restricted arts, sold (and taught) only to Senior ranks and above: raising the dead and calling the Daedra lords, and
+    // the spells that banish or command Daedra. Tome editor ids from spell-tomes.json; the shop's own filters (shopMaxRank,
+    // the province, shopExcludePattern) still apply on top, so some are listed only so that they stay restricted.
+    seniorOnlyTomes: [
+      // raising the dead
+      'SpellTomeRaiseZombie', 'SpellTomeReanimateCorpse', 'SpellTomeRevenant', 'SpellTomeDreadZombie', 'SpellTomeDeadThrall',
+      'CYRSpellTomeSummonZombie', 'CYRBrumaFF03SpellTome',
+      // intelligent Daedra: the Dremora lord, Golden Saints and Dark Seducers, Staada
+      'SpellTomeConjureDremoraLord', 'ccBGSSSE025_SpellTomeConjureGoldenSaintArcher', 'ccBGSSSE025_SpellTomeConjureGoldenSaintWarrior',
+      'ccBGSSSE025_SpellTomeConjureDarkSeducerArcher', 'ccBGSSSE025_SpellTomeConjureDarkSeducerWarrior', 'ccBGSSSE025_SpellTomeConjureStaada',
+      // banishing and commanding Daedra
+      'SpellTomeBanishDaedra', 'SpellTomeExpelDaedra', 'SpellTomeCommandDaedra',
+    ],
+    // Teaching at a college (Nate, 11 Oct): a Senior rank or above, at their own college's Scholars' Ledger or Class
+    // Lectern, spends today's tome (or a tome of the spell they carry) to teach a spell to a member of the same college
+    // within radiusMeters of it. The student learns as a lesson does; a member is taught up to the rank they may buy, and
+    // never below studentMinCap (Apprentice), so an Initiate or a smith can still be taught their first spells.
+    collegeTeach: { enabled: true, radiusMeters: 15, studentMinCap: 1 },
     // The shelf: shopStock tomes the buyer can learn now, chosen by a seed of the UTC week (Monday 00:00) and the shop, so
     // everyone at the shop sees the same rotation that week (Nate, 2026-10-06: "only 3-4 at a time ... so Scholar is still
     // worth it")
@@ -571,6 +603,7 @@ module.exports = (api) => {
     if (!o) return;
     if (Date.now() - o.at > CFG.offerSeconds * 1000) return personal(student, 'The offer has lapsed.');
     if (!accept) { personal(o.teacher, `${display(student)} declines the lesson.`); return; }
+    if (o.college) return answerCollege(student, o);
     const sp = teachable(o.teacher).find((x) => x.id === o.spellId);
     if (!sp) { personal(student, 'Your teacher can no longer teach that spell.'); return; }
     const why = teachRefusal(o.teacher, student, sp);
@@ -607,16 +640,52 @@ module.exports = (api) => {
   // A mage of a college above its joining rank (Nate, 10 Oct: buying tomes is earned by roleplay, from the second rank up; the
   // lowest rank, Initiate, and the crafting posts buy none). guilds.js: the member's title, its index in the rank list
   const CRAFT_ROLES = new Set(['blacksmith', 'tailor']);
-  const aboveInitiate = (a) => {
+  // The buyer's places in the shop factions, [{ id, name, title, role }], or null when guilds.js is not loaded
+  const collegesOf = (a) => {
     let mine = null;
     try { mine = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) : null; } catch (e) { mine = null; }
-    if (!Array.isArray(mine)) return isMember(a);
-    return mine.some((m) => {
-      if (!m || !(CFG.shopFactions || []).includes(String(m.id)) || CRAFT_ROLES.has(String(m.role || ''))) return false;
-      let list = []; try { list = typeof globalThis.__dboGuildRankList === 'function' ? globalThis.__dboGuildRankList(m.id) || [] : []; } catch (e) { list = []; }
-      const at = list.findIndex((r) => r && r.title === m.title);
-      return at >= 0 && at < list.length - 1;
-    });
+    return Array.isArray(mine) ? mine.filter((m) => m && (CFG.shopFactions || []).includes(String(m.id))) : null;
+  };
+  // The joining rank: the last title of the faction's rank list (Initiate)
+  const isInitiate = (m) => {
+    let list = []; try { list = typeof globalThis.__dboGuildRankList === 'function' ? globalThis.__dboGuildRankList(m.id) || [] : []; } catch (e) { list = []; }
+    const at = list.findIndex((r) => r && r.title === m.title);
+    return !(at >= 0 && at < list.length - 1);
+  };
+  const aboveInitiate = (a) => {
+    const mine = collegesOf(a);
+    if (!mine) return isMember(a);
+    return mine.some((m) => !CRAFT_ROLES.has(String(m.role || '')) && !isInitiate(m));
+  };
+  const SENIOR_ROLES = new Set((CFG.seniorRoles || []).map(String));
+  const isSeniorIn = (m) => !!m && SENIOR_ROLES.has(String(m.role || ''));
+  // A Senior rank or above in a college (Senior Magister, Senior Whisperer, Senior Wizard and up)
+  const isSenior = (a) => { const mine = collegesOf(a); return !!mine && mine.some(isSeniorIn); };
+  // The highest tome rank one place in a college buys: -1 for the crafting posts and the joining rank (shopRankByRole)
+  const rankCapIn = (m) => {
+    if (!m || CRAFT_ROLES.has(String(m.role || '')) || isInitiate(m)) return -1;
+    const by = CFG.shopRankByRole || {};
+    const v = Number(by[String(m.role || '')] !== undefined ? by[String(m.role || '')] : by.member);
+    return Math.min(Number(CFG.shopMaxRank), Number.isFinite(v) ? v : -1);
+  };
+  // The highest tome rank the buyer may buy, over all their colleges; without guilds.js, shopMaxRank for any member
+  const shopRankCap = (a) => {
+    const mine = collegesOf(a);
+    if (!mine) return isMember(a) ? Number(CFG.shopMaxRank) : -1;
+    return mine.reduce((n, m) => Math.max(n, rankCapIn(m)), -1);
+  };
+  // The restricted arts (seniorOnlyTomes): by the tome's editor id, and every spell such a tome teaches
+  const SENIOR_ONLY = new Set((CFG.seniorOnlyTomes || []).map((e) => String(e).toLowerCase()));
+  const restrictedTome = (t) => !!t && SENIOR_ONLY.has(String(t.edid || '').toLowerCase());
+  const RESTRICTED_SPELLS = new Set([...TOMES.values()].filter(restrictedTome).map((t) => t.spellId >>> 0));
+  const restrictedSpell = (spellId) => RESTRICTED_SPELLS.has(spellId >>> 0);
+  const RESTRICTED_LINE = 'Raising the dead and calling or banishing the Daedra are restricted arts, taught and sold only to Senior ranks and above';
+  // Why the buyer's college rank does not reach this tome, or ''
+  const rankBlock = (a, t) => {
+    if (restrictedTome(t) && !isSenior(a)) return RESTRICTED_LINE;
+    const cap = shopRankCap(a);
+    if (t.rank > cap) return cap < 0 ? 'Your college does not sell you tomes at your rank' : `At your rank the college sells tomes up to ${RANKS[cap]}; ${RANKS[t.rank]} tomes are for Senior ranks and above`;
+    return '';
   };
   // The Synod Conclave's enchanting table is the Synod's (its CYRBlockedFactionWorkshop script, whose faction is the Synod,
   // never runs on the server): only members of the Synod or a College use it, as with the tome shop (Nate, 2026-09-30).
@@ -674,11 +743,13 @@ module.exports = (api) => {
     const picked = [];
     for (const t of shelfOrder(weekNo(Date.now()))) {
       if (picked.length >= stockSize(a)) break;
-      if ((soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t)) picked.push(t);
+      if ((soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t) && !rankBlock(a, t)) picked.push(t);
     }
     return SHOP.filter((t) => picked.includes(t));
   };
-  const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + CFG.shopCooldownDays * DAY; return at > Date.now() ? at : 0; };
+  // One tome a week, or a day for a Senior rank or above (shopCooldownDaysSenior); a lesson taught at a college spends it too
+  const cooldownDaysOf = (a) => (isSenior(a) ? Number(CFG.shopCooldownDaysSenior) : Number(CFG.shopCooldownDays)) || 0;
+  const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + cooldownDaysOf(a) * DAY; return at > Date.now() ? at : 0; };
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };
   // Why this actor cannot buy now, or ''
   const shopRefusal = (a) => {
@@ -688,7 +759,7 @@ module.exports = (api) => {
     if (CFG.shopAboveInitiate !== false && !aboveInitiate(a)) return 'The court mage sells tomes to mages of the Synod or a College above Initiate, and not to its smiths or robe-makers. Ask your college\'s leaders about promotion.';
     if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= CFG.shopMinTier)) return `Tomes are sold to those with ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[CFG.shopMinTier]} or higher.`;
     const next = nextBuyAt(a);
-    if (next) return `You bought a tome this week. The next is yours in ${waitText(next - Date.now())}.`;
+    if (next) return `${cooldownDaysOf(a) <= 1 ? 'You have had your tome for today (bought, or taught with).' : 'You bought a tome this week.'} The next is yours in ${waitText(next - Date.now())}.`;
     return '';
   };
 
@@ -755,7 +826,7 @@ module.exports = (api) => {
     if (!t || !pathsOf(a, t.school).some((skill) => tierOf(a, skill.id) >= 0)) return { ok: false, text: 'The court mage will not sell you that tome.' };
     const R = regions();
     if (!soldHere(R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
-    const block = tomeBlock(a, t);
+    const block = tomeBlock(a, t) || rankBlock(a, t);
     if (block) return { ok: false, text: `${t.title}: ${block}.` };
     if (knows(a, t.spellId) || inBook(a, t.spellId)) return { ok: false, text: `You already know ${t.name}.` };
     if (!stockFor(a, R, !!R && R.bypass(a)).includes(t)) return { ok: false, text: `${t.title} is not on the Synod's shelf this week.` };
@@ -765,7 +836,7 @@ module.exports = (api) => {
     const paid = payForTome(a, t, price);
     set(a, BOUGHT, Date.now());
     audit(`SPELL ${who(a)} bought tome ${descOf(t.bookId)} ${t.title} for ${price} gold (${paid})`);
-    return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. Your next tome is a week away.` };
+    return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. ${cooldownDaysOf(a) <= 1 ? 'Your next tome, or a lesson taught at your college, is a day away.' : 'Your next tome is a week away.'}` };
   };
   const freshShop = (a, args) => shopNonces.get(a >>> 0) === String(args[0] || '');
   onUi('tomeBuy', (a, args) => {
@@ -775,14 +846,171 @@ module.exports = (api) => {
   });
   onUi('tomeClose', (a) => { shopNonces.delete(a >>> 0); shopLedger.delete(a >>> 0); closeWidget(a, SHOP_ID); });
 
+  // ---- teaching at a college (Elion and Aldemar's proposal, Nate 11 Oct) ---------------------------------------------
+  // A Senior rank or above, at their own college's Scholars' Ledger or Class Lectern (the hall guilds.js names for its
+  // cell), teaches a spell they know to a member of the same college within radiusMeters of it. One credit per lesson:
+  // a tome of the spell the teacher carries (it is used up), else today's tome purchase (the shop's cooldown is spent, as
+  // a purchase spends it). The student is asked first; the lesson is checked again when they accept. No book changes hands.
+  const TEACH = Object.assign({ enabled: true, radiusMeters: 15, studentMinCap: 1 }, CFG.collegeTeach || {});
+  // The faction whose hall `place` stands in: { id, name }, null for none, undefined when guilds.js cannot say
+  const hallAt = (place) => {
+    if (typeof globalThis.__dboHallFactionAt !== 'function') return undefined;
+    try { return globalThis.__dboHallFactionAt(get(place, 'worldOrCellDesc', '')) || null; } catch (e) { return null; }
+  };
+  // { m, name } of the college `a` teaches for at `place`, or { why }
+  const teachCollege = (a, place) => {
+    const mine = collegesOf(a);
+    if (!TEACH.enabled || !CFG.enabled || !mine) return { why: 'Spells are not taught here just now.' };
+    const senior = mine.filter(isSeniorIn);
+    if (!senior.length) return { why: 'Teaching a spell at your college takes Senior rank or above.' };
+    const h = hallAt(place);
+    const m = h === undefined ? senior[0] : h ? senior.find((x) => String(x.id) === String(h.id)) : null;
+    if (!m) return { why: "A spell is taught at your own college's ledger or lectern." };
+    return { m, name: String((h && h.name) || m.name || m.id) };
+  };
+  // Spells the teacher may teach: school spells they hold (book or engine), never above shopMaxRank (no Master spells)
+  const collegeTeachable = (a) => {
+    const ids = new Set([].concat(learnedIds(a) || [], knownIds(a)));
+    return [...ids].map(classifySpell).filter((sp) => sp && Number(sp.rank) <= Number(CFG.shopMaxRank))
+      .sort((x, y) => x.school.localeCompare(y.school) || x.rank - y.rank || x.name.localeCompare(y.name));
+  };
+  const inventoryOf = (a) => { const inv = get(a, 'inventory', { entries: [] }); return Array.isArray(inv && inv.entries) ? inv.entries : []; };
+  // A tome of this spell the teacher carries (not worn), its book id, or 0
+  const heldTomeOf = (a, spellId) => {
+    for (const e of inventoryOf(a)) {
+      if (!e || e.worn || !(Number(e.count) > 0)) continue;
+      const t = tomeOf(Number(e.baseId) >>> 0);
+      if (t && !t.unknown && (t.spellId >>> 0) === (spellId >>> 0)) return Number(e.baseId) >>> 0;
+    }
+    return 0;
+  };
+  const takeOneItem = (a, baseId) => {
+    const entries = inventoryOf(a).map((e) => Object.assign({}, e));
+    const i = entries.findIndex((e) => (Number(e.baseId) >>> 0) === (baseId >>> 0) && !e.worn && Number(e.count) > 0);
+    if (i < 0) return false;
+    entries[i].count = Number(entries[i].count) - 1;
+    if (entries[i].count <= 0) entries.splice(i, 1);
+    return set(a, 'inventory', { entries });
+  };
+  // The credit a lesson of this spell would spend: { tome } or { day: true }, or { why }
+  const creditFor = (a, spellId) => {
+    const tome = heldTomeOf(a, spellId);
+    if (tome) return { tome };
+    const next = nextBuyAt(a);
+    if (next) return { why: `You have had your tome for today (bought, or taught with). The next lesson is yours in ${waitText(next - Date.now())}, or teach from a tome of the spell you carry.` };
+    return { day: true };
+  };
+  const inRoomOf = (place, b) => { try { return onlineActors().includes(b >>> 0) && distanceMeters(b, place) <= Number(TEACH.radiusMeters); } catch (e) { return false; } };
+  // The highest rank this student may be taught at their place in the college: what they may buy, never below studentMinCap
+  const studentCap = (student, fid) => {
+    const mine = collegesOf(student) || [];
+    const m = mine.find((x) => String(x.id) === String(fid));
+    return m ? Math.min(Number(CFG.shopMaxRank), Math.max(rankCapIn(m), Number(TEACH.studentMinCap) || 0)) : -1;
+  };
+  // Why this lesson cannot happen now, or ''
+  const collegeTeachRefusal = (teacher, student, sp, place, fid) => {
+    const c = teachCollege(teacher, place);
+    if (c.why) return c.why;
+    if (String(c.m.id) !== String(fid)) return "A spell is taught at your own college's ledger or lectern.";
+    if (!inRoomOf(place, teacher)) return `${display(teacher)} must stay within ${TEACH.radiusMeters} m of the ledger or lectern.`;
+    if (!collegeTeachable(teacher).some((x) => x.id === sp.id)) return `${display(teacher)} cannot teach ${sp.name}.`;
+    if ((student >>> 0) === (teacher >>> 0)) return 'You cannot teach yourself.';
+    if (!inRoomOf(place, student)) return `${display(student)} must stand within ${TEACH.radiusMeters} m of the ledger or lectern.`;
+    const cap = studentCap(student, fid);
+    if (cap < 0) return `${display(student)} is not a member of ${c.name}.`;
+    if (restrictedSpell(sp.id) && !isSenior(student)) return `${RESTRICTED_LINE}; ${display(student)} is not.`;
+    if (Number(sp.rank) > cap) return `At ${display(student)}'s rank they may be taught spells up to ${RANKS[cap]}; ${sp.name} is ${/^[AEIOU]/.test(rankWord(sp.rank)) ? 'an' : 'a'} ${rankWord(sp.rank)} spell.`;
+    if (knows(student, sp.id) || inBook(student, sp.id)) return `${display(student)} already knows ${sp.name}.`;
+    const why = slotRefusal(student, sp, `${display(student)} has`);
+    if (why) return `${display(student)} is not ready for ${sp.name}: ${why}`;
+    return '';
+  };
+  // Shown on a ledger or lectern to a Senior rank of the college whose hall it is
+  globalThis.__dboTeachHere = (a, place) => { try { return !teachCollege(a, place).why && collegeTeachable(a).length > 0; } catch (e) { return false; } };
+  globalThis.__dboTeachLedgerActions = (a, place) => (globalThis.__dboTeachHere(a, place) ? [{ id: 'teach', label: 'Teach a spell to a student' }] : []);
+  // The students the teacher may pick: online members of the college in the room
+  const studentsAt = (a, place, fid) => onlineActors().filter((b) => b !== (a >>> 0) && inRoomOf(place, b) && studentCap(b, fid) >= 0).slice(0, MAX_ROWS);
+  // Opens the "Teach whom?" menu (widget 45) for the teacher at `place`; false when they may not teach there
+  const openCollegeTeach = (a, place, note) => {
+    const c = teachCollege(a, place);
+    if (c.why) { personal(a, c.why); return false; }
+    const students = studentsAt(a, place, c.m.id);
+    const title = note || (students.length ? `Teach a spell: which student of ${c.name}?` : `No member of ${c.name} stands within ${TEACH.radiusMeters} m to be taught.`);
+    menu(a, MENU_ID, title, students.map((b) => ({ id: `cstudent:${b.toString(16)}`, label: display(b) })).concat([{ id: 'cancel', label: 'Close' }]), { kind: 'college', place: place >>> 0, fid: String(c.m.id) });
+    return true;
+  };
+  globalThis.__dboTeachOpen = (a, place) => openCollegeTeach(a, Number(place) >>> 0);
+  // A Class Lectern opened by a Senior rank of its college asks first: a class, or teaching a spell (schools.js)
+  globalThis.__dboTeachLecternMenu = (a, place) => {
+    if (!globalThis.__dboTeachHere(a, place)) return false;
+    menu(a, MENU_ID, 'Class Lectern', [{ id: 'lectern', label: 'Hold or join a class' }, { id: 'teach', label: 'Teach a spell to a student' }, { id: 'cancel', label: 'Close' }], { kind: 'lecternRoot', place: place >>> 0 });
+    return true;
+  };
+  const spellsMenuFor = (a, student, p, note) => {
+    const rows = collegeTeachable(a).map((sp) => {
+      const tome = heldTomeOf(a, sp.id);
+      return { id: `clesson:${student.toString(16)}:${descOf(sp.id)}`, label: `${spellLabel(sp)}${tome ? ' (uses your tome of it)' : ''}` };
+    });
+    menu(a, MENU_ID, note || `Teach ${display(student)} which spell? A lesson uses a tome of the spell you carry, or today's tome.`, rows.slice(0, MAX_ROWS - 1).concat([{ id: 'cback', label: 'Back' }]), Object.assign({}, p, { student }));
+  };
+  const offerCollege = (a, student, spellId, p) => {
+    const sp = classifySpell(spellId);
+    if (!sp) return spellsMenuFor(a, student, p, 'That spell cannot be taught.');
+    const why = collegeTeachRefusal(a, student, sp, p.place, p.fid);
+    if (why) return spellsMenuFor(a, student, p, why);
+    const credit = creditFor(a, sp.id);
+    if (credit.why) return spellsMenuFor(a, student, p, credit.why);
+    closeMenu(a);
+    offers.set(student >>> 0, { teacher: a >>> 0, spellId: sp.id, at: Date.now(), college: { place: p.place, fid: p.fid } });
+    openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(a)} offers to teach you ${spellLabel(sp)}`,
+      actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
+      events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
+    personal(a, `You offer to teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used when they accept.' : "Today's tome is spent when they accept."}`);
+  };
+  // The student's answer to a college lesson: everything is checked again, then the credit is spent and the spell learned
+  const answerCollege = (student, o) => {
+    const sp = classifySpell(o.spellId);
+    const teacher = o.teacher;
+    const why = sp ? collegeTeachRefusal(teacher, student, sp, o.college.place, o.college.fid) : 'That spell cannot be taught.';
+    if (why) { personal(student, why); personal(teacher, why); return; }
+    const credit = creditFor(teacher, sp.id);
+    if (credit.why) { personal(student, `${display(teacher)} cannot teach another lesson today.`); personal(teacher, credit.why); return; }
+    if (credit.tome && !takeOneItem(teacher, credit.tome)) { personal(teacher, 'Your tome could not be used. Try again.'); return; }
+    if (credit.day) set(teacher, BOUGHT, Date.now());
+    const skill = bookSkillFor(student, sp);
+    migrate(student);
+    writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
+    const line = settleNew(student, sp, false);
+    personal(student, `${display(teacher)} teaches you ${spellLabel(sp)}. ${line}`);
+    personal(teacher, `You teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used up.' : `That was today's tome; the next is yours in ${waitText(nextBuyAt(teacher) - Date.now())}.`}`);
+    audit(`TEACH ${who(teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at ${descOf(o.college.place)} for ${o.college.fid} (${credit.tome ? `tome ${descOf(credit.tome)}` : "today's tome"}; book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
+  };
+
   // ---- menu answers ----------------------------------------------------------------------------------
   onUi('spellsChoose', (a, args) => {
     const p = pending.get(a >>> 0); const choice = String(args[0] || '');
     // Picking a spell to forget or a student reopens this widget id as the next menu; closing it first in the same tick
     // loses the cursor (the inn prompt, 2026-09-25), so those paths reopen with no close in between.
-    const reopening = !!p && p.kind === 'teach' && choice.startsWith('student:');
+    const reopening = !!p && ((p.kind === 'teach' && choice.startsWith('student:')) || p.kind === 'college' || (p.kind === 'lecternRoot' && choice !== 'cancel'));
     if (reopening) pending.delete(a >>> 0); else closeMenu(a);
     if (!p || choice === 'cancel') return;
+    // A Class Lectern's first question: the class panel opens before this menu closes (panel handoff), or teaching
+    if (p.kind === 'lecternRoot') {
+      if (choice === 'teach') { if (!openCollegeTeach(a, p.place)) closeWidget(a, MENU_ID); return; }
+      const done = choice === 'lectern' && typeof globalThis.__dboSchoolsOpenLectern === 'function' && globalThis.__dboSchoolsOpenLectern(a, p.place);
+      closeWidget(a, MENU_ID);
+      if (!done) personal(a, 'The lectern cannot be used just now.');
+      return;
+    }
+    if (p.kind === 'college') {
+      // The teacher must still be at the ledger or lectern to choose; a lesson is offered from there
+      if (!inRoomOf(p.place, a)) { closeWidget(a, MENU_ID); return personal(a, 'You walked away from the ledger.'); }
+      if (choice.startsWith('cstudent:')) return spellsMenuFor(a, parseInt(choice.slice(9), 16) >>> 0, p);
+      if (choice === 'cback') return openCollegeTeach(a, p.place);
+      if (choice.startsWith('clesson:')) { const [, s16, ...d] = choice.split(':'); return offerCollege(a, parseInt(s16, 16) >>> 0, idOf(d.join(':')), p); }
+      closeWidget(a, MENU_ID);
+      return;
+    }
     if (p.kind === 'teach') {
       if (choice.startsWith('student:')) {
         const student = parseInt(choice.slice(8), 16) >>> 0;

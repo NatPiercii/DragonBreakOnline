@@ -39,7 +39,9 @@
 //     teacher ends it at the lectern and every student still there is paid by `scale[student rank][class rank]`.
 //     A teacher gone for `graceMinutes` (5; a disconnect or crash counts) cancels it with nothing paid; a student gone as
 //     long drops out. Cooldowns: the teacher `teacherCooldownMinutes` after a class they finished, a student
-//     `studentCooldownHours` between paid classes.
+//     `studentCooldownHours` between paid classes. Arcane Arts `teacherArcaneLevel` (75) qualifies a teacher too (Nate,
+//     11 Oct). A student short of their first spell sits at Novice and is paid Arcane Arts as they sit: `firstWeight`
+//     every `firstEverySeconds` through the Wheel's award (its limits hold), worth `firstRate` (x2) via skillrates.js.
 //   Priest Studies: a PriestStudy activator (base editor id `priestStudy.edid`, or a ref in `priestStudy.refs`; DLE v10's
 //     temples) plays the same reading idle under the same windows and limits, its own window, and pays Priest: no school
 //     meter, only the Wheel's cast credit with a Novice Restoration spell every `wheelEverySeconds`. It closes for good
@@ -129,6 +131,12 @@ module.exports = (api) => {
       enabled: true, edid: 'ClassLectern', lecterns: [], sameLecternUnits: 300, minutes: 30, joinMinutes: 10, graceMinutes: 5, radiusMeters: 15,
       teacherCooldownMinutes: 60, studentCooldownHours: 12, teacherMinRank: 3, requireList: true, teacherGuilds: ['synod', 'college-of-winterhold', 'college-of-whispers'],
       units: 25, wheelEvents: 8, wheelValue: 150, maxStudents: 12,
+      // Elion and Aldemar's proposal (Nate, 11 Oct): Arcane Arts at teacherArcaneLevel also qualifies a teacher, as Expert
+      // study (teacherMinRank) in a school does. Students short of their first spell (Arcane Arts below firstSchoolAt, no
+      // school yet) are paid Arcane Arts while they sit the class: every firstEverySeconds in the classroom, firstWeight
+      // of the Wheel's units x the scale's Novice row, through the Wheel's award as Study Magic is, so its repeat ring,
+      // hourly bucket and daily caps hold; what the Wheel lets through is worth firstRate (x2) of a solo sitting's.
+      teacherArcaneLevel: 75, firstWeight: 3, firstEverySeconds: 60, firstRate: 2,
       // [student rank][class rank], ranks Novice..Master. "Reduced" (Apprentice student, Novice class) and "XP" (Expert
       // student, Master class) had no figure in Swag's spec: 0.35 and 0.7 until Nate says otherwise.
       scale: [
@@ -1409,7 +1417,7 @@ module.exports = (api) => {
         teacherAway: k.teacherAwaySince ? Math.max(0, k.teacherAwaySince + conf.graceMinutes * MIN - Date.now()) : 0,
         students: [...k.students.keys()].map((st) => ({ name: display(st), away: !!k.students.get(st).awaySince })),
         role: mine ? 'teacher' : signed ? 'student' : 'visitor',
-        gain: mine ? '' : W.gain(k, W.gainWords(f)),
+        gain: mine ? '' : W.gain(k, W.gainWords(f), a),
         canJoin: !mine && !signed && !why, whyNot: why,
         canEnd: mine && Date.now() >= k.endsAt,
       }), focus);
@@ -1425,6 +1433,8 @@ module.exports = (api) => {
       for (const [st, e] of k.students) {
         if (!paid) { if (online(st)) personal(st, W.cancelledToStudent(k)); continue; }
         if (e.awaySince || !inRoom(k, st)) { if (online(st)) personal(st, W.notThere); continue; }
+        // A student paid as they sat (before their first spell) is told what it came to; their cooldown began with it
+        if (typeof K.payBeginner === 'function' && (e.paidHere || K.beginner(st))) { got.push(K.payBeginner(st, k, e)); continue; }
         const s = stateOf(st);
         const f = scaleFor(K.studentRank(st, k), k.spell.rank);
         if (f <= 0 || K.cannotLearn(st, k)) continue;
@@ -1460,7 +1470,7 @@ module.exports = (api) => {
           if (online(k.teacher)) personal(k.teacher, W.teacherLeft(conf.graceMinutes));
         } else if (now - k.teacherAwaySince >= conf.graceMinutes * MIN) { end(k, false); continue; }
         for (const [st, e] of [...k.students]) {
-          if (inRoom(k, st)) { e.awaySince = 0; continue; }
+          if (inRoom(k, st)) { e.awaySince = 0; if (typeof K.tickStudent === 'function') { try { K.tickStudent(st, k, e, now); } catch (err) { log('schools: class student tick failed', err.message); } } continue; }
           if (!e.awaySince) { e.awaySince = now; if (online(st)) personal(st, W.studentLeft(conf.graceMinutes)); }
           else if (now - e.awaySince >= conf.graceMinutes * MIN) { k.students.delete(st); if (online(st)) personal(st, W.droppedOut); }
         }
@@ -1479,6 +1489,8 @@ module.exports = (api) => {
       const why = studentRefusal(k, a);
       if (why) return openPanel(a, ref, why, 'refused');
       if (!inRoom(k, a)) return openPanel(a, ref, W.stepIn, 'refused');
+      const not = typeof K.onJoin === 'function' ? K.onJoin(a, k) : '';
+      if (not) return openPanel(a, ref, not, 'refused');
       k.students.set(a >>> 0, { joinedAt: Date.now(), awaySince: 0 });
       audit(`SCHOOLS ${who(a)} ${W.auditJoined} ${who(k.teacher)}'s ${W.auditNoun} on ${k.spell.name}`);
       if (online(k.teacher)) personal(k.teacher, W.joinedToTeacher(display(a)));
@@ -1518,7 +1530,7 @@ module.exports = (api) => {
     idleStatus: 'No class is being held here.', noSpells: 'You know no spell of your schools to set a class by.',
     inProgress: 'Class in Progress', runCourse: 'The class has run its course.',
     gainWords: (f) => (f >= 1 ? 'the full lesson' : f > 0 ? `${Math.round(f * 100)}% of the lesson` : 'nothing at your level'),
-    gain: (k, g) => `At your study of ${k.spell.school} you would take ${g}.`,
+    gain: (k, g, a) => (a && beginner(a) ? `Before your first spell this class teaches you Arcane Arts: you would take ${g}, paid as you sit.` : `At your study of ${k.spell.school} you would take ${g}.`),
     youTeach: 'You are teaching this class.', joinClosed: (m) => `Sign-ups closed ${m} minutes into the class.`, full: 'The class is full.',
     nothing: (k) => `At your study of ${k.spell.school} this class would teach you nothing.`,
     studentCooldown: (w) => `You sat a class not long ago. You may learn in another in ${w}.`,
@@ -1537,6 +1549,51 @@ module.exports = (api) => {
     joined: (t) => `You have signed up. Stay in the classroom until ${t} ends the class.`, left: 'You have left the class.',
     runsAnother: (w) => `The class runs another ${w}.`,
   };
+  // A teacher qualified by Arcane Arts itself (teacherArcaneLevel, 75), as well as by Expert study in a school
+  const byArcane = (a) => { const arc = arcaneOf(a); return arc.held && arc.level >= (Number(C.classes.teacherArcaneLevel) || 101); };
+  // A student short of their first spell: no school yet and Arcane Arts below firstSchoolAt
+  const beginner = (a) => beforeFirst(a, stateOf(a));
+  // Joining a class before the first spell takes Arcane Arts up, as the first Study Magic sitting does, and is refused
+  // when the Wheel can give it nothing today (an empty hourly bucket refills during the class, so it does not refuse)
+  const beginnerJoin = (a) => {
+    if (!beginner(a)) return '';
+    if (!arcaneOf(a).held) {
+      let took = 'unknown';
+      try { took = typeof globalThis.__alduinakMasteryFirstTouch === 'function' ? String(globalThis.__alduinakMasteryFirstTouch(a, C.arcaneSkill)) : 'unknown'; } catch (e) { log('schools: first touch failed', e.message); }
+      if (took === 'full') return 'Taking up Arcane Arts needs a free skill point. Mark a skill to fall (K) first.';
+      if (took !== 'ok' && took !== 'held') return 'Arcane Arts could not be taken up just now. Try again in a moment.';
+      audit(`SCHOOLS ${who(a)} took up Arcane Arts by joining a class`);
+    }
+    const full = arcaneNoRoom(a);
+    return full && full.why !== 'bucket' ? full.line : '';
+  };
+  // The Wheel's award to Arcane Arts for one minute of a class, worth firstRate through skillrates.js (__dboSchoolsAwardRate)
+  let classAwardTo = 0;
+  globalThis.__dboSchoolsAwardRate = (actorId, skillId, kind) => (kind === 'award' && String(skillId) === String(C.arcaneSkill) && classAwardTo && (actorId >>> 0) === classAwardTo
+    ? Math.max(0, Number(C.classes.firstRate) || 1) : 1);
+  const classArcane = (a, weight, ref) => {
+    if (typeof globalThis.__alduinakMasteryAward !== 'function') return 0;
+    classAwardTo = a >>> 0;
+    try { return Number(globalThis.__alduinakMasteryAward(a, C.arcaneSkill, weight, ref >>> 0)) || 0; } catch (e) { log('schools: class award failed', e.message); return 0; }
+    finally { classAwardTo = 0; }
+  };
+  // One class tick for a student in the classroom: a beginner is paid every firstEverySeconds while the class runs its
+  // course. The first payment starts their student cooldown, so a cancelled class still counts as the one they sat.
+  const beginnerTick = (st, k, e, now) => {
+    if (now > k.endsAt) return;
+    const every = Math.max(10, Number(C.classes.firstEverySeconds) || 60) * 1000;
+    if (!e.lastPay) e.lastPay = e.joinedAt || now;
+    if (now - e.lastPay < every) return;
+    e.lastPay = now;
+    if (!beginner(st)) return;
+    const f = (C.classes.scale && Number((C.classes.scale[0] || [])[k.spell.rank])) || 0;
+    if (f <= 0) return;
+    const got = classArcane(st, (Number(C.classes.firstWeight) || 1) * f, k.ref);
+    if (!e.paidHere) { const s = stateOf(st); s.paidAt = now; save(st, s); e.paidHere = true; }
+    e.gained = (e.gained || 0) + got;
+    // Arcane Arts has reached the first spell: the choice opens (firstCheck), and the class has nothing more for them
+    if (FIRST_AT && arcaneOf(st).level >= FIRST_AT) { try { firstCheck(st, 'class'); } catch (err) { log('schools: first check after class failed', err.message); } }
+  };
   const CLASSES = makeLectern({
     conf: C.classes, refs: LECTERN_REFS, runsKey: 'classes', openKey: 'lecternOpen', listKey: 'teacher', teacherAtKey: 'classAt', paidAtKey: 'paidAt',
     panelId: CLASS_PANEL_ID, events: 'lectern', nonceKind: 'l', words: classWords,
@@ -1544,22 +1601,36 @@ module.exports = (api) => {
       const guilds = Array.isArray(C.classes.teacherGuilds) ? C.classes.teacherGuilds : [];
       if (guilds.length && !guildsOf(a).some((g) => guilds.includes(g))) return `A class here is held by a member of ${schoolHouse(a)}, or of another college.`;
       const s = stateOf(a);
-      if (!SCHOOLS.some((n) => schoolRank(s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes ${RANKS[C.classes.teacherMinRank]} study in one of your schools.`;
+      if (!byArcane(a) && !SCHOOLS.some((n) => schoolRank(s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes Arcane Arts at ${C.classes.teacherArcaneLevel} or ${RANKS[C.classes.teacherMinRank]} study in one of your schools.`;
       return '';
     },
-    // Spells `a` may set a class by: known, of a school where they are qualified, no higher than their study of it
+    // Spells `a` may set a class by: known, of a school where they are qualified (Expert study, or any active school for a
+    // teacher qualified by Arcane Arts), no higher than their study of it
     spellsOf: (a) => {
       const s = stateOf(a);
       const seen = new Set();
+      const arcane = byArcane(a);
       return knownSpells(a).filter((sp) => {
         if (!sp || !SCHOOLS.includes(sp.school) || seen.has(sp.id)) return false;
         seen.add(sp.id);
         const r = schoolRank(s, sp.school);
-        return r >= C.classes.teacherMinRank && Number(sp.rank) <= r;
+        return (r >= C.classes.teacherMinRank || (arcane && r >= 0)) && Number(sp.rank) <= r;
       }).sort((x, y) => SCHOOLS.indexOf(x.school) - SCHOOLS.indexOf(y.school) || x.rank - y.rank || String(x.name).localeCompare(String(y.name)));
     },
-    studentRank: (a, k) => schoolRank(stateOf(a), k.spell.school),
-    cannotLearn: (a, k) => (active(stateOf(a), k.spell.school) ? '' : `${k.spell.school} is not one of your schools of magic.`),
+    // A student short of their first spell sits at Novice, whatever the class's school
+    studentRank: (a, k) => (beginner(a) ? 0 : schoolRank(stateOf(a), k.spell.school)),
+    cannotLearn: (a, k) => {
+      if (beginner(a)) return C.classes.scale && Number(((C.classes.scale[0] || [])[k.spell.rank])) > 0 ? '' : `Before your first spell a class teaches you only when it is set by a Novice or Apprentice spell; this one is ${RANKS[k.spell.rank]}.`;
+      return active(stateOf(a), k.spell.school) ? '' : `${k.spell.school} is not one of your schools of magic.`;
+    },
+    beginner: (a) => beginner(a),
+    onJoin: (a) => beginnerJoin(a),
+    tickStudent: (st, k, e, now) => beginnerTick(st, k, e, now),
+    payBeginner: (st, k, e) => {
+      const lvl = arcaneOf(st).level;
+      personal(st, `${display(k.teacher)}'s class on ${k.spell.name} is over. It taught you ${Math.round((e.gained || 0) * 10) / 10} of the Wheel's units of Arcane Arts, worth x${C.classes.firstRate}: Arcane Arts stands at ${lvl}.`);
+      return `${who(st)} beginner +${Math.round((e.gained || 0) * 10) / 10} units x${C.classes.firstRate} (Arcane Arts ${lvl})`;
+    },
     pay: (st, s, k, f) => {
       const before = levelOf(s, k.spell.school);
       credit(s, k.spell.school, C.classes.units * f);
@@ -1647,12 +1718,19 @@ module.exports = (api) => {
   // gamemode.js onActivate: true when the ref is a study activator or a Class Lectern (the use is handled here)
   globalThis.__dboSchoolsActivate = (targetId, casterId) => {
     if (!ready(casterId) || !isPlayer(casterId)) return false;
-    if (isLectern(targetId)) { CLASSES.open(casterId, targetId >>> 0); return true; }
+    if (isLectern(targetId)) {
+      // A Senior rank of the college whose hall this is chooses first: a class, or teaching a spell (spells.js)
+      try { if (typeof globalThis.__dboTeachLecternMenu === 'function' && globalThis.__dboTeachLecternMenu(casterId, targetId >>> 0)) return true; } catch (e) { log('schools: lectern teach menu failed', e.message); }
+      CLASSES.open(casterId, targetId >>> 0);
+      return true;
+    }
     if (isStudy(targetId)) { useStudy(targetId >>> 0, casterId >>> 0); return true; }
     if (isPriestStudy(targetId)) { notePriestStudy(targetId >>> 0); usePriest(targetId >>> 0, casterId >>> 0); return true; }
     if (isPreach(targetId)) { SERMONS.open(casterId, targetId >>> 0); return true; }
     return false;
   };
+  // spells.js's lectern menu: "Hold or join a class" opens the class panel
+  globalThis.__dboSchoolsOpenLectern = (a, ref) => { if (!ready(a) || !isLectern(ref >>> 0)) return false; CLASSES.open(a, ref >>> 0); return true; };
   // A player who logs out or changes cell mid-study stops; one who disconnects mid-class is caught by the class tick
   every('schools.tick', 2000, () => {
     try { studyTick(); } catch (e) { log('schools: study tick failed', e.stack || e.message); }

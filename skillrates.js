@@ -59,7 +59,7 @@ module.exports = (api) => {
     return at !== undefined && now - at < Math.max(0, Number(LOOP.windowMinutes) || 0) * 60000;
   };
 
-  const rateFor = (actorId, skillId, kind, detail) => {
+  const baseRate = (actorId, skillId, kind, detail) => {
     if (kind !== 'award' && typeof inBeastForm === 'function' && inBeastForm(actorId >>> 0)) return num(C.beastRate) ?? 0;
     if (!C.enabled) return 1;
     const spec = (C.rates || {})[skillId];
@@ -92,6 +92,16 @@ module.exports = (api) => {
       try { const r = Number(globalThis.__dboRaceSkillRate(actorId >>> 0, skillId, kind)); if (Number.isFinite(r) && r > 0) rate *= r; } catch (e) { /* no race boost */ }
     }
     return rate;
+  };
+
+  // A class at a Class Lectern before the first spell (schools.js, Nate 11 Oct): its award to Arcane Arts is worth the
+  // class's firstRate, on top of the skill's own rate; the Wheel's meter has already decided how much work got through
+  const rateFor = (actorId, skillId, kind, detail) => {
+    const rate = baseRate(actorId, skillId, kind, detail);
+    if (kind !== 'award' || typeof globalThis.__dboSchoolsAwardRate !== 'function') return rate;
+    let k = 1;
+    try { k = Number(globalThis.__dboSchoolsAwardRate(actorId >>> 0, skillId, kind, detail)); } catch (e) { k = 1; }
+    return Number.isFinite(k) && k >= 0 ? rate * k : rate;
   };
 
   const noteBreakdown = (actorId, baseId) => {
