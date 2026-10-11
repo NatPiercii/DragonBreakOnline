@@ -13,7 +13,7 @@ import { applyMovement, forgetLocalCopy, getApplyState, settleTranslation } from
 import { FLYER_NO_AI, flyerGuardOf, flyerPlan, guardOn } from "./flyerGuard";
 import { forgetFlyer, isDragonCopy, noteFlyer, setSpawnGuard } from "./flyerRuntime";
 import { HOST_TRY_GHOST_AFTER, isSettling } from "./npcLifetime";
-import { hostBackoff, noteActorCall, noteCopyBorn, noteCopyPlaced, safeDelete } from "./npcLifetimeRuntime";
+import { hostBackoff, maySpawnCopy, noteActorCall, noteCopyBorn, noteCopyPlaced, safeDelete } from "./npcLifetimeRuntime";
 import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
@@ -226,8 +226,15 @@ export class FormView {
         respawnRequired = true;
       }
 
+      // A burst of copies is placed a few a frame (copyBudget.ts); own companions and the player's own copies never wait
+      const ownCopy = !this.remoteRefrId || isOwnCompanion(this.remoteRefrId) || !!model.isMyClone;
+      if (respawnRequired && !maySpawnCopy(this.remoteRefrId || 0, ownCopy)) {
+        return;
+      }
+
       if (respawnRequired) {
         this.destroy();
+        this.ownCopy = ownCopy;
 
         const player = Game.getPlayer() as Actor;
 
@@ -401,6 +408,7 @@ export class FormView {
       }
     }
     const wasHosted = this.hostedLast === true;
+    const urgentDelete = this.ownCopy;
     once("update", () => {
       if (refrId >= 0xff000000) {
         const refr = ObjectReference.from(Game.getFormEx(refrId));
@@ -419,7 +427,7 @@ export class FormView {
         // RaceMenu extras (appearanceExtrasService): skee keys its data by form id, so it goes before the id is freed
         try { const forget = (globalThis as any).__dboAppearanceExtrasForget; if (typeof forget === "function") forget(refrId); } catch (e) { /* never block the delete */ }
         if (refr) {
-          safeDelete(refr);
+          safeDelete(refr, { tag: remoteRefrId || 0, urgent: urgentDelete });
         }
         SpApiInteractor.getControllerInstance().lookupListener(WorldCleanerService).modWcProtection(refrId, -1);
         const ac = Actor.from(refr);
@@ -1377,6 +1385,7 @@ export class FormView {
   private ready = false;
   // undefined until the first update, so the first sight of an actor is not reported as a change
   private hostedLast: boolean | undefined = undefined;
+  private ownCopy = false;
   private animState = this.getDefaultAnimState();
   private movState = {
     lastNumChanges: 0,
