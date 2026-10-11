@@ -193,7 +193,7 @@ export class PlacementService extends ClientListener {
       this.ghostAt = null;
       this.controller.lookupListener(WorldCleanerService).modWcProtection(id, -1);
       const ghost = ObjectReference.from(Game.getFormEx(id));
-      if (ghost) safeDelete(ghost);
+      if (ghost) safeDelete(ghost, { urgent: true });
     }
     if (announce && this.active) Debug.notification("Placement mode off.");
     if (this.hudText !== null) {
