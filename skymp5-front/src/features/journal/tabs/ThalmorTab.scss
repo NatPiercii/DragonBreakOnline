@@ -1,0 +1,90 @@
+// The journal's Thalmor tab: the informants' reports, or the dossier index on the left and the open dossier on the right
+@import '../../../dbo-theme.scss';
+
+.jthal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+
+  &__head { flex: none; }
+  &__switch { display: flex; gap: 8px; margin-top: 10px; }
+
+  &__reports { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 12px; }
+  &__list { margin: 0; padding: 0; list-style: none; }
+
+  &__report {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: baseline;
+    padding: 6px 4px;
+    border-bottom: 1px solid dbo-accent(0.12);
+    font-size: 15px;
+  }
+  &__when { color: $dbo-silver; }
+  &__what { color: $dbo-text; min-width: 0; }
+  &__stamp, &__by, &__tag, &__count { color: $dbo-text-dim; font-size: 12px; }
+
+  &__dossiers {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 28px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  &__index {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 16px;
+    border-right: 1px solid dbo-accent(0.2);
+  }
+  &__pick {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    min-height: 26px;
+    padding: 2px 8px;
+    background: none;
+    border: none;
+    border-left: 2px solid transparent;
+    color: $dbo-text;
+    font-family: $dbo-ui-font;
+    font-size: 16px;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover { background: dbo-accent(0.06); }
+    &:focus-visible { outline: 1px solid $dbo-gold-border; outline-offset: -2px; }
+  }
+  &__pick--on { border-left-color: dbo-accent(0.9); background: dbo-accent(0.1); color: $dbo-silver; }
+  &__name { min-width: 0; }
+
+  &__page { min-height: 0; overflow-y: auto; padding-right: 12px; }
+  &__title { margin: 0 0 12px; color: $dbo-silver; font-family: $dbo-ui-font; font-size: 22px; font-weight: normal; }
+  &__notes { margin: 0; padding: 0; list-style: none; }
+  &__note {
+    position: relative;
+    padding: 8px 90px 8px 0;
+    border-bottom: 1px solid dbo-accent(0.12);
+    .journal__prose { margin: 0 0 4px; white-space: pre-wrap; }
+  }
+  &__strike { position: absolute; top: 8px; right: 0; }
+  &__editor { margin-top: 16px; }
+  &__subject {
+    width: 100%;
+    max-width: 360px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid dbo-accent(0.3);
+    color: $dbo-text;
+    font-family: $dbo-ui-font;
+    font-size: 15px;
+  }
+}
