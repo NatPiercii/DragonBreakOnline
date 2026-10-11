@@ -292,6 +292,21 @@
    "set": "Imperial Legion",
    "type": "Sword"
   },
+  "12fb:DIS_Heavy_Legion.esp": {
+   "edid": "DIS_Dragon_Sword",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "12fd:DIS_Heavy_Legion.esp": {
+   "edid": "DIS_Officer_Sword",
+   "set": "Imperial Legion",
+   "type": "Sword"
+  },
+  "12fc:DIS_Heavy_Legion.esp": {
+   "edid": "DIS_Penitus_Sword",
+   "set": "Penitus Oculatus",
+   "type": "Sword"
+  },
   "478cf:Immersive Weapons.esp": {
    "edid": "IWCNightingaleBlade",
    "set": "Nightingales",

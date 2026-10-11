@@ -19,7 +19,24 @@ const normPlace = new Function(`${cut('const normPlace = ', '\n')}\nreturn normP
 
 // ---- the weapon bonus ----
 const FW = readJson('faction-weapons.json');
-ok(FW.bonus === 0.13 && Object.keys(FW.items).length === 91, 'faction-weapons.json: 91 weapons at Glass\'s +0.13', { bonus: FW.bonus, n: Object.keys(FW.items).length });
+ok(FW.bonus === 0.13 && Object.keys(FW.items).length === 94, 'faction-weapons.json: 94 weapons at Glass\'s +0.13', { bonus: FW.bonus, n: Object.keys(FW.items).length });
+// DIS_Heavy_Legion.esp's three swords the balance missed (ticket fac-0084, 10 Oct): the Officer's and General's Swords are the
+// Legion's, the Penitus Oculatus Sword the Oculatus's (with the Legion, as its set); all three are smith's work
+{
+  const FGI = readJson('faction-gear.json').items;
+  const LEGION = [['12fb:DIS_Heavy_Legion.esp', 'DIS_Dragon_Sword', 'Imperial Legion', ['imperial-legion']], ['12fd:DIS_Heavy_Legion.esp', 'DIS_Officer_Sword', 'Imperial Legion', ['imperial-legion']],
+    ['12fc:DIS_Heavy_Legion.esp', 'DIS_Penitus_Sword', 'Penitus Oculatus', ['imperial-legion', 'penitus-oculatus']]];
+  for (const [desc, edid, set, factions] of LEGION) {
+    const w = FW.items[desc], g = FGI[desc];
+    ok(w && w.edid === edid && w.set === set && w.type === 'Sword', `${edid} (${desc}) takes Glass's bonus as ${set} gear`, w);
+    ok(g && g.set === set && JSON.stringify(g.factions) === JSON.stringify(factions) && g.role === 'blacksmith', `...and only ${factions.join(' or ')} smiths make it (faction-gear.json)`, g);
+  }
+  ok(Object.keys(FGI).filter((k) => normPlace(k) === '12fc:dis_heavy_legion.esp').length === 1, 'the Penitus Oculatus Sword is listed once in faction-gear.json (the old lower-case Legion entry is gone)');
+  const admin = readJson('admin-items.json').categories.flatMap((c) => c.items.map((it) => normPlace(it[0])));
+  ok(LEGION.every(([d]) => admin.includes(normPlace(d))), 'all three are in the admin panel (admin-items.json)');
+  const guilds = JSON.stringify(readJson('guild-defs.json'));
+  ok(/"id":\s*"penitus-oculatus"/.test(guilds) && /"id":\s*"imperial-legion"/.test(guilds), 'both factions exist in guild-defs.json');
+}
 const sets = {}; for (const v of Object.values(FW.items)) sets[v.set] = (sets[v.set] || 0) + 1;
 ok(sets['Orcish Clan'] === 14 && sets['Imperial Legion'] > 0 && sets.Dawnguard > 0 && sets.Blades > 0, 'it covers the Legion, Dawnguard, Blades and the 14 Clan weapons', sets);
 const KW = { 0x100: 'WeapMaterialImperial', 0x101: 'WeapMaterialEbony', 0x102: 'WeapMaterialSteel', 0x103: 'WeapMaterialOrcish' };

@@ -375,17 +375,6 @@
     "afe:DragonBreak Nexus Patches.esp"
    ]
   },
-  "12fc:dis_heavy_legion.esp": {
-   "name": "Penitus Oculatus Sword",
-   "set": "Imperial Legion",
-   "factions": [
-    "imperial-legion"
-   ],
-   "role": "blacksmith",
-   "recipes": [
-    "a22:DragonBreak Nexus Patches.esp"
-   ]
-  },
   "300039:bsheartland.esm": {
    "name": "Orcish Armor",
    "set": "Orcish",
@@ -1598,6 +1587,26 @@
    "recipes": [
     "272c2:DragonBreak.esp",
     "8fe:MoreCraftableEquipment.esp"
+   ]
+  },
+  "12fb:DIS_Heavy_Legion.esp": {
+   "name": "General's Sword",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": []
+  },
+  "12fd:DIS_Heavy_Legion.esp": {
+   "name": "Officer's Sword",
+   "set": "Imperial Legion",
+   "factions": [
+    "imperial-legion"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a23:DragonBreak Nexus Patches.esp"
    ]
   },
   "d3ea0:Skyrim.esm": {
@@ -3574,6 +3583,18 @@
    "role": "blacksmith",
    "recipes": [
     "831:DragonBreak Nexus Patches.esp"
+   ]
+  },
+  "12fc:DIS_Heavy_Legion.esp": {
+   "name": "Penitus Oculatus Sword",
+   "set": "Penitus Oculatus",
+   "factions": [
+    "imperial-legion",
+    "penitus-oculatus"
+   ],
+   "role": "blacksmith",
+   "recipes": [
+    "a22:DragonBreak Nexus Patches.esp"
    ]
   },
   "23964:JKs Skyrim.esp": {
