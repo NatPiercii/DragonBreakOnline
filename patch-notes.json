@@ -1,5 +1,19 @@
 [
   {
+    "title": "No faction gear in dungeon chests",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "Enchanted Imperial swords, bows and armour no longer turn up in dungeon chests, on bodies or in camps. They are Imperial Legion gear, made only by the Legion's smiths, like the plain Imperial pieces already were. The same goes for enchanted Vampire clan, Dawnguard and Orcish gear."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Legion swords join the faction balance",
     "date": "2026-10-11",
     "version": "Server update",
