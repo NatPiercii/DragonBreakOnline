@@ -11,6 +11,9 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hircine-rite-'));
 process.chdir(dir);
 process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 const store = new Map(); // `${id}|${prop}` -> value
+// The shrine waits are also kept by profile in supernatural.json (riteWaits): a reset of the stub store starts a new account
+const storeClear = store.clear.bind(store);
+store.clear = () => { storeClear(); if (globalThis.__dboSuperState) globalThis.__dboSuperState.riteWaits = {}; };
 const said = [];
 const cmds = {}, ui = {}, timers = {};
 const online = [];
@@ -71,6 +74,7 @@ ok(Number(store.get(`${A}|private.riteUnmarkedAt`)) > 0 && !store.get(`${A}|priv
 said.length = 0; atShrine('hircine'); cmds.rite(A, '');
 ok(!globalThis.__dboRites.has(A) && !said.some((t) => /Great Hunt/.test(t)), 'an unmarked survivor cannot run the Hunt again straight away');
 store.set(`${A}|private.riteUnmarkedAt`, Date.now() - 25 * 3600000);
+globalThis.__dboSuperState.riteWaits[A].unmarked = Date.now() - 25 * 3600000;   // the account's stamp too
 said.length = 0; atShrine('hircine'); cmds.rite(A, '');
 ok(said.some((t) => /Great Hunt/.test(t) && /may mark/.test(t)), 'after the wait the Hunt is offered again, as a chance');
 

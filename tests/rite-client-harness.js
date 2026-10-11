@@ -28,6 +28,9 @@ globalThis.clearTimeout = (id) => { pending.delete(id); };
 const fireDue = () => { for (const [id, t] of [...pending]) if (t.at <= clock) { pending.delete(id); t.fn(); } };
 
 const store = new Map();
+// The shrine waits are also kept by profile in supernatural.json (riteWaits): a reset of the stub store starts a new account
+const storeClear = store.clear.bind(store);
+store.clear = () => { storeClear(); if (globalThis.__dboSuperState) globalThis.__dboSuperState.riteWaits = {}; };
 const logs = [], audits = [], said = [], widgets = [];
 const cmds = {}, ui = {}, timers = {};
 const caps = new Set();

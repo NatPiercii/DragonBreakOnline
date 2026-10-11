@@ -3,8 +3,18 @@
 // rite window is still a forfeit. Loads the real supernatural.js against a stub api.
 // node tests/rite-disconnect-harness.js   (from server/)
 'use strict';
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
+// supernatural.js keeps its state (the Blood Crown, the account's shrine waits) in supernatural.json in the working
+// directory: run in a temp dir, or the file lands in whatever tree run-all runs in
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rite-disconnect-'));
+process.chdir(dir);
+process.on('exit', () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* left for the OS */ } });
 const store = new Map();
+// The shrine waits are also kept by profile in supernatural.json (riteWaits): a reset of the stub store starts a new account
+const storeClear = store.clear.bind(store);
+store.clear = () => { storeClear(); if (globalThis.__dboSuperState) globalThis.__dboSuperState.riteWaits = {}; };
 const said = [], logs = [], audits = [];
 const cmds = {}, ui = {}, timers = {};
 let online = [];

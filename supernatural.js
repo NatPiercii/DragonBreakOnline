@@ -8,7 +8,7 @@
 //              and burns the disease out. Molag Bal's Embrace and Hircine's rite are chosen at their shrines (/rite)
 //              and failing those can end the character for good (private.permaDead). Surviving Hircine's rite gives Sanies
 //              Lupinus at huntMarkChance (the turning follows its fever), else the survivor waits riteFailCooldownHours to
-//              run again; surviving Molag Bal's makes a pure-blood at once.
+//              run again; surviving Molag Bal's makes a pure-blood at once. The waits are per account (markRiteWait).
 //   Vampires   stages 1-4, one per game day unfed; sun burns outdoors by day, fire hurts more, the look becomes the
 //              race's vampire variant. Feeding on a restrained or downed player or a fresh humanoid corpse resets to
 //              stage 1; it takes seconds by blood rank, and ranked vampires can feed deeply. A vampire the fever
@@ -599,6 +599,39 @@ module.exports = (api) => {
     G.crown = null; saveG();
     return 0;
   };
+  // The shrine waits after a failed or unmarked rite belong to the account, not the character (Nate, 10 Oct: one account
+  // made three characters in a day, each right before its Great Hunt, and a new character never waited). A wait is still
+  // stamped on the character (private.riteFailedAt / private.riteUnmarkedAt, as before) and also by profile in
+  // supernatural.json (riteWaits), which outlives a deleted character. A shrine reads the latest of the profile's stamp,
+  // this character's and every other character of the account, so waits stamped before this change count too.
+  const RITE_WAIT = { failed: 'private.riteFailedAt', unmarked: 'private.riteUnmarkedAt' };
+  const accountChars = (a) => {
+    const self = a >>> 0, p = profileOf(a);
+    let ids = [];
+    if (p >= 0) { try { ids = (mp.getActorsByProfileId(p) || []).map((x) => Number(x) >>> 0); } catch (e) { /* none */ } }
+    return ids.includes(self) ? ids : ids.concat([self]);
+  };
+  const markRiteWait = (a, kind) => {
+    const now = Date.now();
+    try { mp.set(a, RITE_WAIT[kind], now); } catch (e) { /* offline */ }
+    const p = profileOf(a);
+    if (!(p >= 0)) return;
+    const w = G.riteWaits || (G.riteWaits = {});
+    const span = C.riteFailCooldownHours * 3600000;
+    for (const k of Object.keys(w)) if (Math.max(Number(w[k].failed) || 0, Number(w[k].unmarked) || 0) + span < now) delete w[k];
+    w[p] = Object.assign({}, w[p], { [kind]: now });
+    saveG();
+  };
+  const riteWaitAt = (a, kind) => {
+    let at = Number(((G.riteWaits || {})[profileOf(a)] || {})[kind]) || 0;
+    for (const id of accountChars(a)) { try { at = Math.max(at, Number(mp.get(id, RITE_WAIT[kind])) || 0); } catch (e) { /* deleted */ } }
+    return at;
+  };
+  const clearRiteWaits = (a) => {
+    for (const id of accountChars(a)) for (const k of Object.values(RITE_WAIT)) { try { mp.set(id, k, 0); } catch (e) { /* deleted */ } }
+    const p = profileOf(a);
+    if (p >= 0 && G.riteWaits && G.riteWaits[p]) { delete G.riteWaits[p]; saveG(); }
+  };
   const vampiresOnline = () => onlineActors().filter((o) => kindOf(o) === 'vampire');
   const takeCrown = (a, how) => {
     const old = crownHolder();
@@ -862,11 +895,11 @@ module.exports = (api) => {
         if (infect(a, 'werewolf', null, true)) return personal(a, 'Hircine lets you go, marked. Sanies Lupinus burns in the wound; when the fever peaks, the beast will try to come out.');
         return personal(a, 'Hircine lets you go, but his mark finds no room in you.');
       }
-      try { mp.set(a, 'private.riteUnmarkedAt', Date.now()); } catch (e) { /* offline */ }
+      markRiteWait(a, 'unmarked');
       return personal(a, `You outrun the Hunt, and Hircine lets you go unmarked. His shrine will hear you again in ${C.riteFailCooldownHours} hours.`);
     }
     if (won) return becomeVampire(a, true);
-    try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ }
+    markRiteWait(a, 'failed');
     if (!opts.noPermadeath && Math.random() < C.permaDeathChance) { personal(a, `${def.title} claims you. This life is over.`); return permaKill(a, `failed ${def.title}`); }
     personal(a, `${def.title} breaks you, but lets you live to wake again.`);
     try { mp.set(a, 'isDead', true); } catch (e) { /* dead already */ }
@@ -984,7 +1017,7 @@ module.exports = (api) => {
       rites.set(a, r);
       return finishRite(a, r, false, { noPermadeath: true });
     }
-    if (def.deadly) { try { mp.set(a, 'private.riteFailedAt', Date.now()); } catch (e) { /* offline */ } }
+    if (def.deadly) markRiteWait(a, 'failed');
     log(`supernatural: ${display(a)} disconnected from ${where}, even or ahead: cancelled${def.deadly ? ', the shrine waits' : ', the fever will come again'}`);
     audit(`RITE ${who(a)} disconnected from ${where}, even or ahead: cancelled, no death`);
   };
@@ -1011,8 +1044,8 @@ module.exports = (api) => {
   const riteOffer = (a, deity) => {
     const s = stateOf(a);
     if (rites.has(a)) return { reason: 'You are already in a rite.' };
-    let failedAt = 0; try { failedAt = Number(mp.get(a, 'private.riteFailedAt')) || 0; } catch (e) { /* none */ }
-    let unmarkedAt = 0; try { unmarkedAt = Number(mp.get(a, 'private.riteUnmarkedAt')) || 0; } catch (e) { /* none */ }
+    // The account's waits: the latest over its characters and its profile stamp (markRiteWait)
+    const failedAt = riteWaitAt(a, 'failed'), unmarkedAt = riteWaitAt(a, 'unmarked');
     const unmarkedWait = unmarkedAt + C.riteFailCooldownHours * 3600000 - Date.now();
     if (deity === 'hircine' && unmarkedWait > 0) return { reason: `Hircine let you go unmarked. His shrine will hear you again in ${waitText(unmarkedWait)}.`, loud: true };
     const waitMs = failedAt + C.riteFailCooldownHours * 3600000 - Date.now();
@@ -2215,7 +2248,7 @@ module.exports = (api) => {
     }
     // Lifts the 24 h wait after a failed or unmarked rite, for a player the mini-game failed (Nate, 2026-10-04)
     else if (w === 'riteclear') {
-      mp.set(t, 'private.riteFailedAt', 0); mp.set(t, 'private.riteUnmarkedAt', 0);
+      clearRiteWaits(t);   // every character of the account, and the profile's stamp
       personal(t, "The shrine's patience is renewed: you may attempt the rite again.");
       audit(`SUPERNATURAL GM ${who(a)} cleared the rite wait for ${who(t)}`);
       return personal(a, `Done: ${display(t)} may attempt the rite again.`);
