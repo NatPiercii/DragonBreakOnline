@@ -42,6 +42,7 @@
 //     `studentCooldownHours` between paid classes. Arcane Arts `teacherArcaneLevel` (75) qualifies a teacher too (Nate,
 //     11 Oct). A student short of their first spell sits at Novice and is paid Arcane Arts as they sit: `firstWeight`
 //     every `firstEverySeconds` through the Wheel's award (its limits hold), worth `firstRate` (x2) via skillrates.js.
+//     When the teacher ends it, its spell is offered to each student paid for it (classes.offerSpell; spells.js).
 //   Priest Studies: a PriestStudy activator (base editor id `priestStudy.edid`, or a ref in `priestStudy.refs`; DLE v10's
 //     temples) plays the same reading idle under the same windows and limits, its own window, and pays Priest: no school
 //     meter, only the Wheel's cast credit with a Novice Restoration spell every `wheelEverySeconds`. It closes for good
@@ -103,6 +104,9 @@ module.exports = (api) => {
     swap: { enabled: true, cooldownDays: 7, startShare: 0.5 },
     // A third of the first pace (Nate, 3 Oct): 25 to 50 takes about 12 days at the daily cap
     castUnits: 0.2,
+    // A school's casts are worth this many times castUnits: a summon stands a minute or more where a bolt is one cast
+    // (Nate, 11 Oct, from Worker E's build: Conjuration was slow to level; its mages cast 3.4 units a day to Destruction's 5.8)
+    castUnitsBySchool: { Conjuration: 2 },
     castDailyUnits: 40,
     study: {
       enabled: true, edid: 'StudyMagic', refs: [], tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20, windowHours: 4,
@@ -137,6 +141,9 @@ module.exports = (api) => {
       // of the Wheel's units x the scale's Novice row, through the Wheel's award as Study Magic is, so its repeat ring,
       // hourly bucket and daily caps hold; what the Wheel lets through is worth firstRate (x2) of a solo sitting's.
       teacherArcaneLevel: 75, firstWeight: 3, firstEverySeconds: 60, firstRate: 2,
+      // When the teacher ends a class, its spell is offered to each student paid for it (spells.js __dboSpellsClassOffer:
+      // Learn or Decline, the student's own gates, the college rank cap and the restricted arts; Nate, 11 Oct)
+      offerSpell: true,
       // [student rank][class rank], ranks Novice..Master. "Reduced" (Apprentice student, Novice class) and "XP" (Expert
       // student, Master class) had no figure in Swag's spec: 0.35 and 0.7 until Nate says otherwise.
       scale: [
@@ -661,7 +668,7 @@ module.exports = (api) => {
     const ring = (Array.isArray(s.ring) ? s.ring : []).filter((e) => e && now - e.at < HOUR);
     const k = ring.filter((e) => e.h === (spellId >>> 0)).length;
     s.ring = ring.concat([{ h: spellId >>> 0, at: now }]).slice(-16);
-    const units = Math.min(C.castDailyUnits - spent, C.castUnits / (1 + k / 8));
+    const units = Math.min(C.castDailyUnits - spent, C.castUnits * (Number((C.castUnitsBySchool || {})[sp.school]) || 1) / (1 + k / 8));
     s.cast.units[sp.school] = spent + units;
     const before = levelOf(s, sp.school);
     credit(s, sp.school, units);
@@ -1641,6 +1648,8 @@ module.exports = (api) => {
       save(st, s);
       const w = wheel(st, idOf(k.spell.desc), C.classes.wheelValue, Math.max(1, Math.round(C.classes.wheelEvents * f)));
       personal(st, `${display(k.teacher)}'s class on ${k.spell.name} is over. You took ${classWords.gainWords(f)}: your study of ${k.spell.school} stands at ${levelOf(s, k.spell.school)}.`);
+      // The class's spell itself, offered to each student who stayed (spells.js runs the student's checks)
+      if (C.classes.offerSpell !== false && typeof globalThis.__dboSpellsClassOffer === 'function') { try { globalThis.__dboSpellsClassOffer(k.teacher, st, idOf(k.spell.desc)); } catch (e) { log('schools: class spell offer failed', e.message); } }
       tellGain(st, k.spell.school, before, s);
       return `${who(st)} x${f} (${before}->${levelOf(s, k.spell.school)}, wheel ${w})`;
     },

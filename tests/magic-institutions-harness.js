@@ -426,6 +426,67 @@ const paid2 = awards.slice(a1).filter((x) => x.a === BEGIN2);
 check('a beginner who reaches Arcane Arts 25 mid-class is paid no further (the first spell opens instead)', arcaneLevel(BEGIN2) >= 25 && paid2.length < 12 && arcaneLevel(BEGIN2) < 27, [paid2.length, arcaneLevel(BEGIN2)]);
 ui('lecternCancel', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
 
+
+// ---- 7. Worker E's two ideas: Conjuration casts count twice, and a class's spell is offered at its end -------------------
+{
+  const CONJ = 0x20, DEST = 0x21; NAMES[CONJ] = 'Conj'; NAMES[DEST] = 'Dest';
+  for (const [a, school] of [[CONJ, 'Conjuration'], [DEST, 'Destruction']]) {
+    online.push(a); put(a, 'profileId', a); at(a, BRUMA); ui('uiCaps', a, ['spellbook', 'schools']); skillAt(a, 'arcane', 60);
+    put(a, 'private.dboSchools', { v: 1, primary: school, secondary: null, levels: { [school]: { level: 40, xp: 0 } }, grandfathered: [], picks: { [school]: { spell: '', how: 'none', at: 1 } }, pickTold: {}, firstOffered: 1 });
+  }
+  const xpOf = (a, school) => getp(a, 'private.dboSchools').levels[school].xp;
+  globalThis.__dboSchoolsCast(CONJ, idOf(tome('SpellTomeConjureFamiliar').spell));
+  globalThis.__dboSchoolsCast(DEST, idOf(FLAMES.spell));
+  check('a Conjuration cast counts twice what a Destruction cast does toward its school (castUnitsBySchool)', Math.abs(xpOf(CONJ, 'Conjuration') - 2 * xpOf(DEST, 'Destruction')) < 1e-9 && xpOf(DEST, 'Destruction') > 0, [xpOf(CONJ, 'Conjuration'), xpOf(DEST, 'Destruction')]);
+  const sum = (a) => getp(a, 'private.dboSchools').cast.units;
+  check('...and the day\'s cast cap fills as fast (40 a school)', Math.abs(sum(CONJ).Conjuration - 2 * sum(DEST).Destruction) < 1e-9, [sum(CONJ), sum(DEST)]);
+
+  // A class on Sparks (Novice): the Destruction students who stayed are offered Sparks
+  const STU = 0x22, STU2 = 0x23; NAMES[STU] = 'Stu'; NAMES[STU2] = 'Stutwo';
+  for (const a of [STU, STU2]) {
+    online.push(a); put(a, 'profileId', a); at(a, SYNOD, [300, 140, 0]); ui('uiCaps', a, ['spellbook', 'schools']); skillAt(a, 'arcane', 30); member(a, 'synod', 'Associate');
+    put(a, 'private.dboSchools', { v: 1, primary: 'Destruction', secondary: null, levels: { Destruction: { level: 10, xp: 0 } }, grandfathered: [], picks: { Destruction: { spell: '', how: 'none', at: 1 } }, pickTold: {}, firstOffered: 1 });
+  }
+  known(STU2).add(idOf(SPARKS.spell));
+  known(TEACHER).add(idOf(SPARKS.spell));
+  wallClock += 2 * HOUR;
+  put(TEACHER, 'private.dboSchools', Object.assign(getp(TEACHER, 'private.dboSchools'), { classAt: 0 }));
+  const boughtBefore = getp(TEACHER, 'private.dboTomeBoughtAt');
+  globalThis.__dboSchoolsActivate(LECTERN, TEACHER);
+  ui('lecternStart', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce, SPARKS.spell]);
+  for (const a of [STU, STU2]) { globalThis.__dboSchoolsActivate(LECTERN, a); ui('lecternJoin', a, [lastWidget(a, 'classLectern').nonce]); }
+  check('two Destruction students sign up for a Sparks class', [STU, STU2].every((a) => globalThis.__dboSchoolsState.classes.get(LECTERN).students.has(a)));
+  for (let m = 0; m < 31; m++) { wallClock += MIN; timers.get('schools.classes')(); }
+  ui('lecternEnd', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
+  const offerW = lastWidget(STU, 'contextMenu');
+  check('when the class ends, a student who stayed is offered its spell (Learn / Decline)', offerW && offerW.id === 45 && /Teacher offers to teach you Sparks \(Destruction, Novice\), the spell of the class/.test(offerW.targetName) && offerW.actions.map((x) => x.id).join() === 'accept,decline', offerW);
+  check('...one who already knows it is not asked', !(lastWidget(STU2, 'contextMenu') || {}).targetName || !/the spell of the class/.test(lastWidget(STU2, 'contextMenu').targetName));
+  ui('spellsOffer', STU, ['accept'], 45);
+  check('...accepting learns it, audited as TEACH at a class', studiedAll(STU).includes(SPARKS.spell) && /^TEACH P19 taught 2dd2a:Skyrim.esm Sparks to P22 at a class/.test(lastAudit(/^TEACH/)), [studiedAll(STU), lastAudit(/^TEACH/)]);
+  check('...and costs the teacher no tome purchase', getp(TEACHER, 'private.dboTomeBoughtAt') === boughtBefore);
+  // The offer keeps the college rules: rank cap and restricted arts, and it lapses after 180 s
+  known(TEACHER).add(idOf(FIREBALL.spell)); known(TEACHER).add(idOf(REANIMATE.spell));
+  check('an Adept class spell is not offered to an Associate (rank cap), who is told why', globalThis.__dboSpellsClassOffer(TEACHER, STU, idOf(FIREBALL.spell)) === false && /would teach you Fireball, but: At your rank you may be taught spells up to Apprentice/.test(said(STU)), said(STU));
+  check('a restricted art is not offered to an Associate', globalThis.__dboSpellsClassOffer(TEACHER, STU, idOf(REANIMATE.spell)) === false && /restricted arts/.test(said(STU)), said(STU));
+  globalThis.__dboSpellsClassOffer(TEACHER, STU2, idOf(FLAMES.spell));
+  wallClock += 181 * 1000;
+  ui('spellsOffer', STU2, ['accept'], 45);
+  check('a class offer lapses after 180 s', !studiedAll(STU2).includes(FLAMES.spell) && /The offer has lapsed/.test(said(STU2)), said(STU2));
+  load(Object.assign(baseCfg(), { schools: Object.assign({}, baseCfg().schools, { classes: Object.assign({}, CONFIG.schools.classes, { offerSpell: false }) }) }));
+  wallClock += 13 * HOUR;
+  put(TEACHER, 'private.dboSchools', Object.assign(getp(TEACHER, 'private.dboSchools'), { classAt: 0 }));
+  for (const a of [TEACHER, STU2]) ui('uiCaps', a, ['spellbook', 'schools']);
+  known(STU2).delete(idOf(SPARKS.spell));
+  globalThis.__dboSchoolsActivate(LECTERN, TEACHER);
+  ui('lecternStart', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce, SPARKS.spell]);
+  globalThis.__dboSchoolsActivate(LECTERN, STU2); ui('lecternJoin', STU2, [lastWidget(STU2, 'classLectern').nonce]);
+  for (let m = 0; m < 31; m++) { wallClock += MIN; timers.get('schools.classes')(); }
+  const w0 = out.widgets.length;
+  ui('lecternEnd', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
+  check('classes.offerSpell false: the class pays, and offers no spell', saidAny(STU2, /class on Sparks is over/) && !out.widgets.slice(w0).some((x) => x.a === STU2 && /the spell of the class/.test(x.w.targetName || '')), out.widgets.slice(w0).filter((x) => x.a === STU2).map((x) => x.w.type));
+  load();
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });

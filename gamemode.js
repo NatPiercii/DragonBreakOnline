@@ -6668,7 +6668,7 @@ try {
   const SPELLS_JS = path.resolve('spells.js');
   delete require.cache[SPELLS_JS];
   require(SPELLS_JS)({ mp, log, personal, system, audit, display, who, cfg, openWidget, closeWidget, onUi, registerChatCommand, onlineActors, distanceMeters, takeGold, giveItem, depositToTreasury, every });
-} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop', '__dboSpellsGrant', '__dboSpellsTab', '__dboSpellsRankCap', '__dboSpellsChangePrepared', '__dboSpellsTomesFor', '__dboTomeShopHere', '__dboTomeShopOpen', '__dboTeachHere', '__dboTeachLedgerActions', '__dboTeachOpen', '__dboTeachLecternMenu']) globalThis[k] = null; }
+} catch (e) { log('spells.js failed to load:', e.stack || e.message); for (const k of ['__dboOpenSpellbook', '__dboSpellsBook', '__dboSpellsKnown', '__dboSpellsClassify', '__dboGuildWorkshop', '__dboSpellsGrant', '__dboSpellsTab', '__dboSpellsRankCap', '__dboSpellsChangePrepared', '__dboSpellsTomesFor', '__dboTomeShopHere', '__dboTomeShopOpen', '__dboTeachHere', '__dboTeachLedgerActions', '__dboTeachOpen', '__dboTeachLecternMenu', '__dboSpellsClassOffer']) globalThis[k] = null; }
 // ---- smithing manuals and smithing skill books (server\manuals.js, manuals.json, config "manuals"): spells.js's read hook,
 // the Scholar's reading, dungeons.js's boss chests and salvage.js's Scholars' Ledger ask it at runtime ----
 try {

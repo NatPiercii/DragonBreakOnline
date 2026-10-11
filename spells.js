@@ -23,6 +23,8 @@
 // (seniorOnlyTomes: raising the dead, the Daedra lords, banishing Daedra) only from Senior up. A Senior at their own
 // college's Scholars' Ledger or Class Lectern teaches a spell to a member standing by (collegeTeach), spending a tome of
 // it they carry or one of their two purchases of the week; audited TEACH.
+// When a Class Lectern class ends, its spell is offered to each student paid for it (__dboSpellsClassOffer), free to
+// the teacher, under the same student rules.
 //
 // State, on the character:
 //   private.dboStudied       { arcane: [spell desc...], priest: [...] }  the spellbook: every spell learned through this system
@@ -50,6 +52,8 @@ module.exports = (api) => {
     studentMinTier: 1,
     teachAtStudyPoint: false,
     offerSeconds: 60,
+    // How long a class's spell stays offered to its students after the class (schools.js classes.offerSpell)
+    classOfferSeconds: 180,
     shopCells: ['20ff:BSHeartland.esm', '6c152:BSHeartland.esm'],
     shopFactions: ['synod', 'college-of-winterhold', 'college-of-whispers'],
     shopMinTier: 1,
@@ -605,9 +609,10 @@ module.exports = (api) => {
     offers.delete(student >>> 0);
     closeWidget(student, MENU_ID);
     if (!o) return;
-    if (Date.now() - o.at > CFG.offerSeconds * 1000) return personal(student, 'The offer has lapsed.');
+    if (Date.now() - o.at > (o.cls ? CFG.classOfferSeconds : CFG.offerSeconds) * 1000) return personal(student, 'The offer has lapsed.');
     if (!accept) { personal(o.teacher, `${display(student)} declines the lesson.`); return; }
     if (o.college) return answerCollege(student, o);
+    if (o.cls) return answerClass(student, o);
     const sp = teachable(o.teacher).find((x) => x.id === o.spellId);
     if (!sp) { personal(student, 'Your teacher can no longer teach that spell.'); return; }
     const why = teachRefusal(o.teacher, student, sp);
@@ -1006,6 +1011,52 @@ module.exports = (api) => {
     personal(student, `${display(teacher)} teaches you ${spellLabel(sp)}. ${line}`);
     personal(teacher, `You teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used up.' : (buysLeft(teacher) > 0 ? `That used one of your tome purchases; ${buysLeft(teacher)} left this week.` : `That used your last tome purchase this week; the next is yours in ${waitText(nextBuyAt(teacher) - Date.now())}.`)}`);
     audit(`TEACH ${who(teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at ${descOf(o.college.place)} for ${o.college.fid} (${credit.tome ? `tome ${descOf(credit.tome)}` : 'a tome purchase'}; book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
+  };
+
+  // ---- a class's spell, offered when the class ends (Worker E's idea, Nate 11 Oct) -----------------------------------------
+  // schools.js calls this for each student paid for a Class Lectern class. The student's checks are a college lesson's:
+  // their own skill and school gates (slotRefusal), the rank they may buy in any college (never below studentMinCap, also
+  // for a student of no college), and the restricted arts for Senior ranks only. It costs the teacher nothing: the class
+  // already has its own limits (the staff's teacher list, 30 minutes, the teacher's and the students' cooldowns).
+  const classStudentCap = (student) => {
+    const mine = collegesOf(student) || [];
+    return Math.min(Number(CFG.shopMaxRank), Math.max(Number(TEACH.studentMinCap) || 0, ...mine.map(rankCapIn)));
+  };
+  const classRefusal = (teacher, student, sp) => {
+    if (!onlineActors().includes(student >>> 0)) return `${display(student)} is not here.`;
+    if (!(knows(teacher, sp.id) || inBook(teacher, sp.id))) return `${display(teacher)} can no longer teach ${sp.name}.`;
+    if (restrictedSpell(sp.id) && !isSenior(student)) return `${RESTRICTED_LINE}.`;
+    const cap = classStudentCap(student);
+    if (Number(sp.rank) > cap) return `At your rank you may be taught spells up to ${RANKS[cap]}; ${sp.name} is ${/^[AEIOU]/.test(rankWord(sp.rank)) ? 'an' : 'a'} ${rankWord(sp.rank)} spell.`;
+    if (knows(student, sp.id) || inBook(student, sp.id)) return 'known';
+    return slotRefusal(student, sp, 'You have') || '';
+  };
+  globalThis.__dboSpellsClassOffer = (teacher, student, spellId) => {
+    try {
+      if (!CFG.enabled) return false;
+      const sp = classifySpell(Number(spellId) >>> 0);
+      if (!sp) return false;
+      const why = classRefusal(teacher >>> 0, student >>> 0, sp);
+      if (why === 'known') return false;
+      if (why) { personal(student, `${display(teacher)} would teach you ${sp.name}, but: ${why}`); return false; }
+      offers.set(student >>> 0, { teacher: teacher >>> 0, spellId: sp.id, at: Date.now(), cls: true });
+      openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(teacher)} offers to teach you ${spellLabel(sp)}, the spell of the class`,
+        actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
+        events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
+      return true;
+    } catch (e) { log('spells: class offer failed', e.message); return false; }
+  };
+  const answerClass = (student, o) => {
+    const sp = classifySpell(o.spellId);
+    const why = sp ? classRefusal(o.teacher, student, sp) : 'That spell cannot be taught.';
+    if (why) { personal(student, why === 'known' ? `You already know ${sp.name}.` : why); return; }
+    const skill = bookSkillFor(student, sp);
+    migrate(student);
+    writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
+    const line = settleNew(student, sp, false);
+    personal(student, `${display(o.teacher)} teaches you ${spellLabel(sp)}. ${line}`);
+    if (onlineActors().includes(o.teacher)) personal(o.teacher, `${display(student)} learned ${sp.name} from your class.`);
+    audit(`TEACH ${who(o.teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at a class (book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
   };
 
   // ---- menu answers ----------------------------------------------------------------------------------

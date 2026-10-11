@@ -24,7 +24,14 @@
         "heading": "Classes",
         "items": [
           "A mage can now hold classes at a Class Lectern with Arcane Arts at 75, as well as with Expert study in a school.",
-          "Students who have not reached their first spell yet (Arcane Arts below 25, no school chosen) can now join a Novice or Apprentice class. They learn Arcane Arts while they stay in the classroom, at about twice the pace of studying alone. The usual hourly and daily skill limits still apply."
+          "Students who have not reached their first spell yet (Arcane Arts below 25, no school chosen) can now join a Novice or Apprentice class. They learn Arcane Arts while they stay in the classroom, at about twice the pace of studying alone. The usual hourly and daily skill limits still apply.",
+          "When the teacher ends a class, everyone who stayed to the end is offered the class's spell to learn (Learn or Decline, for three minutes). The usual rules apply: you need the skill and school of magic for it, it must be within the rank you could buy, and the restricted arts are only for Senior ranks."
+        ]
+      },
+      {
+        "heading": "Schools of magic",
+        "items": [
+          "Casting a Conjuration spell now counts twice as much toward your study of Conjuration, since a summon is cast far less often than a bolt."
         ]
       }
     ]
