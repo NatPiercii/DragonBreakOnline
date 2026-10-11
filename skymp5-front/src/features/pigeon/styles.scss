@@ -269,3 +269,119 @@
     justify-content: flex-end;
   }
 }
+
+// Parcels and supply orders (server post.js, 11 Oct)
+.pigeon {
+  &__text--short {
+    min-height: 110px;
+  }
+
+  &__parcel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid $dbo-border;
+    background: rgba(0, 0, 0, 0.22);
+  }
+
+  &__parcel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__parcel-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    color: $dbo-text;
+  }
+
+  &__parcel-tax {
+    font-size: 12px;
+    color: $dbo-text-dim;
+  }
+
+  &__parcel-note {
+    margin-top: 8px;
+    font-family: $dbo-book-font;
+    font-size: 14px;
+    color: $dbo-text;
+  }
+
+  &__field {
+    padding: 4px 8px;
+    font-family: $dbo-ui-font;
+    font-size: 14px;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid $dbo-border;
+    outline: none;
+
+    &:focus {
+      border-color: $dbo-border-strong;
+    }
+
+    &--gold {
+      width: 90px;
+    }
+
+    &--count {
+      width: 64px;
+    }
+
+    &--search {
+      flex: 1;
+    }
+  }
+
+  &__goods {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 110px;
+    overflow-y: auto;
+  }
+
+  &__good,
+  &__mini {
+    padding: 3px 8px;
+    font-family: $dbo-ui-font;
+    font-size: 13px;
+    color: $dbo-text;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid $dbo-border;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $dbo-border-strong;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+  }
+
+  &__good--picked {
+    border-color: $dbo-border-strong;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  &__mini {
+    align-self: flex-start;
+  }
+
+  &__section {
+    margin-top: 4px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $dbo-text-dim;
+  }
+}
