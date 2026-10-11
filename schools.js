@@ -101,6 +101,9 @@ module.exports = (api) => {
     swap: { enabled: true, cooldownDays: 7, startShare: 0.5 },
     // A third of the first pace (Nate, 3 Oct): 25 to 50 takes about 12 days at the daily cap
     castUnits: 0.2,
+    // A school's casts are worth this many times castUnits: a summon stands a minute or more where a bolt is one cast
+    // (Nate, 11 Oct: Conjuration was slow to level; its mages cast 3.4 units a day to Destruction's 5.8)
+    castUnitsBySchool: { Conjuration: 2 },
     castDailyUnits: 40,
     study: {
       enabled: true, edid: 'StudyMagic', refs: [], tickSeconds: 10, unitsPerTick: 1, minutesPerWindow: 20, windowHours: 4,
@@ -653,7 +656,7 @@ module.exports = (api) => {
     const ring = (Array.isArray(s.ring) ? s.ring : []).filter((e) => e && now - e.at < HOUR);
     const k = ring.filter((e) => e.h === (spellId >>> 0)).length;
     s.ring = ring.concat([{ h: spellId >>> 0, at: now }]).slice(-16);
-    const units = Math.min(C.castDailyUnits - spent, C.castUnits / (1 + k / 8));
+    const units = Math.min(C.castDailyUnits - spent, C.castUnits * (Number((C.castUnitsBySchool || {})[sp.school]) || 1) / (1 + k / 8));
     s.cast.units[sp.school] = spent + units;
     const before = levelOf(s, sp.school);
     credit(s, sp.school, units);

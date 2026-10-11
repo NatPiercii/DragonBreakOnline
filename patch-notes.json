@@ -1,5 +1,20 @@
 [
   {
+    "title": "Conjuration trains faster, and college officers see every tome",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Casting a Conjuration spell now trains Conjuration twice as much as before. A summon stands for a minute while other spells are cast again and again, so Conjuration was slow to level.",
+          "The leaders and officers of the Synod and the Colleges now see every spell tome they can learn at the Scholars' Ledger, not only the weekly shelf, so they can teach what their college lacks. The limit of one tome a week stays."
+        ]
+      }
+    ]
+  },
+  {
     "title": "The tome shelf favours your school",
     "date": "2026-10-11",
     "version": "Server update",

@@ -666,7 +666,9 @@ module.exports = (api) => {
     let mine = null; try { mine = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) : null; } catch (e) { mine = null; }
     return Array.isArray(mine) && mine.some((m) => m && (CFG.shopFactions || []).includes(String(m.id)) && (m.role === 'leader' || m.role === 'officer'));
   };
-  const stockSize = (a) => Math.max(1, Math.round(Number(CFG.shopStock) || 4)) + (a && leadsACollege(a) ? Math.max(0, Math.round(Number(CFG.shopLeaderExtra === undefined ? 1 : CFG.shopLeaderExtra) || 0)) : 0);
+  // shopLeaderAll (Elion's suggestion, Nate 11 Oct): they see every tome their study can take, to teach what their college lacks
+  const stockSize = (a) => (a && CFG.shopLeaderAll !== false && leadsACollege(a) ? Infinity
+    : Math.max(1, Math.round(Number(CFG.shopStock) || 4)) + (a && leadsACollege(a) ? Math.max(0, Math.round(Number(CFG.shopLeaderExtra === undefined ? 1 : CFG.shopLeaderExtra) || 0)) : 0));
   // The tomes on the shelf for this buyer this week: the first shopStock of the week's order that are sold here (or any,
   // for an admin) and that the buyer can learn now (tomeBlock, as at reading, and not a spell they hold). Listed in SHOP order.
   // The buyer's own schools come first (Nate, 11 Oct): primary, then secondary, then the rest, each in the week's order;

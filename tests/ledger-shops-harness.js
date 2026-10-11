@@ -255,6 +255,13 @@ const both = shelfOf();
 const lastD = both.lastIndexOf('Destruction'), firstI = both.indexOf('Illusion');
 check('primary before secondary: no Illusion tome above a Destruction one', lastD === -1 || firstI === -1 || lastD < firstI, both);
 delete globalThis.__dboSchoolsActive;
+// A college's leaders and officers see every tome their study can take (Elion's suggestion, Nate 11 Oct)
+globalThis.__dboGuildsOf = () => [{ id: 'synod', role: 'officer', title: 'Magister' }];
+const officerShelf = shelfOf();
+check(`an officer sees every tome their study can take (${officerShelf.length}), not 5`, officerShelf.length > 5, officerShelf.length);
+api.cfg = Object.assign({}, cfg, { spells: Object.assign({}, cfg.spells, { shopStock: 4, shopLeaderAll: false }) }); load();
+check('shopLeaderAll false: an officer is back to four and the leaders\' fifth', shelfOf().length === 5, shelfOf().length);
+delete globalThis.__dboGuildsOf;
 api.cfg = cfg; load();
 
 // shopSplit off: the old way, all to shopTreasury

@@ -231,6 +231,7 @@ const nine = rec(MAGE).levels.Destruction.xp;
 check('the same spell again within the hour is worth less', nine < 9 * 1 && nine > 1 * 5, nine);
 globalThis.__dboSchoolsCast(MAGE, idOf(T.courage[1]));
 check('an Illusion cast (a closed school) adds nothing', !rec(MAGE).levels.Illusion);
+check('a Destruction cast counts castUnits once: 0.2 for the first', Math.abs((rec(MAGE).cast.units.Destruction || 0) - (0.2 + [1, 2, 3, 4, 5, 6, 7, 8].reduce((n, k) => n + 0.2 / (1 + k / 8), 0))) < 1e-9, rec(MAGE).cast.units);
 // 7 Oct (four "magic does not level" reports): a cast that trains no school says why, once a login (and after 4 hours)
 check('...and says why: it trains Arcane Arts only', said(MAGE) === 'Illusion is not one of your schools of magic: casting it trains Arcane Arts only, not Illusion.', said(MAGE));
 {
@@ -301,6 +302,12 @@ advance(35000); tick('schools.tick');
 check('the study tick redraws the panel in place, without taking focus, under the same nonce', lastSent(NOVICE, 'studyMagic').focus === false && lastSent(NOVICE, 'studyMagic').w.mode === 'studying' && lastSent(NOVICE, 'studyMagic').w.nonce === out.widgets.filter((x) => x.a === NOVICE && x.w.type === 'studyMagic' && x.focus).pop().w.nonce);
 check('the time left counts the open sitting: 20 min less the 30 s paid (it went back up every tick, 5 Oct)', lastWidget(NOVICE, 'studyMagic').leftSeconds === 1170, lastWidget(NOVICE, 'studyMagic').leftSeconds);
 check('three whole ticks in 35 s pay 3 units to Conjuration', Math.abs(rec(NOVICE).levels.Conjuration.level - 1 - 0.3) < 1e-9 || (rec(NOVICE).levels.Conjuration.level === 1 && Math.abs(rec(NOVICE).levels.Conjuration.xp - 30) < 1e-9), rec(NOVICE).levels.Conjuration);
+// A Conjuration cast counts twice (Nate, 11 Oct: a summon stands a minute where a bolt is one cast)
+{
+  const was = (rec(NOVICE).cast && rec(NOVICE).cast.units && rec(NOVICE).cast.units.Conjuration) || 0;
+  globalThis.__dboSchoolsCast(NOVICE, idOf(T.boundSword[1]));
+  check('a Conjuration cast counts 0.4, twice a Destruction cast', Math.abs(rec(NOVICE).cast.units.Conjuration - was - 0.4) < 1e-9, rec(NOVICE).cast);
+}
 advance(30000); tick('schools.tick');
 check('...and keeps falling as the sitting goes on', lastWidget(NOVICE, 'studyMagic').leftSeconds === 1140, lastWidget(NOVICE, 'studyMagic').leftSeconds);
 check('a minute of study credits Arcane Arts once, with a Conjuration spell, through the cast credit', wheelEvents.filter((e) => e.a === NOVICE).length === 1 && wheelEvents[wheelEvents.length - 1].kind === 'cast' && wheelEvents[wheelEvents.length - 1].detail.spellId !== 0, wheelEvents.filter((e) => e.a === NOVICE));
