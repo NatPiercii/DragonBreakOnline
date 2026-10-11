@@ -18,6 +18,7 @@ import { driftConfig } from "../sync/driftConfig";
 import { Movement } from "../sync/movement";
 import { SpawnProcess } from "./spawnProcess";
 import { COPY_MAGICKA, copyMagicka, realBaseMagicka } from "./copyMagicka";
+import { FOOLHARDY, keepsOwnConfidence } from "./copyConfidence";
 import { holdsRelayedRagdoll, niNodeWaitsForRagdoll } from "./ragdollHold";
 import { ragdolledAtOf } from "./npcLifetimeRuntime";
 import { ObjectReferenceEx } from "../extensions/objectReferenceEx";
@@ -365,9 +366,8 @@ export class FormView {
         actor.setActorValue("magicka", COPY_MAGICKA);
         this.magickaSet = COPY_MAGICKA;
         // Foolhardy: a server-driven copy never flees; the flee package crashed hosts mid-fight (MovementControllerNPC, 8-9 Oct).
-        // Not a passive animal (Nate, 9 Oct: rabbits, deer and foxes fought back instead of running): no appearance (not a
-        // player's copy), not flagged hostile by the server, Aggression 0 from its own record. Those keep their own confidence.
-        if (!FormView.isPassiveAnimal(actor, model)) actor.setActorValue("Confidence", 4);
+        // Prey keeps its own confidence and runs (Nate, 9 Oct: rabbits, deer and foxes fought back): see copyConfidence.ts
+        if (!FormView.isPrey(actor, model)) actor.setActorValue("Confidence", FOOLHARDY);
         this.localImmortal = true;
       }
       if (actor) this.syncHostedMagicka(actor);
@@ -1142,10 +1142,18 @@ export class FormView {
     }
   }
 
-  private static isPassiveAnimal(actor: Actor, model: FormModel): boolean {
+  // Read before the Foolhardy write, so Confidence is the record's own. applyHostility may already have raised Aggression
+  // at placement (ambush races, ff_hostile): an attacker, which stays Foolhardy
+  private static isPrey(actor: Actor, model: FormModel): boolean {
     const m = model as Record<string, unknown>;
     if (model.appearance || m["ff_hostile"] === true || m["ff_companionOf"]) return false;
-    try { return actor.getActorValue("Aggression") === 0 && !actor.hasKeyword(Keyword.from(Game.getFormEx(ACTOR_TYPE_NPC))!); } catch { return false; }
+    try {
+      return keepsOwnConfidence({
+        playerCopy: !!model.appearance, hostile: m["ff_hostile"], companion: m["ff_companionOf"],
+        person: actor.hasKeyword(Keyword.from(Game.getFormEx(ACTOR_TYPE_NPC))),
+        aggression: actor.getActorValue("Aggression"), confidence: actor.getActorValue("Confidence"),
+      });
+    } catch { return false; }
   }
 
   private static isInvisAdmin(model: FormModel): boolean {
