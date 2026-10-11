@@ -965,7 +965,11 @@
    "miner": 2,
    "skinner": { "default": 1.5, "kill": 0, "_kill": "Skinner trains from skinning (and tanning) only, never from killing an animal (Nate, 5 Oct; #bugs 1555559825541169253)" },
    "priest": 1.25,
-   "blacksmith": { "default": 1, "craftByTier": [2.5, 1, 1, 1, 1] }
+   "blacksmith": { "default": 1, "craftByTier": [2.5, 1, 1, 1, 1] },
+   "alchemist": { "default": 1, "craft": 2 },
+   "cook": { "default": 1, "craft": 2 },
+   "woodcutter": 1.5,
+   "_crafting": "Nate, 11 Oct (economy scan): Alchemist and Cook crafts x2 (a week's top brewer made 2,901 potions for level 30), Woodcutter x1.5 (best character level 19)."
   },
   "materialTiers": {
    "IngotSteel": 2, "IngotSilver": 2, "IngotDwarven": 2, "IngotIMoonstone": 2, "IngotQuicksilver": 2, "IngotCorundum": 2, "IngotGold": 2,

@@ -191,6 +191,13 @@ ok('beast: the mortal\'s own rates are kept (Skinner skin x1.5)', r.rateFor(B, '
 ok('beast: a configured beastRate applies', loadBeast(Object.assign({}, R, { beastRate: 0.5 })).rateFor(A, 'unarmed', 'hit', {}) === 0.5);
 ok('beast: without the hook a hit keeps its rate', load(R).rateFor(A, 'unarmed', 'hit', {}) === 1);
 
+// The live crafting rates (Nate, 11 Oct): Alchemist and Cook crafts x2, Woodcutter x1.5, other kinds untouched.
+r = loadBeast(CONFIG.skillRates);
+ok('live: an Alchemist brew is worth x2', r.rateFor(B, 'alchemist', 'craft', {}) === 2);
+ok('live: a Cook craft is worth x2, eating stays x1', r.rateFor(B, 'cook', 'craft', {}) === 2 && r.rateFor(B, 'cook', 'eat', {}) === 1);
+ok('live: Woodcutter chops and mills at x1.5', r.rateFor(B, 'woodcutter', 'chop', {}) === 1.5 && r.rateFor(B, 'woodcutter', 'craft', {}) === 1.5);
+ok('live: the "_crafting" note is not a skill', r.rateFor(B, '_crafting', 'craft', {}) === 1);
+
 Date.now = realNow;
 console.log(`${checks - fails}/${checks} checks passed`);
 process.exit(fails ? 1 : 0);
