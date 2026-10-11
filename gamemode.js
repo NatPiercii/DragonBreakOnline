@@ -1052,9 +1052,8 @@ const sendPigeon = (a, to, rawText, zoneId, goldRaw, itemsRaw) => {
       if (!items) { giveItem(a, GOLD_BASE, price + charges); return { ok: false, text: 'The goods are no longer in your pack. Your gold is returned.' }; }
     }
     const taxed = price + (prep ? prep.tax + prep.fee : 0);
-    const paid = taxed > 0 ? depositToTreasury(zoneId, taxed) : 0;
     notePigeonSent(p);
-    if (isBlocked) return { ok: true, text: 'Your pigeon flew off and never came back.' };
+    if (isBlocked) { if (taxed > 0) depositToTreasury(zoneId, taxed); return { ok: true, text: 'Your pigeon flew off and never came back.' }; }
     const at = Date.now();
     const sig = nextSignature.get(a);
     nextSignature.delete(a);
@@ -1065,9 +1064,11 @@ const sendPigeon = (a, to, rawText, zoneId, goldRaw, itemsRaw) => {
     if (prep) letter.parcel = { gold: prep.gold, items };
     box.push(letter);
     try { saveLetters(to, box); } catch (e) {
-      if (prep) { giveItem(a, GOLD_BASE, prep.gold); if (items.length) P.giveEntries(a, items); }
+      if (price + charges > 0) giveItem(a, GOLD_BASE, price + charges);
+      if (items.length) P.giveEntries(a, items);
       throw e;
     }
+    const paid = taxed > 0 ? depositToTreasury(zoneId, taxed) : 0;
     if (sig) audit(`PIGEON ${who(a)} sent ${nameOf(to)} a letter signed "${from}"`);
     if (prep) audit(`POST ${who(a)} sent ${who(to)} ${[prep.gold ? `${prep.gold} gold` : '', P.itemsText(items)].filter(Boolean).join(', ')} (tax ${prep.tax + prep.fee}, flight ${price})`);
     if (online) { personal(to, prep ? 'A pigeon has brought you a letter with a parcel. Collect it at any notice board.' : 'A pigeon has brought you a letter. Read it at any notice board.'); sendMailState(to); }
