@@ -963,10 +963,11 @@ const lettersOf = (a) => {
 const saveLetters = (a, list) => {
   const sorted = list.slice().sort((x, y) => (y.at || 0) - (x.at || 0));
   let spare = sorted.length - LETTERS_KEPT;
-  const kept = spare > 0 ? sorted.reverse().filter((m) => !(spare > 0 && m.read && spare--)).reverse() : sorted;
+  // ...nor a letter whose parcel waits to be collected (post.js)
+  const kept = spare > 0 ? sorted.reverse().filter((m) => !(spare > 0 && m.read && !m.parcel && spare--)).reverse() : sorted;
   mp.set(a, 'private.pigeons', kept);
 };
-const pigeonsWaiting = (a) => lettersOf(a).filter((m) => !m.read).length;
+const pigeonsWaiting = (a) => lettersOf(a).filter((m) => !m.read || m.parcel).length;
 // Board positions for the client's floating letter marker (notice-board-spots.json, the same list bountyBoardSystem reads)
 const BOARD_REFS = (() => {
   try {
@@ -1011,9 +1012,20 @@ registerChatCommand('sign', (a, args) => {
   personal(a, `Your next letter will be signed "${want}", in a hand not your own.`);
 }, { help: 'unsigned | <a name> | clear: how your next pigeon letter is signed' });
 
-const sendPigeon = (a, to, rawText, zoneId) => {
+// A letter may carry a parcel (post.js): gold and goods leave the sender with the flight, plus the parcel's tax, and wait
+// in the letter until the reader collects them at a board. goldRaw/itemsRaw are the window's; none is a plain letter.
+const sendPigeon = (a, to, rawText, zoneId, goldRaw, itemsRaw) => {
   const text = String(rawText || '').trim().replace(/\s+/g, ' ');
-  if (!text) return { ok: false, text: 'Write something for the pigeon to carry.' };
+  const P = globalThis.__dboPostApi;
+  const wantsParcel = (goldRaw !== undefined && goldRaw !== null && goldRaw !== '' && Number(goldRaw) !== 0) || (itemsRaw !== undefined && itemsRaw !== null && itemsRaw !== '' && itemsRaw !== '[]');
+  let prep = null;
+  if (wantsParcel) {
+    if (!P) return { ok: false, text: 'Pigeons carry letters only for now.' };
+    prep = P.prepare(a, goldRaw, itemsRaw);
+    if (!prep.ok) return prep;
+    if (prep.empty) prep = null;
+  }
+  if (!text && !prep) return { ok: false, text: 'Write something for the pigeon to carry.' };
   if (text.length > PIGEON_MAX_TEXT) return { ok: false, text: `Pigeons carry at most ${PIGEON_MAX_TEXT} characters.` };
   const admin = isAdmin(a);
   const p = profileOf(a); const left = PIGEON_COOLDOWN_MS - (Date.now() - (pigeonLastSent.get(p) || 0));
@@ -1024,25 +1036,44 @@ const sendPigeon = (a, to, rawText, zoneId) => {
     // Every letter lands at the notice boards and waits there; nobody reads a pigeon in the field
     const online = onlineActors().includes(to);
     const box = lettersOf(to);
-    if (box.filter((m) => !m.read).length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
-    const price = admin ? 0 : pigeonFee(a, to);
-    if (price > 0 && !takeGold(a, price)) return { ok: false, text: `A pigeon to ${nameOf(to)} costs ${price} gold, and you do not have it.` };
-    const paid = price > 0 ? depositToTreasury(zoneId, price) : 0;
-    notePigeonSent(p);
+    if (box.filter((m) => !m.read || m.parcel).length >= PIGEON_MAX_UNREAD) return { ok: false, text: 'Their coop is full. Try again later.' };
     const blocked = mp.get(to, 'private.pigeonBlock');
-    if (Array.isArray(blocked) && blocked.includes(p)) return { ok: true, text: 'Your pigeon flew off and never came back.' };
+    const isBlocked = Array.isArray(blocked) && blocked.includes(p);
+    // A blocked sender's parcel is never lost to the void: the bird will not take it
+    if (isBlocked && prep) return { ok: false, text: 'Your pigeon will not carry a parcel to them.' };
+    const price = admin ? 0 : pigeonFee(a, to);
+    const charges = prep ? prep.gold + prep.tax + prep.fee : 0;
+    if (price + charges > 0 && !takeGold(a, price + charges)) {
+      return { ok: false, text: prep ? `The flight costs ${price} gold, the parcel's tax ${prep.tax + prep.fee}${prep.gold ? `, and you send ${prep.gold}` : ''}: ${price + charges} gold in all, and you do not have it.` : `A pigeon to ${nameOf(to)} costs ${price} gold, and you do not have it.` };
+    }
+    let items = [];
+    if (prep && prep.items.length) {
+      items = P.takeParcel(a, prep);
+      if (!items) { giveItem(a, GOLD_BASE, price + charges); return { ok: false, text: 'The goods are no longer in your pack. Your gold is returned.' }; }
+    }
+    const taxed = price + (prep ? prep.tax + prep.fee : 0);
+    const paid = taxed > 0 ? depositToTreasury(zoneId, taxed) : 0;
+    notePigeonSent(p);
+    if (isBlocked) return { ok: true, text: 'Your pigeon flew off and never came back.' };
     const at = Date.now();
     const sig = nextSignature.get(a);
     nextSignature.delete(a);
     let from = display(a);
     if (sig && sig.unsigned) from = 'Unsigned';
     else if (sig && sig.name) from = sig.name + (Math.random() < (Number(FORGE.tellChance[sig.tier]) || 0) ? ' (the hand does not quite match)' : '');
-    box.push({ id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from, fromProfile: p, text, at, read: false }); saveLetters(to, box);
+    const letter = { id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from, fromProfile: p, text, at, read: false };
+    if (prep) letter.parcel = { gold: prep.gold, items };
+    box.push(letter);
+    try { saveLetters(to, box); } catch (e) {
+      if (prep) { giveItem(a, GOLD_BASE, prep.gold); if (items.length) P.giveEntries(a, items); }
+      throw e;
+    }
     if (sig) audit(`PIGEON ${who(a)} sent ${nameOf(to)} a letter signed "${from}"`);
-    if (online) { personal(to, 'A pigeon has brought you a letter. Read it at any notice board.'); sendMailState(to); }
+    if (prep) audit(`POST ${who(a)} sent ${who(to)} ${[prep.gold ? `${prep.gold} gold` : '', P.itemsText(items)].filter(Boolean).join(', ')} (tax ${prep.tax + prep.fee}, flight ${price})`);
+    if (online) { personal(to, prep ? 'A pigeon has brought you a letter with a parcel. Collect it at any notice board.' : 'A pigeon has brought you a letter. Read it at any notice board.'); sendMailState(to); }
     const zone = zoneId ? zoneById(zoneId) : null;
-    log(`pigeon ${who(a)} -> ${nameOf(to)} #${tagOf(to)}${price > 0 ? ` (${price} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
-    return { ok: true, text: `Your pigeon flies to ${nameOf(to)}, who will read it at a notice board${price > 0 ? `. ${price} gold${zone ? ` to the ${zone.name} treasury` : ''}` : ''}.` };
+    log(`pigeon ${who(a)} -> ${nameOf(to)} #${tagOf(to)}${taxed > 0 ? ` (${taxed} gold, ${paid ? zoneId + ' treasury' : 'no treasury'})` : ''}: ${text}`);
+    return { ok: true, text: `Your pigeon flies to ${nameOf(to)}, who will ${prep ? 'collect it' : 'read it'} at a notice board${taxed > 0 ? `. ${taxed} gold${zone ? ` to the ${zone.name} treasury` : ''}` : ''}.` };
   } catch (e) { return { ok: false, text: 'The pigeon refused to fly: ' + e.message }; }
 };
 const openPigeonCoop = (a, result, resultKind, view) => {
@@ -1062,10 +1093,16 @@ const openPigeonCoop = (a, result, resultKind, view) => {
   openWidget(a, {
     type: 'pigeon', id: PIGEON_WIDGET_ID, nonce, boardName: zone ? zone.name : 'The',
     contacts, gold: goldOf(a), cooldownMinutes: admin || left <= 0 ? 0 : Math.ceil(left / 60000), maxText: PIGEON_MAX_TEXT,
-    letters: lettersOf(a).sort((x, y) => (y.at || 0) - (x.at || 0)).map((m) => ({ id: m.id, from: m.from, text: m.text, at: m.at || 0, read: !!m.read })),
+    letters: lettersOf(a).sort((x, y) => (y.at || 0) - (x.at || 0)).map((m) => ({ id: m.id, from: m.from, text: m.text, at: m.at || 0, read: !!m.read,
+      parcel: m.parcel ? { gold: Number(m.parcel.gold) || 0, items: (m.parcel.items || []).map((t) => ({ name: postItemName(t.baseId), count: Number(t.count) || 0 })) } : undefined })),
     view: view || (pigeonsWaiting(a) ? 'letters' : 'send'), result, resultKind,
+    ...postView(a),
   }, true);
 };
+globalThis.__dboOpenPigeonCoop = openPigeonCoop;
+// Parcels and supply orders for the coop window (post.js); nothing when it is not loaded
+const postView = (a) => { try { return globalThis.__dboPostApi ? globalThis.__dboPostApi.view(a) : {}; } catch (e) { log('post view failed', e.message); return {}; } };
+const postItemName = (baseId) => { try { return adminItemName(mp.getDescFromId(Number(baseId) >>> 0)) || (Number(baseId) >>> 0).toString(16); } catch (e) { return String(baseId); } };
 registerChatCommand('pigeonblock', (a, args) => {
   const t = findAnyByName(args.trim()); if (!t || t < 0) return personal(a, 'No such character (use their #TAG).');
   try {
@@ -2907,12 +2944,13 @@ registerChatCommand('driftset', (a, args) => {
   audit(`GM ${who(a)} set the drift switch ${key} to ${value}`);
 }, { admin: true, help: '<key> <value|default> a client drift switch; no key lists them' });
 const refusePigeon = (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); personal(a, 'Pigeons are sent from a notice board. Walk up to one and use it.'); };
-onUi('pigeonOpen', (a, args) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a, undefined, undefined, args[0] === 'letters' || args[0] === 'send' ? args[0] : undefined); });
+onUi('pigeonOpen', (a, args) => { if (!boardZoneNear(a)) return refusePigeon(a); openPigeonCoop(a, undefined, undefined, ['letters', 'send', 'supply'].includes(args[0]) ? args[0] : undefined); });
 // Letters: opening one marks it read, and a letter can be thrown away; both answer with a fresh Letters tab
 const updateLetter = (a, args, change) => {
   if (String(args[0]) !== pigeonNonces.get(a)) return;
   const id = String(args[1] || ''); const box = lettersOf(a); const i = box.findIndex((m) => m.id === id);
   if (i < 0) return;
+  if (change === 'delete' && box[i].parcel) return openPigeonCoop(a, 'Collect the parcel before you burn the letter.', 'refused', 'letters');
   if (change === 'delete') box.splice(i, 1); else if (box[i].read) return; else box[i].read = true;
   saveLetters(a, box); sendMailState(a);
   openPigeonCoop(a, change === 'delete' ? 'The letter goes into the fire.' : undefined, change === 'delete' ? 'sent' : undefined, 'letters');
@@ -2923,7 +2961,7 @@ onUi('pigeonSend', (a, args) => {
   if (String(args[0]) !== pigeonNonces.get(a)) return;
   const zoneId = boardZoneNear(a);
   if (!zoneId) return refusePigeon(a);
-  const r = sendPigeon(a, Number(args[1]) >>> 0, args[2], zoneId);
+  const r = sendPigeon(a, Number(args[1]) >>> 0, args[2], zoneId, args[3], args[4]);
   openPigeonCoop(a, r.text, r.ok ? 'sent' : 'refused', 'send');
 });
 onUi('pigeonClose', (a) => { pigeonNonces.delete(a); closeWidget(a, PIGEON_WIDGET_ID); });
@@ -6312,6 +6350,14 @@ try {
   require(COMMISSIONS_JS)({ mp, log, personal, audit, who, display, tagOf, profileOf, onlineActors, every, registerChatCommand, cfg,
     takeGold, giveGold: (a, n) => giveItem(a, GOLD_BASE, n) !== false, depositToTreasury, boardZoneNear, zoneById, ranksOf });
 } catch (e) { log('commissions.js failed to load:', e.stack || e.message); }
+
+// ---- parcels by pigeon and supply orders at the boards (server\post.js, config "post") ------------------------------
+try {
+  const POST_JS = path.resolve('post.js');
+  delete require.cache[POST_JS];
+  require(POST_JS)({ mp, log, personal, audit, who, nameOf, tagOf, profileOf, discordOf, onlineActors, every, cfg, onUi, takeGold, giveItem,
+    goldOf, GOLD_BASE, recordOf, depositToTreasury, zoneById, boardZoneNear, lettersOf, saveLetters, sendMailState, itemName: (d) => adminItemName(d) });
+} catch (e) { log('post.js failed to load:', e.stack || e.message); globalThis.__dboPostApi = null; }
 
 // ---- renting property out at its door (server\tenancy.js, config "tenancy"; housingSystem.ts __dboHousing) --------
 try {
