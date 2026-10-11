@@ -177,8 +177,9 @@ export class ActorTrail {
 
 const hex = (n: number): string => ((n || 0) >>> 0).toString(16);
 
-export const trailLine = (now: number, kind: string, refrId: number, baseId: number, extra?: string): string =>
-  `npc ${new Date(now).toISOString().slice(11, 23)} ${kind} ${hex(refrId)} base=${hex(baseId)}${extra ? " " + extra : ""}`;
+// f= last (older parsers read the fields after the time): the frame counter, so a crash log shows how much copy work shared a frame
+export const trailLine = (now: number, kind: string, refrId: number, baseId: number, extra?: string, frame?: number): string =>
+  `npc ${new Date(now).toISOString().slice(11, 23)} ${kind} ${hex(refrId)} base=${hex(baseId)}${extra ? " " + extra : ""}${frame !== undefined ? ` f=${frame}` : ""}`;
 
 // Lines written per second and per session: a cell load's burst is the part worth keeping, so the second's budget is wide
 export class LineBudget {

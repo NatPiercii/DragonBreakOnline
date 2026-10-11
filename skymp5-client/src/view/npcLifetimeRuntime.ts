@@ -1,6 +1,7 @@
 // The game side of npcLifetime.ts: deferred deletes, spread HostStart re-seats, and the trail of actor-changing calls
 import { Actor, Game, ObjectReference, Ui, on } from "skyrimPlatform";
 import * as sp from "skyrimPlatform";
+import { CopyWork, FrameBudget, SpawnLine, WorkQueue } from "./copyBudget";
 import { ActorTrail, CopyState, HostAttemptBackoff, LineBudget, PendingDelete, RecentDeletes, deleteDecision, deletePlan, dropRelayedRagdoll, newPendingDelete, reseatDecision, trailLine } from "./npcLifetime";
 
 // The file the launcher collects (report.js DIAG_LOG_REL); writeLogs ends every line with a flush, so a line written before a crash is kept
@@ -14,6 +15,11 @@ const recentDeletes = new RecentDeletes(); // local ids already handed to Delete
 const recentDisables = new RecentDeletes(); // plugin-placed actors disableOnly disabled a moment ago (isDisabled may lag)
 let lastUpdateAt = 0;
 const reseats: Array<{ id: number; askedAt: number }> = [];
+// Frames counted on "tick" (one SKSE task a frame), so every update callback of a frame reads the same number
+let frame = 0;
+const copyBudget = new FrameBudget();
+const copyWork = new WorkQueue();
+const spawnLine = new SpawnLine();
 
 export const hostBackoff = new HostAttemptBackoff();
 
@@ -24,7 +30,7 @@ const baseOf = (id: number): number => {
 export const noteActorCall = (kind: string, refrId: number, extra?: string): void => {
   try {
     const now = Date.now();
-    const line = trailLine(now, kind, refrId, baseOf(refrId), extra);
+    const line = trailLine(now, kind, refrId, baseOf(refrId), extra, frame);
     trail.push(line);
     if (!budget.take(now)) return;
     (sp as unknown as { writeLogs: (plugin: string, ...rest: unknown[]) => void }).writeLogs(LOG_NAME, line);
@@ -67,7 +73,27 @@ export const ragdolledAtOf = (id: number): number => ragdolledAt.get(id) || 0;
 // A copy that is dead, downed, in a kill move or ragdolling is disabled now and deleted once its 3D is gone; any other at once.
 // defer: always the slow way (the world cleaner's actors may be fighting or casting when it reaches them).
 // A ref already deleted, already handed to Delete() or already waiting is left alone; one with no 3D is deleted outright
-export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): void => {
+// urgent: own companions and the player's own copies, never kept waiting. tag: the remote id, so its next spawn waits for this
+export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean; urgent?: boolean; tag?: number }): void => {
+  const id = refr.getFormID();
+  if (recentDeletes.has(id, Date.now()) || pendingDeletes.has(id) || copyWork.has("delete", id) || read(() => refr.isDeleted())) {
+    noteActorCall("delete-skipped", id);
+    return;
+  }
+  copyWork.cancel("disable", id);
+  budgeted("delete", id, opts?.tag || 0, !!opts?.urgent, () => {
+    const r = ObjectReference.from(Game.getFormEx(id));
+    if (r) deleteOrDefer(r, !!opts?.defer);
+  });
+};
+
+// Runs now while the frame has room (or urgent), queued in order otherwise
+const budgeted = (kind: CopyWork, id: number, tag: number, urgent: boolean, run: () => void): void => {
+  if (urgent) { copyBudget.force(kind, frame); run(); return; }
+  if (copyWork.submit(kind, id, tag, frame, copyBudget, run) === "queued") noteActorCall(`${kind}-queued`, id, `waiting=${copyWork.size(kind)}`);
+};
+
+const deleteOrDefer = (refr: ObjectReference, defer: boolean): void => {
   const id = refr.getFormID();
   const now = Date.now();
   const ac = Actor.from(refr);
@@ -77,7 +103,7 @@ export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): v
     deleted: read(() => refr.isDeleted()),
     is3DLoaded: read(() => refr.is3DLoaded()),
     state: ac ? stateOf(ac, id) : null,
-    defer: !!(opts && opts.defer),
+    defer,
     loadingScreen: isLoadingScreen(),
   }, now);
   if (plan === "skip") { noteActorCall("delete-skipped", id); return; }
@@ -98,18 +124,33 @@ export const safeDelete = (refr: ObjectReference, opts?: { defer?: boolean }): v
 // client never saves. Its Delete() added nothing but the risk of the 4 Oct 07:35Z crash in the fade after a load
 export const disableOnly = (refr: ObjectReference): void => {
   const id = refr.getFormID();
-  const now = Date.now();
-  if (recentDisables.has(id, now) || recentDeletes.has(id, now) || pendingDeletes.has(id) || read(() => refr.isDeleted())) return;
-  recentDisables.note(id, now);
-  noteActorCall("disable", id);
-  try { refr.disableNoWait(false); } catch (e) { /* already gone */ }
+  if (isHandedToDelete(id) || read(() => refr.isDeleted())) return;
+  budgeted("disable", id, 0, false, () => {
+    const now = Date.now();
+    const r = ObjectReference.from(Game.getFormEx(id));
+    if (!r || recentDeletes.has(id, now) || pendingDeletes.has(id) || read(() => r.isDeleted())) return;
+    recentDisables.note(id, now);
+    noteActorCall("disable", id);
+    try { r.disableNoWait(false); } catch (e) { /* already gone */ }
+  });
+};
+
+// A HostStart's settle on a copy; one whose copy is being deleted is left alone (the delete wins)
+export const hostStartSettle = (remoteId: number, urgent: boolean, settle: () => void): void => {
+  budgeted("hoststart", remoteId, remoteId, urgent, settle);
+};
+
+// A view asks every frame until its copy may be placed; urgent views never wait, and none goes before its old copy's queued delete
+export const maySpawnCopy = (remoteId: number, urgent: boolean): boolean => {
+  if (urgent) { copyBudget.force("spawn", frame); spawnLine.forget(remoteId); return true; }
+  return spawnLine.ask(remoteId, frame, copyBudget, copyWork.hasTag("delete", remoteId));
 };
 
 // True while Delete() was called on this local id a moment ago, safeDelete is waiting to call it, or disableOnly has just
 // disabled it: touch nothing on it
 export const isHandedToDelete = (id: number): boolean => {
   const now = Date.now();
-  return pendingDeletes.has(id) || recentDeletes.has(id, now) || recentDisables.has(id, now);
+  return pendingDeletes.has(id) || recentDeletes.has(id, now) || recentDisables.has(id, now) || copyWork.has("delete", id) || copyWork.has("disable", id);
 };
 
 // A new copy placed under an id the engine has reused is not the one that was deleted
@@ -123,6 +164,7 @@ const onUpdate = (): void => {
   const now = Date.now();
   const stepMs = lastUpdateAt ? now - lastUpdateAt : 0;
   lastUpdateAt = now;
+  copyWork.drain(frame, copyBudget);
   const loadingScreen = pendingDeletes.size > 0 && isLoadingScreen();
   for (const [id, pending] of Array.from(pendingDeletes)) {
     const refr = ObjectReference.from(Game.getFormEx(id));
@@ -132,6 +174,7 @@ const onUpdate = (): void => {
     try { loaded = refr.is3DLoaded(); } catch (e) { /* unreadable */ }
     const { decision, next } = deleteDecision(pending, loaded, loadingScreen, stepMs);
     if (decision === "wait") { pendingDeletes.set(id, next); continue; }
+    if (decision === "delete" && !copyBudget.take("delete", frame)) { pendingDeletes.set(id, next); continue; }
     pendingDeletes.delete(id);
     if (decision === "give-up") { noteActorCall("delete-abandoned", id, `3D still loaded after ${next.waitedMs} ms; left disabled`); forget(id); continue; }
     noteActorCall("delete", id, `after ${next.waitedMs} ms`);
@@ -155,5 +198,6 @@ const onUpdate = (): void => {
 
 if (!(globalThis as any).__dboNpcLifetimeOn) {
   (globalThis as any).__dboNpcLifetimeOn = true;
+  on("tick", () => { frame++; });
   on("update", () => { try { onUpdate(); } catch (e) { /* never break the frame */ } });
 }

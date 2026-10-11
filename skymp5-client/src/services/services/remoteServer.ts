@@ -47,7 +47,7 @@ import { UpdateAppearanceMessage } from '../messages/updateAppearanceMessage';
 import { TeleportMessage } from '../messages/teleportMessage';
 import { DeathStateContainerMessage } from '../messages/deathStateContainerMessage';
 import { RespawnNeededError } from '../../lib/errors';
-import { hostBackoff, noteActorCall, queueReseat, safeDelete } from '../../view/npcLifetimeRuntime';
+import { hostBackoff, hostStartSettle, isHandedToDelete, noteActorCall, queueReseat, safeDelete } from '../../view/npcLifetimeRuntime';
 import { OpenContainerMessage } from '../messages/openContainerMessage';
 import { ActivateMessage } from '../messages/activateMessage';
 import { ClientListener, CombinedController, Sp } from './clientListener';
@@ -200,12 +200,14 @@ export class RemoteServer extends ClientListener {
     }
     hostBackoff.answered(target);
 
-    // The copy may still be sliding (translateTo, no collision) from its first movement sample; its own AI drives it now
-    once('update', () => {
+    // The copy may still be sliding (translateTo, no collision) from its first movement sample; its own AI drives it now.
+    // A burst of grants is spread over frames (copyBudget.ts); own companions never wait
+    once('update', () => hostStartSettle(target, isOwnCompanion(target), () => {
       try {
         const localId = remoteIdToLocalId(target);
         const ac = localId ? Actor.from(Game.getFormEx(localId)) : null;
         if (!ac || ac.getFormID() === 0x14) return;
+        if (isHandedToDelete(ac.getFormID())) { noteActorCall("hoststart-dropped", ac.getFormID(), "copy being deleted"); return; }
         if (isOwnCompanion(target)) {
           // Own companions keep the follow order CompanionService gives them
           ac.stopTranslation();
@@ -224,7 +226,7 @@ export class RemoteServer extends ClientListener {
       } catch (e) {
         logError(this, `hostStart settle failed for`, target.toString(16), e);
       }
-    });
+    }));
   }
 
   private onHostStopMessage(event: ConnectionMessage<HostStopMessage>) {
