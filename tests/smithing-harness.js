@@ -277,6 +277,15 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   ok(craft(B, STEEL, R_STEEL) === true, 'live: Steel needs no technique at tier 2', lastTold(B));
   const v2 = globalThis.__dboSmithView(B), f2 = (id) => v2.families.find((f) => f.id === id);
   ok(['steel', 'imperial', 'guard', 'brass', 'goblin'].every((id) => f2(id).known) && !f2('ancient_nord').known && !f2('ancient_imperial').known, 'live: every T2 family is known by default but Ancient Nord and Ancient Imperial', ['steel', 'imperial', 'guard', 'goblin', 'ancient_nord'].map((id) => [id, f2(id).known]));
+  // Bonemold and Chitin are the Dunmer's own crafts (Nate, 11 Oct): every Dark Elf smith knows them, vampire or not
+  rec(0x13742, 'RACE', 'DarkElfRace'); rec(0x8883a, 'RACE', 'DarkElfRaceVampire');
+  const DUN = 0x14b0c; smith(DUN, 20); props.set(`${DUN}|private.dboManuals`, {}); props.set(`${DUN}|profileId`, 10); put(DUN, 'appearance', { raceId: 0x13742 });
+  const vd = globalThis.__dboSmithView(DUN), fd = (id) => vd.families.find((f) => f.id === id);
+  ok(fd('bonemold').known && fd('chitin').known && fd('bonemold').how === 'race' && !fd('scaled').known, 'live: a Dunmer smith knows Bonemold and Chitin by birth, nothing else extra', ['bonemold', 'chitin', 'scaled'].map((id) => [id, fd(id).known, fd(id).how]));
+  ok(!f2('bonemold').known && !f2('chitin').known && /known to every Dunmer smith/.test(f2('bonemold').learnHint), 'live: a Nord does not, and is told who does', f2('bonemold').learnHint);
+  put(DUN, 'appearance', { raceId: 0x8883a });
+  ok(globalThis.__dboSmithView(DUN).families.find((f) => f.id === 'chitin').known, 'live: a Dunmer vampire keeps it');
+  ok(vd.tier === 2 && fd('bonemold').tier === 3 && fd('bonemold').canMake === 0, 'live: the craft tier still gates it (T3 work at tier 2)', [vd.tier, fd('bonemold').canMake]);
   ok(f2('elven_gilded').learnHint.includes('Elven technique'), 'live: Gilded Elven is worked with the Elven technique', f2('elven_gilded').learnHint);
   ok(!globalThis.__dboManualsSmithShop(B).length, 'live: the blacksmith\'s ledger has no schematic to sell');
   // No apprenticeship in a closely held family: Glass under a Master who knows it, in range

@@ -51,7 +51,10 @@ module.exports = (api) => {
   const techOf = (fam) => (fam && fam.technique && BY_FAMILY.get(fam.technique)) || fam;
   // A family worked with a free family's technique is free too (Imperial and Guard steel, on Steel's, from 11 Oct)
   const isFree = (fam) => !!fam.free || !!techOf(fam).free;
-  const knows = (a, fam) => fam.tier <= 1 || isFree(fam) || !!known(a)[techOf(fam).id];
+  // A race's own craft (raceFree: race editor ids, matched as a prefix so a vampire keeps it): Bonemold and Chitin for
+  // every Dunmer smith (Nate, 11 Oct). The tier gate still applies
+  const raceKnows = (a, fam) => { const r = techOf(fam).raceFree; if (!Array.isArray(r) || !r.length) return false; const race = raceEdid(a); return !!race && r.some((x) => race.startsWith(String(x))); };
+  const knows = (a, fam) => fam.tier <= 1 || isFree(fam) || raceKnows(a, fam) || !!known(a)[techOf(fam).id];
   const teach = (a, fam, how, from) => { set(a, REC, Object.assign({}, known(a), { [fam.id]: { at: Date.now(), how, from: from || how } })); audit(`SMITH ${who(a)} learned ${fam.name} (T${fam.tier}) by ${how}${from && from !== how ? ' from ' + from : ''}`); };
   // A family marked factionExempt (Imperial: the Legion's own pieces) leaves its faction gear to factiongear.js: the
   // faction decides who makes those, the technique gates only the rest (the Colovian and Springsteel bows...)
@@ -175,7 +178,7 @@ module.exports = (api) => {
       const k = knows(a, f);
       const list = recipes().get(f.id) || [];
       const canMake = k && tier >= f.tier ? list.filter((r) => r.inputs.every(([id, n]) => (inv.get(id) || 0) >= n)).length : 0;
-      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 || isFree(f) ? null : (rec[techOf(f).id] && rec[techOf(f).id].how) || (rec[techOf(f).id] ? 'book' : null), canMake, learnHint: k ? '' : hintOf(f),
+      return { id: f.id, name: f.name, tier: f.tier, known: k, how: f.tier <= 1 || isFree(f) ? null : (rec[techOf(f).id] && rec[techOf(f).id].how) || (rec[techOf(f).id] ? 'book' : raceKnows(a, f) ? 'race' : null), canMake, learnHint: k ? '' : hintOf(f),
         recipes: namesOf(f.id) };
     }).sort((x, y) => x.tier - y.tier || x.name.localeCompare(y.name));
     return { tier, tierName: TIER_NAMES[tier - 1] || '', tierNames: TIER_NAMES.slice(0, 7), points, nextAt: tier >= 7 ? null : Number(C.tierPoints[tier]),
