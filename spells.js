@@ -53,6 +53,13 @@ module.exports = (api) => {
     shopCooldownDays: 7,
     // A college's leaders and officers buy one tome a day (Nate, 11 Oct)
     shopLeaderCooldownDays: 1,
+    // Elion and Aldemar's proposal (Nate, 11 Oct): a college's senior ranks are its teachers. Everyone else buys Novice and
+    // Apprentice tomes only; necromancy and the summons of Daedra and atronachs are the seniors' alone, to teach with /teach;
+    // and seniors may buy shopSeniorTomes the shop does not otherwise stock (Banish Daedra, a Skyrim tome)
+    shopSeniorRoles: ['leader', 'officer', 'sergeant'],
+    shopMemberMaxRank: 1,
+    shopSeniorOnlyPattern: 'zombie|skeleton|boneman|corpse|revenant|thrall|draugr|wrathman|mistman|necromantic|atronach|dremora|golden saint|dark seducer|staada|seeker|daedra',
+    shopSeniorTomes: ['a26ee:Skyrim.esm'],
     // The shelf: shopStock tomes the buyer can learn now, chosen by a seed of the UTC week (Monday 00:00) and the shop, so
     // everyone at the shop sees the same rotation that week (Nate, 2026-10-06: "only 3-4 at a time ... so Scholar is still
     // worth it")
@@ -662,12 +669,25 @@ module.exports = (api) => {
     shelfCache = { week, order };
     return order;
   };
-  // A college's leaders and officers see shopLeaderExtra more tomes on the weekly shelf (Nate, 10 Oct: a 5th), by their role
-  // in a shop faction (guilds.js __dboGuildsOf)
+  // A college's senior ranks (shopSeniorRoles: leader, officer and sergeant) by their role in a shop faction (guilds.js
+  // __dboGuildsOf): every tome, one a day, any rank, the senior-only tomes (Nate, 10 and 11 Oct)
   const leadsACollege = (a) => {
     let mine = null; try { mine = typeof globalThis.__dboGuildsOf === 'function' ? globalThis.__dboGuildsOf(a) : null; } catch (e) { mine = null; }
-    return Array.isArray(mine) && mine.some((m) => m && (CFG.shopFactions || []).includes(String(m.id)) && (m.role === 'leader' || m.role === 'officer'));
+    const roles = Array.isArray(CFG.shopSeniorRoles) ? CFG.shopSeniorRoles : ['leader', 'officer'];
+    return Array.isArray(mine) && mine.some((m) => m && (CFG.shopFactions || []).includes(String(m.id)) && roles.includes(String(m.role)));
   };
+  const seniorOnlyRe = (() => { try { return CFG.shopSeniorOnlyPattern ? new RegExp(CFG.shopSeniorOnlyPattern, 'i') : null; } catch (e) { return null; } })();
+  const SENIOR_TOMES = new Set((CFG.shopSeniorTomes || []).map(idOf).filter(Boolean));
+  const seniorOnly = (t) => !!seniorOnlyRe && (seniorOnlyRe.test(t.name) || seniorOnlyRe.test(t.edid)) || SENIOR_TOMES.has(t.bookId >>> 0);
+  // Why this member may not buy this tome at their rank, or ''
+  const rankBlock = (a, t) => {
+    if (leadsACollege(a)) return '';
+    try { const R = regions(); if (R && R.bypass(a)) return ''; } catch (e) { /* no regions: the rule holds */ }
+    if (seniorOnly(t)) return 'taught by your college\'s senior members, not sold to students';
+    const max = Number.isFinite(Number(CFG.shopMemberMaxRank)) ? Number(CFG.shopMemberMaxRank) : 4;
+    return t.rank > max ? `${RANKS[t.rank]} tomes come from your college's senior members; the shop sells students ${RANKS[max]} and below` : '';
+  };
+  const soldFor = (a, R, t) => soldHere(R, t) || (SENIOR_TOMES.has(t.bookId >>> 0) && leadsACollege(a));
   // shopLeaderAll (Elion's suggestion, Nate 11 Oct): they see every tome their study can take, to teach what their college lacks
   const stockSize = (a) => (a && CFG.shopLeaderAll !== false && leadsACollege(a) ? Infinity
     : Math.max(1, Math.round(Number(CFG.shopStock) || 4)) + (a && leadsACollege(a) ? Math.max(0, Math.round(Number(CFG.shopLeaderExtra === undefined ? 1 : CFG.shopLeaderExtra) || 0)) : 0));
@@ -680,7 +700,7 @@ module.exports = (api) => {
     const learned = new Set(learnedIds(a) || []), book = new Set(knownIds(a));
     const mine = schoolsOf(a);
     const rankOf = (t) => (mine && t.school === mine.primary ? 0 : mine && t.school === mine.secondary ? 1 : 2);
-    const open = shelfOrder(weekNo(Date.now())).filter((t) => (soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t));
+    const open = shelfOrder(weekNo(Date.now())).filter((t) => (soldFor(a, R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t) && !rankBlock(a, t));
     const sorted = open.map((t, i) => [t, i]).sort((x, y) => rankOf(x[0]) - rankOf(y[0]) || x[1] - y[1]).map(([t]) => t);
     const size = stockSize(a);
     const first = sorted.filter((t) => rankOf(t) === 0), rest = sorted.filter((t) => rankOf(t) !== 0);
@@ -722,7 +742,7 @@ module.exports = (api) => {
       canBuy: !whyNot, nextPurchaseAt: nextBuyAt(a), whyNot,
       skills: held.map((x) => ({ id: x.s.id, label: x.s.label, tier: x.tier, tierName: TIER_NAMES[x.tier], schools: (x.s.vanillaSkills || []).slice() })),
       tomes: stockFor(a, R, admin).filter((t) => schools.has(t.school)).map((t) => {
-        const foreign = !soldHere(R, t);
+        const foreign = !soldFor(a, R, t);
         return {
           id: descOf(t.bookId), name: foreign && admin ? `${t.title} (${soldIn(R, t) || 'sold nowhere'})` : t.title, spell: t.name, school: t.school, rank: t.rank, rankName: RANKS[t.rank],
           price: priceOf(t), canAfford: gold >= priceOf(t), blocked: foreign && !admin ? (soldIn(R, t) ? `Sold in ${soldIn(R, t)}` : 'Not sold anywhere') : tomeBlock(a, t),
@@ -764,8 +784,8 @@ module.exports = (api) => {
     const t = SHOP.find((x) => x.bookId === bookId);
     if (!t || !pathsOf(a, t.school).some((skill) => tierOf(a, skill.id) >= 0)) return { ok: false, text: 'The court mage will not sell you that tome.' };
     const R = regions();
-    if (!soldHere(R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
-    const block = tomeBlock(a, t);
+    if (!soldFor(a, R, t) && !R.bypass(a)) return { ok: false, text: `The Synod does not stock ${t.name}; ${soldIn(R, t) ? `it is sold in ${soldIn(R, t)}` : 'it is not sold anywhere'}.` };
+    const block = tomeBlock(a, t) || rankBlock(a, t);
     if (block) return { ok: false, text: `${t.title}: ${block}.` };
     if (knows(a, t.spellId) || inBook(a, t.spellId)) return { ok: false, text: `You already know ${t.name}.` };
     if (!stockFor(a, R, !!R && R.bypass(a)).includes(t)) return { ok: false, text: `${t.title} is not on the Synod's shelf this week.` };

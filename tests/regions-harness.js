@@ -133,7 +133,7 @@ let regionsCfg = { craft: true, tomes: true, adminBypass: true, failOpen: true, 
 let spellsCfg = { shopStock: 999 };
 const load = () => {
   handlers.clear(); commands.clear();
-  const cfg = { regions: regionsCfg, spells: spellsCfg };
+  const cfg = { regions: regionsCfg, spells: Object.assign({ shopMemberMaxRank: 4, shopSeniorOnlyPattern: '', shopSeniorTomes: [] }, spellsCfg) };
   delete require.cache[REGIONS]; require(REGIONS)(mkApi(cfg));
   delete require.cache[SPELLS]; require(SPELLS)(mkApi(cfg));
 };

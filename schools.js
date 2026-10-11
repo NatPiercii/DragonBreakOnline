@@ -281,6 +281,9 @@ module.exports = (api) => {
   const resting = (s, school) => !active(s, school) && levelOf(s, school) > 0;
   const active = (s, school) => s.primary === school || s.secondary === school;
   const schoolRank = (s, school) => (active(s, school) ? rankOfLevel(levelOf(s, school)) : -1);
+  // A teacher's rank in one of their own schools: its study, or their Arcane Arts when that is higher (Elion and Aldemar's
+  // proposal, Nate 11 Oct: school meters lag behind a senior mage's Arcane Arts, so lecterns stood unused)
+  const teachRank = (a, s, school) => (active(s, school) ? Math.max(schoolRank(s, school), C.classes.arcaneQualifies === false ? -1 : rankOfLevel(arcaneOf(a).level)) : -1);
   // Adds units to one school; returns levels gained
   const credit = (s, school, units) => {
     const l = s.levels[school] || { level: 0, xp: 0 };
@@ -1550,7 +1553,7 @@ module.exports = (api) => {
       const guilds = Array.isArray(C.classes.teacherGuilds) ? C.classes.teacherGuilds : [];
       if (guilds.length && !guildsOf(a).some((g) => guilds.includes(g))) return `A class here is held by a member of ${schoolHouse(a)}, or of another college.`;
       const s = stateOf(a);
-      if (!SCHOOLS.some((n) => schoolRank(s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes ${RANKS[C.classes.teacherMinRank]} study in one of your schools.`;
+      if (!SCHOOLS.some((n) => teachRank(a, s, n) >= C.classes.teacherMinRank)) return `Teaching a class takes ${RANKS[C.classes.teacherMinRank]} study in one of your schools, or ${RANKS[C.classes.teacherMinRank]} Arcane Arts.`;
       return '';
     },
     // Spells `a` may set a class by: known, of a school where they are qualified, no higher than their study of it
@@ -1560,7 +1563,7 @@ module.exports = (api) => {
       return knownSpells(a).filter((sp) => {
         if (!sp || !SCHOOLS.includes(sp.school) || seen.has(sp.id)) return false;
         seen.add(sp.id);
-        const r = schoolRank(s, sp.school);
+        const r = teachRank(a, s, sp.school);
         return r >= C.classes.teacherMinRank && Number(sp.rank) <= r;
       }).sort((x, y) => SCHOOLS.indexOf(x.school) - SCHOOLS.indexOf(y.school) || x.rank - y.rank || String(x.name).localeCompare(String(y.name)));
     },

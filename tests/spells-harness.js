@@ -111,7 +111,8 @@ const mkApi = (spellsCfg) => ({
   audit: (t) => out.audits.push(t),
   display: (a) => ({ [MAGE]: 'Mage', [PRIEST]: 'Priest', [STUDENT]: 'Student', [OTHER]: 'Other' }[a] || 'P'),
   who: (a) => `P${a.toString(16)}`,
-  cfg: { spells: spellsCfg || {} },
+  // The college proposal's rules (11 Oct) are off here unless a check turns them on; proposalRules below tests them
+  cfg: { spells: Object.assign({ shopMemberMaxRank: 4, shopSeniorOnlyPattern: '', shopSeniorTomes: [] }, spellsCfg || {}) },
   openWidget: (a, w, focus) => { out.widgets.push({ a, w, focus }); return true; },
   closeWidget: (a, id) => { out.closed.push([a, id]); return true; },
   onUi: (ev, fn) => { const l = handlers.get(ev) || []; l.push(fn); handlers.set(ev, l); },
@@ -568,6 +569,33 @@ check('closing the panel closes widget 44', out.closed.some((c) => c[0] === OTHE
   out.logs.length = 0;
   load();
   check('without the plugin the older points hold again', out.logs.some((l) => /spells on: \d+ tomes known, 2 study point\(s\)/.test(l)), out.logs);
+}
+
+// ---- Elion and Aldemar's proposal (Nate, 11 Oct): students buy Novice and Apprentice, the seniors teach the rest ----
+{
+  const PATTERN = 'zombie|skeleton|boneman|corpse|revenant|thrall|draugr|wrathman|mistman|necromantic|atronach|dremora|golden saint|dark seducer|staada|seeker|daedra';
+  load({ shopStock: 999, shopMemberMaxRank: 1, shopSeniorOnlyPattern: PATTERN, shopSeniorTomes: ['a26ee:Skyrim.esm'] });
+  const hadRanks = globalThis.__dboGuildRankList;
+  globalThis.__dboGuildRankList = () => ['Chancellor of the Synod', 'Magister', 'Senior Magister', 'Mage of the Synod', 'Synod Artificer', 'Synod Robe-Maker', 'Associate', 'Initiate'].map((title) => ({ title }));
+  at(OTHER, SYNOD, [0, 0, 0]); gold(OTHER, 100000); mastery(OTHER, { arcane: 4 }); put(OTHER, 'private.dboTomeBoughtAt', 0);
+  const re = new RegExp(PATTERN, 'i');
+  const asRole = (role, title) => { globalThis.__dboGuildsOf = () => [{ id: 'synod', role, title }]; cmd('tomes', OTHER); return shop(OTHER).tomes; };
+  const member = asRole('member', 'Associate');
+  check(`a student (Associate) sees only Novice and Apprentice tomes (${member.length})`, member.length > 0 && member.every((t) => t.rank <= 1), member.map((t) => t.rankName));
+  check('...and no necromancy, Daedra or atronach tome', !member.some((t) => re.test(t.spell)), member.filter((t) => re.test(t.spell)).map((t) => t.spell));
+  buy(OTHER, T.incinerate[0]);
+  check('...an Expert tome is refused to a student', shop(OTHER).resultKind === 'refused' && /Expert tomes come from your college's senior members/.test(shop(OTHER).result), shop(OTHER).result);
+  for (const [role, title] of [['sergeant', 'Senior Magister'], ['officer', 'Magister'], ['leader', 'Chancellor of the Synod']]) {
+    const t = asRole(role, title);
+    check(`a ${title} (${role}) sees Expert tomes, the summons and Banish Daedra (${t.length})`, t.some((x) => x.rank === 3) && t.some((x) => /atronach|dremora/i.test(x.spell)) && t.some((x) => x.spell === 'Banish Daedra'), t.length);
+  }
+  asRole('sergeant', 'Senior Magister');
+  check('a sergeant buys one tome a day too', !/this week/.test(shop(OTHER).whyNot || ''));
+  buy(OTHER, T.incinerate[0]);
+  check('...and may buy an Expert tome', shop(OTHER).resultKind === 'ok', shop(OTHER).result);
+  delete globalThis.__dboGuildsOf;
+  if (hadRanks) globalThis.__dboGuildRankList = hadRanks; else delete globalThis.__dboGuildRankList;
+  load();
 }
 
 console.log(`\n${checks - failures}/${checks} passed`);

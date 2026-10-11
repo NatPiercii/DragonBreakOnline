@@ -1,5 +1,22 @@
 [
   {
+    "title": "The colleges teach magic",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "Students of the Synod and the Colleges can buy Novice and Apprentice spell tomes at the Scholars' Ledger. Higher spells come from the colleges' senior members, who teach them.",
+          "Necromancy and the summoning of Daedra and atronachs are taught by senior members only. The Scholars' Ledger sells those tomes, and Banish Daedra, to senior members alone.",
+          "Senior members (the leader, officers and the rank below them) see every tome they can learn and may buy one a day.",
+          "A mage at Expert in Arcane Arts can now teach a class at a Class Lectern in their own schools of magic, even before those schools reach Expert."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Conjuration trains faster, and college officers see every tome",
     "date": "2026-10-11",
     "version": "Server update",

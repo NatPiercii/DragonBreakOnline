@@ -887,6 +887,22 @@ check('scale: Master full, none below', S[4].join() === '0,0,0,0,1');
   load();
 }
 
+// Expert Arcane Arts qualifies a teacher in their own schools (Elion and Aldemar's proposal, Nate 11 Oct)
+{
+  load();
+  put(TEACHER, 'private.dboSchools', Object.assign(rec(TEACHER), { classAt: 0 }));
+  setLevel(TEACHER, 'Destruction', 30); arcane(TEACHER, 60); at(TEACHER, SYNOD, [0, 0, 0]);
+  activate(LECTERN, TEACHER);
+  let lw = lastWidget(TEACHER, 'classLectern');
+  check('a mage Apprentice in Destruction and Adept in Arcane Arts may not teach, told Arcane Arts counts too', lw.canTeach === false && /Expert study in one of your schools, or Expert Arcane Arts/.test(lw.whyNot), lw.whyNot);
+  arcane(TEACHER, 80);
+  activate(LECTERN, TEACHER);
+  lw = lastWidget(TEACHER, 'classLectern');
+  check('...Expert in Arcane Arts: they may, with their Destruction spells up to Expert', lw.canTeach === true && lw.spells.some((x) => x.name === 'Incinerate'), [lw.whyNot, lw.spells && lw.spells.map((x) => x.name)]);
+  check('...still only their own schools: no Illusion', !(lw.spells || []).some((x) => x.school === 'Illusion'));
+  ui('lecternClose', TEACHER, [lw.nonce]);
+}
+
 console.log(`\n${checks - failures}/${checks} passed`);
 process.chdir(os.tmpdir());
 fs.rmSync(dir, { recursive: true, force: true });
