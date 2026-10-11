@@ -1,5 +1,63 @@
 [
   {
+    "title": "Legion swords join the faction balance",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Factions",
+        "items": [
+          "The Officer's Sword, the General's Sword and the Penitus Oculatus Sword now get the same damage bonus as the other faction weapons (a Glass weapon's). Their own base damage still differs a little; evening that out comes with a later plugin update.",
+          "Only smiths of the Imperial Legion can forge the Officer's Sword and the General's Sword. The Penitus Oculatus Sword is made by smiths of the Penitus Oculatus or the Legion."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "The Great Hunt waits for the whole account",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Shrines",
+        "items": [
+          "The wait after running the Great Hunt, or after failing a rite at Hircine's or Molag Bal's shrine, now counts for all your characters, not just the one who ran it. Making a new character no longer skips it.",
+          "Waits already running on any of your characters count too."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Fewer torches in chests",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Loot",
+        "items": [
+          "Torches are now a rare find in dungeon and expedition chests, and a chest holds one at most. Torches you find lying in the world can still be picked up as before."
+        ]
+      }
+    ]
+  },
+  {
+    "title": "Looking into items bouncing out of chests",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Fix",
+    "sections": [
+      {
+        "heading": "Containers",
+        "items": [
+          "Some of you have seen items put into a barrel or chest jump back out. For the next day the server keeps a short record of items put into containers so we can find the cause. Nothing changes in play."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Study Magic tells you when it cannot pay",
     "date": "2026-10-10",
     "version": "Server update",
