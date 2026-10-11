@@ -466,6 +466,22 @@ check('...and an officer of the Synod sees every tome their study can take (shop
 load({ shopStock: 3, shopLeaderAll: false });
 cmd('tomes', OTHER);
 check('...shopLeaderAll false: an officer sees four (shopLeaderExtra 1)', shop(OTHER).tomes.length === 4, shop(OTHER).tomes.length);
+// Leaders and officers buy one tome a day (Nate, 11 Oct); a plain member waits the week
+const hadRanks = globalThis.__dboGuildRankList;
+globalThis.__dboGuildRankList = () => ['Chancellor of the Synod', 'Magister', 'Senior Magister', 'Mage of the Synod', 'Synod Artificer', 'Synod Robe-Maker', 'Associate', 'Initiate'].map((title) => ({ title }));
+put(OTHER, 'private.dboTomeBoughtAt', wallClock - 2 * DAY);
+cmd('tomes', OTHER);
+check('an officer who bought two days ago may buy again', shop(OTHER).canBuy === true, shop(OTHER).whyNot);
+put(OTHER, 'private.dboTomeBoughtAt', wallClock - 3600000);
+cmd('tomes', OTHER);
+check('...one an hour ago waits a day, told "today"', shop(OTHER).canBuy === false && /You bought a tome today/.test(shop(OTHER).whyNot) && shop(OTHER).nextPurchaseAt === wallClock - 3600000 + DAY, shop(OTHER).whyNot);
+globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Associate', role: 'member' }];
+put(OTHER, 'private.dboTomeBoughtAt', wallClock - 2 * DAY);
+cmd('tomes', OTHER);
+check('...a plain member who bought two days ago still waits the week', shop(OTHER).canBuy === false && /this week/.test(shop(OTHER).whyNot), shop(OTHER).whyNot);
+globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Magister', role: 'officer' }];
+put(OTHER, 'private.dboTomeBoughtAt', 0);
+if (hadRanks) globalThis.__dboGuildRankList = hadRanks; else delete globalThis.__dboGuildRankList;
 globalThis.__dboGuildsOf = () => [{ id: 'synod', title: 'Associate', role: 'member' }];
 cmd('tomes', OTHER);
 check('...a plain member three', shop(OTHER).tomes.length === 3, shop(OTHER).tomes.length);

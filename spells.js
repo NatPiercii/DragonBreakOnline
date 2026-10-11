@@ -51,6 +51,8 @@ module.exports = (api) => {
     shopMaxRank: 3,
     shopPriceMultiplier: 1,
     shopCooldownDays: 7,
+    // A college's leaders and officers buy one tome a day (Nate, 11 Oct)
+    shopLeaderCooldownDays: 1,
     // The shelf: shopStock tomes the buyer can learn now, chosen by a seed of the UTC week (Monday 00:00) and the shop, so
     // everyone at the shop sees the same rotation that week (Nate, 2026-10-06: "only 3-4 at a time ... so Scholar is still
     // worth it")
@@ -685,7 +687,8 @@ module.exports = (api) => {
     const lead = first.slice(0, rest.length ? Math.max(1, size - 1) : size);
     return lead.concat(rest, first.slice(lead.length)).slice(0, size);
   };
-  const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + CFG.shopCooldownDays * DAY; return at > Date.now() ? at : 0; };
+  const cooldownDays = (a) => (leadsACollege(a) ? Number(CFG.shopLeaderCooldownDays) || CFG.shopCooldownDays : CFG.shopCooldownDays);
+  const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + cooldownDays(a) * DAY; return at > Date.now() ? at : 0; };
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };
   // Why this actor cannot buy now, or ''
   const shopRefusal = (a) => {
@@ -695,7 +698,7 @@ module.exports = (api) => {
     if (CFG.shopAboveInitiate !== false && !aboveInitiate(a)) return 'The court mage sells tomes to mages of the Synod or a College above Initiate, and not to its smiths or robe-makers. Ask your college\'s leaders about promotion.';
     if (!SPELL_SKILLS.some((s) => tierOf(a, s.id) >= CFG.shopMinTier)) return `Tomes are sold to those with ${SPELL_SKILLS.map((s) => s.label).join(' or ')} at ${TIER_NAMES[CFG.shopMinTier]} or higher.`;
     const next = nextBuyAt(a);
-    if (next) return `You bought a tome this week. The next is yours in ${waitText(next - Date.now())}.`;
+    if (next) return `You bought a tome ${cooldownDays(a) <= 1 ? 'today' : 'this week'}. The next is yours in ${waitText(next - Date.now())}.`;
     return '';
   };
 
