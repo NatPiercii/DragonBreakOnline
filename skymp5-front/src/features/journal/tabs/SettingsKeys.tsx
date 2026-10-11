@@ -8,9 +8,8 @@ import { DOM_TO_DX, MOUSE_BUTTON_TO_DX, keyName } from '../../../utils/keyNames'
 // marked. The client (keybindsService) keeps them in keybinds-no-load; they take effect at the next launch.
 // A mouse button binds too, as 256 + the button (Middle Mouse 258, Mouse 4 259, Mouse 5 260); left and right click stay
 // the page's. This page has the browser focus, and SkyrimPlatform hands it only left, right and middle, so it can take
-// the middle button itself; Mouse 4 and 5 reach it only from the client (dbo:keybindMouse), which hears them while a
-// window is open only with the SkyrimPlatform change that stops hiding them from the game. Until then they are set in
-// the launcher.
+// the middle button itself; Mouse 4 and 5 reach it from the client (dbo:keybindMouse), which hears them while a window
+// is open since the SkyrimPlatform build that stops hiding the side buttons from the game (6b01a6a7, in the 9 Oct DLL).
 
 interface KeyRow { id: string; label: string; names: string[]; group: 'menus' | 'view'; optional?: boolean; staff?: boolean; hint?: string }
 export const KEY_ROWS: KeyRow[] = [
@@ -110,7 +109,7 @@ const GeneralPart = ({ section }: SettingsPartProps) => {
           <button type="button" className={'jset__key' + (on ? ' jset__key--capture' : '') + (clash.has(r.id) ? ' jset__key--clash' : '')}
             onClick={() => { setNote(''); setCapturing(on ? '' : r.id); }} onKeyDown={onKey(r)} onMouseDown={onMouse(r)}
             onAuxClick={(e) => { if (on || e.button === 1) e.preventDefault(); }} onBlur={() => { if (on) setCapturing(''); }}>
-            {on ? 'Press a key or the middle mouse button' : code ? keyName(code) : 'None'}
+            {on ? 'Press a key or a mouse button' : code ? keyName(code) : 'None'}
           </button>
           {clash.has(r.id) ? <span className="jset__clash">Shared with another key</span> : null}
           {(state.live[r.names[0]] || 0) !== code ? <span className="jset__later">from your next start</span> : null}
@@ -127,7 +126,7 @@ const GeneralPart = ({ section }: SettingsPartProps) => {
       <section className="jset__group">
         <h2 className="journal__heading">View and voice</h2>
         {rows.filter((r) => r.group === 'view').map(keyRow)}
-        <p className="jset__note">{note || (pending ? 'Saved. Takes effect when you next start the game.' : 'Click a key, then press the new one, or the middle mouse button. Escape cancels; Backspace puts the launcher\'s key back. Mouse 4 and Mouse 5 are set in the launcher.')}</p>
+        <p className="jset__note">{note || (pending ? 'Saved. Takes effect when you next start the game.' : 'Click a key, then press the new one, or the middle, back (Mouse 4) or forward (Mouse 5) mouse button. Escape cancels; Backspace puts the launcher\'s key back.')}</p>
       </section>
     </div>
   );
