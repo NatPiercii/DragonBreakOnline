@@ -202,7 +202,7 @@ const CASES = [
     const sk = fs.readFileSync(path.join(front, 'features', 'journal', 'tabs', 'SettingsKeys.tsx'), 'utf8');
     check('F3 key fields take the middle button (MOUSE_BUTTON_TO_DX) on mousedown while waiting', /onMouseDown=\{onMouse\(r\)\}/.test(sk) && /const code = MOUSE_BUTTON_TO_DX\[e\.button\];/.test(sk) && /if \(capturing !== r\.id\) return;/.test(sk));
     check('...and Mouse 4 and 5 from the client while waiting (cef::keybinds:capture, dbo:keybindMouse)', /tell\('cef::keybinds:capture', '1'\)/.test(sk) && /tell\('cef::keybinds:capture', '0'\)/.test(sk) && /addEventListener\('dbo:keybindMouse', on\)/.test(sk));
-    check('...and say Mouse 4 and Mouse 5 are set in the launcher', /Mouse 4 and Mouse 5 are set in the launcher/.test(sk));
+    check('...and offer Mouse 4 and Mouse 5 in the page, not the launcher', /back \(Mouse 4\) or forward \(Mouse 5\) mouse button/.test(sk) && !/set in the launcher/.test(sk));
     const kn = fs.readFileSync(path.join(front, 'utils', 'keyNames.ts'), 'utf8');
     check('the page maps only the middle button (the one it receives) to 258', /MOUSE_BUTTON_TO_DX: Record<number, number> = \{ 1: 258 \};/.test(kn));
     const listeners = [];
