@@ -209,22 +209,20 @@ load();
 // ---- 2. two a week for a Senior (rolling 7 days), one a week for the rest (Nate, 11 Oct) ----------------------------
 const t0 = wallClock;
 w = buy(SENIOR, FIREBALL.book);
-check('a Senior buys an Adept tome, and has one more this week', w.resultKind === 'ok' && count(SENIOR, idOf(FIREBALL.book)) === 1 && /You may have 1 more tome this week, bought or taught with/.test(w.result) && w.canBuy === true, w.result);
+check('a Senior buys an Adept tome, and the next is a day away (Nate, 11 Oct: one a day)', w.resultKind === 'ok' && count(SENIOR, idOf(FIREBALL.book)) === 1 && /Your next tome is 1 day away/.test(w.result) && w.canBuy === false && w.nextPurchaseAt === t0 + DAY, [w.result, w.nextPurchaseAt - t0]);
 wallClock += HOUR;
 w = buy(SENIOR, FIREBOLT.book);
-check('...the second at once, an hour later (a quota, not a 3.5-day gap)', w.resultKind === 'ok' && count(SENIOR, idOf(FIREBOLT.book)) === 1, w.result);
-check('...then waits until the first is 7 days old', w.canBuy === false && w.nextPurchaseAt === t0 + 7 * DAY && /You have had your 2 tomes this week \(bought, or taught with\)/.test(w.whyNot), [w.nextPurchaseAt - t0, w.whyNot]);
-w = buy(SENIOR, SPARKS.book);
-check('...a third that week is refused, no gold taken', w.resultKind === 'refused' && count(SENIOR, idOf(SPARKS.book)) === 0, w.result);
+check('...a second an hour later is refused, said "today", no gold taken', w.resultKind === 'refused' && count(SENIOR, idOf(FIREBOLT.book)) === 0 && /You have had your tome today \(bought, or taught with\)/.test(w.whyNot || w.result), [w.result, w.whyNot]);
 w = buy(ASSOC, FIREBOLT.book);
 check('an Associate buys an Apprentice tome and waits a week', w.resultKind === 'ok' && w.nextPurchaseAt === wallClock + 7 * DAY && /Your next tome is 7 days away/.test(w.result), [w.result, w.nextPurchaseAt - wallClock]);
-wallClock = t0 + 7 * DAY + MIN;
-check('7 days after the first, the Senior may buy one again (the second still counts)', shop(SENIOR).canBuy === true && buy(SENIOR, SPARKS.book).canBuy === false, shop(SENIOR).whyNot);
-check('...the Associate still waits (an hour left)', shop(ASSOC).canBuy === false && /The next is yours in 1 hour/.test(shop(ASSOC).whyNot), shop(ASSOC).whyNot);
-load(Object.assign(baseCfg(), { spells: Object.assign({}, baseCfg().spells, { shopSeniorPerWeek: 1 }) }));
-put(SENIOR, 'private.dboTomeBoughtAt', 0);
-check('shopSeniorPerWeek 1 puts a Senior back on one a week', shop(SENIOR).canBuy === true && buy(SENIOR, FLAMES.book).nextPurchaseAt === wallClock + 7 * DAY);
-put(SENIOR, 'private.dboTomeBoughtAt', 0);
+wallClock = t0 + DAY + MIN;
+check('a day after the first, the Senior may buy again', shop(SENIOR).canBuy === true && buy(SENIOR, FIREBOLT.book).resultKind === 'ok', shop(SENIOR).whyNot);
+check('...the Associate still waits the week', shop(ASSOC).canBuy === false && /this week/.test(shop(ASSOC).whyNot), shop(ASSOC).whyNot);
+load(Object.assign(baseCfg(), { spells: Object.assign({}, baseCfg().spells, { shopSeniorWindowDays: 7, shopSeniorPerWindow: 2 }) }));
+put(SENIOR, 'private.dboTomeBoughtAt', 0); put(SENIOR, 'private.dboTomeBuys', []);
+w = buy(SENIOR, SPARKS.book);
+check('shopSeniorWindowDays 7 with shopSeniorPerWindow 2 is the two-a-week rule', w.resultKind === 'ok' && w.canBuy === true && /1 more tome this week/.test(w.result), w.result);
+put(SENIOR, 'private.dboTomeBoughtAt', 0); put(SENIOR, 'private.dboTomeBuys', []);
 load();
 
 // ---- 3. the restricted arts ------------------------------------------------------------------------------------------
@@ -279,18 +277,18 @@ lesson(SENIOR, ASSOC, REANIMATE);
 check('a restricted art for an Associate is refused', /restricted arts.*Assoc is not/.test(lastWidget(SENIOR, 'contextMenu').targetName), lastWidget(SENIOR, 'contextMenu').targetName);
 lesson(SENIOR, ASSOC, FIREBOLT);
 let offer = lastWidget(ASSOC, 'contextMenu');
-check('Firebolt is offered to the student, who is asked', offer && offer.id === 45 && /Senior offers to teach you Firebolt \(Destruction, Apprentice\)/.test(offer.targetName) && /One of your tome purchases this week is used when they accept/.test(said(SENIOR)), [offer && offer.targetName, said(SENIOR)]);
+check('Firebolt is offered to the student, who is asked', offer && offer.id === 45 && /Senior offers to teach you Firebolt \(Destruction, Apprentice\)/.test(offer.targetName) && /Your tome purchase today is used when they accept/.test(said(SENIOR)), [offer && offer.targetName, said(SENIOR)]);
 ui('spellsOffer', ASSOC, ['decline'], 45);
 check('a declined lesson spends nothing', getp(SENIOR, 'private.dboTomeBoughtAt') === wallClock - DAY && !studiedAll(ASSOC).length && /declines the lesson/.test(said(SENIOR)));
 lesson(SENIOR, ASSOC, FIREBOLT, LEDGER);
 ui('spellsOffer', ASSOC, ['accept'], 45);
 check('accepted: the student learns Firebolt, no book changes hands', studiedAll(ASSOC).includes(FIREBOLT.spell) && count(ASSOC, idOf(FIREBOLT.book)) === 0 && /Senior teaches you Firebolt/.test(said(ASSOC)), [studiedAll(ASSOC), said(ASSOC)]);
-check('...the second purchase of the week is spent', getp(SENIOR, 'private.dboTomeBoughtAt') === wallClock && getp(SENIOR, 'private.dboTomeBuys').length === 2 && /That used your last tome purchase this week; the next is yours in 6 days/.test(said(SENIOR)), said(SENIOR));
+check('...the day\'s purchase is spent (yesterday\'s no longer counts)', getp(SENIOR, 'private.dboTomeBoughtAt') === wallClock && getp(SENIOR, 'private.dboTomeBuys').length === 1 && /That used your tome purchase today; the next is yours in 1 day/.test(said(SENIOR)), said(SENIOR));
 check('...audited as TEACH', /^TEACH P14 taught 12fd0:Skyrim.esm Firebolt to P15 at 13f774:DragonBreak Online Edits.esp for synod \(a tome purchase;/.test(lastAudit(/^TEACH/)), lastAudit(/^TEACH/));
-check('...and the Senior\'s shop is spent for the week: a lesson shares the quota', shop(SENIOR).canBuy === false && /taught with/.test(shop(SENIOR).whyNot), shop(SENIOR).whyNot);
+check('...and the Senior\'s shop is spent for the day: a lesson shares the quota', shop(SENIOR).canBuy === false && /taught with/.test(shop(SENIOR).whyNot), shop(SENIOR).whyNot);
 skillAt(INITIATE, 'arcane', 30);
 lesson(SENIOR, INITIATE, SPARKS, LEDGER);
-check('a further lesson that week is refused without a tome', /You have had your 2 tomes this week.*or teach from a tome of the spell you carry/.test(lastWidget(SENIOR, 'contextMenu').targetName) && !studiedAll(INITIATE).length, lastWidget(SENIOR, 'contextMenu').targetName);
+check('a further lesson that day is refused without a tome', /You have had your tome today.*or teach from a tome of the spell you carry/.test(lastWidget(SENIOR, 'contextMenu').targetName) && !studiedAll(INITIATE).length, lastWidget(SENIOR, 'contextMenu').targetName);
 api.giveItem(SENIOR, idOf(SPARKS.book), 1);
 globalThis.__dboTeachOpen(SENIOR, LEDGER); ui('spellsChoose', SENIOR, [`cstudent:${INITIATE.toString(16)}`], 45);
 check('...a tome of the spell carried is named on its row', lastWidget(SENIOR, 'contextMenu').actions.some((x) => /Sparks.*uses your tome of it/.test(x.label)));
@@ -463,7 +461,21 @@ ui('lecternCancel', TEACHER, [lastWidget(TEACHER, 'classLectern').nonce]);
   check('...one who already knows it is not asked', !(lastWidget(STU2, 'contextMenu') || {}).targetName || !/the spell of the class/.test(lastWidget(STU2, 'contextMenu').targetName));
   ui('spellsOffer', STU, ['accept'], 45);
   check('...accepting learns it, audited as TEACH at a class', studiedAll(STU).includes(SPARKS.spell) && /^TEACH P19 taught 2dd2a:Skyrim.esm Sparks to P22 at a class/.test(lastAudit(/^TEACH/)), [studiedAll(STU), lastAudit(/^TEACH/)]);
-  check('...and costs the teacher no tome purchase', getp(TEACHER, 'private.dboTomeBoughtAt') === boughtBefore);
+  check('...and costs the teacher one tome purchase for the class (Nate, 11 Oct: no spell for nothing)', getp(TEACHER, 'private.dboTomeBoughtAt') === wallClock && getp(TEACHER, 'private.dboTomeBoughtAt') !== boughtBefore && /tome purchase/.test(lastAudit(/^TEACH/)), [boughtBefore, getp(TEACHER, 'private.dboTomeBoughtAt'), lastAudit(/^TEACH/)]);
+  // One credit per class: two students of one class, one tome carried
+  api.giveItem(TEACHER, idOf(FLAMES.book), 1);
+  for (const a of [STU, STU2]) { known(a).delete(idOf(FLAMES.spell)); }
+  const key = 'harness-class-1';
+  const o1 = globalThis.__dboSpellsClassOffer(TEACHER, STU, idOf(FLAMES.spell), key);
+  const o2 = globalThis.__dboSpellsClassOffer(TEACHER, STU2, idOf(FLAMES.spell), key);
+  check('with its purchase spent, a teacher carrying a tome still has the class spell offered', o1 === true && o2 === true, [o1, o2, said(STU), said(STU2)]);
+  ui('spellsOffer', STU, ['accept'], 45);
+  check('...the first to accept uses the teacher\'s tome', studiedAll(STU).includes(FLAMES.spell) && count(TEACHER, idOf(FLAMES.book)) === 0, [studiedAll(STU), count(TEACHER, idOf(FLAMES.book))]);
+  ui('spellsOffer', STU2, ['accept'], 45);
+  check('...the second of the same class learns it on the same tome', studiedAll(STU2).includes(FLAMES.spell) && /the class's tome/.test(lastAudit(/^TEACH/)), [studiedAll(STU2), lastAudit(/^TEACH/)]);
+  for (const a of [STU2]) { known(a).delete(idOf(FLAMES.spell)); put(a, 'private.dboStudied', {}); }
+  check('a new class with no tome and no purchase left offers nothing, and says why', globalThis.__dboSpellsClassOffer(TEACHER, STU2, idOf(FLAMES.spell), 'harness-class-2') === false && /no tome purchase left today/.test(said(STU2)), said(STU2));
+  api.giveItem(TEACHER, idOf(FLAMES.book), 1);
   // The offer keeps the college rules: rank cap and restricted arts, and it lapses after 180 s
   known(TEACHER).add(idOf(FIREBALL.spell)); known(TEACHER).add(idOf(REANIMATE.spell));
   check('an Adept class spell is not offered to an Associate (rank cap), who is told why', globalThis.__dboSpellsClassOffer(TEACHER, STU, idOf(FIREBALL.spell)) === false && /would teach you Fireball, but: At your rank you may be taught spells up to Apprentice/.test(said(STU)), said(STU));

@@ -23,8 +23,9 @@
 // (seniorOnlyTomes: raising the dead, the Daedra lords, banishing Daedra) only from Senior up. A Senior at their own
 // college's Scholars' Ledger or Class Lectern teaches a spell to a member standing by (collegeTeach), spending a tome of
 // it they carry or one of their two purchases of the week; audited TEACH.
-// When a Class Lectern class ends, its spell is offered to each student paid for it (__dboSpellsClassOffer), free to
-// the teacher, under the same student rules.
+// When a Class Lectern class ends, its spell is offered to each student paid for it (__dboSpellsClassOffer), under the
+// same student rules. The class costs its teacher one lesson credit (a tome of the spell, else the day's tome purchase),
+// spent when the first student accepts; the rest of that class learn it on the same credit (Nate, 11 Oct: "fix the hole").
 //
 // State, on the character:
 //   private.dboStudied       { arcane: [spell desc...], priest: [...] }  the spellbook: every spell learned through this system
@@ -67,9 +68,11 @@ module.exports = (api) => {
     // as `member`.
     shopRankByRole: { leader: 3, officer: 3, sergeant: 3, mage: 1, member: 1 },
     seniorRoles: ['sergeant', 'officer', 'leader'],
-    // A Senior rank or above has shopSeniorPerWeek (2) tomes in any rolling shopCooldownDays (7) days, bought or taught with
-    // (below); everyone else one (Nate, 11 Oct: "two a week", not one a day, now that the Scholar was revamped)
-    shopSeniorPerWeek: 2,
+    // A Senior rank or above has shopSeniorPerWindow tomes in any rolling shopSeniorWindowDays, bought or taught with (below,
+    // a class's spell too); everyone else one in shopCooldownDays (Nate, 11 Oct: one a day for Seniors, so a college with
+    // several students can be taught, while every spell taught still costs a tome)
+    shopSeniorPerWindow: 1,
+    shopSeniorWindowDays: 1,
     // Restricted arts, sold (and taught) only to Senior ranks and above: raising the dead and calling the Daedra lords, and
     // the spells that banish or command Daedra. Tome editor ids from spell-tomes.json; the shop's own filters (shopMaxRank,
     // the province, shopExcludePattern) still apply on top, so some are listed only so that they stay restricted.
@@ -761,22 +764,25 @@ module.exports = (api) => {
     const lead = first.slice(0, rest.length ? Math.max(1, size - 1) : size);
     return lead.concat(rest, first.slice(lead.length)).slice(0, size);
   };
-  // One tome in any rolling shopCooldownDays, or shopSeniorPerWeek for a Senior rank or above; a lesson taught at a college
+  // One tome in any rolling shopCooldownDays, or shopSeniorPerWindow in shopSeniorWindowDays for a Senior rank or above; a lesson taught at a college
   // with a purchase counts as one. BOUGHT stays the latest purchase: 0 (or none) clears the record, and an older character
   // with only BOUGHT counts that one.
-  const windowMs = () => (Number(CFG.shopCooldownDays) || 0) * DAY;
-  const quotaOf = (a) => Math.max(1, Math.floor(isSenior(a) ? Number(CFG.shopSeniorPerWeek) || 1 : 1));
+  const seniorWindow = (a) => !!a && isSenior(a) && Number(CFG.shopSeniorWindowDays) > 0;
+  const windowMs = (a) => (seniorWindow(a) ? Number(CFG.shopSeniorWindowDays) : Number(CFG.shopCooldownDays) || 0) * DAY;
+  const quotaOf = (a) => Math.max(1, Math.floor(isSenior(a) ? Number(CFG.shopSeniorPerWindow) || 1 : 1));
+  // "today" or "this week", by the buyer's window
+  const period = (a) => (windowMs(a) <= DAY ? 'today' : 'this week');
   const buysOf = (a) => {
     const last = Number(get(a, BOUGHT, 0)) || 0;
     if (!last) return [];
     const list = (Array.isArray(get(a, BUYS, null)) ? get(a, BUYS, []) : []).map(Number).filter((t) => t > 0 && t <= last);
     if (!list.includes(last)) list.push(last);
-    return list.filter((t) => t > Date.now() - windowMs()).sort((x, y) => x - y);
+    return list.filter((t) => t > Date.now() - windowMs(a)).sort((x, y) => x - y);
   };
   const recordBuy = (a) => { const now = Date.now(); set(a, BUYS, buysOf(a).concat([now]).slice(-8)); set(a, BOUGHT, now); };
   const buysLeft = (a) => Math.max(0, quotaOf(a) - buysOf(a).length);
-  const nextBuyAt = (a) => { const b = buysOf(a), q = quotaOf(a); if (b.length < q) return 0; const at = b[b.length - q] + windowMs(); return at > Date.now() ? at : 0; };
-  const usedLine = (a) => (quotaOf(a) > 1 ? `You have had your ${quotaOf(a)} tomes this week (bought, or taught with).` : 'You bought a tome this week.');
+  const nextBuyAt = (a) => { const b = buysOf(a), q = quotaOf(a); if (b.length < q) return 0; const at = b[b.length - q] + windowMs(a); return at > Date.now() ? at : 0; };
+  const usedLine = (a) => (quotaOf(a) > 1 ? `You have had your ${quotaOf(a)} tomes ${period(a)} (bought, or taught with).` : isSenior(a) ? `You have had your tome ${period(a)} (bought, or taught with).` : `You bought a tome ${period(a)}.`);
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };
   // Why this actor cannot buy now, or ''
   const shopRefusal = (a) => {
@@ -863,7 +869,7 @@ module.exports = (api) => {
     const paid = payForTome(a, t, price);
     recordBuy(a);
     audit(`SPELL ${who(a)} bought tome ${descOf(t.bookId)} ${t.title} for ${price} gold (${paid})`);
-    return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. ${buysLeft(a) > 0 ? `You may have ${plural(buysLeft(a), 'more tome')} this week, bought or taught with.` : nextBuyAt(a) ? `Your next tome is ${waitText(nextBuyAt(a) - Date.now())} away.` : 'Your next tome is a week away.'}` };
+    return { ok: true, text: `You buy ${t.title} for ${price} gold. Read it at a spell study point. ${buysLeft(a) > 0 ? `You may have ${plural(buysLeft(a), 'more tome')} ${period(a)}, bought or taught with.` : nextBuyAt(a) ? `Your next tome is ${waitText(nextBuyAt(a) - Date.now())} away.` : `Your next tome is ${period(a) === 'today' ? 'a day' : 'a week'} away.`}` };
   };
   const freshShop = (a, args) => shopNonces.get(a >>> 0) === String(args[0] || '');
   onUi('tomeBuy', (a, args) => {
@@ -978,7 +984,7 @@ module.exports = (api) => {
       const tome = heldTomeOf(a, sp.id);
       return { id: `clesson:${student.toString(16)}:${descOf(sp.id)}`, label: `${spellLabel(sp)}${tome ? ' (uses your tome of it)' : ''}` };
     });
-    menu(a, MENU_ID, note || `Teach ${display(student)} which spell? A lesson uses a tome of the spell you carry, or one of your tome purchases this week.`, rows.slice(0, MAX_ROWS - 1).concat([{ id: 'cback', label: 'Back' }]), Object.assign({}, p, { student }));
+    menu(a, MENU_ID, note || `Teach ${display(student)} which spell? A lesson uses a tome of the spell you carry, or your tome purchase ${period(a)}.`, rows.slice(0, MAX_ROWS - 1).concat([{ id: 'cback', label: 'Back' }]), Object.assign({}, p, { student }));
   };
   const offerCollege = (a, student, spellId, p) => {
     const sp = classifySpell(spellId);
@@ -992,7 +998,7 @@ module.exports = (api) => {
     openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(a)} offers to teach you ${spellLabel(sp)}`,
       actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
       events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
-    personal(a, `You offer to teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used when they accept.' : 'One of your tome purchases this week is used when they accept.'}`);
+    personal(a, `You offer to teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used when they accept.' : `Your tome purchase ${period(a)} is used when they accept.`}`);
   };
   // The student's answer to a college lesson: everything is checked again, then the credit is spent and the spell learned
   const answerCollege = (student, o) => {
@@ -1009,15 +1015,17 @@ module.exports = (api) => {
     writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
     const line = settleNew(student, sp, false);
     personal(student, `${display(teacher)} teaches you ${spellLabel(sp)}. ${line}`);
-    personal(teacher, `You teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used up.' : (buysLeft(teacher) > 0 ? `That used one of your tome purchases; ${buysLeft(teacher)} left this week.` : `That used your last tome purchase this week; the next is yours in ${waitText(nextBuyAt(teacher) - Date.now())}.`)}`);
+    personal(teacher, `You teach ${display(student)} ${sp.name}. ${credit.tome ? 'Your tome of it is used up.' : (buysLeft(teacher) > 0 ? `That used one of your tome purchases; ${buysLeft(teacher)} left ${period(teacher)}.` : `That used your tome purchase ${period(teacher)}; the next is yours in ${waitText(nextBuyAt(teacher) - Date.now())}.`)}`);
     audit(`TEACH ${who(teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at ${descOf(o.college.place)} for ${o.college.fid} (${credit.tome ? `tome ${descOf(credit.tome)}` : 'a tome purchase'}; book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
   };
 
   // ---- a class's spell, offered when the class ends (Worker E's idea, Nate 11 Oct) -----------------------------------------
   // schools.js calls this for each student paid for a Class Lectern class. The student's checks are a college lesson's:
   // their own skill and school gates (slotRefusal), the rank they may buy in any college (never below studentMinCap, also
-  // for a student of no college), and the restricted arts for Senior ranks only. It costs the teacher nothing: the class
-  // already has its own limits (the staff's teacher list, 30 minutes, the teacher's and the students' cooldowns).
+  // for a student of no college), and the restricted arts for Senior ranks only. One credit per class (creditFor, as a
+  // lesson): a spell is never handed out for nothing, and a class of twelve still costs one tome.
+  const paidClasses = globalThis.__dboPaidClasses instanceof Map ? globalThis.__dboPaidClasses : (globalThis.__dboPaidClasses = new Map()); // class key -> ms paid
+  const classPaid = (key) => { for (const [k, at] of paidClasses) if (Date.now() - at > 2 * 3600000) paidClasses.delete(k); return !!key && paidClasses.has(key); };
   const classStudentCap = (student) => {
     const mine = collegesOf(student) || [];
     return Math.min(Number(CFG.shopMaxRank), Math.max(Number(TEACH.studentMinCap) || 0, ...mine.map(rankCapIn)));
@@ -1031,7 +1039,7 @@ module.exports = (api) => {
     if (knows(student, sp.id) || inBook(student, sp.id)) return 'known';
     return slotRefusal(student, sp, 'You have') || '';
   };
-  globalThis.__dboSpellsClassOffer = (teacher, student, spellId) => {
+  globalThis.__dboSpellsClassOffer = (teacher, student, spellId, classKey) => {
     try {
       if (!CFG.enabled) return false;
       const sp = classifySpell(Number(spellId) >>> 0);
@@ -1039,7 +1047,12 @@ module.exports = (api) => {
       const why = classRefusal(teacher >>> 0, student >>> 0, sp);
       if (why === 'known') return false;
       if (why) { personal(student, `${display(teacher)} would teach you ${sp.name}, but: ${why}`); return false; }
-      offers.set(student >>> 0, { teacher: teacher >>> 0, spellId: sp.id, at: Date.now(), cls: true });
+      const key = String(classKey || `${teacher >>> 0}:${sp.id}:${Math.floor(Date.now() / 60000)}`);
+      if (!classPaid(key) && creditFor(teacher >>> 0, sp.id).why) {
+        personal(student, `${display(teacher)} has no tome of ${sp.name} and no tome purchase left today, so the class's spell is not handed out.`);
+        return false;
+      }
+      offers.set(student >>> 0, { teacher: teacher >>> 0, spellId: sp.id, at: Date.now(), cls: true, classKey: key });
       openWidget(student, { type: 'contextMenu', id: MENU_ID, mode: 'menu', targetName: `${display(teacher)} offers to teach you ${spellLabel(sp)}, the spell of the class`,
         actions: [{ id: 'accept', label: 'Learn it (it goes into your spellbook)' }, { id: 'decline', label: 'Decline' }],
         events: { action: 'dbo:spellsOffer', close: 'dbo:spellsOfferClose' } }, true);
@@ -1050,13 +1063,24 @@ module.exports = (api) => {
     const sp = classifySpell(o.spellId);
     const why = sp ? classRefusal(o.teacher, student, sp) : 'That spell cannot be taught.';
     if (why) { personal(student, why === 'known' ? `You already know ${sp.name}.` : why); return; }
+    // The class's one credit: the first student to accept spends it, the rest learn on it
+    let paidWith = 'the class\'s tome';
+    if (!classPaid(o.classKey)) {
+      const credit = creditFor(o.teacher, sp.id);
+      if (credit.why) { personal(student, `${display(o.teacher)} has no tome of ${sp.name} and no tome purchase left today, so the spell cannot be taught.`); return; }
+      if (credit.tome && !takeOneItem(o.teacher, credit.tome)) { personal(student, 'The lesson could not be completed. Ask your teacher.'); return; }
+      if (credit.day) recordBuy(o.teacher);
+      paidClasses.set(o.classKey, Date.now());
+      paidWith = credit.tome ? `tome ${descOf(credit.tome)}` : 'a tome purchase';
+      if (onlineActors().includes(o.teacher)) personal(o.teacher, credit.tome ? `Your class's spell is taught: your tome of ${sp.name} is used up, once for the whole class.` : `Your class's spell is taught: it used your tome purchase today, once for the whole class.`);
+    }
     const skill = bookSkillFor(student, sp);
     migrate(student);
     writeStudied(student, skill.id, studiedIds(student, skill.id).concat([sp.id]));
     const line = settleNew(student, sp, false);
     personal(student, `${display(o.teacher)} teaches you ${spellLabel(sp)}. ${line}`);
     if (onlineActors().includes(o.teacher)) personal(o.teacher, `${display(student)} learned ${sp.name} from your class.`);
-    audit(`TEACH ${who(o.teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at a class (book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
+    audit(`TEACH ${who(o.teacher)} taught ${descOf(sp.id)} ${sp.name} to ${who(student)} at a class (${paidWith}; book ${knownIds(student).length}, prepared ${preparedIds(student).length}/${MAXP()})`);
   };
 
   // ---- menu answers ----------------------------------------------------------------------------------
