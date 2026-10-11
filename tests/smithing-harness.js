@@ -22,7 +22,7 @@ fs.writeFileSync(path.join(dir, 'manuals.json'), JSON.stringify({ manuals: [] })
 fs.writeFileSync(path.join(dir, 'faction-gear.json'), JSON.stringify({ items: { '7a3:Skyrim.esm': { name: 'Imperial Helmet', set: 'Imperial Legion', factions: ['imperial-legion'], role: 'blacksmith' } } }));
 // Items: an iron sword (T1), a steel sword (T2), orcish (T3), dwarven (T4), glass (T5), an unclassified one
 const IRON = 0x12eb7, STEEL = 0x13989, ORC = 0x13991, DWARF = 0x139b4, GLASS = 0x139a5, ODD = 0x777777, INGOT = 0x5ace5, LEATHER = 0x800e4;
-fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial', '7a6:skyrim.esm': 'imperial', '7b1:skyrim.esm': 'brass', '7b2:skyrim.esm': 'adamantium' } }));
+fs.writeFileSync(path.join(dir, 'loot-materials.json'), JSON.stringify({ items: { '12eb7:skyrim.esm': 'iron', '13989:skyrim.esm': 'steel', '13991:skyrim.esm': 'orcish', '139b4:skyrim.esm': 'dwarven', '139a5:skyrim.esm': 'glass', '7c1:skyrim.esm': 'bonemold', '7a1:skyrim.esm': 'ancient_imperial', '7a2:skyrim.esm': 'ancient_imperial', '7a3:skyrim.esm': 'imperial', '7a6:skyrim.esm': 'imperial', '7b1:skyrim.esm': 'brass', '7b2:skyrim.esm': 'adamantium' } }));
 process.chdir(dir);
 
 const u32 = (x) => { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, x, true); return b; };
@@ -64,12 +64,13 @@ const mp = {
   callPapyrusFunction: () => { throw new Error('no marker spells in smithing mode'); },
 };
 const given = [];
+const ONLINE = [A, SUP, ORCSMITH, STAFF];
 const load = (smithing) => {
   for (const k of Object.keys(globalThis)) if (/^__dbo(Smith|Manuals|TemperCap|TechniqueDrop)/.test(k)) delete globalThis[k];
   // The Synod's shop is off by default since 10 Oct (Nate); switched on here so the legacy shop path stays tested
   const cfg = { smithing, manuals: { shop: { enabled: true, cells: ['cell'] } } };
   const common = { mp, log: () => {}, personal: (a, t) => told.push([a, t]), audit: (t) => audits.push(t), who: (a) => `#${(a >>> 0).toString(16)}`, display: (a) => `#${(a >>> 0).toString(16)}`, cfg,
-    registerChatCommand: (n, fn) => cmds.set(n, fn), onlineActors: () => [A, SUP, ORCSMITH, STAFF], findByName: (q) => ({ a: A, sup: SUP }[q] || 0), isAdmin: (a) => a === STAFF,
+    registerChatCommand: (n, fn) => cmds.set(n, fn), onlineActors: () => ONLINE.slice(), findByName: (q) => ({ a: A, sup: SUP }[q] || 0), isAdmin: (a) => a === STAFF,
     sendPacket: () => true, itemName: (d) => ({ '13989:Skyrim.esm': 'Steel Sword', '12eb7:Skyrim.esm': 'Iron Sword', '13991:Skyrim.esm': 'Orcish Sword', '139b4:Skyrim.esm': 'Dwarven Sword', '7a2:Skyrim.esm': 'Ancient Imperial Shield', '7a3:Skyrim.esm': 'Imperial Helmet' }[d] || ''), every: (n, ms, fn) => timers.set(n, fn), giveItem: (a, id, n) => { given.push([a, id, n]); return true; }, takeGold: () => true, depositToTreasury: () => 0, notify: () => {} };
   delete require.cache[path.join(SERVER, 'manuals.js')]; delete require.cache[path.join(SERVER, 'smithing.js')];
   require(path.join(SERVER, 'manuals.js'))(common);
@@ -286,6 +287,20 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   put(DUN, 'appearance', { raceId: 0x8883a });
   ok(globalThis.__dboSmithView(DUN).families.find((f) => f.id === 'chitin').known, 'live: a Dunmer vampire keeps it');
   ok(vd.tier === 2 && fd('bonemold').tier === 3 && fd('bonemold').canMake === 0, 'live: the craft tier still gates it (T3 work at tier 2)', [vd.tier, fd('bonemold').canMake]);
+  // ...and a Dunmer master teaches it (Nate, 11 Oct: "allow them to teach their racial armor too"): a Nord at tier 3
+  // forges Bonemold under a Dunmer at Blacksmith 75 nearby, and the tenth craft teaches it for good
+  put(DUN, 'appearance', { raceId: 0x13742 }); smith(DUN, 80); props.set(`${DUN}|private.dboManuals`, {});
+  const NORDA = 0x14b0d; smith(NORDA, 35); props.set(`${NORDA}|private.dboManuals`, {}); props.set(`${NORDA}|profileId`, 11); put(NORDA, 'appearance', { raceId: NORD_RACE });
+  for (const [x, at] of [[DUN, 99999], [NORDA, 0]]) { put(x, 'worldOrCellDesc', 'cell'); put(x, 'pos', [at, 0, 0]); }
+  const BONEMOLD = 0x7c1; ONLINE.push(DUN, NORDA);
+  const others = [SUP, ORCSMITH];
+  for (const o of others) put(o, 'pos', [99999, 0, 0]);
+  ok(craft(NORDA, BONEMOLD, R_ORC) === false, 'live: a Nord with no Dunmer teacher nearby cannot forge Bonemold', lastTold(NORDA));
+  put(DUN, 'pos', [100, 0, 0]);
+  let taught = false;
+  for (let i = 0; i < 10; i++) taught = craft(NORDA, BONEMOLD, R_ORC);
+  ok(taught && props.get(`${NORDA}|private.dboManuals`).bonemold && props.get(`${NORDA}|private.dboManuals`).bonemold.how === 'apprentice', 'live: ...under a Dunmer at Blacksmith 75, ten crafts teach it for good', props.get(`${NORDA}|private.dboManuals`));
+  ONLINE.splice(ONLINE.indexOf(DUN), 2); for (const o of others) put(o, 'pos', [300, 0, 0]);
   ok(f2('elven_gilded').learnHint.includes('Elven technique'), 'live: Gilded Elven is worked with the Elven technique', f2('elven_gilded').learnHint);
   ok(!globalThis.__dboManualsSmithShop(B).length, 'live: the blacksmith\'s ledger has no schematic to sell');
   // No apprenticeship in a closely held family: Glass under a Master who knows it, in range
