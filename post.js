@@ -39,8 +39,9 @@ module.exports = (api) => {
     enabled: true,
     // Parcels: a tenth of the gold sent, 5 gold a stack of goods, at most 6 stacks and 50,000 gold a letter
     taxRate: 0.1, itemFee: 5, maxStacks: 6, maxGold: 50000,
-    // Supply orders: 5% of the reward to post, at least 10 gold; 3 open orders per account; a week; 1..100 of an item
-    feeShare: 0.05, minFee: 10, maxOpen: 3, openDays: 7, maxCount: 100, minPerUnit: 1, maxReward: 100000,
+    // Supply orders: 10% of the reward to post (never below the parcel tax, or orders would move gold cheaper), at least
+    // 10 gold; 3 open orders per account; a week; 1..100 of an item; no more reward than a parcel carries
+    feeShare: 0.1, minFee: 10, maxOpen: 3, openDays: 7, maxCount: 100, minPerUnit: 1, maxReward: 50000,
     searchResults: 20,
   }, cfg.post || {});
   const ITEM_TYPES = new Set(['WEAP', 'ARMO', 'AMMO', 'MISC', 'ALCH', 'INGR', 'BOOK', 'SLGM', 'SCRL', 'LIGH']);
@@ -50,10 +51,12 @@ module.exports = (api) => {
   const S = globalThis.__dboPost || (globalThis.__dboPost = {});
   if (!(S.search instanceof Map)) S.search = new Map();
   S.data = null;
+  S.broken = false;
 
   const int = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? n : NaN; };
   const accountOf = (a) => { try { return String((typeof discordOf === 'function' && discordOf(a)) || ''); } catch (e) { return ''; } };
-  const sameAccount = (a, b) => { const x = accountOf(a); return Number(a) >>> 0 === Number(b) >>> 0 || (!!x && x === accountOf(b)); };
+  const sameAccount = (a, b) => { const x = accountOf(a); const p = profileOf(a); return Number(a) >>> 0 === Number(b) >>> 0 || (!!x && x === accountOf(b)) || (p >= 0 && p === profileOf(b)); };
+  const gone = (id) => { try { return typeof globalThis.__dboFormGone === 'function' && !!globalThis.__dboFormGone(Number(id) >>> 0); } catch (e) { return false; } };
   const descOf = (id) => { try { return String(mp.getDescFromId(id >>> 0)); } catch (e) { return ''; } };
   const idOf = (desc) => { try { return mp.getIdFromDesc(String(desc)) >>> 0; } catch (e) { return 0; } };
   const nameOfItem = (id) => {
@@ -161,22 +164,38 @@ module.exports = (api) => {
   };
 
   // A letter from the board itself (supply goods, a refund), to a character online or not
-  const boardLetter = (to, zoneName, text, parcel) => {
+  const boardLetter = (to, zoneName, text, parcel, supplyOrder) => {
     const box = lettersOf(to);
     const at = Date.now();
-    box.push({ id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from: `The ${zoneName} notice board`, fromProfile: -1, text, at, read: false, parcel });
+    box.push({ id: `${at.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`, from: `The ${zoneName} notice board`, fromProfile: -1, text, at, read: false, parcel, supplyOrder });
     saveLetters(to, box);
     if (onlineActors().includes(to)) { personal(to, `A letter waits for you at the notice boards: ${text}`); try { sendMailState(to); } catch (e) { /* marker */ } }
+  };
+
+  // An order's goods gather in one letter while it waits uncollected, so deliveries one at a time cannot flood a mailbox
+  const supplyLetter = (o, by, n, items) => {
+    const box = lettersOf(o.poster);
+    const m = box.find((x) => x.supplyOrder === o.id && x.parcel);
+    if (!m) return boardLetter(o.poster, o.zoneName, `${by} brought ${n} ${o.name} for your supply order (${o.filled} of ${o.count}).`, { gold: 0, items }, o.id);
+    m.parcel.items = (m.parcel.items || []).concat(items);
+    m.text = `Goods for your supply order of ${o.count} ${o.name}: ${o.filled} of ${o.count} brought so far, the last ${n} by ${by}.`;
+    m.read = false; m.at = Date.now();
+    saveLetters(o.poster, box);
+    if (onlineActors().includes(o.poster)) { try { sendMailState(o.poster); } catch (e) { /* marker */ } }
   };
 
   // ---- supply orders ---------------------------------------------------------------------------------------------
   const data = () => {
     if (S.data) return S.data;
-    try { S.data = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { S.data = null; }
+    try { S.data = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) {
+      // Only a missing file starts empty; an unreadable one is never overwritten, or every order's escrow would be lost
+      if (e.code !== 'ENOENT') { S.broken = true; log(`post: supply-orders.json unreadable (${e.message}); supply orders are off until it is fixed`); }
+      S.data = null;
+    }
     if (!S.data || !Array.isArray(S.data.orders)) S.data = { next: 1, orders: [] };
     return S.data;
   };
-  const save = () => { fs.writeFileSync(FILE + '.tmp', JSON.stringify(data(), null, 1)); fs.renameSync(FILE + '.tmp', FILE); };
+  const save = () => { if (S.broken) throw new Error('supply-orders.json is unreadable'); fs.writeFileSync(FILE + '.tmp', JSON.stringify(data(), null, 1)); fs.renameSync(FILE + '.tmp', FILE); };
   const byId = (id) => data().orders.find((o) => o.id === int(String(id).replace(/^#/, '')));
   const open = (o) => o.state === 'open';
   const left = (o) => o.count - o.filled;
@@ -208,18 +227,18 @@ module.exports = (api) => {
     hits.sort((x, y) => (y.starts ? 1 : 0) - (x.starts ? 1 : 0) || x.name.length - y.name.length);
     S.search.set(a >>> 0, { query: q, results: hits.slice(0, C.searchResults).map((h) => ({ desc: h.desc, name: h.name })) });
   };
-  const feeFor = (reward) => Math.max(int(C.minFee) || 0, Math.ceil(reward * Math.max(0, Number(C.feeShare) || 0)));
+  const feeFor = (reward) => Math.max(int(C.minFee) || 0, Math.ceil(reward * Math.max(Number(C.taxRate) || 0, Number(C.feeShare) || 0)));
 
   const post = (a, zoneId, desc, countRaw, rewardRaw) => {
-    if (!C.enabled) return { ok: false, text: 'Supply orders are closed for now.' };
+    if (!C.enabled || (data() && S.broken)) return { ok: false, text: 'Supply orders are closed for now.' };
     const zone = zoneById(zoneId);
     if (!zone) return { ok: false, text: 'No hold keeps this board.' };
     const id = idOf(desc);
     if (!id || !sendableBase(id)) return { ok: false, text: 'Choose an item to order from the search.' };
     const count = int(countRaw); const reward = int(rewardRaw);
     if (!(count >= 1 && count <= C.maxCount)) return { ok: false, text: `Order between 1 and ${C.maxCount}.` };
-    if (!(reward >= count * C.minPerUnit) || reward > C.maxReward) return { ok: false, text: `Offer at least ${count * C.minPerUnit} gold, and at most ${C.maxReward}.` };
-    if (data().orders.filter((o) => open(o) && (o.poster === (a >>> 0) || (o.account && o.account === accountOf(a)))).length >= C.maxOpen) return { ok: false, text: `You already have ${C.maxOpen} supply orders up. Cancel one or wait for them to fill.` };
+    if (!(reward >= count * C.minPerUnit) || reward > Math.min(C.maxReward, C.maxGold)) return { ok: false, text: `Offer at least ${count * C.minPerUnit} gold, and at most ${Math.min(C.maxReward, C.maxGold)}.` };
+    if (data().orders.filter((o) => open(o) && (o.poster === (a >>> 0) || (o.account && o.account === accountOf(a)) || o.posterProfile === profileOf(a))).length >= C.maxOpen) return { ok: false, text: `You already have ${C.maxOpen} supply orders up. Cancel one or wait for them to fill.` };
     const fee = feeFor(reward);
     if (!takeGold(a, reward + fee)) return { ok: false, text: `The order needs ${reward} gold for the reward and ${fee} to post. You carry ${goldOf(a)}.` };
     const o = { id: data().next++, zone: zone.id, zoneName: zone.name, poster: a >>> 0, posterName: nameOf(a), posterTag: tagOf(a), posterProfile: profileOf(a),
@@ -237,11 +256,13 @@ module.exports = (api) => {
   };
 
   const deliver = (a, zoneId, orderId, countRaw) => {
-    if (!C.enabled) return { ok: false, text: 'Supply orders are closed for now.' };
+    if (!C.enabled || (data() && S.broken)) return { ok: false, text: 'Supply orders are closed for now.' };
     const o = byId(orderId);
     if (!o || !open(o) || o.expiresAt <= Date.now()) return { ok: false, text: 'That order is no longer on the board.' };
     if (o.zone !== zoneId) return { ok: false, text: `That order is posted at ${o.zoneName}. Bring the goods to a board there.` };
-    if (sameAccount(a, o.poster) || (o.account && o.account === accountOf(a))) return { ok: false, text: 'You cannot fill your own order.' };
+    if (sameAccount(a, o.poster) || (o.account && o.account === accountOf(a)) || o.posterProfile === profileOf(a)) return { ok: false, text: 'You cannot fill your own order.' };
+    // The poster's character is gone: the notice comes down and nothing is taken
+    if (gone(o.poster)) { o.state = 'cancelled'; o.closedAt = Date.now(); save(); audit(`SUPPLY #${o.id} of ${o.posterName} #${o.posterTag} taken down: the character is gone, ${o.held} gold held`); return { ok: false, text: 'Whoever posted that order is gone. The notice comes down.' }; }
     const want = Math.min(left(o), int(countRaw) > 0 ? int(countRaw) : left(o));
     const have = looseCount(a, o.baseId);
     const n = Math.min(want, have);
@@ -257,7 +278,7 @@ module.exports = (api) => {
       giveEntries(a, items);
       return { ok: false, text: 'The board could not take the goods just now. They are yours again.' };
     }
-    try { boardLetter(o.poster, o.zoneName, `${nameOf(a)} brought ${n} ${o.name} for your supply order (${o.filled} of ${o.count}).`, { gold: 0, items }); }
+    try { supplyLetter(o, nameOf(a), n, items); }
     catch (e) { log(`post: the goods of order #${o.id} could not reach ${o.posterName}: ${e.message}`); }
     if (pay > 0) giveItem(a, GOLD_BASE, pay);
     audit(`SUPPLY ${who(a)} delivered ${n}x ${o.name} to #${o.id} of ${o.posterName} #${o.posterTag} for ${pay} gold${o.state === 'done' ? ' (filled)' : ''}`);

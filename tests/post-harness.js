@@ -131,8 +131,8 @@ let v = P.view(A);
 check('search "steel" finds the Steel Sword, not the house key', v.supply.results.length === 1 && v.supply.results[0].name === 'Steel Sword', v.supply.results);
 o = ui('supplyPost', A, `${SWORD.toString(16)}:Skyrim.esm`, 6, 300);
 check('post: 6 Steel Swords for 300', o.kind === 'sent', o);
-check('...A paid 300 and the fee of 15', count(A, GOLD) === 1000 - 315, count(A, GOLD));
-check('...Bruma got the fee', treasury.bruma === 15, treasury);
+check('...A paid 300 and the fee of 30 (10%, never below the parcel tax)', count(A, GOLD) === 1000 - 330, count(A, GOLD));
+check('...Bruma got the fee', treasury.bruma === 30, treasury);
 const id = P.view(A).supply.orders[0].id;
 check('...the board lists it, marked mine for A', P.view(A).supply.orders[0].mine === true && P.view(B).supply.orders[0].mine === false);
 o = ui('supplyPost', A, `${KEY.toString(16)}:Skyrim.esm`, 1, 10);
@@ -149,13 +149,16 @@ o = ui('supplyDeliver', B, id, 4);
 check('deliver: B hands over 4 and is paid 200', o.kind === 'sent' && count(B, SWORD) === 4 && count(B, GOLD) === 250, { o, g: count(B, GOLD) });
 box = api.lettersOf(A);
 check('...the 4 swords wait in A\'s mailbox', box.length === 1 && box[0].parcel.items.reduce((n, t) => n + t.count, 0) === 4 && /Bel brought 4 Steel Sword/.test(box[0].text), box);
+ui('supplyDeliver', B, id, 1);
+box = api.lettersOf(A);
+check('...a second delivery joins the same uncollected letter, no new one', box.length === 1 && box[0].parcel.items.reduce((n, t) => n + t.count, 0) === 5 && /5 of 6/.test(box[0].text), box);
 o = ui('supplyDeliver', B, id, 10);
-check('deliver: asking for 10 hands over only the 2 left, paid the last 100', o.kind === 'sent' && count(B, SWORD) === 2 && count(B, GOLD) === 350, { o, g: count(B, GOLD) });
+check('deliver: asking for 10 hands over only the 1 left, paid the last 50', o.kind === 'sent' && count(B, SWORD) === 2 && count(B, GOLD) === 350, { o, g: count(B, GOLD) });
 check('...the order is filled and off the board', P.view(B).supply.orders.length === 0);
 o = ui('supplyDeliver', B, id, 1);
 check('deliver: a filled order takes no more', o.kind === 'refused');
-check('no gold was made or lost: A 685 + B 350 + C 10 + Bruma 15 + held 0 = 1060', count(A, GOLD) + count(B, GOLD) + count(C, GOLD) + treasury.bruma === 1060);
-check('SUPPLY audit lines for the post and both deliveries', audits.filter((t) => /^SUPPLY/.test(t)).length === 3, audits);
+check('no gold was made or lost: A 670 + B 350 + C 10 + Bruma 30 + held 0 = 1060', count(A, GOLD) + count(B, GOLD) + count(C, GOLD) + treasury.bruma === 1060);
+check('SUPPLY audit lines for the post and three deliveries', audits.filter((t) => /^SUPPLY/.test(t)).length === 4, audits);
 
 // cancel and expiry refund to the mailbox
 reset();
@@ -182,6 +185,18 @@ const before = api.lettersOf(A).length;
 sweep();
 check('expiry: three expired orders send three refunds of 40 to the mailbox', api.lettersOf(A).length === before + 3 && api.lettersOf(A).filter((m) => m.parcel && m.parcel.gold === 40).length === 3);
 clock = now0;
+
+// a reward above what a parcel may carry is refused
+reset();
+o = ui('supplyPost', A, `${SWORD.toString(16)}:Skyrim.esm`, 1, 60000);
+check('post: a reward above 50,000 is refused', o.kind === 'refused', o);
+// an unreadable orders file switches orders off instead of being overwritten
+fs.writeFileSync('supply-orders.json', '{broken');
+delete globalThis.__dboPost;
+require(path.join(SERVER, 'post.js'))(api);
+o = ui('supplyPost', A, `${SWORD.toString(16)}:Skyrim.esm`, 1, 10);
+check('an unreadable supply-orders.json: posting is refused and the file is left as it was', o.kind === 'refused' && fs.readFileSync('supply-orders.json', 'utf8') === '{broken', o);
+fs.unlinkSync('supply-orders.json');
 
 // the coop window carries the parcel rules and the sendable pack
 v = P.view(A);

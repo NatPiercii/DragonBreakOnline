@@ -1032,6 +1032,7 @@ const sendPigeon = (a, to, rawText, zoneId, goldRaw, itemsRaw) => {
   if (left > 0 && !admin) return { ok: false, text: `Your pigeon is still out. Next one in ${Math.ceil(left / 60000)} min.` };
   if (!to || to === a) return { ok: false, text: 'Choose who the letter is for.' };
   if (!admin && !metOf(a).includes(to)) return { ok: false, text: 'Your pigeon does not know the way to someone you have never met.' };
+  if (prep && typeof globalThis.__dboFormGone === 'function' && globalThis.__dboFormGone(to)) return { ok: false, text: 'Your pigeon finds no one there to take a parcel.' };
   try {
     // Every letter lands at the notice boards and waits there; nobody reads a pigeon in the field
     const online = onlineActors().includes(to);
