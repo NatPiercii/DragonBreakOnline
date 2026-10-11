@@ -52,7 +52,7 @@ module.exports = (api) => {
   // A family worked with a free family's technique is free too (Imperial and Guard steel, on Steel's, from 11 Oct)
   const isFree = (fam) => !!fam.free || !!techOf(fam).free;
   // A race's own craft (raceFree: race editor ids, matched as a prefix so a vampire keeps it): Bonemold and Chitin for
-  // every Dunmer smith (Nate, 11 Oct). The tier gate still applies
+  // every Dunmer smith, Orcish for every Orc smith (Nate, 11 Oct). The tier gate still applies
   const raceKnows = (a, fam) => { const r = techOf(fam).raceFree; if (!Array.isArray(r) || !r.length) return false; const race = raceEdid(a); return !!race && r.some((x) => race.startsWith(String(x))); };
   const knows = (a, fam) => fam.tier <= 1 || isFree(fam) || raceKnows(a, fam) || !!known(a)[techOf(fam).id];
   const teach = (a, fam, how, from) => { set(a, REC, Object.assign({}, known(a), { [fam.id]: { at: Date.now(), how, from: from || how } })); audit(`SMITH ${who(a)} learned ${fam.name} (T${fam.tier}) by ${how}${from && from !== how ? ' from ' + from : ''}`); };

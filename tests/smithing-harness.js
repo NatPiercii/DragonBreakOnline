@@ -287,6 +287,11 @@ ok(!globalThis.__dboManualsShop(A).some((x) => /Brass|Adamantium/.test(x.label))
   put(DUN, 'appearance', { raceId: 0x8883a });
   ok(globalThis.__dboSmithView(DUN).families.find((f) => f.id === 'chitin').known, 'live: a Dunmer vampire keeps it');
   ok(vd.tier === 2 && fd('bonemold').tier === 3 && fd('bonemold').canMake === 0, 'live: the craft tier still gates it (T3 work at tier 2)', [vd.tier, fd('bonemold').canMake]);
+  // Orcish is every Orc smith's own (Nate, 11 Oct: "give orcs orcish by default too"); others still apprentice under an Orc
+  const ORCN = 0x14b0e; smith(ORCN, 35); props.set(`${ORCN}|private.dboManuals`, {}); props.set(`${ORCN}|profileId`, 12); put(ORCN, 'appearance', { raceId: ORC_RACE });
+  const fo = (who, id) => globalThis.__dboSmithView(who).families.find((f) => f.id === id);
+  ok(fo(ORCN, 'orcish').known && fo(ORCN, 'orcish').how === 'race' && !fo(ORCN, 'bonemold').known, 'live: an Orc smith knows Orcish by birth (not Bonemold)', fo(ORCN, 'orcish'));
+  ok(!f2('orcish').known && /Orc Blacksmith/.test(f2('orcish').learnHint), 'live: a Nord does not, and still apprentices under an Orc', f2('orcish').learnHint);
   // ...and a Dunmer master teaches it (Nate, 11 Oct: "allow them to teach their racial armor too"): a Nord at tier 3
   // forges Bonemold under a Dunmer at Blacksmith 75 nearby, and the tenth craft teaches it for good
   put(DUN, 'appearance', { raceId: 0x13742 }); smith(DUN, 80); props.set(`${DUN}|private.dboManuals`, {});
