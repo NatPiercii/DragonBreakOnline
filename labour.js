@@ -88,6 +88,13 @@ module.exports = (api) => {
       '736eb:BSHeartland.esm': 'adamantium',                      // MineOreSilver03, the far north gallery
       '7b94e:BSHeartland.esm': 'adamantium',                      // MineOreSilver03, the west end
       '7ba53:BSHeartland.esm': 'adamantium',                      // MineOreSilver01, the east end
+      // No soul-gem geode stands inside the Bruma lock (only Whistling Mine and Blackreach have them), and an enchanter needs
+      // empty soul gems (economy scan, 11 Oct: 14 of 63 Enchanters active): three silver veins of the Bleak Mine
+      // (CYRBleakMine01, door inside the border, 11 silver veins), 3,758 units apart at the closest, are Geode Veins that
+      // give one empty soul gem (geodeGems) from Miner tier 1, as the vanilla ones do
+      'f0076:BSHeartland.esm': 'geode',                           // MineOreSilver03, the east end
+      'f0071:BSHeartland.esm': 'geode',                           // MineOreSilver01, the west gallery
+      'f0073:BSHeartland.esm': 'geode',                           // MineOreSilver01, the far south end
     },
     // How long a won seam rests for everyone, by ore, where it differs from veinRestMinutes: meteoric iron is the rarest
     // seam in Bruma, three veins in the province

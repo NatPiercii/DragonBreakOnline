@@ -118,7 +118,7 @@ const bandOf = (ore) => MINER.oreByTier.findIndex((t) => (t || []).some((o) => S
 const yieldOf = (ore, rank) => Math.max(1, Math.round(({ iron: 5, corundum: 3, gold: 1, meteoriciron: 2 })[ore] * MINER.yieldMultiplierByTier[rank]));
 
 // ---- 1. the data ----
-check('the boot line counts the meteoric veins by reference (10 with the quicksilver and adamantium ones) and the meteoric rest', /10 veins by reference/.test(boot) && /meteoriciron 60/.test(boot), boot);
+check('the boot line counts the meteoric veins by reference (13 with the quicksilver, adamantium and geode ones) and the meteoric rest', /13 veins by reference/.test(boot) && /meteoriciron 60/.test(boot), boot);
 check('skills.json: meteoric iron is a Miner tier 3 (Adept) ore, beside gold', bandOf('meteoriciron') === 2 && bandOf('gold') === 2, MINER.oreByTier);
 check('...and the tier text says so', /meteoric iron/i.test(MINER.tiers[2]), MINER.tiers[2]);
 check('the mine has 21 veins: 12 iron, 6 corundum, 3 gold', Object.keys(VEINS).length === 21
@@ -153,6 +153,37 @@ for (const [local, edid] of Object.entries(VEINS)) {
 check('the other 18 veins (9 iron, 6 corundum, 3 gold) give their own ore at their own tier, rest 30 minutes', others === 18, others);
 const novice = work('177fd3', 0);
 check('a Novice still works an ordinary iron vein of the mine: 5 iron ore', novice.opened && novice.items[0][0] === ORE_ITEM.iron && novice.items[0][1] === 5, novice.items);
+
+// ---- 3b. the Bleak Mine geodes (economy scan, 11 Oct): three silver veins give one empty soul gem from Miner tier 1 ----
+const SILVER_BASE = idOfDesc('a2c30:Skyrim.esm');   // a stand-in base id: only its editor id is read
+records.set(SILVER_BASE, { record: { type: 'ACTI', editorId: 'MineOreSilver03' } });
+const SOUL_GEMS = ['2e4e2', '2e4e4', '2e4e6', '2e4f4', '2e4fc'].map((l) => idOfDesc(`${l}:Skyrim.esm`));
+const workHeartland = (local, rank, actor) => {
+  const ref = idOfDesc(`${local}:BSHeartland.esm`);
+  props.set(ref + '|baseDesc', 'a2c30:Skyrim.esm');
+  ACTOR = actor || 0x14;
+  clearRests(ref); setTier(rank);
+  out.widgets.length = 0; out.personals.length = 0; out.items.length = 0;
+  virtual += 1000000;
+  const start = virtual;
+  globalThis.__dboLabour(ref, ACTOR);
+  const w = out.widgets[out.widgets.length - 1];
+  if (!w) return { opened: false, said: out.personals.slice() };
+  const st = strikesFor(w);
+  virtual = start + st[st.length - 1] + 101;
+  out.widgets.length = 0;
+  fire('labour', [w.nonce, JSON.stringify(st), st[st.length - 1] + 1]);
+  return { opened: true, title: w.title, items: out.items.slice(), result: (out.widgets[0] || {}).result || '' };
+};
+for (const [i, local] of ['f0076', 'f0071', 'f0073'].entries()) {
+  const low = workHeartland(local, 0, 0x200 + i);
+  check(`${local}: a Novice miner is refused the geode`, !low.opened && low.said.some((t) => /^Geode is beyond your skill/.test(t)), low.said);
+  const r = workHeartland(local, 1);
+  check(`${local}: an Apprentice works a Geode and wins one empty soul gem, no silver`, r.opened && r.title === 'Geode' && r.items.length === 1 && SOUL_GEMS.includes(r.items[0][0]) && r.items[0][1] === 1, r);
+  check(`${local}: ...told so`, /^The geode cracks open: /.test(r.result), r.result);
+}
+const silver = workHeartland('f0075', 1);
+check('f0075, another Bleak Mine silver vein, still gives silver at its own tier', !silver.opened || (silver.title === 'Silver Seam'), silver);
 
 // ---- 4. gearswap never touches mined meteoric iron ----
 const readJson = (f) => JSON.parse(fs.readFileSync(path.join(SERVER, f), 'utf8'));
