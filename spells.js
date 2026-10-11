@@ -669,14 +669,19 @@ module.exports = (api) => {
   const stockSize = (a) => Math.max(1, Math.round(Number(CFG.shopStock) || 4)) + (a && leadsACollege(a) ? Math.max(0, Math.round(Number(CFG.shopLeaderExtra === undefined ? 1 : CFG.shopLeaderExtra) || 0)) : 0);
   // The tomes on the shelf for this buyer this week: the first shopStock of the week's order that are sold here (or any,
   // for an admin) and that the buyer can learn now (tomeBlock, as at reading, and not a spell they hold). Listed in SHOP order.
+  // The buyer's own schools come first (Nate, 11 Oct): primary, then secondary, then the rest, each in the week's order;
+  // the primary takes at most all but one place while anything else they can learn is in stock
+  const schoolsOf = (a) => { try { return typeof globalThis.__dboSchoolsActive === 'function' ? globalThis.__dboSchoolsActive(a) : null; } catch (e) { return null; } };
   const stockFor = (a, R, admin) => {
     const learned = new Set(learnedIds(a) || []), book = new Set(knownIds(a));
-    const picked = [];
-    for (const t of shelfOrder(weekNo(Date.now()))) {
-      if (picked.length >= stockSize(a)) break;
-      if ((soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t)) picked.push(t);
-    }
-    return SHOP.filter((t) => picked.includes(t));
+    const mine = schoolsOf(a);
+    const rankOf = (t) => (mine && t.school === mine.primary ? 0 : mine && t.school === mine.secondary ? 1 : 2);
+    const open = shelfOrder(weekNo(Date.now())).filter((t) => (soldHere(R, t) || admin) && !learned.has(t.spellId >>> 0) && !book.has(t.spellId >>> 0) && !tomeBlock(a, t));
+    const sorted = open.map((t, i) => [t, i]).sort((x, y) => rankOf(x[0]) - rankOf(y[0]) || x[1] - y[1]).map(([t]) => t);
+    const size = stockSize(a);
+    const first = sorted.filter((t) => rankOf(t) === 0), rest = sorted.filter((t) => rankOf(t) !== 0);
+    const lead = first.slice(0, rest.length ? Math.max(1, size - 1) : size);
+    return lead.concat(rest, first.slice(lead.length)).slice(0, size);
   };
   const nextBuyAt = (a) => { const at = (Number(get(a, BOUGHT, 0)) || 0) + CFG.shopCooldownDays * DAY; return at > Date.now() ? at : 0; };
   const waitText = (ms) => { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${plural(Math.floor(h / 24), 'day')}${h % 24 ? ' ' + plural(h % 24, 'hour') : ''}` : plural(h, 'hour'); };

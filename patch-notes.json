@@ -1,5 +1,19 @@
 [
   {
+    "title": "The tome shelf favours your school",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Change",
+    "sections": [
+      {
+        "heading": "Magic",
+        "items": [
+          "The weekly spell tome shelf at the Scholars' Ledger now puts tomes of your primary school of magic first. Three of its four places go to your primary school, and the last goes to your secondary school or Restoration when the shelf has one you can learn."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Legion swords join the faction balance",
     "date": "2026-10-11",
     "version": "Server update",

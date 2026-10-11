@@ -237,6 +237,26 @@ const W1 = out.widgets.length;
 commands.get('tomes').fn(MAGE, '');
 check('/tomes inside still opens the shop, and says to use the ledger', out.widgets.length === W1 + 1 && lastWidget(MAGE).type === 'tomeShop' && /still opens the shop for a while/.test(out.said[out.said.length - 1][1]));
 
+// The buyer's own schools come first on the shelf (Nate, 11 Oct): an Expert of Arcane Arts with Illusion as primary
+put(MAGE, 'private.dboTomeBoughtAt', 0); mastery(MAGE, { arcane: 3 });
+api.cfg = Object.assign({}, cfg, { spells: Object.assign({}, cfg.spells, { shopStock: 4 }) }); load();
+const shelfOf = () => { activate(SCHOLARS_LEDGER, MAGE); ui('salvageChoose', MAGE, ['tomes']); return (lastWidget(MAGE).tomes || []).map((t) => t.school); };
+delete globalThis.__dboSchoolsActive;
+const plainShelf = shelfOf();
+for (const primary of ['Illusion', 'Conjuration']) {
+  globalThis.__dboSchoolsActive = () => ({ primary, secondary: null });
+  const mine = shelfOf();
+  const firstOther = mine.findIndex((x) => x !== primary);
+  check(`a ${primary} mage's shelf leads with ${primary}, three of four, and keeps one place for another school (${mine.join(', ')}; was ${plainShelf.join(', ')})`,
+    mine.length === 4 && mine.slice(0, 3).every((x) => x === primary) && mine[3] !== primary && firstOther === 3, [plainShelf, mine]);
+}
+globalThis.__dboSchoolsActive = () => ({ primary: 'Destruction', secondary: 'Illusion' });
+const both = shelfOf();
+const lastD = both.lastIndexOf('Destruction'), firstI = both.indexOf('Illusion');
+check('primary before secondary: no Illusion tome above a Destruction one', lastD === -1 || firstI === -1 || lastD < firstI, both);
+delete globalThis.__dboSchoolsActive;
+api.cfg = cfg; load();
+
 // shopSplit off: the old way, all to shopTreasury
 api.cfg = Object.assign({}, cfg, { spells: Object.assign({}, cfg.spells, { shopSplit: false }) }); load();
 put(MAGE, 'private.dboTomeBoughtAt', 0); out.treasury.length = 0;
