@@ -57,6 +57,7 @@ import { BountyBoardService } from "./services/services/bountyBoardService";
 import { DboRelayService } from "./services/services/dboRelayService";
 import { DboGlowService } from "./services/services/dboGlowService";
 import { DboRefAnimService } from "./services/services/dboRefAnimService";
+import { NpcMoodService } from "./services/services/npcMoodService";
 import { NpcSightService } from "./services/services/npcSightService";
 import { RemoteVitalsService } from "./services/services/remoteVitalsService";
 import { HostedDriftService } from "./services/services/hostedDriftService";
@@ -198,6 +199,7 @@ const main = () => {
       new DboRelayService(sp, controller),
       new DboGlowService(sp, controller),
       new DboRefAnimService(sp, controller),
+      new NpcMoodService(sp, controller),
       new NpcSightService(sp, controller),
       new RemoteVitalsService(sp, controller),
       new HostedDriftService(sp, controller),
