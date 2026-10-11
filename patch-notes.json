@@ -1,5 +1,25 @@
 [
   {
+    "title": "Faster crafting skills, and soul gems in Bruma",
+    "date": "2026-10-11",
+    "version": "Server update",
+    "tag": "Balance",
+    "sections": [
+      {
+        "heading": "Skills",
+        "items": [
+          "Brewing potions trains Alchemist twice as fast, and cooking trains Cook twice as fast. Chopping wood and work at the lumber mill train Woodcutter one and a half times as fast. Your hourly and daily skill limits stay the same."
+        ]
+      },
+      {
+        "heading": "Mining",
+        "items": [
+          "Three veins deep in the Bleak Mine are now Geode Veins. A miner of Apprentice rank or higher can crack one open for an empty soul gem, so enchanters no longer have to leave Bruma for soul gems."
+        ]
+      }
+    ]
+  },
+  {
     "title": "Study Magic tells you when it cannot pay",
     "date": "2026-10-10",
     "version": "Server update",
