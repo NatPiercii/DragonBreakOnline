@@ -4358,27 +4358,12 @@ const READ = Object.assign({
   // A round nobody answered is cleared, with the lost round's cooldown, this long after its candle
   roundTimeoutMinutes: 5,
   wordsByTier: [[5, 7], [6, 8], [7, 9], [8, 10], [9, 12]],
-  // A scroll pressed between the pages of a book read through, by Scholar tier (Nate, 2026-09-25: scrolls let a new
-  // mage cast, and so train Arcane Arts or Priest, before owning a spell). The tier also caps the scroll's value.
-  // The book cooldown is per book, not per reader (one player finished 136 readings in an hour across 99 books on
-  // 2026-09-25), so the chance stays low and a character finds at most scrollDailyCap scrolls a day.
-  scrollChanceByTier: [0.04, 0.05, 0.06, 0.07, 0.08],
-  scrollMaxValueByTier: [50, 100, 250, 500, 0],
-  scrollDailyCap: 6,
-  // No day's cap on tomes (Nate, 11 Oct: "a rare percentage, not a cap on two a day"); 0 = none. Each tome found today
-  // multiplies the next one's chance by tomeChanceAfterFind instead, so a long day of reading levels off (a Master at 5%:
-  // about 3 tomes in 190 readings, 5 in 800, the busiest reader's day in the log)
-  tomeDailyCap: 0,
-  tomeChanceAfterFind: 0.5,
-  // A guaranteed tome after this many won readings without one, on a day with none found yet (0 = off; Nate, 10 Oct)
-  tomePityReads: 100,
-  // The highest tome rank by Scholar tier, Novice to Master (Nate, 14 Oct: the rank follows the tier): Apprentice tomes from
-  // Scholar 25, Adept from 50, Expert from 75 (the college gate keeps Expert to Senior ranks)
-  tomeRankByTier: [0, 1, 2, 3, 3],
-  // A Master tome only at Scholar masterTomeLevel, as masterTomeShare of the tomes found there ("extremely super super
-  // rare": 1 in 50 tomes, about 1 in 1000 readings at the Master tier's 5%), for a Senior rank as an Expert tome is
-  masterTomeLevel: 100,
-  masterTomeShare: 0.02,
+  // Tomes and scrolls pressed between the pages of a book read through (Nate and Swag, 17 Oct): each rank has its own fixed
+  // chance per reading, open from Scholar dropMinLevel of that rank; one roll covers them all, so a reading gives at most one
+  // (Swag: "make it so it doesnt have chance to have multiple drops"). No day's cap, no halving after a find, no pity.
+  tomeChanceByRank: [1 / 143, 1 / 167, 1 / 200, 1 / 625, 1 / 2500],
+  scrollChanceByRank: [1 / 57, 1 / 67, 1 / 80, 1 / 250, 1 / 600],
+  dropMinLevel: [0, 25, 50, 75, 90],
   // Copies of the book read, a day. A spell tome, a skill book or a note that cannot be taken is never copied: reading
   // a placed tome every 30 minutes on each character got round the Synod's one a week (loot review, 2026-09-29)
   bookDailyCap: 6,
@@ -4389,11 +4374,20 @@ const READ = Object.assign({
 // wrongPenaltySeconds), at least minStubs; a wrong reading burns one, and the words already right still lock in. minutes
 // bounds the whole round so an idle one ends. Lines, cooldowns, finds and daily caps are the timed reading's.
 const READ_PICK = Object.assign({ enabled: true, minutes: 10, stubShare: 0.5, minStubs: 2 }, READ.pick || {});
-// A random scroll a reader of this Scholar tier may find: within the tier's value cap, quest and empty ones left out
-const scrollFor = (tier) => {
-  const max = Number((READ.scrollMaxValueByTier || [])[Math.min(tier, 4)]) || 0;
+// A random scroll of one rank (spell-scrolls.json: the rank of the spell each scroll casts); quest and empty ones left out
+const SCROLL_RANKS = (() => {
+  const out = new Map();
+  try {
+    for (const sp of JSON.parse(fs.readFileSync(path.resolve('spell-scrolls.json'), 'utf8')).spells || []) {
+      for (const id of [sp.scrollId].concat((sp.alsoScrolls || []).map((x) => (typeof x === 'string' ? x : x && x.scrollId)))) if (id) out.set(String(id).toLowerCase(), Number(sp.rank));
+    }
+  } catch (e) { /* no ranks: no scrolls */ }
+  return out;
+})();
+const scrollRankOf = (x) => { const m = String(x.id || '').match(/^([^:]+):0*([0-9a-fA-F]+)$/); return m ? SCROLL_RANKS.get(`${parseInt(m[2], 16).toString(16)}:${m[1]}`.toLowerCase()) : undefined; };
+const scrollFor = (rank) => {
   let skip = null; try { skip = READ.scrollExcludePattern ? new RegExp(READ.scrollExcludePattern) : null; } catch (e) { skip = null; }
-  const pool = (READABLES.scrolls || []).filter((x) => (!max || (Number(x.value) || 0) <= max) && !(skip && skip.test(String(x.name || ''))));
+  const pool = (READABLES.scrolls || []).filter((x) => scrollRankOf(x) === rank && !(skip && skip.test(String(x.name || ''))));
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
 };
 const candleMs = (words) => Math.round((Number(READ.baseSeconds) + Number(READ.secondsPerWord) * words) * 1000);
@@ -4633,28 +4627,21 @@ const wheelRoom = (a, skill, now = Date.now()) => {
 };
 globalThis.__dboWheelRoom = wheelRoom;
 globalThis.__dboScholarNoRoom = scholarNoRoom;
-// The tome a reading presses between the pages (Nate, 10 Oct, #suggestions: "5 courage tomes", "10 lesser wards"):
-// - ranks by Scholar tier (READ.tomeRankByTier, Nate 14 Oct): Novice tomes below 25, Apprentice from 25, Adept from 50,
-//   Expert from 75; a Master tome only at Scholar 100, as READ.masterTomeShare of the finds;
-// - and by college rank (Nate, 11 Oct: "RP gate-keep the high tiers"; spells.js readGate, __dboSpellsReadRankCap): anyone
-//   reads up to Adept (floorRank, Nate 14 Oct), Senior ranks up to Expert, and a Master tome only for a Senior rank; a
-//   tome above the cap is simply not in the pool, so the chance of a tome is unchanged and the find comes from the ranks
-//   allowed; the restricted arts only for Senior ranks (__dboSpellsReadRestricted). Without spells.js: Apprentice;
+// The tome a reading presses between the pages, of the rank the reading's roll chose (Nate and Swag, 17 Oct):
+// - by college rank (Nate, 11 Oct: "RP gate-keep the high tiers"; spells.js readGate, __dboSpellsReadRankCap): anyone reads
+//   up to Adept (floorRank, Nate 14 Oct), Expert and Master tomes only a Senior rank; the restricted arts only for Senior
+//   ranks (__dboSpellsReadRestricted). Without spells.js: Apprentice;
 // - never a tome whose spell the reader already knows, nor one they are carrying;
 // - a tome of a school the reader's own magic skills cover (arcane: Destruction, Conjuration, Illusion; priest:
 //   Restoration, Alteration, from skills.json vanillaSkills) is READ.tomeSchoolWeight times as likely.
-// null when nothing is left to give (the day's tome count is then not spent).
-const scholarTomePick = (a, tier, noMaster) => {
-  const caps = Array.isArray(READ.tomeRankByTier) ? READ.tomeRankByTier : [0, 1, 2, 3, 3];
-  const tierRank = Number(caps[Math.max(0, Math.min(tier, caps.length - 1))]) || 0;
+// null when nothing of that rank is left to give: the reading then gives nothing.
+const scholarTomePick = (a, rank) => {
   let collegeRank = 1;
   try { if (typeof globalThis.__dboSpellsReadRankCap === 'function') collegeRank = Number(globalThis.__dboSpellsReadRankCap(a)); } catch (e) { collegeRank = 1; }
   if (!Number.isFinite(collegeRank)) collegeRank = 1;
-  let level = 0; try { const m = masteryOf(a); level = Number(m && m.skills && m.skills.scholar && m.skills.scholar.level) || 0; } catch (e) { level = 0; }
-  // The Master roll: a Senior rank (college cap at Expert) at Scholar masterTomeLevel; with no Master tome left it falls back
-  const master = !noMaster && collegeRank >= 3 && level >= (Number(READ.masterTomeLevel) || 100) && Math.random() < (Number(READ.masterTomeShare) || 0);
-  const maxRank = master ? 4 : Math.min(tierRank, collegeRank);
-  const minRank = master ? 4 : 0;
+  // The college gate: a Master tome only for a Senior rank (college cap at Expert), as an Expert tome is
+  if (rank > (collegeRank >= 3 ? 4 : collegeRank)) return null;
+  const maxRank = rank; const minRank = rank;
   const restricted = typeof globalThis.__dboSpellsReadRestricted === 'function' ? globalThis.__dboSpellsReadRestricted : () => false;
   let carried = new Set();
   try { const inv = mp.get(a, 'inventory'); carried = new Set(((inv && inv.entries) || []).filter((e) => Number(e.count) > 0).map((e) => Number(e.baseId) >>> 0)); } catch (e) { /* none known */ }
@@ -4674,7 +4661,7 @@ const scholarTomePick = (a, tier, noMaster) => {
     try { if (restricted(a, id)) continue; } catch (e) { /* not restricted */ }
     pool.push({ t, w: schools.has(String(t.school)) ? weight : 1 });
   }
-  if (!pool.length) return master ? scholarTomePick(a, tier, true) : null;
+  if (!pool.length) return null;
   let roll = Math.random() * pool.reduce((n, x) => n + x.w, 0);
   for (const x of pool) { roll -= x.w; if (roll < 0) return x.t; }
   return pool[pool.length - 1].t;
@@ -4874,7 +4861,6 @@ onUi('reading', (a, args) => {
       }
     } catch (e) { log('schematic find failed', e.message); }
     const bookChance = Number((SCHOLAR.bookDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
-    const tomeChance = Number((SCHOLAR.tomeDropChanceByTier || [])[Math.min(tier, 4)]) || 0;
     const today = new Date().toISOString().slice(0, 10);
     let copied = null; try { copied = mp.get(a, 'private.scholarCopies'); } catch (e) { copied = null; }
     const copiesToday = copied && copied.day === today ? Number(copied.n) || 0 : 0;
@@ -4882,48 +4868,34 @@ onUi('reading', (a, args) => {
       results.push(`you copy out ${ses.title} and keep it`); gained.push(ses.title);
       try { mp.set(a, 'private.scholarCopies', { day: today, n: copiesToday + 1 }); } catch (e) { /* uncounted */ }
     }
-    const scrollChance = Number((READ.scrollChanceByTier || [])[Math.min(tier, 4)]) || 0;
-    let found = null; try { found = mp.get(a, 'private.scholarScrolls'); } catch (e) { found = null; }
-    const foundToday = found && found.day === today ? Number(found.n) || 0 : 0;
-    if (scrollChance > 0 && foundToday < (Number(READ.scrollDailyCap) || 0) && Math.random() < scrollChance) {
-      const pick = scrollFor(tier);
-      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a scroll was tucked between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); mp.set(a, 'private.scholarScrolls', { day: today, n: foundToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
+    // One roll over every rank the reader's Scholar level opens, tomes and scrolls alike: each keeps its own chance and at
+    // most one is found (Nate and Swag, 17 Oct). A rank with nothing left to give (all known or carried, the college gate) gives nothing
+    let level = 0; try { const m = masteryOf(a); level = Number(m && m.skills && m.skills.scholar && m.skills.scholar.level) || 0; } catch (e) { level = 0; }
+    const odds = [];
+    for (let r = 0; r < 5; r++) {
+      if (level < (Number((READ.dropMinLevel || [])[r]) || 0)) continue;
+      odds.push({ kind: 'tome', rank: r, p: Number((READ.tomeChanceByRank || [])[r]) || 0 }, { kind: 'scroll', rank: r, p: Number((READ.scrollChanceByRank || [])[r]) || 0 });
     }
-    // A spell tome at every Scholar tier (Nate, 2026-09-25: you should not have to be a Master to find one; 2026-09-26: a
-    // rare chance at Novice too), by
-    // skills.json tomeDropChanceByTier, its rank held to the tier (Novice tomes until Expert, Apprentice at Expert, Adept
-    // at Master) and at most tomeDailyCap a day, as the book cooldown is per book, not per reader. Scrolls have their
-    // own roll above.
-    let tomesFound = null; try { tomesFound = mp.get(a, 'private.scholarTomes'); } catch (e) { tomesFound = null; }
-    const tomesToday = tomesFound && tomesFound.day === today ? Number(tomesFound.n) || 0 : 0;
-    // Pity (Nate, 10 Oct): after READ.tomePityReads won readings with no tome the next one brings a tome, still within the
-    // day's tomeDailyCap; the count is per character and resets with every tome found
-    let dry = 0; try { dry = Number(mp.get(a, 'private.scholarTomeDry')) || 0; } catch (e) { dry = 0; }
-    const tomeCap = Number(READ.tomeDailyCap) || 0;
-    const underCap = tomeCap <= 0 || tomesToday < tomeCap;
-    const pity = tomesToday === 0 && Number(READ.tomePityReads) > 0 && dry + 1 >= Number(READ.tomePityReads);
-    const after = Math.max(0, Math.min(1, READ.tomeChanceAfterFind === undefined ? 1 : Number(READ.tomeChanceAfterFind)));
-    let tomeGiven = false;
-    if (underCap && (pity || Math.random() < tomeChance * Math.pow(after, tomesToday))) {
-      const pick = scholarTomePick(a, tier);
-      if (pick) { try { const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1')); if (giveItem(a, id >>> 0, 1)) { results.push(`a spell tome was pressed between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); tomeGiven = true; mp.set(a, 'private.scholarTomes', { day: today, n: tomesToday + 1 }); } } catch (e) { log('readable give failed', pick.id, e.message); } }
+    let x = Math.random(); let hit = null;
+    for (const d of odds) { if (x < d.p) { hit = d; break; } x -= d.p; }
+    if (hit) {
+      const pick = hit.kind === 'tome' ? scholarTomePick(a, hit.rank) : scrollFor(hit.rank);
+      if (pick) {
+        try {
+          const id = mp.getIdFromDesc(pick.id.replace(/^([^:]+):0*([0-9a-fA-F]+)$/, '$2:$1'));
+          if (giveItem(a, id >>> 0, 1)) { results.push(hit.kind === 'tome' ? `a spell tome was pressed between the pages: ${humanize(pick.name)}` : `a scroll was tucked between the pages: ${humanize(pick.name)}`); gained.push(humanize(pick.name)); }
+        } catch (e) { log('readable give failed', pick.id, e.message); }
+      }
     }
-    // Below the day's cap only: a reader at the cap is not owed a tome, so the count waits for the new day
-    if (underCap) { try { mp.set(a, 'private.scholarTomeDry', tomeGiven ? 0 : dry + 1); } catch (e) { /* uncounted */ } }
     // The day's caps are silent rolls, so a reader who reached one is told once that day (#bugs 1556458497909194802)
     const dayCount = (k) => { try { const v = mp.get(a, k); return v && v.day === today ? Number(v.n) || 0 : 0; } catch (e) { return 0; } };
     let told = null; try { told = mp.get(a, 'private.scholarCapTold'); } catch (e) { told = null; }
     const toldKinds = told && told.day === today && Array.isArray(told.kinds) ? told.kinds : [];
-    const reached = [['copies', 'private.scholarCopies', READ.bookDailyCap, 'books copied'], ['scrolls', 'private.scholarScrolls', READ.scrollDailyCap, 'scrolls'], ['tomes', 'private.scholarTomes', READ.tomeDailyCap, 'spell tomes']]
-      // A cap of 0 is no cap (tomes, from 11 Oct): never reached
+    const reached = [['copies', 'private.scholarCopies', READ.bookDailyCap, 'books copied']]
       .filter(([kind, k, cap]) => Number(cap) > 0 && !toldKinds.includes(kind) && dayCount(k) >= Number(cap));
     if (reached.length) {
       try { mp.set(a, 'private.scholarCapTold', { day: today, kinds: toldKinds.concat(reached.map(([kind]) => kind)) }); } catch (e) { /* told again next read */ }
-      // Players read the old line as "2 tomes a day" (Nate, 10 Oct): say it is a chance, and that the day's most is reached
-      const tomeCap = reached.some((x) => x[0] === 'tomes');
-      capNotes.push(tomeCap
-        ? `That is the most spell tomes one day allows (${Number(READ.tomeDailyCap) || 0}). Tomes are a chance on each reading, better at a higher Scholar tier, and they come back after midnight UTC. Reading still trains Scholar${reached.length > 1 ? `; the ${reached.filter((x) => x[0] !== 'tomes').map((x) => x[3]).join(' and ')} for today are found too` : ''}.`
-        : `You have found all the ${reached.map((x) => x[3]).join(' and ')} one day allows; they come back after midnight UTC. Reading still trains Scholar.`);
+      capNotes.push(`You have found all the ${reached.map((x) => x[3]).join(' and ')} one day allows; they come back after midnight UTC. Reading still trains Scholar.`);
     }
     reads[ses.refId.toString(16)] = Date.now() + READ.cooldownMinutes * 60000;
     say('win');

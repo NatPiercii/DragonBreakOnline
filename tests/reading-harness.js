@@ -216,9 +216,9 @@ check('an abandoned round expires and the book opens again', out.widgets.length 
   const copies = out.given.filter((id) => id === 0xf).length;
   check('an ordinary book is copied at most 6 times a day', copies === 6, copies);
   const capLines = out.personals.filter((x) => /after midnight UTC/.test(x));
-  check('a reader who reached the day\'s caps is told, each cap once', capLines.length >= 1 && ['books copied', 'scrolls'].every((k) => capLines.filter((x) => x.includes(k)).length === 1), capLines);
-  // Tomes have no day's cap from 11 Oct (Nate: a rare percentage that halves after each find), so nobody is told of one
-  check('...and never of a tome cap, which is gone', !capLines.some((x) => /spell tomes/.test(x)), capLines);
+  check('a reader who reached the day\'s copies is told once', capLines.length >= 1 && capLines.filter((x) => x.includes('books copied')).length === 1, capLines);
+  // Tomes and scrolls have no day's cap (Nate and Swag, 17 Oct), so nobody is told of one
+  check('...and never of a tome or scroll cap, which are gone', !capLines.some((x) => /spell tomes|scrolls/.test(x)), capLines);
   check('...in the round\'s result text too', out.results.some((x) => /You read it through\..*after midnight UTC/.test(x)), out.results.slice(-1));
   const before = capLines.length;
   readThrough(SKYRIM_BOOK);
@@ -464,74 +464,72 @@ console.log('client-judged:');
   Math.random = realRandom;
   for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads']) props.delete(READER + '|private.' + k);
 }
-// Tomes (Nate, 11 Oct): no day's cap; each tome found today halves the next one's chance; the 100-reading guarantee only
-// on a day with no tome yet. The reader is a Novice Scholar (1%).
+// Tomes and scrolls (Nate and Swag, 17 Oct): each rank its own fixed chance, open from its Scholar level, one roll for all
+// so a reading gives at most one, no halving, no cap, no pity; the college gate still holds Expert and Master tomes
 {
   READ.clientJudged = true;
   const realRandom = Math.random;
-  const readOnce = () => {
-    wallClock += 31 * 60000; let r = open(SKYRIM_BOOK);
-    wallClock += r.endsInMs + 3000; ui('reading', [r.nonce, '[]']);
-    const answer = last().answer.split(' ');
-    wallClock += 31 * 60000; r = open(SKYRIM_BOOK); wallClock += 1000;
-    ui('reading', [r.nonce, JSON.stringify(solve(r, answer))]);
-  };
-  const tomes = () => { const v = props.get(READER + '|private.scholarTomes'); return v ? Number(v.n) || 0 : 0; };
-  props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 0 } } });
-  for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads', 'scholarTomeDry']) props.delete(READER + '|private.' + k);
-  Math.random = () => 0.007;                                    // under 1%, over half of it
-  readOnce();
-  check('tomes: the first of the day comes at the tier\'s chance', tomes() === 1, tomes());
-  readOnce();
-  check('tomes: the next one\'s chance is halved (0.7% is no longer enough)', tomes() === 1, tomes());
-  Math.random = () => 0;
-  for (let i = 0; i < 3; i++) readOnce();
-  check('tomes: no day\'s cap: more keep coming at the halved chances', tomes() >= 3, tomes());
-  Math.random = () => 0.99;
-  props.set(READER + '|private.scholarTomeDry', 99);
-  readOnce();
-  check('tomes: the guarantee waits on a day that already brought a tome', props.get(READER + '|private.scholarTomeDry') === 100, props.get(READER + '|private.scholarTomeDry'));
-  const before = tomes();
-  props.delete(READER + '|private.scholarTomes'); props.set(READER + '|private.scholarTomeDry', 99);
-  readOnce();
-  check('tomes: on a tomeless day the 100th dry reading brings one', tomes() === 1 && props.get(READER + '|private.scholarTomeDry') === 0, [before, tomes(), props.get(READER + '|private.scholarTomeDry')]);
-  Math.random = realRandom;
-  for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads', 'scholarTomeDry']) props.delete(READER + '|private.' + k);
-}
-// The college rank gate (Nate, 11 Oct; spells.js __dboSpellsReadRankCap): a Master Scholar whose college rank reads only
-// up to Apprentice is pressed a tome of those ranks; the chance is unchanged (the pity reading still brings one)
-{
-  READ.clientJudged = true;
-  const realRandom = Math.random;
-  const RANK = new Map(JSON.parse(fs.readFileSync(path.join(SERVER, 'readables.json'), 'utf8')).tomes.map((t) => [parseInt(String(t.id).split(':')[1], 16) >>> 0, Number(t.rank)]));
-  // The same line twice (Math.random 0 while the book opens), the pick at random
-  const readOnce = () => {
+  const R = JSON.parse(fs.readFileSync(path.join(SERVER, 'readables.json'), 'utf8'));
+  const TOME_RANK = new Map(R.tomes.map((t) => [parseInt(String(t.id).split(':')[1], 16) >>> 0, Number(t.rank)]));
+  const SCROLL_IDS = new Set(R.scrolls.map((t) => parseInt(String(t.id).split(':')[1], 16) >>> 0));
+  // The line at Math.random 0, the drop roll and the pick at v
+  const readAt = (v) => {
     Math.random = () => 0;
     wallClock += 31 * 60000; let r = open(SKYRIM_BOOK);
     wallClock += r.endsInMs + 3000; ui('reading', [r.nonce, '[]']);
     const answer = last().answer.split(' ');
-    wallClock += 31 * 60000; r = open(SKYRIM_BOOK); wallClock += 5000; // a Master's line is up to 12 words: no faster than minMsPerWord each
-    Math.random = realRandom;
+    wallClock += 31 * 60000; r = open(SKYRIM_BOOK); wallClock += 5000;
+    out.given.length = 0; Math.random = () => v;
     ui('reading', [r.nonce, JSON.stringify(solve(r, answer))]);
+    Math.random = realRandom;
+    const tomes = out.given.filter((id) => TOME_RANK.has(id)).map((id) => TOME_RANK.get(id));
+    const scrolls = out.given.filter((id) => SCROLL_IDS.has(id));
+    return { tomes, scrolls };
   };
-  const tomeRanks = (cap, n) => {
-    globalThis.__dboSpellsReadRankCap = () => cap;
-    const seen = []; let missed = 0;
-    for (let i = 0; i < n; i++) {
-      for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads', 'scholarTomeDry']) props.delete(READER + '|private.' + k);
-      out.given.length = 0; props.set(READER + '|private.scholarTomeDry', Number(READ.tomePityReads) - 1); readOnce(); // the pity reading: a sure tome, picked at random
-      const got = out.given.filter((id) => RANK.has(id));
-      if (!got.length) missed++; else seen.push(...got.map((id) => RANK.get(id)));
+  const at = (level) => props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: Math.min(4, Math.floor(level / 25)), level } } });
+  // Where a rank's band starts in the one roll, for a reader at this level
+  const bandStart = (level, kind, rank) => {
+    let x = 0;
+    for (let r = 0; r < 5; r++) {
+      if (level < READ.dropMinLevel[r]) continue;
+      if (kind === 'tome' && r === rank) return x;
+      x += READ.tomeChanceByRank[r];
+      if (kind === 'scroll' && r === rank) return x;
+      x += READ.scrollChanceByRank[r];
     }
-    return { max: Math.max(-1, ...seen), missed };
+    return x;
   };
-  props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 4 } } });
-  let g = tomeRanks(1, 30);
-  check('gate: a Master Scholar capped at Apprentice by college rank is pressed Novice or Apprentice tomes, every time', g.max === 1 && g.missed === 0, g);
-  g = tomeRanks(3, 60);
-  check('gate: ...a Senior (cap Expert) can be pressed an Expert tome (Nate, 14 Oct: Expert from Scholar 75)', g.max === 3 && g.missed === 0, g);
+  const eps = 1e-6;
+  check('odds: the table as Nate set it', READ.tomeChanceByRank.map((p) => Math.round(1 / p)).join() === '143,167,200,625,2500' && READ.scrollChanceByRank.map((p) => Math.round(1 / p)).join() === '57,67,80,250,600' && READ.dropMinLevel.join() === '0,25,50,75,90');
+  at(0);
+  let g = readAt(bandStart(0, 'tome', 0) + eps);
+  check('Scholar 0: inside the Novice tome band, one Novice tome and nothing else', g.tomes.join() === '0' && !g.scrolls.length, g);
+  g = readAt(bandStart(0, 'scroll', 0) + eps);
+  check('Scholar 0: inside the Novice scroll band, one scroll and no tome', g.scrolls.length === 1 && !g.tomes.length, g);
+  g = readAt(bandStart(0, 'scroll', 0) + READ.scrollChanceByRank[0] + eps);
+  check('Scholar 0: past the Novice bands, nothing: Apprentice is not open yet', !g.scrolls.length && !g.tomes.length, g);
+  at(25);
+  g = readAt(bandStart(25, 'tome', 1) + eps);
+  check('Scholar 25: the Apprentice tome band gives an Apprentice tome', g.tomes.join() === '1' && !g.scrolls.length, g);
+  at(0);
+  g = readAt(0);
+  check('one roll: at the luckiest roll still one find, never a tome and a scroll', g.tomes.length + g.scrolls.length === 1, g);
+  let n = 0; for (let i = 0; i < 3; i++) n += readAt(bandStart(0, 'tome', 0) + eps).tomes.length;
+  check('no halving, no cap: the same roll gives a tome every reading', n === 3, n);
+  check('no pity count is kept', props.get(READER + '|private.scholarTomeDry') === undefined, props.get(READER + '|private.scholarTomeDry'));
+  at(90);
+  globalThis.__dboSpellsReadRankCap = () => 2;
+  g = readAt(bandStart(90, 'tome', 3) + eps);
+  check('gate: a Scholar 90 with no Senior rank (cap Adept) rolls the Expert band and gets nothing', !g.tomes.length && !g.scrolls.length, g);
+  globalThis.__dboSpellsReadRankCap = () => 3;
+  g = readAt(bandStart(90, 'tome', 3) + eps);
+  check('gate: ...a Senior rank gets the Expert tome', g.tomes.join() === '3', g);
+  g = readAt(bandStart(90, 'tome', 4) + eps);
+  check('gate: ...and a Master tome from its band at Scholar 90', g.tomes.join() === '4', g);
+  g = readAt(bandStart(90, 'scroll', 4) + eps);
+  check('Scholar 90: the Master scroll band gives a scroll', g.scrolls.length === 1 && !g.tomes.length, g);
   delete globalThis.__dboSpellsReadRankCap;
-  props.set(READER + '|private.mastery', { order: ['scholar'], skills: { scholar: { rank: 0 } } });
+  at(0);
   for (const k of ['scholarCopies', 'scholarScrolls', 'scholarTomes', 'scholarReads', 'scholarTomeDry']) props.delete(READER + '|private.' + k);
 }
 console.log(`\n${checks - failures}/${checks} passed`);
