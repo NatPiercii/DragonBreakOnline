@@ -4361,7 +4361,7 @@ const READ = Object.assign({
   // Tomes and scrolls pressed between the pages of a book read through (Nate and Swag, 17 Oct): each rank has its own fixed
   // chance per reading, open from Scholar dropMinLevel of that rank; one roll covers them all, so a reading gives at most one
   // (Swag: "make it so it doesnt have chance to have multiple drops"). No day's cap, no halving after a find, no pity.
-  tomeChanceByRank: [1 / 143, 1 / 167, 1 / 200, 1 / 625, 1 / 2500],
+  tomeChanceByRank: [1 / 143, 1 / 167, 0.003, 1 / 625, 1 / 2500],
   scrollChanceByRank: [1 / 57, 1 / 67, 1 / 80, 1 / 250, 1 / 600],
   dropMinLevel: [0, 25, 50, 75, 90],
   // Copies of the book read, a day. A spell tome, a skill book or a note that cannot be taken is never copied: reading

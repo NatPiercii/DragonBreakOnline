@@ -8,7 +8,7 @@
       {
         "heading": "Scholar",
         "items": [
-          "Every book you read through has a fixed chance to hold a spell tome or a scroll, by rank. Tomes: Novice 1 in 143, Apprentice 1 in 167, Adept 1 in 200, Expert 1 in 625, Master 1 in 2,500. Scrolls: Novice 1 in 57, Apprentice 1 in 67, Adept 1 in 80, Expert 1 in 250, Master 1 in 600.",
+          "Every book you read through has a fixed chance to hold a spell tome or a scroll, by rank. Tomes: Novice 1 in 143, Apprentice 1 in 167, Adept 1 in 333, Expert 1 in 625, Master 1 in 2,500. Scrolls: Novice 1 in 57, Apprentice 1 in 67, Adept 1 in 80, Expert 1 in 250, Master 1 in 600.",
           "Each rank opens at a Scholar level: Novice for everyone, Apprentice at 25, Adept at 50, Expert at 75 and Master at 90. Higher Scholars still find the lower ranks.",
           "A reading gives at most one tome or scroll. There is no daily limit, and finding one does not lower your chances afterwards.",
           "Expert and Master spell tomes still come only to the Senior ranks of a college."

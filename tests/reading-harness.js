@@ -500,7 +500,7 @@ console.log('client-judged:');
     return x;
   };
   const eps = 1e-6;
-  check('odds: the table as Nate set it', READ.tomeChanceByRank.map((p) => Math.round(1 / p)).join() === '143,167,200,625,2500' && READ.scrollChanceByRank.map((p) => Math.round(1 / p)).join() === '57,67,80,250,600' && READ.dropMinLevel.join() === '0,25,50,75,90');
+  check('odds: the table as Nate set it', READ.tomeChanceByRank.map((p) => Math.round(1 / p)).join() === '143,167,333,625,2500' && READ.scrollChanceByRank.map((p) => Math.round(1 / p)).join() === '57,67,80,250,600' && READ.dropMinLevel.join() === '0,25,50,75,90');
   at(0);
   let g = readAt(bandStart(0, 'tome', 0) + eps);
   check('Scholar 0: inside the Novice tome band, one Novice tome and nothing else', g.tomes.join() === '0' && !g.scrolls.length, g);
